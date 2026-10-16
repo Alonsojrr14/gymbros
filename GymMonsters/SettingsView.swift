@@ -27,13 +27,13 @@ struct SettingsView: View {
             GMSection("Treinador") {
                 GMTextField(placeholder: "Seu nome", text: $trainerName, capitalization: .words)
             }
-            GMSection("Monstro principal", footer: "Vazio usa o nome da forma atual.") {
+            GMSection("Bro principal", footer: "Vazio usa o nome da forma atual.") {
                 GMTextField(placeholder: "Apelido", text: Binding(
                     get: { mainMonster?.name ?? "" },
                     set: { mainMonster?.name = $0 }
                 ), capitalization: .words)
             }
-            GMSection("Lembretes", footer: "Seu monstro te chama no horário escolhido, só nos dias em que você ainda não treinou.") {
+            GMSection("Lembretes", footer: "Seu bro te chama no horário escolhido, só nos dias em que você ainda não treinou.") {
                 GMToggle(title: "Lembrete para treinar", isOn: $remindersOn)
                     .onChange(of: remindersOn) { _, on in
                         if on { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in } }
@@ -72,7 +72,7 @@ struct SettingsView: View {
                 }
             }
 
-            GMSection(footer: "Apaga todas as atividades e monstros e devolve um ovo novo. Ligas e rotinas continuam.") {
+            GMSection(footer: "Apaga todas as atividades e bros e devolve um ovo novo. Ligas e rotinas continuam.") {
                 GMRow(icon: "arrow.counterclockwise", iconTint: Theme.danger, title: "Recomeçar jornada") { confirmReset = true }
             }
             GMSection("Como funciona") {
@@ -82,7 +82,7 @@ struct SettingsView: View {
             }
         }
         .gmActions(isPresented: $confirmReset, title: "Recomeçar a jornada?",
-                   message: "Apaga atividades e monstros e devolve um ovo novo.",
+                   message: "Apaga atividades e bros e devolve um ovo novo.",
                    actions: [GMAction("Recomeçar", icon: "arrow.counterclockwise", destructive: true, action: reset)])
         .gmActions(isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
                    title: "Restaurar backup?", message: restoreTitle,

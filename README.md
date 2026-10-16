@@ -1,6 +1,6 @@
 # GymBros
 
-App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem um monstrinho.
+App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem um bro.
 
 - Ao começar você ganha um **ovo**, que choca com 60 XP de atividade.
 - Cada atividade (musculação, corrida, crossfit, vôlei…) rende XP por **duração × MET da atividade × esforço (1–10)** e soma em quatro atributos: **Força, Resistência, Agilidade e Técnica**.
@@ -19,7 +19,7 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
 - Biblioteca com fotos animadas (posição inicial/final), instruções em português e músculos trabalhados; exercícios personalizados.
 - Peso do corpo e isometria aceitam carga extra (cinto de peso, colete); com carga, a progressão volta a ser por peso.
 - Mapa muscular (frente e costas): por exercício, por rotina, ao concluir o treino e por período (7/30 dias/tudo), com a lista do que ficou sem treino.
-- Concluir um treino gera uma atividade de musculação, que dá XP ao monstro.
+- Concluir um treino gera uma atividade de musculação, que dá XP ao bro.
 
 ## Design system
 
@@ -29,7 +29,7 @@ O app não usa controles padrão do iOS: telas, cabeçalhos, barra de abas, bot�
 
 - Inspiradas no GymRats: cada liga é um ranking contínuo de check-ins de qualquer atividade, com pontuação por pontos (XP da atividade), treinos ou minutos; ranking "desde o início" e "esta semana", e feed com foto.
 - Check-in em várias ligas de uma vez: ao registrar atividade, ao concluir treino guiado ou pelo botão da liga (nova atividade ou uma já registrada, inclusive do Saúde).
-- Coleção de monstros (`GymMonsters/Monsters.swift`): ao entrar numa liga você escolhe quem te representa, um monstro seu ou um ovo novo adotado na hora. Os check-ins da liga dão XP só para ele; atividades fora de ligas vão para o monstro principal (tela inicial e widgets), que pode ser trocado em "Meus monstros".
+- Coleção de bros (`GymMonsters/Monsters.swift`): ao entrar numa liga você escolhe quem te representa, um bro seu ou um ovo novo adotado na hora. Os check-ins da liga dão XP só para ele; atividades fora de ligas vão para o bro principal (tela inicial e widgets), que pode ser trocado em "Meus bros".
 - Sem servidor ainda: convites são só um código para compartilhar. A "Liga dos Amigos" (código `AMIGOS`) tem 5 participantes simulados (`GymMonsters/Leagues.swift`).
 
 ## Apple Saúde e backup
@@ -39,11 +39,11 @@ O app não usa controles padrão do iOS: telas, cabeçalhos, barra de abas, bot�
 
 ## Companheiro, conquistas e widget
 
-- Humor do monstro (animado, feliz, entediado, triste, exausto) pelos dias sem treinar, sequência e excesso no dia; balão com frases que citam a rotina do dia e músculos esquecidos na semana.
+- Humor do bro (animado, feliz, entediado, triste, exausto) pelos dias sem treinar, sequência e excesso no dia; balão com frases que citam a rotina do dia e músculos esquecidos na semana.
 - 22 conquistas (Dex → Conquistas), com aviso ao desbloquear.
 - Lembretes locais no horário escolhido, só nos dias sem treino (opcional: só em dias de rotina).
-- Widget "Meu monstro" (pequeno, médio, grande e tela bloqueada redondo/retangular): muda de pose a cada minuto com transição animada e reage a carinho com um toque (widget interativo).
-- Widget "Status do monstro" (pequeno, médio e tela bloqueada) com monstro, humor, XP e sequência. Os dados chegam pelo App Group `group.com.alonsoalmeida.gymmonsters` (`Shared/WidgetShared.swift`).
+- Widget "Meu bro" (pequeno, médio, grande e tela bloqueada redondo/retangular): muda de pose a cada minuto com transição animada e reage a carinho com um toque (widget interativo).
+- Widget "Status do bro" (pequeno, médio e tela bloqueada) com bro, humor, XP e sequência. Os dados chegam pelo App Group `group.com.alonsoalmeida.gymmonsters` (`Shared/WidgetShared.swift`).
 
 
 ## Rodar no iPhone

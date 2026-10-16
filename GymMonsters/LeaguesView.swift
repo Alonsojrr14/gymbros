@@ -29,7 +29,7 @@ struct LeaguesView: View {
                     }
                     .buttonStyle(GMPress())
                 }
-                GMSection(footer: "Cada liga é um ranking de check-ins, de qualquer atividade. Ao entrar, você escolhe quem te representa: um monstro seu ou um ovo novo. Os check-ins da liga dão XP só para ele.") {
+                GMSection(footer: "Cada liga é um ranking de check-ins, de qualquer atividade. Ao entrar, você escolhe quem te representa: um bro seu ou um ovo novo. Os check-ins da liga dão XP só para ele.") {
                     GMRow(icon: "plus.circle", iconTint: Theme.accent, title: "Criar liga", chevron: true) { creating = true }
                     GMDivider()
                     GMRow(icon: "ticket", iconTint: Theme.accent, title: "Entrar com código", chevron: true) { joinCode = ""; joining = true }
@@ -151,7 +151,7 @@ struct LeagueDetailView: View {
             GMAction("Sair da liga", icon: "rectangle.portrait.and.arrow.right", destructive: true) { leaving = true }
         ])
         .gmActions(isPresented: $leaving, title: "Sair de \(league.name)?",
-                   message: "Os check-ins desta liga somem. Suas atividades e seus monstros continuam.", actions: [
+                   message: "Os check-ins desta liga somem. Suas atividades e seus bros continuam.", actions: [
             GMAction("Sair", icon: "rectangle.portrait.and.arrow.right", destructive: true) {
                 mine.forEach(context.delete)
                 context.delete(league)

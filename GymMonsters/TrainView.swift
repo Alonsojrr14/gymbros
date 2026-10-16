@@ -31,7 +31,7 @@ struct TrainView: View {
                     let todays = routines.filter { $0.weekdays.contains(today) }
                     GMSection(todays.isEmpty ? "Hoje" : "Hoje · \(Date.now.formatted(.dateTime.weekday(.wide)))") {
                         if todays.isEmpty {
-                            Text(routines.isEmpty ? "Crie uma rotina ou use um modelo pronto." : "Nenhuma rotina para hoje. Descanso também evolui o monstro.")
+                            Text(routines.isEmpty ? "Crie uma rotina ou use um modelo pronto." : "Nenhuma rotina para hoje. Descanso também evolui o bro.")
                                 .font(.subheadline)
                                 .foregroundStyle(Theme.dim)
                         }
@@ -106,7 +106,7 @@ struct TrainView: View {
             .gmActions(isPresented: Binding(get: { routineMenu != nil }, set: { if !$0 { routineMenu = nil } }),
                        title: routineMenu?.name, actions: routineActions)
             .gmActions(isPresented: Binding(get: { sessionMenu != nil }, set: { if !$0 { sessionMenu = nil } }),
-                       title: sessionMenu?.title, message: "O XP desse treino também sai do monstro.", actions: [
+                       title: sessionMenu?.title, message: "O XP desse treino também sai do bro.", actions: [
                 GMAction("Apagar treino", icon: "trash", destructive: true) { if let s = sessionMenu { deleteSession(s) } }
             ])
         }

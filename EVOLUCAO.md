@@ -58,7 +58,7 @@ XP de cada atividade = duração × gasto típico (MET) × esforço; acima de 15
 
 ## Espécies
 
-A espécie é decidida quando o ovo choca, pelos treinos que o chocaram: se o atributo dominante bate com a afinidade de alguma espécie, nasce ela; senão, nasce o Coelho (espécie padrão). Depois de nascer, a espécie fica gravada no monstro. Liga nenhuma restringe espécie.
+A espécie é decidida quando o ovo choca, pelos treinos que o chocaram: se o atributo dominante bate com a afinidade de alguma espécie, nasce ela; senão, nasce o Coelho (espécie padrão). Depois de nascer, a espécie fica gravada no bro. Liga nenhuma restringe espécie.
 
 Para incluir uma espécie (`Species.catalog` em `GymMonsters/Game.swift`): id, nome, afinidade, nomes das 10 formas e as artes `sprite_<id>_<forma>` (baby, rookie, champion_forca… ultimate_tecnica) no app e no widget.
 

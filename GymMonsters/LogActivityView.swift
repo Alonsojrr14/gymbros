@@ -84,7 +84,7 @@ struct LogActivityView: View {
                 }
             }
             if p.after.stage > snapshot.stage {
-                Text(snapshot.stage == .egg ? "Isso vai fazer o ovo chocar! 🥚" : "Isso vai fazer seu monstro evoluir! ✨")
+                Text(snapshot.stage == .egg ? "Isso vai fazer o ovo chocar! 🥚" : "Isso vai fazer seu bro evoluir! ✨")
                     .font(.subheadline.bold())
             } else if p.xp < Game.xp(kind: kind, minutes: minutes, effort: effort) {
                 Text("Você já treinou bastante nesse dia, então rende menos XP. Descanso também faz parte.")

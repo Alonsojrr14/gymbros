@@ -87,7 +87,7 @@ struct MainView: View {
         }
         .overlay(alignment: .bottom) {
             GMTabBar(items: [
-                GMTabItem(icon: "pawprint.fill", title: "Monstro"),
+                GMTabItem(icon: "pawprint.fill", title: "Bro"),
                 GMTabItem(icon: "dumbbell.fill", title: "Treino"),
                 GMTabItem(icon: "trophy.fill", title: "Ligas"),
                 GMTabItem(icon: "list.bullet", title: "Histórico"),

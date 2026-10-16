@@ -12,7 +12,7 @@ struct DexView: View {
                      subtitle: tab == 0 ? "\(discovered.count) de \(DexView.allForms.count) formas descobertas"
                                         : "\(achievements.filter(\.unlocked).count) de \(achievements.count) desbloqueadas",
                      avatar: true) {
-                GMSegmented(options: [(0, "Monstros"), (1, "Conquistas")], selection: $tab)
+                GMSegmented(options: [(0, "Bros"), (1, "Conquistas")], selection: $tab)
                 if tab == 0 { monsters } else { trophies }
             }
         }

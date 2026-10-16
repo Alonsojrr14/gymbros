@@ -369,7 +369,7 @@ struct ProfileView: View {
 
             GMSection("O que aparece para os outros",
                       footer: "Quando as ligas tiverem servidor, é isso que seus amigos vão ver. Peso, medidas, notas e o histórico detalhado ficam sempre privados.") {
-                GMToggle(title: "Monstro principal", isOn: $showMonster)
+                GMToggle(title: "Bro principal", isOn: $showMonster)
                 GMDivider()
                 GMToggle(title: "Números (check-ins, dias, ligas)", isOn: $showStats)
                 GMDivider()

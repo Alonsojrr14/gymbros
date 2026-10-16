@@ -133,7 +133,7 @@ struct TeamView: View {
 
     var body: some View {
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues)
-        GMModal("Meus monstros", cancel: "Fechar") {
+        GMModal("Meus bros", cancel: "Fechar") {
             ForEach(monsters) { m in
                 let s = roster.snapshot(m.uuid)
                 let reps = leagues.filter { $0.monsterUUID == m.uuid }
@@ -158,7 +158,7 @@ struct TeamView: View {
                 }
                 .buttonStyle(GMPress())
             }
-            Text("O principal aparece na tela inicial e nos widgets e recebe o XP das atividades que não vão para nenhuma liga. Cada liga dá XP só ao monstro que te representa nela. Ovos novos você adota ao entrar numa liga.")
+            Text("O principal aparece na tela inicial e nos widgets e recebe o XP das atividades que não vão para nenhuma liga. Cada liga dá XP só ao bro que te representa nela. Ovos novos você adota ao entrar numa liga.")
                 .font(.caption).foregroundStyle(Theme.dim)
         }
         .gmActions(isPresented: Binding(get: { menu != nil }, set: { if !$0 { menu = nil } }),
