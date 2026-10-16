@@ -27,7 +27,13 @@ struct HistoryView: View {
                                         .listRowBackground(Theme.card)
                                 }
                                 .onDelete { idx in
-                                    idx.map { group.items[$0] }.forEach(context.delete)
+                                    for a in idx.map({ group.items[$0] }) {
+                                        // Treino guiado ligado a esta atividade some junto
+                                        let id = a.uuid
+                                        let linked = (try? context.fetch(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
+                                        linked.forEach(context.delete)
+                                        context.delete(a)
+                                    }
                                     try? context.save()
                                 }
                             }
