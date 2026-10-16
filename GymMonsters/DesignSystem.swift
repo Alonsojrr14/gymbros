@@ -479,67 +479,254 @@ struct GMSearchField: View {
     }
 }
 
-/// Dia (hoje, ontem… até 6 dias atrás) + horário, em vez do DatePicker
+/// Dia e horário: dois campos que abrem calendário e roleta em bottom sheets nossas
 struct GMDateTimePicker: View {
     @Binding var date: Date
-
-    private var cal: Calendar { .current }
+    /// Não deixa escolher o futuro (registro de atividade)
+    var limitToNow = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(0..<7, id: \.self) { back in
-                        let day = cal.date(byAdding: .day, value: -back, to: cal.startOfDay(for: .now))!
-                        GMChip(title: label(back, day), selected: cal.isDate(date, inSameDayAs: day)) { setDay(day) }
-                    }
-                }
-            }
-            GMTimeStepper(date: $date, limitToNow: true)
+        VStack(spacing: 10) {
+            GMDateField(date: $date, limitToNow: limitToNow)
+            GMDivider()
+            GMTimeField(date: $date, limitToNow: limitToNow)
         }
-    }
-
-    private func label(_ back: Int, _ day: Date) -> String {
-        back == 0 ? "Hoje" : back == 1 ? "Ontem" : day.formatted(.dateTime.weekday(.abbreviated).day())
-    }
-
-    private func setDay(_ day: Date) {
-        let t = cal.dateComponents([.hour, .minute], from: date)
-        let d = cal.date(bySettingHour: t.hour ?? 0, minute: t.minute ?? 0, second: 0, of: day) ?? day
-        date = min(d, .now)
     }
 }
 
-/// Horário em passos de 15 minutos
-struct GMTimeStepper: View {
+enum GMDateText {
+    static let locale = Locale(identifier: "pt_BR")
+
+    static func day(_ d: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(d) { return "Hoje" }
+        if cal.isDateInYesterday(d) { return "Ontem" }
+        let sameYear = cal.component(.year, from: d) == cal.component(.year, from: .now)
+        let f = DateFormatter()
+        f.locale = locale
+        f.dateFormat = sameYear ? "EEE, d 'de' MMMM" : "d 'de' MMM 'de' yyyy"
+        return f.string(from: d).capitalizedFirst
+    }
+
+    static func time(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = locale
+        f.dateFormat = "HH:mm"
+        return f.string(from: d)
+    }
+}
+
+extension String {
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
+}
+
+/// Linha "Dia · Hoje" que abre o calendário
+struct GMDateField: View {
+    @Binding var date: Date
+    var limitToNow = true
+    var title = "Dia"
+    @State private var open = false
+    @State private var draft = Date.now
+
+    var body: some View {
+        fieldRow(icon: "calendar", title: title, value: GMDateText.day(date)) {
+            draft = date
+            open = true
+        }
+        .gmSheet(isPresented: $open) { close in
+            VStack(spacing: 16) {
+                GMCalendar(selection: $draft, maxDate: limitToNow ? .now : nil)
+                GMButton("Confirmar") {
+                    // Mantém o horário, troca só o dia
+                    let cal = Calendar.current
+                    let t = cal.dateComponents([.hour, .minute], from: date)
+                    let d = cal.date(bySettingHour: t.hour ?? 0, minute: t.minute ?? 0, second: 0, of: draft) ?? draft
+                    date = limitToNow ? min(d, .now) : d
+                    close()
+                }
+            }
+        }
+    }
+}
+
+/// Linha "Horário · 14:30" que abre a roleta
+struct GMTimeField: View {
     @Binding var date: Date
     var limitToNow = false
     var title = "Horário"
+    @State private var open = false
+    @State private var hour = 0
+    @State private var minute = 0
 
     var body: some View {
-        HStack(spacing: 10) {
-            Text(title).font(.subheadline.weight(.semibold))
-            Spacer()
-            step(-15, "minus")
-            Text(date.formatted(date: .omitted, time: .shortened))
-                .font(.headline.monospacedDigit())
-                .frame(minWidth: 70)
-            step(15, "plus")
+        fieldRow(icon: "clock", title: title, value: GMDateText.time(date)) {
+            let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+            hour = c.hour ?? 0
+            minute = c.minute ?? 0
+            open = true
+        }
+        .gmSheet(isPresented: $open) { close in
+            VStack(spacing: 16) {
+                Text(title).font(.headline)
+                GMTimeWheel(hour: $hour, minute: $minute)
+                GMButton("Confirmar") {
+                    let d = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
+                    date = limitToNow ? min(d, .now) : d
+                    close()
+                }
+            }
         }
     }
+}
 
-    private func step(_ minutes: Int, _ icon: String) -> some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            let new = Calendar.current.date(byAdding: .minute, value: minutes, to: date) ?? date
-            // Não muda de dia nem passa do horário atual
-            guard Calendar.current.isDate(new, inSameDayAs: date), !limitToNow || new <= .now else { return }
-            date = new
+private func fieldRow(icon: String, title: String, value: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.body.weight(.semibold))
+                .frame(width: 34, height: 34)
+                .background(Theme.raised, in: .rect(cornerRadius: 10))
+            Text(title).font(.subheadline.weight(.semibold))
+            Spacer()
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Theme.raised, in: .capsule)
+        }
+        .foregroundStyle(.white)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(GMPress())
+}
+
+/// Calendário mensal próprio, em português, começando no domingo
+struct GMCalendar: View {
+    @Binding var selection: Date
+    var maxDate: Date?
+    @State private var month = Date.now
+
+    private var cal: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.locale = GMDateText.locale
+        c.firstWeekday = 1
+        return c
+    }
+
+    var body: some View {
+        let start = cal.date(from: cal.dateComponents([.year, .month], from: month))!
+        let days = cal.range(of: .day, in: .month, for: start)!.count
+        let lead = (cal.component(.weekday, from: start) - cal.firstWeekday + 7) % 7
+        let cells: [Date?] = Array(repeating: nil, count: lead) + (0..<days).map { cal.date(byAdding: .day, value: $0, to: start) }
+        let canGoForward = maxDate.map { cal.date(byAdding: .month, value: 1, to: start)! <= $0 } ?? true
+
+        VStack(spacing: 14) {
+            HStack {
+                GMIconButton(icon: "chevron.left", size: 36) { shift(-1) }
+                Spacer()
+                Text(monthTitle(start)).font(.headline)
+                Spacer()
+                GMIconButton(icon: "chevron.right", size: 36, tint: canGoForward ? .white : Theme.dim) { if canGoForward { shift(1) } }
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 6) {
+                ForEach(Array(["D", "S", "T", "Q", "Q", "S", "S"].enumerated()), id: \.offset) { _, d in
+                    Text(d).font(.caption.bold()).foregroundStyle(Theme.dim)
+                }
+                ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
+                    if let day { dayCell(day) } else { Color.clear.frame(height: 40) }
+                }
+            }
+            if !cal.isDate(selection, inSameDayAs: .now) {
+                GMButton("Ir para hoje", kind: .ghost, small: true) {
+                    selection = .now
+                    month = .now
+                }
+            }
+        }
+        .onAppear { month = selection }
+    }
+
+    private func dayCell(_ day: Date) -> some View {
+        let selected = cal.isDate(day, inSameDayAs: selection)
+        let today = cal.isDateInToday(day)
+        let disabled = maxDate.map { cal.startOfDay(for: day) > cal.startOfDay(for: $0) } ?? false
+        return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            selection = day
         } label: {
-            Image(systemName: icon).font(.subheadline.bold()).frame(width: 36, height: 36)
-                .background(Theme.raised, in: .circle).foregroundStyle(.white)
+            Text("\(cal.component(.day, from: day))")
+                .font(.subheadline.weight(selected || today ? .bold : .medium).monospacedDigit())
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .background(selected ? Theme.accent : .clear, in: .circle)
+                .overlay(Circle().stroke(today && !selected ? Theme.accent : .clear, lineWidth: 1.5))
+                .foregroundStyle(selected ? .black : disabled ? Theme.dim.opacity(0.4) : .white)
         }
         .buttonStyle(GMPress())
+        .disabled(disabled)
+    }
+
+    private func monthTitle(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = GMDateText.locale
+        f.dateFormat = "MMMM 'de' yyyy"
+        return f.string(from: d).capitalizedFirst
+    }
+
+    private func shift(_ n: Int) {
+        withAnimation(.snappy) { month = cal.date(byAdding: .month, value: n, to: month) ?? month }
+    }
+}
+
+/// Roleta de horas e minutos
+struct GMTimeWheel: View {
+    @Binding var hour: Int
+    @Binding var minute: Int
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12).fill(Theme.raised).frame(height: GMWheel.row)
+            HStack(spacing: 0) {
+                GMWheel(values: Array(0..<24), selection: $hour)
+                Text(":").font(.title.bold())
+                GMWheel(values: Array(0..<60), selection: $minute)
+            }
+            .padding(.horizontal, 40)
+        }
+    }
+}
+
+struct GMWheel: View {
+    static let row: CGFloat = 46
+    let values: [Int]
+    @Binding var selection: Int
+    @State private var position: Int?
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            LazyVStack(spacing: 0) {
+                ForEach(values, id: \.self) { v in
+                    let on = v == (position ?? selection)
+                    Text(String(format: "%02d", v))
+                        .font(.system(size: on ? 30 : 24, weight: on ? .bold : .medium, design: .rounded).monospacedDigit())
+                        .foregroundStyle(on ? .white : Theme.dim)
+                        .frame(height: GMWheel.row)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .contentMargins(.vertical, GMWheel.row * 2, for: .scrollContent)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(id: $position, anchor: .center)
+        .frame(height: GMWheel.row * 5)
+        .mask(LinearGradient(colors: [.clear, .black, .black, .clear], startPoint: .top, endPoint: .bottom))
+        .onAppear { position = selection }
+        .onChange(of: position) { _, v in
+            guard let v, v != selection else { return }
+            UISelectionFeedbackGenerator().selectionChanged()
+            selection = v
+        }
     }
 }
 

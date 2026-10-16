@@ -40,7 +40,7 @@ struct SettingsView: View {
                     }
                 if remindersOn {
                     GMDivider()
-                    GMTimeStepper(date: Binding(
+                    GMTimeField(date: Binding(
                         get: { Calendar.current.date(byAdding: .minute, value: reminderMinute, to: Calendar.current.startOfDay(for: .now))! },
                         set: { let c = Calendar.current.dateComponents([.hour, .minute], from: $0); reminderMinute = (c.hour ?? 18) * 60 + (c.minute ?? 0) }
                     ))

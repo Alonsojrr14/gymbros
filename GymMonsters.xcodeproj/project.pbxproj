@@ -180,9 +180,10 @@
 				};
 			};
 			buildConfigurationList = AC000000000000000000000B /* Build configuration list for PBXProject "GymMonsters" */;
-			developmentRegion = en;
+			developmentRegion = "pt-BR";
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				"pt-BR",
 				en,
 				Base,
 			);
