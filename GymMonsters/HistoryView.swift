@@ -12,6 +12,7 @@ struct HistoryView: View {
     }
 
     @State private var menu: Activity?
+    @State private var editing: Activity?
 
     var body: some View {
         NavigationStack {
@@ -37,7 +38,9 @@ struct HistoryView: View {
             .gmActions(isPresented: Binding(get: { menu != nil }, set: { if !$0 { menu = nil } }),
                        title: menu.map { "\($0.kind.name) · \(durationText($0.minutes))" },
                        message: menu.map { $0.date.formatted(date: .complete, time: .shortened) + ($0.note.isEmpty ? "" : "\n\($0.note)") },
-                       actions: [GMAction("Apagar atividade", icon: "trash", destructive: true) { if let a = menu { delete(a) } }])
+                       actions: [GMAction("Editar", icon: "pencil") { editing = menu },
+                                 GMAction("Apagar atividade", icon: "trash", destructive: true) { if let a = menu { delete(a) } }])
+            .gmModal(item: $editing) { LogActivityView(snapshot: snapshot, editing: $0) }
         }
     }
 

@@ -17,6 +17,7 @@ struct TrainView: View {
     @State private var routineMenu: Routine?
     @State private var sessionMenu: WorkoutSession?
     @State private var editing: Routine?
+    @State private var plates = false
 
     var body: some View {
         NavigationStack {
@@ -69,6 +70,13 @@ struct TrainView: View {
                     .buttonStyle(GMPress())
                     GMDivider()
                     GMRow(icon: "books.vertical", title: "Biblioteca de exercícios", chevron: true) { library = true }
+                    GMDivider()
+                    NavigationLink { BodyTrackerView() } label: {
+                        GMRow(icon: "scalemass", title: "Peso e medidas", chevron: true)
+                    }
+                    .buttonStyle(GMPress())
+                    GMDivider()
+                    GMRow(icon: "circle.grid.2x1", title: "Calculadora de anilhas", chevron: true) { plates = true }
                 }
 
                 if !finished.isEmpty {
@@ -91,6 +99,7 @@ struct TrainView: View {
             .navigationDestination(item: $editing) { RoutineEditView(routine: $0) }
             .gmModal(isPresented: $templates) { TemplatesView(startingOrder: routines.count) }
             .gmModal(isPresented: $library) { ExercisePicker() }
+            .gmSheet(isPresented: $plates) { _ in PlateCalculatorView(total: 60) }
             .gmModal(item: $active) { s in
                 WorkoutView(session: s, history: finished.reversed().map(\.log))
             }

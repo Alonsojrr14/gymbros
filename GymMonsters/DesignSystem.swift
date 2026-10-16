@@ -975,7 +975,7 @@ extension View {
                 VStack(spacing: 14) {
                     Text(title).font(.headline)
                     if let message { Text(message).font(.subheadline).foregroundStyle(Theme.dim).multilineTextAlignment(.center) }
-                    GMTextField(placeholder: placeholder, text: text)
+                    GMTextField(placeholder: placeholder, text: text, axis: .vertical)
                     HStack(spacing: 10) {
                         GMButton("Cancelar", kind: .secondary) { close(nil) }
                         GMButton(confirm) { close(onConfirm) }
@@ -1092,5 +1092,47 @@ struct GMChoiceChips<T: Hashable>: View {
                 }
             }
         }
+    }
+}
+
+/// Número decimal opcional com − + e digitação (peso, medidas). Vazio mostra "—".
+struct GMDecimalField: View {
+    let title: String
+    @Binding var value: Double?
+    var step: Double = 0.5
+    var unit: String = "kg"
+    /// Valor usado no primeiro + quando ainda está vazio
+    var start: Double = 70
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(title).font(.subheadline.weight(.semibold))
+            Spacer()
+            stepButton("minus") { value = max((value ?? start) - step, 0) }
+            HStack(spacing: 3) {
+                TextField("—", value: $value, format: .number.precision(.fractionLength(0...1)))
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .font(.headline.monospacedDigit())
+                    .frame(width: 58)
+                Text(unit).font(.caption).foregroundStyle(Theme.dim)
+            }
+            stepButton("plus") { value = (value.map { $0 + step }) ?? start }
+            if value != nil {
+                Button { value = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.dim) }
+                    .buttonStyle(GMPress())
+            }
+        }
+    }
+
+    private func stepButton(_ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
+            Image(systemName: icon).font(.caption.bold()).frame(width: 32, height: 32)
+                .background(Theme.raised, in: .circle).foregroundStyle(.white)
+        }
+        .buttonStyle(GMPress())
     }
 }

@@ -17,6 +17,10 @@ struct WorkoutView: View {
     @State private var confirmDiscard = false
     @State private var info: Exercise?
     @State private var exerciseMenu: String?
+    @State private var platesFor: Double?
+    @State private var noteFor: String?
+    @State private var noteText = ""
+    @Query private var notes: [ExerciseNote]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,6 +56,14 @@ struct WorkoutView: View {
         ])
         .gmActions(isPresented: Binding(get: { exerciseMenu != nil }, set: { if !$0 { exerciseMenu = nil } }),
                    title: exerciseMenu.map(Exercise.name), actions: exerciseActions)
+        .gmSheet(isPresented: Binding(get: { platesFor != nil }, set: { if !$0 { platesFor = nil } })) { _ in
+            PlateCalculatorView(total: platesFor ?? 60)
+        }
+        .gmPrompt(isPresented: Binding(get: { noteFor != nil }, set: { if !$0 { noteFor = nil } }),
+                  title: "Nota do exercício", message: "Ajuste da máquina, pegada, o que lembrar da próxima vez.",
+                  placeholder: "Ex.: banco na posição 4", text: $noteText) {
+            if let id = noteFor { saveNote(id, noteText) }
+        }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
@@ -76,12 +88,31 @@ struct WorkoutView: View {
         .padding(.vertical, 10)
     }
 
+    private func saveNote(_ id: String, _ text: String) {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let n = notes.first(where: { $0.exerciseID == id }) {
+            if clean.isEmpty { context.delete(n) } else { n.text = clean; n.updated = .now }
+        } else if !clean.isEmpty {
+            context.insert(ExerciseNote(exerciseID: id, text: clean))
+        }
+        try? context.save()
+    }
+
     private var exerciseActions: [GMAction] {
         guard let id = exerciseMenu else { return [] }
         var list: [GMAction] = []
         if let ex = Exercise.byID(id) {
             list.append(GMAction("Ver como fazer", icon: "info.circle") { info = ex })
+            if ex.type == .weighted {
+                let w = session.orderedSets.last { $0.exerciseID == id }?.weight ?? 60
+                list.append(GMAction("Calcular anilhas", icon: "circle.grid.2x1") { platesFor = w })
+            }
         }
+        let current = notes.first { $0.exerciseID == id }?.text ?? ""
+        list.append(GMAction(current.isEmpty ? "Adicionar nota" : "Editar nota", icon: "note.text") {
+            noteText = current
+            noteFor = id
+        })
         list.append(GMAction("Remover exercício", icon: "trash", destructive: true) {
             session.orderedSets.filter { $0.exerciseID == id }.forEach(context.delete)
             try? context.save()
@@ -112,6 +143,15 @@ struct WorkoutView: View {
                 GMIconButton(icon: "ellipsis", size: 34) { exerciseMenu = id }
             }
 
+            if let note = notes.first(where: { $0.exerciseID == id }), !note.text.isEmpty {
+                Button { noteText = note.text; noteFor = id } label: {
+                    Label(note.text, systemImage: "note.text")
+                        .font(.caption)
+                        .foregroundStyle(.yellow.opacity(0.9))
+                        .multilineTextAlignment(.leading)
+                }
+                .buttonStyle(GMPress())
+            }
             Label(suggestion.reason, systemImage: "arrow.up.right")
                 .font(.caption)
                 .foregroundStyle(Theme.accent.opacity(0.9))

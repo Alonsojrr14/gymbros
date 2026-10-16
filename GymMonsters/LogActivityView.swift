@@ -3,6 +3,8 @@ import SwiftUI
 
 struct LogActivityView: View {
     let snapshot: Snapshot
+    /// Atividade existente para editar (nil = nova)
+    var editing: Activity? = nil
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var activities: [Activity]
@@ -26,7 +28,7 @@ struct LogActivityView: View {
     }
 
     var body: some View {
-        GMModal("Nova atividade", confirm: "Salvar", onConfirm: save) {
+        GMModal(editing == nil ? "Nova atividade" : "Editar atividade", confirm: "Salvar", onConfirm: save) {
             GMSection("Atividade") { ActivityKindGrid(kind: $kind) }
 
             GMSection("Duração") {
@@ -51,7 +53,17 @@ struct LogActivityView: View {
 
             GMCard { previewView }
 
-            LeaguePostSection(selected: $leagues, photo: $photo)
+            if editing == nil {
+                LeaguePostSection(selected: $leagues, photo: $photo)
+            }
+        }
+        .onAppear {
+            guard let a = editing else { return }
+            kind = a.kind
+            date = a.date
+            minutes = a.minutes
+            effort = a.effort
+            note = a.note
         }
     }
 
@@ -83,6 +95,16 @@ struct LogActivityView: View {
     }
 
     private func save() {
+        if let a = editing {
+            a.kindRaw = kind.rawValue
+            a.date = date
+            a.minutes = minutes
+            a.effort = effort
+            a.note = note
+            try? context.save()
+            dismiss()
+            return
+        }
         let activity = Activity(kind: kind, date: date, minutes: minutes, effort: effort, note: note)
         context.insert(activity)
         postCheckIns(activity: activity, leagues: leagues, title: note, note: "", photo: photo, context: context)

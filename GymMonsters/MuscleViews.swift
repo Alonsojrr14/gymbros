@@ -133,6 +133,7 @@ struct ExerciseInfoView: View {
     let exercise: Exercise
     @Environment(\.dismiss) private var dismiss
     @Query private var customs: [CustomExercise]
+    @Query private var notes: [ExerciseNote]
     @State private var editing = false
 
     var body: some View {
@@ -156,6 +157,9 @@ struct ExerciseInfoView: View {
                         }
                     }
                 }
+            }
+            if let note = notes.first(where: { $0.exerciseID == exercise.id }), !note.text.isEmpty {
+                GMSection("Sua nota") { Text(note.text).font(.subheadline) }
             }
             if let notes = Exercise.customNotes[exercise.id], !notes.isEmpty {
                 GMSection("Descrição") { Text(notes).font(.subheadline) }

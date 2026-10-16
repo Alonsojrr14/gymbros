@@ -14,6 +14,17 @@ struct Backup: Codable {
     var customExercises: [CustomDTO]
     var leagues: [LeagueDTO]? = nil
     var monsters: [MonsterDTO]? = nil
+    var body: [BodyDTO]? = nil
+    var notes: [NoteDTO]? = nil
+
+    struct BodyDTO: Codable {
+        var uuid: UUID, date: Date, weight: Double?, waist: Double?, chest: Double?, arm: Double?, thigh: Double?, hip: Double?
+        var healthUUID: String?
+    }
+
+    struct NoteDTO: Codable {
+        var exerciseID: String, text: String
+    }
     var checkIns: [CheckInDTO]? = nil
 
     struct LeagueDTO: Codable {
@@ -90,6 +101,11 @@ struct Backup: Codable {
             monsters: try context.fetch(FetchDescriptor<Monster>()).map {
                 MonsterDTO(uuid: $0.uuid, name: $0.name, createdAt: $0.createdAt, isStarter: $0.isStarter, lastFormID: $0.lastFormID)
             },
+            body: try context.fetch(FetchDescriptor<BodyEntry>()).map {
+                BodyDTO(uuid: $0.uuid, date: $0.date, weight: $0.weight, waist: $0.waist, chest: $0.chest, arm: $0.arm,
+                        thigh: $0.thigh, hip: $0.hip, healthUUID: $0.healthUUID)
+            },
+            notes: try context.fetch(FetchDescriptor<ExerciseNote>()).map { NoteDTO(exerciseID: $0.exerciseID, text: $0.text) },
             checkIns: try context.fetch(FetchDescriptor<LeagueCheckIn>()).map {
                 CheckInDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, activityUUID: $0.activityUUID, title: $0.title, note: $0.note, date: $0.date)
             }
@@ -108,6 +124,8 @@ struct Backup: Codable {
         try context.delete(model: LeagueCheckIn.self)
         try context.delete(model: League.self)
         try context.delete(model: Monster.self)
+        try context.delete(model: BodyEntry.self)
+        try context.delete(model: ExerciseNote.self)
 
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
@@ -156,6 +174,14 @@ struct Backup: Codable {
             league.monsterUUID = l.monsterUUID
             context.insert(league)
         }
+        for b in body ?? [] {
+            let e = BodyEntry(date: b.date, weight: b.weight)
+            e.uuid = b.uuid
+            e.waist = b.waist; e.chest = b.chest; e.arm = b.arm; e.thigh = b.thigh; e.hip = b.hip
+            e.healthUUID = b.healthUUID
+            context.insert(e)
+        }
+        for n in notes ?? [] { context.insert(ExerciseNote(exerciseID: n.exerciseID, text: n.text)) }
         for m in monsters ?? [] {
             let mon = Monster(name: m.name, isStarter: m.isStarter)
             mon.uuid = m.uuid
