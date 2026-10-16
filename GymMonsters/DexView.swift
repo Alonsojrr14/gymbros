@@ -46,9 +46,14 @@ struct DexView: View {
     }
 
     @State private var speciesID = Species.standard.id
+    /// Modo de visualização: mostra todas as formas sem silhueta (não conta como descoberta)
+    @AppStorage("dexRevealAll") private var revealAll = false
+
+    private func isKnown(_ f: MonsterForm) -> Bool { revealAll || discovered.contains(f.id) }
 
     private var monsters: some View {
         VStack(alignment: .leading, spacing: 18) {
+            GMCard { GMToggle(title: "Revelar todas", subtitle: "Mostra todas as formas, sem contar como descoberta", isOn: $revealAll) }
             speciesPicker
             if let sp = Species.byID(speciesID), sp.isReady {
                 tree(sp)
@@ -59,7 +64,7 @@ struct DexView: View {
     // MARK: Espécies
 
     private func forms(_ sp: Species) -> [MonsterForm] { MonsterForm.all(species: sp.id).filter { $0.stage != .egg } }
-    private func found(_ sp: Species) -> [MonsterForm] { forms(sp).filter { discovered.contains($0.id) } }
+    private func found(_ sp: Species) -> [MonsterForm] { forms(sp).filter { isKnown($0) } }
 
     private var speciesPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -160,7 +165,7 @@ struct DexView: View {
     }
 
     private func node(_ f: MonsterForm, size: CGFloat) -> some View {
-        let known = discovered.contains(f.id)
+        let known = isKnown(f)
         let current = snapshot.form == f
         return VStack(spacing: 4) {
             MonsterSprite(form: f, hidden: !known).frame(width: size, height: size)
