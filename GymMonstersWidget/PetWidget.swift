@@ -86,6 +86,60 @@ struct PetView: View {
     private var spriteSize: CGFloat { family == .systemSmall ? 92 : family == .systemLarge ? 230 : 120 }
 
     var body: some View {
+        switch family {
+        case .accessoryCircular: lockCircular
+        case .accessoryRectangular: lockRectangular
+        default: home
+        }
+    }
+
+    // Tela de bloqueio: o iOS desenha em tons translúcidos, sem cor
+
+    private var lockCircular: some View {
+        Button(intent: PetIntent()) {
+            ZStack {
+                AccessoryWidgetBackground()
+                lockSprite.padding(7)
+                if entry.pose == .pet {
+                    Text("❤️").font(.system(size: 13)).offset(x: 14, y: -15)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .containerBackground(.clear, for: .widget)
+    }
+
+    private var lockRectangular: some View {
+        Button(intent: PetIntent()) {
+            HStack(spacing: 8) {
+                lockSprite.frame(width: 52, height: 52)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(d.monsterName).font(.headline).lineLimit(1).widgetAccentable()
+                    Text(entry.pose == .pet ? "❤️ carinho!" : entry.pose == .sleep ? "Zzz…" : "\(entry.mood.emoji) \(entry.mood.name)")
+                        .font(.caption)
+                    Text(d.isEgg ? "\(d.xpToNext ?? 0) XP p/ chocar" : "Nível \(d.level)\(Mood.liveStreak(d.streak, lastActivity: d.lastActivity, now: entry.date) > 0 ? " · 🔥\(Mood.liveStreak(d.streak, lastActivity: d.lastActivity, now: entry.date))" : "")")
+                        .font(.caption2)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .buttonStyle(.plain)
+        .containerBackground(.clear, for: .widget)
+    }
+
+    private var lockSprite: some View {
+        let p = entry.pose
+        return Image(d.sprite)
+            .resizable()
+            .interpolation(.none)
+            .scaledToFit()
+            .scaleEffect(x: p == .lookBack ? -1 : 1, y: p == .stretch ? 1.08 : p == .sleep ? 0.94 : 1, anchor: .bottom)
+            .rotationEffect(.degrees(p == .wobbleLeft ? -9 : p == .wobbleRight ? 9 : p == .sleep ? 4 : 0), anchor: .bottom)
+            .offset(y: p == .hop ? -4 : p == .pet ? -6 : 0)
+            .animation(.spring(duration: 0.8, bounce: 0.45), value: p)
+    }
+
+    private var home: some View {
         Button(intent: PetIntent()) {
             ZStack {
                 VStack(spacing: family == .systemSmall ? 4 : 8) {
@@ -163,6 +217,6 @@ struct PetWidget: Widget {
         StaticConfiguration(kind: "GymMonstersPet", provider: PetProvider()) { PetView(entry: $0) }
             .configurationDisplayName("Meu monstro")
             .description("Seu GymMonster se mexendo na tela de início. Toque para fazer carinho.")
-            .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+            .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular])
     }
 }
