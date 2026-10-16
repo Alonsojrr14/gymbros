@@ -78,9 +78,8 @@ struct DexView: View {
     private func speciesCard(_ sp: Species) -> some View {
         let ready = sp.isReady
         let seen = found(sp)
-        // Mostra a forma mais evoluída já descoberta; sem nenhuma, a silhueta do bebê
-        let best = seen.max { $0.stage < $1.stage }
-        let show = best ?? MonsterForm(stage: .baby, attribute: nil, species: sp.id)
+        // Sempre o bebê, que representa a espécie sem puxar para nenhum galho
+        let baby = MonsterForm(stage: .baby, attribute: nil, species: sp.id)
         let selected = speciesID == sp.id
         return Button {
             guard ready else { return }
@@ -89,7 +88,7 @@ struct DexView: View {
         } label: {
             VStack(spacing: 6) {
                 Group {
-                    if ready { MonsterSprite(form: show, hidden: best == nil) } else {
+                    if ready { MonsterSprite(form: baby, hidden: !isKnown(baby)) } else {
                         Image(systemName: "questionmark").font(.title.bold()).foregroundStyle(Theme.dim)
                     }
                 }
