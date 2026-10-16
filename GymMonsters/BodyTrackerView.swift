@@ -181,35 +181,69 @@ struct PlateCalculatorView: View {
 
     var body: some View {
         let r = Plates.perSide(total: total, bar: bar)
-        VStack(spacing: 16) {
-            Text("Calculadora de anilhas").font(.headline)
+        let side = r.plates.reduce(0, +)
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Calculadora de anilhas").font(.headline).frame(maxWidth: .infinity)
             GMDecimalField(title: "Carga total", value: Binding(get: { total }, set: { total = $0 ?? 0 }), step: 2.5, start: 60)
             GMChoiceChips(title: "Barra", options: Plates.bars.map { ($0, $0 == 0 ? "Sem barra" : "\(Progression.fmt($0)) kg") }, selection: $bar)
+
             GMCard {
-                Text("De cada lado").font(.caption.bold()).foregroundStyle(Theme.dim)
-                if r.plates.isEmpty {
-                    Text(total <= bar ? "Só a barra." : "—").font(.headline)
+                if total <= bar {
+                    Text(bar == 0 ? "Coloque uma carga." : "Só a barra já dá \(Progression.fmt(bar)) kg.").font(.headline)
                 } else {
-                    HStack(alignment: .center, spacing: 3) {
-                        // Desenho da barra com as anilhas, da maior (perto do centro) para a menor
-                        Rectangle().fill(Color.white.opacity(0.4)).frame(width: 30, height: 8)
-                        ForEach(Array(r.plates.enumerated()), id: \.offset) { _, p in
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(color(p))
-                                .frame(width: 12, height: 30 + CGFloat(p) * 3)
-                        }
-                        Rectangle().fill(Color.white.opacity(0.4)).frame(width: 16, height: 8)
+                    barbell(r.plates)
+                    VStack(alignment: .leading, spacing: 8) {
+                        line("Barra", bar == 0 ? "—" : "\(Progression.fmt(bar)) kg")
+                        line("Em cada lado", "\(Progression.fmt(side)) kg")
+                        Text(grouped(r.plates)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accent)
+                        GMDivider()
+                        line("Total", "\(Progression.fmt(bar)) + 2 × \(Progression.fmt(side)) = \(Progression.fmt(bar + side * 2)) kg")
                     }
-                    .frame(maxWidth: .infinity)
-                    Text(r.plates.map { Progression.fmt($0) }.joined(separator: " + ") + " kg")
-                        .font(.headline.monospacedDigit())
-                }
-                if r.rest > 0.01 {
-                    Text("Faltam \(Progression.fmt(r.rest)) kg que não fecham com as anilhas comuns.")
-                        .font(.caption).foregroundStyle(Theme.dim)
+                    if r.rest > 0.01 {
+                        Text("Sobram \(Progression.fmt(r.rest)) kg que não fecham com as anilhas comuns (25, 20, 15, 10, 5, 2,5 e 1,25 kg).")
+                            .font(.caption).foregroundStyle(Theme.dim)
+                    }
                 }
             }
         }
+    }
+
+    /// Barra inteira, com as anilhas espelhadas e o peso escrito embaixo de cada uma
+    private func barbell(_ plates: [Double]) -> some View {
+        HStack(alignment: .center, spacing: 2) {
+            Rectangle().fill(Color.white.opacity(0.4)).frame(width: 10, height: 8)
+            ForEach(Array(plates.reversed().enumerated()), id: \.offset) { _, p in plate(p) }
+            Rectangle().fill(Color.white.opacity(0.4)).frame(maxWidth: .infinity).frame(height: 8)
+            ForEach(Array(plates.enumerated()), id: \.offset) { _, p in plate(p) }
+            Rectangle().fill(Color.white.opacity(0.4)).frame(width: 10, height: 8)
+        }
+        .frame(height: 130)
+    }
+
+    private func plate(_ p: Double) -> some View {
+        VStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(color(p))
+                .frame(width: 14, height: 30 + CGFloat(p) * 3)
+            Text(Progression.fmt(p)).font(.system(size: 9, weight: .bold).monospacedDigit()).foregroundStyle(Theme.dim)
+        }
+    }
+
+    private func line(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).font(.subheadline).foregroundStyle(Theme.dim)
+            Spacer()
+            Text(value).font(.subheadline.weight(.semibold).monospacedDigit())
+        }
+    }
+
+    /// "1 de 25 kg + 1 de 15 kg"
+    private func grouped(_ plates: [Double]) -> String {
+        var counts: [(Double, Int)] = []
+        for p in plates {
+            if let i = counts.firstIndex(where: { $0.0 == p }) { counts[i].1 += 1 } else { counts.append((p, 1)) }
+        }
+        return counts.map { "\($0.1) de \(Progression.fmt($0.0)) kg" }.joined(separator: " + ")
     }
 
     private func color(_ p: Double) -> Color {
