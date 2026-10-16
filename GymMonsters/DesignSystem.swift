@@ -768,17 +768,20 @@ struct GMScreen<Content: View, Trailing: View>: View {
     let title: String
     var subtitle: String?
     var back = false
+    /// Mostra a bolinha do perfil à esquerda (telas principais das abas)
+    var avatar = false
     var large = true
     var bottomInset: CGFloat = 100
     @ViewBuilder var trailing: Trailing
     @ViewBuilder var content: Content
     @Environment(\.dismiss) private var dismiss
 
-    init(_ title: String, subtitle: String? = nil, back: Bool = false, large: Bool = true, bottomInset: CGFloat = 100,
+    init(_ title: String, subtitle: String? = nil, back: Bool = false, avatar: Bool = false, large: Bool = true, bottomInset: CGFloat = 100,
          @ViewBuilder trailing: () -> Trailing = { EmptyView() }, @ViewBuilder content: () -> Content) {
         self.title = title
         self.subtitle = subtitle
         self.back = back
+        self.avatar = avatar
         self.large = large
         self.bottomInset = bottomInset
         self.trailing = trailing()
@@ -789,6 +792,7 @@ struct GMScreen<Content: View, Trailing: View>: View {
         VStack(spacing: 0) {
             GMHeader(title: title, subtitle: subtitle, large: large && !back) {
                 if back { GMIconButton(icon: "chevron.left") { dismiss() } }
+                if avatar { ProfileAvatarButton() }
             } trailing: { trailing }
             if back && large {
                 Text(title).font(.system(size: 26, weight: .heavy, design: .rounded))

@@ -19,7 +19,7 @@ struct LeaguesView: View {
     var body: some View {
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
         NavigationStack {
-            GMScreen("Ligas") {
+            GMScreen("Ligas", avatar: true) {
                 if leagues.isEmpty {
                     GMEmptyState(icon: "trophy", title: "Nenhuma liga", message: "Crie uma liga e chame os amigos, ou entre com um código.")
                 }

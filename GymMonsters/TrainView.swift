@@ -21,7 +21,7 @@ struct TrainView: View {
 
     var body: some View {
         NavigationStack {
-            GMScreen("Treino") {
+            GMScreen("Treino", avatar: true) {
                 if let s = inProgress {
                     GMCard {
                         card(title: s.title, subtitle: "Em andamento desde \(s.start.formatted(date: .omitted, time: .shortened))",

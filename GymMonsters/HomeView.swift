@@ -13,7 +13,7 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            GMScreen("Olá, \(trainerName)") {
+            GMScreen("Olá, \(trainerName)", avatar: true) {
                 HStack(spacing: 8) {
                     if snapshot.streak > 0 {
                         Label("\(snapshot.streak)", systemImage: "flame.fill")

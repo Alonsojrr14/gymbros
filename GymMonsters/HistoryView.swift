@@ -16,7 +16,7 @@ struct HistoryView: View {
 
     var body: some View {
         NavigationStack {
-            GMScreen("Histórico") {
+            GMScreen("Histórico", avatar: true) {
                 if activities.isEmpty {
                     GMEmptyState(icon: "figure.run", title: "Nenhuma atividade ainda", message: "Seus treinos aparecem aqui.")
                 } else {
