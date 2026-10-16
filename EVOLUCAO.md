@@ -73,4 +73,4 @@ Para incluir uma espécie (`Species.catalog` em `GymMonsters/Game.swift`): id, n
 | Gato | Agilidade | Novelmon → Bichanomon | Garramon / Rondamon / Telhadomon / Ronromon | Jubamon / Panteramon / Linxmon / Esfingemon |
 | Coruja | Técnica | Penugmon → Corujamon | Rapinamon / Noturnmon / Planamon / Sabiomon | Harpiamon / Luarmon / Rasantemon / Oraculomon |
 
-Só nascem espécies com as 10 artes no app; as demais ficam cadastradas esperando a arte. Prontas: Coelho, Urso, Rato, Lobo.
+Só nascem espécies com as 10 artes no app; as demais ficam cadastradas esperando a arte. Prontas: Coelho, Urso, Rato, Lobo, Cachorro.
