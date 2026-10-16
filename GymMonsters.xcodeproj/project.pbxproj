@@ -48,6 +48,13 @@
 			);
 			target = AC0000000000000000000024 /* GymMonstersWidget */;
 		};
+		AC000000000000000000002F /* Exceptions for "GymMonsters" folder in "GymMonsters" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = AC0000000000000000000006 /* GymMonsters */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -66,6 +73,9 @@
 		};
 		AC0000000000000000000002 /* GymMonsters */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AC000000000000000000002F /* Exceptions for "GymMonsters" folder in "GymMonsters" target */,
+			);
 			path = GymMonsters;
 			sourceTree = "<group>";
 		};
@@ -291,6 +301,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = GymMonsters/GymMonsters.entitlements;
+				INFOPLIST_FILE = GymMonsters/Info.plist;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 5UV7WAAAL2;
 				CURRENT_PROJECT_VERSION = 1;
@@ -321,6 +332,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = GymMonsters/GymMonsters.entitlements;
+				INFOPLIST_FILE = GymMonsters/Info.plist;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 5UV7WAAAL2;
 				CURRENT_PROJECT_VERSION = 1;

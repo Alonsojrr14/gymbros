@@ -10,6 +10,7 @@ struct GymMonstersApp: App {
         URLCache.shared = URLCache(memoryCapacity: 40 * 1024 * 1024, diskCapacity: 300 * 1024 * 1024)
         WorkoutIntentBridge.completeSet = { await LiveWorkout.completeNextSet() }
         WorkoutIntentBridge.skipRest = { await LiveWorkout.skipRest() }
+        GymBrosShortcuts.updateAppShortcutParameters()
     }
 
     var body: some Scene {

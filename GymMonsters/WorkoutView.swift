@@ -22,6 +22,9 @@ struct WorkoutView: View {
     /// Roleta do descanso: agora (nil) ou padrão de um exercício
     @State private var restPicker: RestTarget?
     @State private var restDraft = 90
+    @State private var headphones = HeadphoneControl.shared.isOn
+    @State private var headphoneInfo = false
+    @AppStorage("headphoneInfoSeen") private var headphoneInfoSeen = false
     @State private var scrollTarget: String?
     @Query private var notes: [ExerciseNote]
 
@@ -64,8 +67,15 @@ struct WorkoutView: View {
         .gmModal(isPresented: $finishing) {
             FinishWorkoutView(session: session, history: history) { dismiss() }
         }
+        .gmActions(isPresented: $headphoneInfo, title: "Controlar pelo fone?",
+                   message: "O play/pause do fone vai marcar a série (ou pular o descanso) e o app fala no fone o que aconteceu, mesmo com o celular bloqueado. Para isso o GymBros assume o áudio: a música de outro app pausa enquanto o modo estiver ligado.",
+                   actions: [GMAction("Ligar modo fone", icon: "headphones") {
+                       headphoneInfoSeen = true
+                       toggleHeadphones()
+                   }])
         .gmActions(isPresented: $confirmDiscard, title: "Descartar este treino?", message: "Nada dele será salvo.", actions: [
             GMAction("Descartar", icon: "trash", destructive: true) {
+                HeadphoneControl.shared.stop()
                 cancelRest()
                 context.delete(session)
                 try? context.save()
@@ -84,7 +94,10 @@ struct WorkoutView: View {
             if let id = noteFor { saveNote(id, noteText) }
         }
         // Live Activity acompanha qualquer mudança do treino
-        .task(id: LiveWorkout.state(for: session)) { await LiveWorkout.refresh(session) }
+        .task(id: LiveWorkout.state(for: session)) {
+            await LiveWorkout.refresh(session)
+            HeadphoneControl.shared.refresh()
+        }
         // Descanso marcado pelo Live Activity: acompanha o fim aqui também
         .task(id: session.restEnd) { await watchRest() }
         .gmSheet(isPresented: Binding(get: { restPicker != nil }, set: { if !$0 { restPicker = nil } })) { close in
@@ -125,6 +138,10 @@ struct WorkoutView: View {
                     .foregroundStyle(Theme.accent)
             }
             Spacer()
+            // Modo fone: play/pause do fone marca a série
+            GMIconButton(icon: headphones ? "airpods.gen3" : "headphones", tint: headphones ? Theme.accent : .white) {
+                if headphones { toggleHeadphones() } else if headphoneInfoSeen { toggleHeadphones() } else { headphoneInfo = true }
+            }
             GMButton("Concluir", icon: "checkmark", full: false, small: true) { finishing = true }
         }
         .padding(.horizontal, 16)
@@ -148,6 +165,11 @@ struct WorkoutView: View {
     }
 
     private var currentID: String? { LiveWorkout.currentExercise(session) }
+
+    private func toggleHeadphones() {
+        if headphones { HeadphoneControl.shared.stop() } else { HeadphoneControl.shared.start() }
+        headphones = HeadphoneControl.shared.isOn
+    }
     private var resting: Bool { session.restEnd.map { $0 > .now } ?? false }
 
     /// Terminou todas as séries de um exercício: recolhe e rola até o próximo que falta
@@ -522,6 +544,7 @@ struct FinishWorkoutView: View {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["rest"])
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         Task { await LiveWorkout.endAll() }
+        HeadphoneControl.shared.stop()
         dismiss()
         onDone()
     }

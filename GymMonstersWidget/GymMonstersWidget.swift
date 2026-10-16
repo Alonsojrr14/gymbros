@@ -172,6 +172,10 @@ struct GymMonstersWidgets: WidgetBundle {
         GymMonstersWidget()
         WorkoutLiveActivity()
         WodLiveActivity()
+        if #available(iOS 18.0, *) {
+            CompleteSetControl()
+            SkipRestControl()
+        }
     }
 }
 

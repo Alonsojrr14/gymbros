@@ -103,12 +103,15 @@ enum LiveWorkout {
                                                               sortBy: [SortDescriptor(\.start, order: .reverse)])).first
     }
 
-    /// "✓ Série feita": marca a próxima série do exercício atual e começa o descanso
-    static func completeNextSet() async {
-        guard let s = running(), let id = currentExercise(s) else { return }
+    /// "✓ Série feita": marca a próxima série do exercício atual e começa o descanso.
+    /// Devolve a frase de confirmação (Siri, Botão de Ação, fone).
+    @discardableResult
+    static func completeNextSet() async -> String {
+        guard let s = running(), let id = currentExercise(s) else { return "Nenhum treino em andamento." }
         let sets = s.orderedSets.filter { $0.exerciseID == id }
-        guard let set = sets.first(where: { !$0.done }) else { return }
+        guard let set = sets.first(where: { !$0.done }) else { return "\(Exercise.name(id)) já está completo." }
         set.done = true
+        let number = (sets.firstIndex { $0 === set } ?? 0) + 1
         // Exercício terminado: o próximo que falta vira o atual
         if sets.allSatisfy(\.done) {
             let ids = s.exerciseIDs
@@ -121,14 +124,34 @@ enum LiveWorkout {
         startRest(s, seconds: set.rest)
         try? AppData.container.mainContext.save()
         await refresh(s)
+        HeadphoneControl.shared.refresh()
+        var msg = "\(Exercise.name(id)): série \(number) de \(sets.count) feita. Descanso de \(spoken(set.rest))."
+        if sets.allSatisfy(\.done), let next = s.currentExerciseID, next != id { msg += " Próximo: \(Exercise.name(next))." }
+        if s.sets.allSatisfy(\.done) { msg = "Última série feita! Treino completo, é só concluir no app." }
+        return msg
     }
 
-    static func skipRest() async {
-        guard let s = running() else { return }
+    @discardableResult
+    static func skipRest() async -> String {
+        guard let s = running() else { return "Nenhum treino em andamento." }
         cancelRest(s)
         try? AppData.container.mainContext.save()
         await refresh(s)
+        HeadphoneControl.shared.refresh()
+        let st = state(for: s)
+        return st.exerciseDone ? "Descanso pulado." : "Bora: \(st.exercise), série \(st.setNumber) de \(st.setCount), \(st.setText)."
     }
+
+    /// Tempo falado: "1 minuto e 30 segundos"
+    static func spoken(_ seconds: Int) -> String {
+        let m = seconds / 60, s = seconds % 60
+        let mp = m == 0 ? "" : "\(m) minuto\(m == 1 ? "" : "s")"
+        let sp = s == 0 ? "" : "\(s) segundos"
+        return [mp, sp].filter { !$0.isEmpty }.joined(separator: " e ")
+    }
+
+    static var hasRunning: Bool { running() != nil }
+    static var runningSession: WorkoutSession? { running() }
 }
 
 /// Live Activity do WOD em andamento
