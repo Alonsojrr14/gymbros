@@ -58,6 +58,9 @@ final class WorkoutSession {
     var activityUUID: UUID?
     /// Exercício marcado como "fazendo agora" (aparece no Live Activity)
     var currentExerciseID: String?
+    /// Descanso em andamento (salvo para o Live Activity poder controlar com o app fechado)
+    var restEnd: Date?
+    var restTotal: Int = 90
     @Relationship(deleteRule: .cascade, inverse: \LoggedSet.session) var sets: [LoggedSet] = []
 
     init(title: String, routineUUID: UUID?) {

@@ -9,9 +9,6 @@ struct WorkoutView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @State private var restEnd: Date?
-    @State private var restTotal = 90
-    @State private var restTask: Task<Void, Never>?
     @State private var picking = false
     @State private var finishing = false
     @State private var confirmDiscard = false
@@ -39,7 +36,7 @@ struct WorkoutView: View {
                         }
                     }
                     .padding(16)
-                    .padding(.bottom, restEnd == nil ? 90 : 180)
+                    .padding(.bottom, resting ? 180 : 90)
                 }
                 .scrollDismissesKeyboard(.immediately)
                 .onChange(of: scrollTarget) { _, target in
@@ -53,7 +50,7 @@ struct WorkoutView: View {
         // Ações sempre à mão, sem rolar até o fim; ficam atrás do teclado enquanto você digita
         .overlay(alignment: .bottom) {
             VStack(spacing: 8) {
-                if let restEnd { restBar(restEnd) }
+                if resting, let end = session.restEnd { restBar(end) }
                 actionBar
             }
             .ignoresSafeArea(.keyboard)
@@ -84,7 +81,9 @@ struct WorkoutView: View {
             if let id = noteFor { saveNote(id, noteText) }
         }
         // Live Activity acompanha qualquer mudança do treino
-        .task(id: liveState) { await LiveWorkout.show(title: session.title, start: session.start, state: liveState) }
+        .task(id: LiveWorkout.state(for: session)) { await LiveWorkout.refresh(session) }
+        // Descanso marcado pelo Live Activity: acompanha o fim aqui também
+        .task(id: session.restEnd) { await watchRest() }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
@@ -125,28 +124,8 @@ struct WorkoutView: View {
         .background(LinearGradient(colors: [Theme.bg.opacity(0), Theme.bg, Theme.bg], startPoint: .top, endPoint: .bottom).ignoresSafeArea())
     }
 
-    /// Exercício "fazendo agora": o marcado, ou o primeiro que ainda tem série a fazer
-    private var currentID: String? {
-        let ids = session.exerciseIDs
-        if let c = session.currentExerciseID, ids.contains(c) { return c }
-        return ids.first { id in !session.orderedSets.filter { $0.exerciseID == id }.allSatisfy(\.done) } ?? ids.last
-    }
-
-    private var liveState: WorkoutAttributes.ContentState {
-        let cur = currentID
-        let sets = cur.map { id in session.orderedSets.filter { $0.exerciseID == id } } ?? []
-        let next = sets.firstIndex { !$0.done }
-        return WorkoutAttributes.ContentState(
-            exercise: cur.map(Exercise.name) ?? "Treino livre",
-            setNumber: (next ?? sets.count) + 1,
-            setCount: sets.count,
-            setText: next.map { setText(sets[$0]) } ?? "",
-            doneSets: session.sets.filter(\.done).count,
-            totalSets: session.sets.count,
-            restEnd: restEnd,
-            sprite: WidgetData.load()?.sprite ?? "sprite_baby"
-        )
-    }
+    private var currentID: String? { LiveWorkout.currentExercise(session) }
+    private var resting: Bool { session.restEnd.map { $0 > .now } ?? false }
 
     /// Terminou todas as séries de um exercício: recolhe e rola até o próximo que falta
     private func setToggled(_ id: String) {
@@ -327,7 +306,7 @@ struct WorkoutView: View {
                 ZStack {
                     Circle().stroke(.white.opacity(0.12), lineWidth: 4)
                     Circle()
-                        .trim(from: 0, to: left / Double(max(restTotal, 1)))
+                        .trim(from: 0, to: left / Double(max(session.restTotal, 1)))
                         .stroke(Theme.accent, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                 }
@@ -350,33 +329,20 @@ struct WorkoutView: View {
     }
 
     private func startRest(_ seconds: Int, keepTotal: Bool = false) {
-        guard seconds > 0 else { return }
-        cancelRest()
-        let end = Date.now.addingTimeInterval(TimeInterval(seconds))
-        if !keepTotal { restTotal = seconds } else { restTotal = max(restTotal, seconds) }
-        withAnimation { restEnd = end }
-
-        // Aviso mesmo com o app em segundo plano
-        let content = UNMutableNotificationContent()
-        content.title = "Descanso acabou"
-        content.body = "Bora para a próxima série 💪"
-        content.sound = .default
-        let req = UNNotificationRequest(identifier: "rest", content: content,
-                                        trigger: UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(seconds), repeats: false))
-        UNUserNotificationCenter.current().add(req)
-
-        restTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(seconds))
-            guard !Task.isCancelled else { return }
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            withAnimation { restEnd = nil }
-        }
+        withAnimation { LiveWorkout.startRest(session, seconds: seconds, keepTotal: keepTotal) }
     }
 
     private func cancelRest() {
-        restTask?.cancel()
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["rest"])
-        withAnimation { restEnd = nil }
+        withAnimation { LiveWorkout.cancelRest(session) }
+    }
+
+    /// Vibra e fecha o card quando o descanso acaba (seja qual for quem começou)
+    private func watchRest() async {
+        guard let end = session.restEnd, end > .now else { return }
+        try? await Task.sleep(for: .seconds(end.timeIntervalSinceNow))
+        guard !Task.isCancelled, session.restEnd == end else { return }
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        withAnimation { session.restEnd = nil }
     }
 }
 

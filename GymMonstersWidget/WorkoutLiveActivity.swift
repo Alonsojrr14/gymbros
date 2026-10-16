@@ -15,7 +15,7 @@ struct WorkoutLiveActivity: Widget {
             let s = context.state
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(s.sprite).resizable().interpolation(.none).scaledToFit().frame(width: 44, height: 44)
+                    Image(s.sprite + "_live").resizable().interpolation(.none).scaledToFit().frame(width: 44, height: 44)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 2) {
@@ -54,26 +54,45 @@ struct WorkoutLiveActivity: Widget {
     }
 }
 
-/// Série atual ou descanso
+/// Série atual ou descanso, com o botão da vez
 private struct SetLine: View {
     let state: WorkoutAttributes.ContentState
 
     var body: some View {
-        HStack {
+        HStack(spacing: 10) {
             if let end = state.restEnd, end > .now {
-                Label("Descanso", systemImage: "timer").font(.subheadline.bold())
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Descanso").font(.caption).foregroundStyle(dim)
+                    Text(timerInterval: Date.now...end, countsDown: true)
+                        .font(.title3.monospacedDigit().bold())
+                        .foregroundStyle(accent)
+                }
                 Spacer()
-                Text(timerInterval: Date.now...end, countsDown: true)
-                    .font(.title3.monospacedDigit().bold())
-                    .foregroundStyle(accent)
-                    .multilineTextAlignment(.trailing)
+                Button(intent: SkipRestIntent()) {
+                    Label("Pular", systemImage: "forward.fill")
+                        .font(.subheadline.bold())
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(.white.opacity(0.15), in: .capsule)
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
             } else if state.exerciseDone {
                 Label("Exercício concluído", systemImage: "checkmark.circle.fill").font(.subheadline.bold()).foregroundStyle(accent)
                 Spacer()
             } else {
-                Text("Série \(state.setNumber) de \(state.setCount)").font(.subheadline.bold())
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Série \(state.setNumber) de \(state.setCount)").font(.caption).foregroundStyle(dim)
+                    Text(state.setText).font(.headline.monospacedDigit()).foregroundStyle(accent)
+                }
                 Spacer()
-                Text(state.setText).font(.subheadline.monospacedDigit().bold()).foregroundStyle(accent)
+                Button(intent: CompleteSetIntent()) {
+                    Label("Série feita", systemImage: "checkmark")
+                        .font(.subheadline.bold())
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(accent, in: .capsule)
+                        .foregroundStyle(.black)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -85,7 +104,7 @@ private struct LockScreenWorkout: View {
     var body: some View {
         let s = context.state
         HStack(alignment: .center, spacing: 14) {
-            Image(s.sprite).resizable().interpolation(.none).scaledToFit().frame(width: 62, height: 62)
+            Image(s.sprite + "_live").resizable().interpolation(.none).scaledToFit().frame(width: 62, height: 62)
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text(context.attributes.title).font(.caption.bold()).foregroundStyle(dim).lineLimit(1)
