@@ -40,56 +40,137 @@ struct DexView: View {
 
     }
 
-    /// Todas as formas de todas as espécies (o ovo conta uma vez)
+    /// Todas as formas de todas as espécies com arte (o ovo conta uma vez)
     static var allForms: [MonsterForm] {
         [.egg] + Species.catalog.flatMap { MonsterForm.all(species: $0.id).filter { $0.stage != .egg } }
     }
 
+    @State private var speciesID = Species.standard.id
+
     private var monsters: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            stageBlock(.egg, forms: [.egg])
-            ForEach(Species.catalog) { sp in
-                if Species.catalog.count > 1 {
-                    Text(sp.name.uppercased()).font(.caption.weight(.bold)).foregroundStyle(Theme.dim).tracking(0.6)
-                }
-                ForEach(Stage.allCases.filter { $0 != .egg }, id: \.self) { stage in
-                    stageBlock(stage, forms: MonsterForm.all(species: sp.id).filter { $0.stage == stage })
-                }
+        VStack(alignment: .leading, spacing: 18) {
+            speciesPicker
+            if let sp = Species.byID(speciesID), sp.isReady {
+                tree(sp)
             }
         }
     }
 
-    private func stageBlock(_ stage: Stage, forms: [MonsterForm]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    // MARK: Espécies
+
+    private func forms(_ sp: Species) -> [MonsterForm] { MonsterForm.all(species: sp.id).filter { $0.stage != .egg } }
+    private func found(_ sp: Species) -> [MonsterForm] { forms(sp).filter { discovered.contains($0.id) } }
+
+    private var speciesPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(Species.all) { sp in speciesCard(sp) }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
+    private func speciesCard(_ sp: Species) -> some View {
+        let ready = sp.isReady
+        let seen = found(sp)
+        // Mostra a forma mais evoluída já descoberta; sem nenhuma, a silhueta do bebê
+        let best = seen.max { $0.stage < $1.stage }
+        let show = best ?? MonsterForm(stage: .baby, attribute: nil, species: sp.id)
+        let selected = speciesID == sp.id
+        return Button {
+            guard ready else { return }
+            UISelectionFeedbackGenerator().selectionChanged()
+            withAnimation(.snappy) { speciesID = sp.id }
+        } label: {
+            VStack(spacing: 6) {
+                Group {
+                    if ready { MonsterSprite(form: show, hidden: best == nil) } else {
+                        Image(systemName: "questionmark").font(.title.bold()).foregroundStyle(Theme.dim)
+                    }
+                }
+                .frame(width: 64, height: 64)
+                Text(sp.name).font(.caption.bold())
+                if ready {
+                    Text("\(seen.count)/\(forms(sp).count)").font(.caption2.monospacedDigit()).foregroundStyle(Theme.dim)
+                } else {
+                    Text("Em breve").font(.caption2).foregroundStyle(Theme.dim)
+                }
+                if let a = sp.affinity {
+                    Image(systemName: a.symbol).font(.caption2).foregroundStyle(ready ? a.color : Theme.dim)
+                } else {
+                    Image(systemName: "circle.grid.cross").font(.caption2).foregroundStyle(Theme.dim)
+                }
+            }
+            .frame(width: 92)
+            .padding(.vertical, 12)
+            .background(Theme.card, in: .rect(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(selected ? Theme.accent : .clear, lineWidth: 2))
+            .opacity(ready ? 1 : 0.45)
+        }
+        .buttonStyle(GMPress())
+    }
+
+    // MARK: Árvore
+
+    private func tree(_ sp: Species) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text(stage.name).font(.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(sp.name).font(.title2.weight(.heavy))
+                    Text(sp.affinity.map { "Nasce de ovos chocados com treinos de \($0.name)" } ?? "Nasce quando nenhuma outra espécie combina")
+                        .font(.caption).foregroundStyle(Theme.dim)
+                }
                 Spacer()
-                Text(stage == .egg ? "início" : "\(stage.threshold) XP")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Theme.dim)
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: forms.count > 1 ? 2 : 1), spacing: 10) {
-                ForEach(forms) { cell($0) }
+
+            // Ovo → Bebê → Rookie
+            GMCard {
+                HStack(spacing: 4) {
+                    node(.egg, size: 64)
+                    arrow
+                    node(MonsterForm(stage: .baby, attribute: nil, species: sp.id), size: 64)
+                    arrow
+                    node(MonsterForm(stage: .rookie, attribute: nil, species: sp.id), size: 64)
+                }
+            }
+
+            Text("O atributo mais treinado em cada fase escolhe o galho")
+                .font(.caption).foregroundStyle(Theme.dim).padding(.horizontal, 4)
+
+            // Um galho por atributo: Champion → Ultimate
+            ForEach(Attribute.allCases) { a in
+                GMCard {
+                    HStack(spacing: 6) {
+                        VStack(spacing: 4) {
+                            Image(systemName: a.symbol).font(.title3).foregroundStyle(a.color)
+                            Text(a.name).font(.caption2.bold()).foregroundStyle(a.color).lineLimit(1).minimumScaleFactor(0.7)
+                        }
+                        .frame(width: 62)
+                        node(MonsterForm(stage: .champion, attribute: a, species: sp.id), size: 76)
+                        arrow
+                        node(MonsterForm(stage: .ultimate, attribute: a, species: sp.id), size: 76)
+                    }
+                }
             }
         }
     }
 
-    private func cell(_ f: MonsterForm) -> some View {
+    private var arrow: some View {
+        Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
+    }
+
+    private func node(_ f: MonsterForm, size: CGFloat) -> some View {
         let known = discovered.contains(f.id)
         let current = snapshot.form == f
-        return VStack(spacing: 8) {
-            MonsterSprite(form: f, hidden: !known)
-                .frame(height: f.stage.branches ? 90 : 120)
-            Text(known ? f.name : "???").font(.subheadline.bold())
-            if let a = f.attribute {
-                Label(a.name, systemImage: a.symbol)
-                    .font(.caption)
-                    .foregroundStyle(known ? a.color : Theme.dim)
-            }
+        return VStack(spacing: 4) {
+            MonsterSprite(form: f, hidden: !known).frame(width: size, height: size)
+            Text(known ? f.name : "???").font(.caption.bold()).lineLimit(1).minimumScaleFactor(0.7)
+            Text(f.stage == .egg ? "início" : "\(f.stage.name) · \(f.stage.threshold) XP")
+                .font(.system(size: 9).monospacedDigit()).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.7)
         }
-        .padding(12)
         .frame(maxWidth: .infinity)
-        .background(Theme.card, in: .rect(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(current ? Theme.accent : .clear, lineWidth: 2))
+        .padding(.vertical, 6)
+        .background(current ? Theme.accent.opacity(0.12) : .clear, in: .rect(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(current ? Theme.accent : .clear, lineWidth: 1.5))
     }
 }
