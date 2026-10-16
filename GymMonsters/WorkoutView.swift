@@ -20,28 +20,44 @@ struct WorkoutView: View {
     @State private var platesFor: Double?
     @State private var noteFor: String?
     @State private var noteText = ""
+    /// Exercícios recolhidos (a pessoa recolheu ou terminou todas as séries)
+    @State private var collapsed: Set<String> = []
+    @State private var scrollTarget: String?
     @Query private var notes: [ExerciseNote]
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            ScrollView {
-                VStack(spacing: 14) {
-                    ForEach(Array(session.exerciseIDs.enumerated()), id: \.element) { _, id in
-                        exerciseCard(id)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 12) {
+                        if session.exerciseIDs.isEmpty {
+                            GMEmptyState(icon: "dumbbell", title: "Treino vazio", message: "Toque em + Exercício, aqui embaixo, para começar.")
+                        }
+                        ForEach(Array(session.exerciseIDs.enumerated()), id: \.element) { _, id in
+                            exerciseCard(id).id(id)
+                        }
                     }
-                    GMButton("Adicionar exercício", icon: "plus", kind: .secondary) { picking = true }
-                    GMButton("Descartar treino", icon: "trash", kind: .danger) { confirmDiscard = true }
-                        .padding(.top, 12)
+                    .padding(16)
+                    .padding(.bottom, restEnd == nil ? 90 : 180)
                 }
-                .padding(16)
-                .padding(.bottom, restEnd == nil ? 20 : 110)
+                .scrollDismissesKeyboard(.immediately)
+                .onChange(of: scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(.snappy) { proxy.scrollTo(target, anchor: .top) }
+                    scrollTarget = nil
+                }
             }
-            .scrollDismissesKeyboard(.immediately)
         }
         .background(Theme.bg.ignoresSafeArea())
-        // O descanso fica atrás do teclado enquanto você digita
-        .overlay(alignment: .bottom) { if let restEnd { restBar(restEnd).ignoresSafeArea(.keyboard) } }
+        // Ações sempre à mão, sem rolar até o fim; ficam atrás do teclado enquanto você digita
+        .overlay(alignment: .bottom) {
+            VStack(spacing: 8) {
+                if let restEnd { restBar(restEnd) }
+                actionBar
+            }
+            .ignoresSafeArea(.keyboard)
+        }
         .gmKeyboardDone()
         .gmModal(isPresented: $picking) { ExercisePicker(onPick: add) }
         .gmModal(item: $info) { ExerciseInfoView(exercise: $0) }
@@ -90,6 +106,39 @@ struct WorkoutView: View {
         .padding(.vertical, 10)
     }
 
+    /// Barra fixa: adicionar exercício, recolher/expandir todos e descartar
+    private var actionBar: some View {
+        let allCollapsed = !session.exerciseIDs.isEmpty && session.exerciseIDs.allSatisfy(collapsed.contains)
+        return HStack(spacing: 10) {
+            GMButton("Exercício", icon: "plus", kind: .secondary) { picking = true }
+            GMIconButton(icon: allCollapsed ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left", size: 48) {
+                withAnimation(.snappy) { collapsed = allCollapsed ? [] : Set(session.exerciseIDs) }
+            }
+            GMIconButton(icon: "trash", size: 48, tint: Theme.danger) { confirmDiscard = true }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
+        .background(LinearGradient(colors: [Theme.bg.opacity(0), Theme.bg, Theme.bg], startPoint: .top, endPoint: .bottom).ignoresSafeArea())
+    }
+
+    /// Terminou todas as séries de um exercício: recolhe e rola até o próximo que falta
+    private func setToggled(_ id: String) {
+        let sets = session.orderedSets.filter { $0.exerciseID == id }
+        guard !sets.isEmpty, sets.allSatisfy(\.done) else { return }
+        withAnimation(.snappy) { _ = collapsed.insert(id) }
+        let ids = session.exerciseIDs
+        if let i = ids.firstIndex(of: id) {
+            let next = (ids[(i + 1)...] + ids[..<i]).first { e in
+                !session.orderedSets.filter { $0.exerciseID == e }.allSatisfy(\.done)
+            }
+            if let next {
+                collapsed.remove(next)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { scrollTarget = next }
+            }
+        }
+    }
+
     private func saveNote(_ id: String, _ text: String) {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let n = notes.first(where: { $0.exerciseID == id }) {
@@ -129,21 +178,41 @@ struct WorkoutView: View {
         let sets = session.orderedSets.filter { $0.exerciseID == id }
         let suggestion = Progression.suggest(exerciseID: id, sets: sets.count, reps: sets.first?.targetReps ?? 10, history: history)
         let last = history.last { $0.sets.contains { $0.exerciseID == id } }
+        let done = sets.filter(\.done).count
+        let complete = !sets.isEmpty && done == sets.count
+        let isCollapsed = collapsed.contains(id)
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 if let ex {
-                    Button { info = ex } label: { ExerciseThumb(exercise: ex, size: 52) }
+                    Button { info = ex } label: { ExerciseThumb(exercise: ex, size: isCollapsed ? 40 : 52) }
                         .buttonStyle(GMPress())
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(ex?.name ?? id).font(.headline)
-                    Text([ex?.group.name, ex?.equipment].compactMap { $0 }.joined(separator: " · "))
-                        .font(.caption)
-                        .foregroundStyle(Theme.dim)
+                // Tocar no nome recolhe ou expande o card
+                Button {
+                    withAnimation(.snappy) { if isCollapsed { collapsed.remove(id) } else { collapsed.insert(id) } }
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(ex?.name ?? id).font(.headline).lineLimit(1)
+                            HStack(spacing: 6) {
+                                if complete { Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.accent) }
+                                Text("\(done)/\(sets.count) séries" + (isCollapsed ? "" : " · " + [ex?.group.name, ex?.equipment].compactMap { $0 }.joined(separator: " · ")))
+                                    .lineLimit(1)
+                            }
+                            .font(.caption)
+                            .foregroundStyle(complete ? Theme.accent : Theme.dim)
+                        }
+                        Spacer(minLength: 4)
+                        Image(systemName: isCollapsed ? "chevron.down" : "chevron.up")
+                            .font(.caption.bold())
+                            .foregroundStyle(Theme.dim)
+                    }
+                    .contentShape(Rectangle())
                 }
-                Spacer()
+                .buttonStyle(GMPress())
                 GMIconButton(icon: "ellipsis", size: 34) { exerciseMenu = id }
             }
+            if !isCollapsed {
 
             if let note = notes.first(where: { $0.exerciseID == id }), !note.text.isEmpty {
                 Button { noteText = note.text; noteFor = id } label: {
@@ -171,7 +240,10 @@ struct WorkoutView: View {
 
             ForEach(sets) { s in
                 SetRow(set: s, type: ex?.type ?? .weighted, increment: ex?.increment ?? 2.5) { done in
-                    if done { startRest(s.rest) }
+                    if done {
+                        startRest(s.rest)
+                        setToggled(id)
+                    }
                 }
             }
 
@@ -181,9 +253,11 @@ struct WorkoutView: View {
                                     weight: base?.weight ?? 0, reps: base?.targetReps ?? 10, rest: base?.rest ?? 90)
                 session.sets.append(new)
             }
+            }
         }
-        .padding(16)
+        .padding(isCollapsed ? 12 : 16)
         .background(Theme.card, in: .rect(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(complete ? Theme.accent.opacity(0.35) : .clear, lineWidth: 1))
     }
 
     private func add(_ ex: Exercise) {
@@ -193,6 +267,8 @@ struct WorkoutView: View {
         for k in 0..<3 {
             session.sets.append(LoggedSet(exerciseID: ex.id, exerciseOrder: order, index: k, weight: s.weight, reps: s.reps, rest: 90))
         }
+        collapsed.remove(ex.id)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { scrollTarget = ex.id }
     }
 
     // MARK: Descanso
@@ -222,7 +298,6 @@ struct WorkoutView: View {
             .background(Theme.card, in: .rect(cornerRadius: 22))
             .overlay(RoundedRectangle(cornerRadius: 22).stroke(Theme.stroke))
             .padding(.horizontal, 12)
-            .padding(.bottom, 4)
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
