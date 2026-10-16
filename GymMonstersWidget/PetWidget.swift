@@ -7,7 +7,7 @@ import WidgetKit
 // pose é uma entrada da timeline e o iOS anima a troca entre elas.
 
 enum Pose: Int {
-    case idle, hop, lookBack, stretch, sleep, pet, wobbleLeft, wobbleRight
+    case idle, hop, lookBack, stretch, sleep, pet, wobbleLeft, wobbleRight, celebrate
 }
 
 struct PetEntry: TimelineEntry {
@@ -63,12 +63,14 @@ struct PetProvider: TimelineProvider {
         }
 
         let mood = Mood.of(isEgg: data.isEgg, lastActivity: data.lastActivity, todayXP: data.todayXP, streak: data.streak, now: now)
-        let cycle: [Pose]
+        var cycle: [Pose]
         switch mood {
         case .ovo: cycle = [.idle, .wobbleLeft, .idle, .wobbleRight, .idle, .wobbleLeft]
         case .triste, .entediado, .exausto: cycle = [.idle, .sleep, .sleep, .idle, .stretch, .sleep]
         default: cycle = [.idle, .hop, .idle, .lookBack, .idle, .stretch, .hop, .idle]
         }
+        // Nas 24 h depois de evoluir, comemora pulando
+        if data.celebrating(at: now) { cycle = [.hop, .celebrate, .hop, .idle, .celebrate, .lookBack] }
         // Uma pose por minuto pela próxima hora
         for i in 0..<60 {
             let date = start.addingTimeInterval(Double(i) * 60)
@@ -169,6 +171,7 @@ struct PetView: View {
     }
 
     private var caption: String {
+        if entry.pose != .pet, let e = d.event(at: entry.date) { return e }
         switch entry.pose {
         case .pet: return "❤️ Obrigado pelo carinho!"
         case .sleep: return "Zzz… (toque para acordar)"
@@ -194,12 +197,17 @@ struct PetView: View {
                 .frame(width: spriteSize, height: spriteSize)
                 .scaleEffect(x: p == .lookBack ? -1 : 1, y: p == .stretch ? 1.08 : p == .sleep ? 0.94 : 1, anchor: .bottom)
                 .rotationEffect(.degrees(p == .wobbleLeft ? -9 : p == .wobbleRight ? 9 : p == .sleep ? 4 : 0), anchor: .bottom)
-                .offset(y: p == .hop ? -spriteSize * 0.14 : p == .pet ? -spriteSize * 0.2 : 0)
+                .offset(y: p == .hop ? -spriteSize * 0.14 : (p == .pet || p == .celebrate) ? -spriteSize * 0.2 : 0)
 
             if p == .pet {
                 Text("❤️").font(.system(size: spriteSize * 0.2)).offset(x: -spriteSize * 0.35, y: -spriteSize * 0.05)
                 Text("❤️").font(.system(size: spriteSize * 0.14)).offset(x: spriteSize * 0.38, y: spriteSize * 0.05)
                     .transition(.scale.combined(with: .opacity))
+            }
+            if p == .celebrate {
+                Text("✨").font(.system(size: spriteSize * 0.18)).offset(x: -spriteSize * 0.4, y: -spriteSize * 0.1)
+                Text("✨").font(.system(size: spriteSize * 0.14)).offset(x: spriteSize * 0.42, y: spriteSize * 0.12)
+                Text("🎉").font(.system(size: spriteSize * 0.16)).offset(x: spriteSize * 0.3, y: -spriteSize * 0.18)
             }
             if p == .sleep {
                 Text("z z").font(.system(size: spriteSize * 0.16, weight: .heavy, design: .rounded))

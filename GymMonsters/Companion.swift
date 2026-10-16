@@ -80,6 +80,13 @@ enum Achievements {
         var snapshot: Snapshot
         /// Treinos guiados concluídos, do mais antigo ao mais novo
         var sessions: [SessionLog]
+        /// Espécies diferentes entre os monstros já chocados
+        var species = 0
+        /// Monstros que chegaram ao Ultimate
+        var ultimates = 0
+        /// Formas descobertas na Dex e total existente
+        var discovered = 0
+        var dexTotal = 1
     }
 
     static func evaluate(_ i: Input) -> [Achievement] {
@@ -130,6 +137,12 @@ enum Achievements {
             Achievement(id: "ton10", title: "Dez toneladas", detail: "10 t levantadas no total", symbol: "scalemass", current: tons, goal: 10),
             Achievement(id: "ton100", title: "Cem toneladas", detail: "100 t levantadas no total", symbol: "scalemass.fill", current: tons, goal: 100),
             Achievement(id: "corpo", title: "Corpo inteiro", detail: "Treine todos os músculos do mapa em 7 dias", symbol: "figure.stand", current: fullWeek ? 1 : 0, goal: 1),
+            Achievement(id: "especies2", title: "Nova espécie", detail: "Choque um monstro de outra espécie", symbol: "pawprint", current: Double(i.species), goal: 2),
+            Achievement(id: "especies4", title: "Colecionador", detail: "Monstros de 4 espécies diferentes", symbol: "pawprint.fill", current: Double(i.species), goal: 4),
+            Achievement(id: "especies8", title: "Zoológico completo", detail: "Monstros das 8 espécies", symbol: "tortoise.fill", current: Double(i.species), goal: Double(max(Species.catalog.count, 2))),
+            Achievement(id: "ultimate2", title: "Treinador de elite", detail: "2 monstros no Ultimate", symbol: "crown.fill", current: Double(i.ultimates), goal: 2),
+            Achievement(id: "dex25", title: "Pesquisador", detail: "Descubra 25 formas na Dex", symbol: "book", current: Double(i.discovered), goal: 25),
+            Achievement(id: "dexall", title: "Dex completa", detail: "Descubra todas as formas", symbol: "book.fill", current: Double(i.discovered), goal: Double(i.dexTotal)),
             Achievement(id: "saude", title: "Conectado", detail: "Importe um treino do Apple Saúde", symbol: "heart.text.square", current: Double(i.fromHealth), goal: 1),
         ]
     }

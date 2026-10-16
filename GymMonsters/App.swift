@@ -64,9 +64,14 @@ struct MainView: View {
         let roster = d.roster, s = d.main, history = d.history, mainName = d.mainName
         let _ = Exercise.register(customs)
         let logs = sessions.map(\.log)
+        let hatched = roster.snapshots.values.filter { $0.stage > .egg }
         let achievements = Achievements.evaluate(.init(activities: activities.map(\.record),
                                                        fromHealth: activities.filter { $0.healthUUID != nil }.count,
-                                                       snapshot: d.best, sessions: logs))
+                                                       snapshot: d.best, sessions: logs,
+                                                       species: Set(hatched.map(\.form.species)).count,
+                                                       ultimates: hatched.filter { $0.stage == .ultimate }.count,
+                                                       discovered: discovered.split(separator: ",").count,
+                                                       dexTotal: DexView.allForms.count))
         let companion = companionContext(s, logs: logs, name: mainName)
         TabView(selection: $tab) {
             HomeView(snapshot: s, activities: activities, mood: companion.mood, line: Companion.line(companion), monsterName: mainName)
@@ -173,7 +178,8 @@ struct MainView: View {
                    formName: s.form.name, stageName: s.stage.name, sprite: s.form.sprite, hue: s.form.hue,
                    isEgg: s.stage == .egg, level: s.level, totalXP: s.totalXP, progress: s.progress, xpToNext: s.xpToNext,
                    streak: s.streak, lastActivity: s.lastActivity, todayXP: s.todayXP, todayRoutine: routinesByWeekday,
-                   updated: .now).save()
+                   updated: .now, lastEvolution: s.evolutions.last?.date, lastEvolutionName: s.evolutions.last?.form.name,
+                   lastEvolutionHatch: s.evolutions.last?.form.stage == .baby).save()
         WidgetBridge.reload()
         Reminders.schedule(enabled: remindersOn, minuteOfDay: reminderMinute, onlyRoutineDays: reminderRoutineOnly,
                            routines: routinesByWeekday, name: companion.name, streak: s.streak,

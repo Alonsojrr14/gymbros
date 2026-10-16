@@ -104,6 +104,9 @@ struct WidgetView: View {
             .font(.caption.bold())
             Sprite(data: d, mood: entry.mood).frame(maxHeight: .infinity)
             Text(d.monsterName).font(.caption.bold()).lineLimit(1)
+            if let e = d.event(at: entry.date) {
+                Text(e).font(.system(size: 10, weight: .semibold)).foregroundStyle(accent).lineLimit(1).minimumScaleFactor(0.7)
+            }
             XPBar(progress: d.progress)
         }
         .foregroundStyle(.white)
@@ -118,7 +121,11 @@ struct WidgetView: View {
                 Text(d.isEgg ? d.stageName : "\(d.stageName) · Nível \(d.level)")
                     .font(.caption)
                     .foregroundStyle(dim)
-                Text("\(entry.mood.emoji) \(entry.line)").font(.caption).lineLimit(2)
+                if let e = d.event(at: entry.date) {
+                    Text(e).font(.caption.bold()).foregroundStyle(accent).lineLimit(2)
+                } else {
+                    Text("\(entry.mood.emoji) \(entry.line)").font(.caption).lineLimit(2)
+                }
                 Spacer(minLength: 0)
                 XPBar(progress: d.progress)
                 HStack {
@@ -139,8 +146,9 @@ struct WidgetView: View {
     private var rectangular: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(entry.mood.emoji) \(d.monsterName)").font(.headline).lineLimit(1)
-            Text(d.isEgg ? "\(d.xpToNext ?? 0) XP para chocar" : "Nível \(d.level)\(entry.streak > 0 ? " · 🔥\(entry.streak)" : "")")
+            Text(d.event(at: entry.date) ?? (d.isEgg ? "\(d.xpToNext ?? 0) XP para chocar" : "Nível \(d.level)\(entry.streak > 0 ? " · 🔥\(entry.streak)" : "")"))
                 .font(.caption)
+                .lineLimit(1)
             Gauge(value: d.progress) {}.gaugeStyle(.accessoryLinearCapacity)
         }
         .containerBackground(.clear, for: .widget)

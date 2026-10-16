@@ -66,6 +66,25 @@ struct WidgetData: Codable {
     var todayXP: Int
     var todayRoutine: [Int: String] // dia da semana → nome da rotina
     var updated: Date
+    /// Última vez que o monstro principal chocou ou evoluiu
+    var lastEvolution: Date? = nil
+    var lastEvolutionName: String? = nil
+    var lastEvolutionHatch = false
+
+    /// Aviso do momento: comemoração nas 24 h depois de chocar/evoluir, ou alerta perto da próxima fase
+    func event(at date: Date) -> String? {
+        if let when = lastEvolution, let name = lastEvolutionName, date.timeIntervalSince(when) < 86400 {
+            return lastEvolutionHatch ? "🐣 Chocou: \(name)!" : "✨ Evoluiu para \(name)!"
+        }
+        if let left = xpToNext, progress >= 0.85 {
+            return isEgg ? "🥚 Quase chocando! \(left) XP" : "⚡ Quase evoluindo! \(left) XP"
+        }
+        return nil
+    }
+
+    func celebrating(at date: Date) -> Bool {
+        lastEvolution.map { date.timeIntervalSince($0) < 86400 } ?? false
+    }
 
     static let appGroup = "group.com.alonsoalmeida.gymmonsters"
     private static let key = "widgetData"
