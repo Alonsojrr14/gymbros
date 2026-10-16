@@ -35,7 +35,8 @@ struct OnboardingView: View {
                         .padding()
                         .background(Theme.card, in: .rect(cornerRadius: 14))
                         .padding(.horizontal, 32)
-                        .onSubmit(receive)
+                        // O ✓ do teclado só fecha o teclado; avançar é pelo botão
+                        .onSubmit { focused = false }
                 }
                 Spacer()
 
