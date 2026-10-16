@@ -9,7 +9,7 @@ struct DexView: View {
     var body: some View {
         NavigationStack {
             GMScreen(tab == 0 ? "Dex" : "Conquistas",
-                     subtitle: tab == 0 ? "\(discovered.count) de \(MonsterForm.all.count) formas descobertas"
+                     subtitle: tab == 0 ? "\(discovered.count) de \(DexView.allForms.count) formas descobertas"
                                         : "\(achievements.filter(\.unlocked).count) de \(achievements.count) desbloqueadas") {
                 GMSegmented(options: [(0, "Monstros"), (1, "Conquistas")], selection: $tab)
                 if tab == 0 { monsters } else { trophies }
@@ -40,25 +40,38 @@ struct DexView: View {
 
     }
 
-    private var monsters: some View {
-                VStack(alignment: .leading, spacing: 22) {
-                    ForEach(Stage.allCases, id: \.self) { stage in
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Text(stage.name).font(.headline)
-                                Spacer()
-                                Text(stage == .egg ? "início" : "\(stage.threshold) XP")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(Theme.dim)
-                            }
-                            let forms = MonsterForm.all.filter { $0.stage == stage }
-                            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: forms.count > 1 ? 2 : 1), spacing: 10) {
-                                ForEach(forms) { cell($0) }
-                            }
-                        }
-                    }
-                }
+    /// Todas as formas de todas as espécies (o ovo conta uma vez)
+    static var allForms: [MonsterForm] {
+        [.egg] + Species.catalog.flatMap { MonsterForm.all(species: $0.id).filter { $0.stage != .egg } }
+    }
 
+    private var monsters: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            stageBlock(.egg, forms: [.egg])
+            ForEach(Species.catalog) { sp in
+                if Species.catalog.count > 1 {
+                    Text(sp.name.uppercased()).font(.caption.weight(.bold)).foregroundStyle(Theme.dim).tracking(0.6)
+                }
+                ForEach(Stage.allCases.filter { $0 != .egg }, id: \.self) { stage in
+                    stageBlock(stage, forms: MonsterForm.all(species: sp.id).filter { $0.stage == stage })
+                }
+            }
+        }
+    }
+
+    private func stageBlock(_ stage: Stage, forms: [MonsterForm]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(stage.name).font(.headline)
+                Spacer()
+                Text(stage == .egg ? "início" : "\(stage.threshold) XP")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Theme.dim)
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: forms.count > 1 ? 2 : 1), spacing: 10) {
+                ForEach(forms) { cell($0) }
+            }
+        }
     }
 
     private func cell(_ f: MonsterForm) -> some View {

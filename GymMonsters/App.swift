@@ -220,6 +220,8 @@ struct MainView: View {
                 evolution = EvolutionEvent(from: old, to: form)
             }
             m.lastFormID = form.id
+            // Fixa a espécie na chocagem: espécies novas no futuro não mudam quem já nasceu
+            if m.speciesID == nil, form.stage > .egg { m.speciesID = form.species }
         }
         try? context.save()
     }

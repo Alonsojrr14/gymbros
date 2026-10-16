@@ -18,6 +18,8 @@ final class Monster {
     var isStarter: Bool = false
     /// Última forma vista, para disparar a cena de evolução uma vez só
     var lastFormID: String = ""
+    /// Espécie, fixada quando o ovo choca (nil enquanto é ovo)
+    var speciesID: String?
 
     init(name: String = "", isStarter: Bool = false) {
         self.name = name
@@ -77,7 +79,16 @@ struct Roster {
             for o in owners { recs[o, default: []].append(a.record) }
         }
         records = recs
-        snapshots = Dictionary(uniqueKeysWithValues: monsters.map { ($0.uuid, Game.snapshot(recs[$0.uuid] ?? [])) })
+        snapshots = Dictionary(uniqueKeysWithValues: monsters.map { m in
+            var s = Game.snapshot(recs[m.uuid] ?? [])
+            // Espécie gravada no monstro; se acabou de chocar e ainda não foi gravada, calcula pelos treinos do ovo
+            if s.stage > .egg {
+                let species = m.speciesID ?? Species.hatch(attributes: s.hatchAttributes, seed: m.uuid).id
+                s.form = s.form.with(species: species)
+                s.evolutions = s.evolutions.map { Evolution(date: $0.date, form: $0.form.with(species: species)) }
+            }
+            return (m.uuid, s)
+        })
     }
 
     /// Garante o monstro inicial (e migra dados de versões anteriores)

@@ -134,49 +134,89 @@ enum Stage: Int, CaseIterable, Comparable {
     var branches: Bool { self == .champion || self == .ultimate }
 }
 
+/// Uma forma = estágio + galho (atributo) + espécie. O ovo é igual para todas as espécies.
 struct MonsterForm: Hashable, Identifiable {
     let stage: Stage
     let attribute: Attribute?
+    var species: String = Species.standard.id
 
-    var id: String { attribute.map { "\(stage)_\($0.rawValue)" } ?? "\(stage)" }
+    init(stage: Stage, attribute: Attribute?, species: String = Species.standard.id) {
+        self.stage = stage
+        self.attribute = attribute
+        self.species = stage == .egg ? Species.standard.id : species
+    }
+
+    /// Chave da forma dentro da espécie (ex.: "champion_forca")
+    var key: String { attribute.map { "\(stage)_\($0.rawValue)" } ?? "\(stage)" }
+
+    /// A espécie padrão mantém os ids antigos, para não perder descobertas da Dex
+    var id: String { species == Species.standard.id ? key : "\(species)/\(key)" }
 
     static let egg = MonsterForm(stage: .egg, attribute: nil)
 
-    static var all: [MonsterForm] {
+    static func all(species: String = Species.standard.id) -> [MonsterForm] {
         Stage.allCases.flatMap { s in
-            s.branches ? Attribute.allCases.map { MonsterForm(stage: s, attribute: $0) } : [MonsterForm(stage: s, attribute: nil)]
+            s.branches ? Attribute.allCases.map { MonsterForm(stage: s, attribute: $0, species: species) }
+                       : [MonsterForm(stage: s, attribute: nil, species: species)]
         }
     }
 
-    static func byID(_ id: String) -> MonsterForm? { all.first { $0.id == id } }
+    static var all: [MonsterForm] { all() }
 
-    var name: String {
-        switch (stage, attribute) {
-        case (.egg, _): "Ovo"
-        case (.baby, _): "Gymmon"
-        case (.rookie, _): "Cutemon"
-        case (.champion, .forca): "Halteromon"
-        case (.champion, .resistencia): "Maratomon"
-        case (.champion, .agilidade): "Saltamon"
-        case (.champion, _): "Zenmon"
-        case (.ultimate, .forca): "Trebomon"
-        case (.ultimate, .resistencia): "Fôlegomon"
-        case (.ultimate, .agilidade): "Relampamon"
-        case (.ultimate, _): "Mestremon"
-        }
+    static func byID(_ id: String) -> MonsterForm? {
+        let parts = id.split(separator: "/").map(String.init)
+        let species = parts.count == 2 ? parts[0] : Species.standard.id
+        return all(species: species).first { $0.id == id }
     }
 
-    var sprite: String {
-        switch stage {
-        case .egg: "sprite_egg"
-        case .baby: "sprite_baby"
-        case .rookie: "sprite_rookie"
-        case .champion, .ultimate: "sprite_\(stage)_\((attribute ?? .forca).rawValue)"
-        }
-    }
+    func with(species: String) -> MonsterForm { MonsterForm(stage: stage, attribute: attribute, species: species) }
+
+    var speciesInfo: Species { Species.byID(species) ?? .standard }
+    var name: String { stage == .egg ? "Ovo" : speciesInfo.names[key] ?? key }
+    var sprite: String { stage == .egg ? "sprite_egg" : speciesInfo.sprite(key) }
 
     /// Mantido para quem ainda usa (widget); todas as formas têm arte própria agora
     var hue: Double { 0 }
+}
+
+/// Espécie de monstro: nomes e artes de cada forma, e a afinidade que a faz chocar
+struct Species: Identifiable {
+    let id: String
+    let name: String
+    /// Atributo que, dominando os treinos que chocaram o ovo, faz nascer esta espécie (nil = padrão)
+    let affinity: Attribute?
+    /// Nome de cada forma, pela chave (baby, rookie, champion_forca…)
+    let names: [String: String]
+    /// Prefixo das artes: sprite_<prefixo><chave>. A padrão usa os nomes antigos (sem prefixo)
+    let spritePrefix: String
+
+    func sprite(_ key: String) -> String { "sprite_\(spritePrefix)\(key)" }
+
+    static let standard = Species(
+        id: "coelho", name: "Coelho", affinity: nil,
+        names: ["baby": "Gymmon", "rookie": "Cutemon",
+                "champion_forca": "Halteromon", "champion_resistencia": "Maratomon",
+                "champion_agilidade": "Saltamon", "champion_tecnica": "Zenmon",
+                "ultimate_forca": "Trebomon", "ultimate_resistencia": "Fôlegomon",
+                "ultimate_agilidade": "Relampamon", "ultimate_tecnica": "Mestremon"],
+        spritePrefix: ""
+    )
+
+    /// Para incluir uma espécie: nomes das 10 formas + artes "sprite_<id>_<chave>" no app e no widget
+    static let catalog: [Species] = [standard]
+
+    static func byID(_ id: String) -> Species? { catalog.first { $0.id == id } }
+
+    /// Espécie de um ovo que acabou de chocar, pelos treinos que o chocaram.
+    /// Entre várias espécies com a mesma afinidade, escolhe de forma estável pelo id do monstro.
+    static func hatch(attributes: [Attribute: Double], seed: UUID) -> Species {
+        guard !attributes.isEmpty else { return standard }
+        let dominant = Game.dominant(attributes)
+        let matches = catalog.filter { $0.affinity == dominant }
+        guard !matches.isEmpty else { return standard }
+        var rng = SeededRandom(seed: seed.uuidString)
+        return matches[Int(rng.next() * Double(matches.count)) % matches.count]
+    }
 }
 
 struct ActivityRecord: Identifiable {
@@ -199,6 +239,8 @@ struct Snapshot {
     /// Atributos acumulados desde a última evolução: decidem o próximo galho
     var stageAttributes: [Attribute: Double] = [:]
     var lifetimeAttributes: [Attribute: Double] = [:]
+    /// Atributos dos treinos que chocaram o ovo (definem a espécie)
+    var hatchAttributes: [Attribute: Double] = [:]
     var evolutions: [Evolution] = []
     var xpByActivity: [UUID: Int] = [:]
     var streak = 0
@@ -265,6 +307,7 @@ enum Game {
             }
 
             while let next = s.stage.next, s.totalXP >= next.threshold {
+                if s.stage == .egg { s.hatchAttributes = s.stageAttributes }
                 s.form = MonsterForm(stage: next, attribute: next.branches ? dominant(s.stageAttributes) : nil)
                 s.evolutions.append(Evolution(date: r.date, form: s.form))
                 s.stageAttributes = [:]

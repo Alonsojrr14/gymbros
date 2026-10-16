@@ -44,6 +44,7 @@ struct Backup: Codable {
 
     struct MonsterDTO: Codable {
         var uuid: UUID, name: String, createdAt: Date, isStarter: Bool, lastFormID: String
+        var speciesID: String?
     }
 
     struct RoutineDTO: Codable {
@@ -99,7 +100,7 @@ struct Backup: Codable {
                           isMock: $0.isMock, joinedAt: $0.joinedAt, monsterUUID: $0.monsterUUID)
             },
             monsters: try context.fetch(FetchDescriptor<Monster>()).map {
-                MonsterDTO(uuid: $0.uuid, name: $0.name, createdAt: $0.createdAt, isStarter: $0.isStarter, lastFormID: $0.lastFormID)
+                MonsterDTO(uuid: $0.uuid, name: $0.name, createdAt: $0.createdAt, isStarter: $0.isStarter, lastFormID: $0.lastFormID, speciesID: $0.speciesID)
             },
             body: try context.fetch(FetchDescriptor<BodyEntry>()).map {
                 BodyDTO(uuid: $0.uuid, date: $0.date, weight: $0.weight, waist: $0.waist, chest: $0.chest, arm: $0.arm,
@@ -187,6 +188,7 @@ struct Backup: Codable {
             mon.uuid = m.uuid
             mon.createdAt = m.createdAt
             mon.lastFormID = m.lastFormID
+            mon.speciesID = m.speciesID
             context.insert(mon)
         }
         for c in checkIns ?? [] {
