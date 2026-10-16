@@ -147,6 +147,7 @@ struct ExercisePicker: View {
     @State private var search = ""
     @State private var info: Exercise?
     @State private var creating = false
+    @State private var filter = 0
 
     private func matches(_ e: Exercise) -> Bool {
         search.isEmpty || e.name.localizedStandardContains(search) || e.group.name.localizedStandardContains(search)
@@ -161,10 +162,17 @@ struct ExercisePicker: View {
             if !mine.isEmpty {
                 GMSection("Meus exercícios") { rows(mine) }
             }
-            ForEach(MuscleGroup.allCases) { g in
-                let items = Exercise.library.filter { $0.group == g && matches($0) }
-                if !items.isEmpty {
-                    GMSection(g.name) { rows(items) }
+            GMSegmented(options: [(0, "Todos"), (1, "Academia"), (2, "CrossFit")], selection: $filter)
+            let cross = Exercise.builtIn.filter { $0.isCrossfit && matches($0) }
+            if filter != 1 && !cross.isEmpty {
+                GMSection("CrossFit · \(cross.count)") { rows(cross) }
+            }
+            if filter != 2 {
+                ForEach(MuscleGroup.allCases) { g in
+                    let items = Exercise.builtIn.filter { $0.group == g && !$0.crossfit && matches($0) }
+                    if !items.isEmpty {
+                        GMSection("\(g.name) · \(items.count)") { rows(items) }
+                    }
                 }
             }
         }
@@ -220,8 +228,12 @@ struct ExerciseThumb: View {
         Group {
             if exercise.hasPhotos {
                 Image("ex_\(exercise.id)_0").resizable().scaledToFill()
+            } else if let url = exercise.remotePhotos?.first {
+                AsyncImage(url: url) { img in img.resizable().scaledToFill() } placeholder: {
+                    Image(systemName: exercise.group.symbol).font(.system(size: size * 0.45)).foregroundStyle(Theme.dim)
+                }
             } else {
-                Image(systemName: exercise.group.symbol)
+                Image(systemName: exercise.isCrossfit ? "figure.cross.training" : exercise.group.symbol)
                     .font(.system(size: size * 0.45))
                     .foregroundStyle(Theme.dim)
             }

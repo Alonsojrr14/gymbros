@@ -26,6 +26,12 @@ struct Backup: Codable {
         var exerciseID: String, text: String
     }
     var checkIns: [CheckInDTO]? = nil
+    var wods: [WodDTO]? = nil
+
+    struct WodDTO: Codable {
+        var uuid: UUID, wodID: String, wodName: String, formatName: String, date: Date
+        var seconds: Int?, rounds: Int?, reps: Int?, rx: Bool, note: String, activityUUID: UUID?
+    }
 
     struct LeagueDTO: Codable {
         var uuid: UUID, name: String, emoji: String, scoring: String, start: Date, code: String, isMock: Bool, joinedAt: Date
@@ -109,6 +115,10 @@ struct Backup: Codable {
             notes: try context.fetch(FetchDescriptor<ExerciseNote>()).map { NoteDTO(exerciseID: $0.exerciseID, text: $0.text) },
             checkIns: try context.fetch(FetchDescriptor<LeagueCheckIn>()).map {
                 CheckInDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, activityUUID: $0.activityUUID, title: $0.title, note: $0.note, date: $0.date)
+            },
+            wods: try context.fetch(FetchDescriptor<WodResult>()).map {
+                WodDTO(uuid: $0.uuid, wodID: $0.wodID, wodName: $0.wodName, formatName: $0.formatName, date: $0.date,
+                       seconds: $0.seconds, rounds: $0.rounds, reps: $0.reps, rx: $0.rx, note: $0.note, activityUUID: $0.activityUUID)
             }
         )
     }
@@ -127,6 +137,7 @@ struct Backup: Codable {
         try context.delete(model: Monster.self)
         try context.delete(model: BodyEntry.self)
         try context.delete(model: ExerciseNote.self)
+        try context.delete(model: WodResult.self)
 
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
@@ -190,6 +201,12 @@ struct Backup: Codable {
             mon.lastFormID = m.lastFormID
             mon.speciesID = m.speciesID
             context.insert(mon)
+        }
+        for w in wods ?? [] {
+            let r = WodResult(wodID: w.wodID, wodName: w.wodName, formatName: w.formatName)
+            r.uuid = w.uuid; r.date = w.date; r.seconds = w.seconds; r.rounds = w.rounds; r.reps = w.reps
+            r.rx = w.rx; r.note = w.note; r.activityUUID = w.activityUUID
+            context.insert(r)
         }
         for c in checkIns ?? [] {
             let ci = LeagueCheckIn(leagueUUID: c.leagueUUID, activityUUID: c.activityUUID, title: c.title, note: c.note, date: c.date, photo: nil)

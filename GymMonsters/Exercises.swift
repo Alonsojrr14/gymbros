@@ -81,26 +81,53 @@ struct Exercise: Identifiable, Hashable {
     let group: MuscleGroup
     let equipment: String
     var type: ExerciseType = .weighted
+    /// Movimento de CrossFit (aparece na seção própria da biblioteca)
+    var crossfit = false
 
     var increment: Double { group.heavy && equipment != "Halteres" ? 5 : 2.5 }
 
     var isCustom: Bool { id.hasPrefix("custom-") }
+    /// Fotos embutidas no app (funcionam sem internet)
     var hasPhotos: Bool { ExerciseData.withPhotos.contains(id) }
-    var muscles: MuscleTargets { ExerciseData.muscles[id] ?? group.muscles }
+    /// Fotos carregadas da internet (free-exercise-db) e guardadas em cache
+    var remotePhotos: [URL]? {
+        ExerciseExtraData.remote[id].map { folder in
+            (0...1).compactMap { URL(string: "https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/\(folder)/\($0).jpg") }
+        }
+    }
+    var hasAnyPhoto: Bool { hasPhotos || remotePhotos != nil }
+
+    /// Exercícios da biblioteca original que também são clássicos do CrossFit
+    static let crossfitAlso: Set<String> = ["burpee", "thruster", "clean", "kettlebell-swing", "farmer-walk", "agachamento-frontal",
+                                             "levantamento-terra", "barra-fixa", "flexao", "agachamento-livre-corpo", "abdominal",
+                                             "desenvolvimento", "agachamento", "paralelas", "prancha"]
+    var isCrossfit: Bool { crossfit || Exercise.crossfitAlso.contains(id) }
+    var muscles: MuscleTargets { ExerciseData.muscles[id] ?? ExerciseExtraData.muscles[id] ?? group.muscles }
+    /// Instruções em português (biblioteca original)
     var instructions: [String] { ExerciseInstructions.steps[id] ?? [] }
+    /// Instruções originais em inglês, traduzidas na hora
+    var englishInstructions: [String] { ExerciseExtraData.steps[id] ?? [] }
+    /// Busca no YouTube de como fazer o exercício
+    var videoURL: URL? {
+        let q = "como fazer \(name) \(crossfit ? "crossfit" : "exercício")"
+        return URL(string: "https://www.youtube.com/results?search_query=" + (q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""))
+    }
 
     static func byID(_ id: String) -> Exercise? { index[id] ?? custom[id] }
 
     /// Exercícios criados pelo usuário (atualizado a partir do SwiftData)
     static var custom: [String: Exercise] = [:]
 
-    static var all: [Exercise] { library + custom.values.sorted { $0.name < $1.name } }
+    static var all: [Exercise] { builtIn + custom.values.sorted { $0.name < $1.name } }
 
-    static let equipments = ["Barra", "Halteres", "Máquina", "Polia", "Peso do corpo", "Kettlebell", "Elástico", "Outro"]
+    static let equipments = ["Barra", "Halteres", "Máquina", "Polia", "Peso do corpo", "Kettlebell", "Elástico", "Corda", "Caixa", "Argola", "Bola", "Outro"]
 
     static func name(_ id: String) -> String { index[id]?.name ?? id }
 
-    private static let index = Dictionary(uniqueKeysWithValues: library.map { ($0.id, $0) })
+    private static let index = Dictionary((library + extra).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+
+    /// Biblioteca completa embutida (original + extras + CrossFit)
+    static var builtIn: [Exercise] { library + extra }
 
     static let library: [Exercise] = [
         // Peito

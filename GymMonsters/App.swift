@@ -6,6 +6,8 @@ import WidgetKit
 @main
 struct GymMonstersApp: App {
     init() {
+        // Fotos dos exercícios ficam guardadas depois da primeira vez (funcionam sem internet)
+        URLCache.shared = URLCache(memoryCapacity: 40 * 1024 * 1024, diskCapacity: 300 * 1024 * 1024)
         WorkoutIntentBridge.completeSet = { await LiveWorkout.completeNextSet() }
         WorkoutIntentBridge.skipRest = { await LiveWorkout.skipRest() }
     }

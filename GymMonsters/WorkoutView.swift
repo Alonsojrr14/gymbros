@@ -19,6 +19,9 @@ struct WorkoutView: View {
     @State private var noteText = ""
     /// Exercícios recolhidos (a pessoa recolheu ou terminou todas as séries)
     @State private var collapsed: Set<String> = []
+    /// Roleta do descanso: agora (nil) ou padrão de um exercício
+    @State private var restPicker: RestTarget?
+    @State private var restDraft = 90
     @State private var scrollTarget: String?
     @Query private var notes: [ExerciseNote]
 
@@ -84,6 +87,26 @@ struct WorkoutView: View {
         .task(id: LiveWorkout.state(for: session)) { await LiveWorkout.refresh(session) }
         // Descanso marcado pelo Live Activity: acompanha o fim aqui também
         .task(id: session.restEnd) { await watchRest() }
+        .gmSheet(isPresented: Binding(get: { restPicker != nil }, set: { if !$0 { restPicker = nil } })) { close in
+            VStack(spacing: 16) {
+                Text(restPicker?.exerciseID.map { "Descanso · \(Exercise.name($0))" } ?? "Descanso agora").font(.headline)
+                GMDurationWheel(seconds: $restDraft)
+                if restPicker?.exerciseID != nil {
+                    Text("Vale para as próximas séries deste exercício neste treino.").font(.caption).foregroundStyle(Theme.dim)
+                }
+                GMButton("Confirmar") {
+                    if let id = restPicker?.exerciseID {
+                        // Próximas séries do exercício passam a usar esse descanso
+                        session.orderedSets.filter { $0.exerciseID == id && !$0.done }.forEach { $0.rest = restDraft }
+                    } else if restDraft > 0 {
+                        startRest(restDraft)
+                    } else {
+                        cancelRest()
+                    }
+                    close()
+                }
+            }
+        }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
@@ -165,6 +188,12 @@ struct WorkoutView: View {
                 list.append(GMAction("Calcular anilhas", icon: "circle.grid.2x1") { platesFor = w })
             }
         }
+        let rest = session.orderedSets.first { $0.exerciseID == id && !$0.done }?.rest
+            ?? session.orderedSets.last { $0.exerciseID == id }?.rest ?? 90
+        list.append(GMAction("Tempo de descanso (\(clock(rest)))", icon: "timer") {
+            restDraft = rest
+            restPicker = RestTarget(exerciseID: id)
+        })
         let current = notes.first { $0.exerciseID == id }?.text ?? ""
         list.append(GMAction(current.isEmpty ? "Adicionar nota" : "Editar nota", icon: "note.text") {
             noteText = current
@@ -311,13 +340,26 @@ struct WorkoutView: View {
                         .rotationEffect(.degrees(-90))
                 }
                 .frame(width: 36, height: 36)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Descanso").font(.caption).foregroundStyle(Theme.dim)
-                    Text(String(format: "%d:%02d", Int(left.rounded(.up)) / 60, Int(left.rounded(.up)) % 60))
-                        .font(.title2.bold().monospacedDigit())
+                // Tocar no tempo abre a roleta para escolher o descanso exato
+                Button {
+                    restDraft = max(Int(left.rounded(.up)) / 5 * 5, 5)
+                    restPicker = RestTarget(exerciseID: nil)
+                } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Descanso").font(.caption).foregroundStyle(Theme.dim)
+                        Text(String(format: "%d:%02d", Int(left.rounded(.up)) / 60, Int(left.rounded(.up)) % 60))
+                            .font(.title2.bold().monospacedDigit())
+                            .underline(color: Theme.dim)
+                    }
+                    .foregroundStyle(.white)
                 }
+                .buttonStyle(GMPress())
                 Spacer()
-                GMButton("+15 s", kind: .secondary, full: false, small: true) { startRest(Int(left.rounded(.up)) + 15, keepTotal: true) }
+                GMIconButton(icon: "minus", size: 38) {
+                    let l = Int(left.rounded(.up)) - 15
+                    if l <= 0 { cancelRest() } else { startRest(l, keepTotal: true) }
+                }
+                GMIconButton(icon: "plus", size: 38) { startRest(Int(left.rounded(.up)) + 15, keepTotal: true) }
                 GMButton("Pular", full: false, small: true) { cancelRest() }
             }
             .padding(14)
@@ -483,4 +525,10 @@ struct FinishWorkoutView: View {
         dismiss()
         onDone()
     }
+}
+
+struct RestTarget: Identifiable {
+    /// nil = descanso em andamento
+    let exerciseID: String?
+    var id: String { exerciseID ?? "agora" }
 }

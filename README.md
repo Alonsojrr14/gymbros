@@ -32,6 +32,11 @@ O app não usa controles padrão do iOS: telas, cabeçalhos, barra de abas, bot�
 - Coleção de bros (`GymMonsters/Monsters.swift`): ao entrar numa liga você escolhe quem te representa, um bro seu ou um ovo novo adotado na hora. Os check-ins da liga dão XP só para ele; atividades fora de ligas vão para o bro principal (tela inicial e widgets), que pode ser trocado em "Meus bros".
 - Sem servidor ainda: convites são só um código para compartilhar. A "Liga dos Amigos" (código `AMIGOS`) tem 5 participantes simulados (`GymMonsters/Leagues.swift`).
 
+## Biblioteca e CrossFit
+
+- ~230 exercícios: 80 embutidos (com fotos no app) + 150 do free-exercise-db (domínio público), com fotos carregadas da internet e guardadas em cache (`GymMonsters/ExerciseExtra.swift`). Instruções em inglês traduzidas no próprio iPhone (iOS 18+). Botão "Ver vídeo" abre a busca no YouTube.
+- CrossFit: 42 movimentos (olímpicos, ginásticos, metcon) e modo WOD (`GymMonsters/Wod.swift`) com benchmarks (Fran, Grace, Cindy, Helen, Murph, DT…), cronômetro For Time / AMRAP / EMOM / Tabata, resultados com RX e recorde por WOD. Cada WOD vira atividade de crossfit.
+
 ## Apple Saúde e backup
 
 - Treinos do iPhone/Apple Watch são importados ao abrir o app (Ajustes → Apple Saúde; na primeira vez, últimos 14 dias). O tipo vira a atividade correspondente e o esforço é estimado pelas calorias ativas em relação ao esperado para a atividade. Treinos que se sobrepõem a algo já registrado (ex.: treino guiado também gravado no Watch) não contam duas vezes. Só leitura.

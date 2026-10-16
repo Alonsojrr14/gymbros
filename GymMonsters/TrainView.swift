@@ -58,6 +58,14 @@ struct TrainView: View {
                     GMRow(icon: "square.stack", iconTint: Theme.accent, title: "Usar modelo pronto", chevron: true) { templates = true }
                 }
 
+                GMSection("CrossFit") {
+                    NavigationLink { WodListView() } label: {
+                        GMRow(icon: "flame.fill", iconTint: .orange, title: "WODs e cronômetro",
+                              subtitle: "Fran, Cindy, Murph… · For Time, AMRAP, EMOM, Tabata", chevron: true)
+                    }
+                    .buttonStyle(GMPress())
+                }
+
                 GMSection("Evolução") {
                     NavigationLink { ExerciseStatsList(sessions: finished) } label: {
                         GMRow(icon: "chart.line.uptrend.xyaxis", title: "Exercícios e recordes", chevron: true)

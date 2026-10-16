@@ -1272,3 +1272,24 @@ private struct GMKeyboardDone: ViewModifier {
 extension View {
     func gmKeyboardDone() -> some View { modifier(GMKeyboardDone()) }
 }
+
+
+/// Roleta de duração: minutos e segundos (de 5 em 5)
+struct GMDurationWheel: View {
+    @Binding var seconds: Int
+    var maxMinutes = 10
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12).fill(Theme.raised).frame(height: GMWheel.row)
+            HStack(spacing: 0) {
+                GMWheel(values: Array(0...maxMinutes), selection: Binding(get: { seconds / 60 }, set: { seconds = $0 * 60 + seconds % 60 }))
+                Text("min").font(.headline).foregroundStyle(Theme.dim)
+                GMWheel(values: Array(stride(from: 0, through: 55, by: 5)),
+                        selection: Binding(get: { seconds % 60 / 5 * 5 }, set: { seconds = seconds / 60 * 60 + $0 }))
+                Text("s").font(.headline).foregroundStyle(Theme.dim)
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+}

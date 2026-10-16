@@ -116,10 +116,22 @@ struct ExerciseAnimation: View {
     @State private var frame = 0
 
     var body: some View {
-        Image("ex_\(exerciseID)_\(frame)")
-            .resizable()
-            .scaledToFit()
-            .clipShape(.rect(cornerRadius: 14))
+        Group {
+            if let urls = Exercise.byID(exerciseID)?.remotePhotos, !(Exercise.byID(exerciseID)?.hasPhotos ?? false) {
+                // As duas fotos ficam carregadas para alternar sem piscar
+                ZStack {
+                    ForEach(0..<urls.count, id: \.self) { i in
+                        AsyncImage(url: urls[i]) { img in img.resizable().scaledToFit() } placeholder: {
+                            ProgressPlaceholder()
+                        }
+                        .opacity(i == frame ? 1 : 0)
+                    }
+                }
+            } else {
+                Image("ex_\(exerciseID)_\(frame)").resizable().scaledToFit()
+            }
+        }
+        .clipShape(.rect(cornerRadius: 14))
             .task {
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(1.1))
@@ -135,19 +147,32 @@ struct ExerciseInfoView: View {
     @Query private var customs: [CustomExercise]
     @Query private var notes: [ExerciseNote]
     @State private var editing = false
+    /// Instruções do inglês traduzidas pelo próprio iPhone
+    @State private var translated: [String]?
 
     var body: some View {
         let m = exercise.muscles
         GMModal(exercise.name, cancel: "Fechar") {
-            if exercise.hasPhotos {
+            if exercise.hasAnyPhoto {
                 ExerciseAnimation(exerciseID: exercise.id)
+            }
+            if let url = exercise.videoURL {
+                Link(destination: url) {
+                    Label("Ver vídeo de como fazer", systemImage: "play.rectangle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(red: 0.9, green: 0.2, blue: 0.2), in: .rect(cornerRadius: 16))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(GMPress())
             }
             GMCard {
                 GMValueRow(label: "Grupo", value: exercise.group.name)
                 GMValueRow(label: "Equipamento", value: exercise.equipment)
                 GMValueRow(label: "Registro", value: exercise.type.name)
             }
-            let steps = exercise.instructions
+            let steps = exercise.instructions.isEmpty ? translated ?? exercise.englishInstructions : exercise.instructions
             if !steps.isEmpty {
                 GMSection("Como fazer") {
                     ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
@@ -164,7 +189,7 @@ struct ExerciseInfoView: View {
             if let notes = Exercise.customNotes[exercise.id], !notes.isEmpty {
                 GMSection("Descrição") { Text(notes).font(.subheadline) }
             }
-            GMSection("Músculos", footer: exercise.hasPhotos ? "Fotos: free-exercise-db (domínio público)." : nil) {
+            GMSection("Músculos", footer: exercise.hasAnyPhoto ? "Fotos e instruções: free-exercise-db (domínio público)." : nil) {
                 BodyPair(intensities: Dictionary(m.primary.map { ($0, 1.0) } + m.secondary.map { ($0, 0.45) },
                                                  uniquingKeysWith: max))
                     .frame(height: 260)
@@ -179,6 +204,36 @@ struct ExerciseInfoView: View {
         }
         .gmModal(isPresented: $editing) {
             CustomExerciseForm(editing: customs.first { $0.exerciseID == exercise.id })
+        }
+        .modifier(TranslateSteps(steps: exercise.instructions.isEmpty ? exercise.englishInstructions : [], result: $translated))
+    }
+}
+
+struct ProgressPlaceholder: View {
+    var body: some View {
+        Rectangle().fill(Theme.raised).aspectRatio(1.5, contentMode: .fit)
+            .overlay(Image(systemName: "photo").foregroundStyle(Theme.dim))
+    }
+}
+
+import Translation
+
+/// Traduz as instruções do inglês para o português no próprio iPhone (iOS 18+); antes disso, fica em inglês
+struct TranslateSteps: ViewModifier {
+    let steps: [String]
+    @Binding var result: [String]?
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *), !steps.isEmpty {
+            content.translationTask(TranslationSession.Configuration(source: Locale.Language(identifier: "en"),
+                                                                    target: Locale.Language(identifier: "pt-BR"))) { session in
+                let requests = steps.enumerated().map { TranslationSession.Request(sourceText: $0.element, clientIdentifier: "\($0.offset)") }
+                guard let responses = try? await session.translations(from: requests) else { return }
+                let ordered = responses.sorted { Int($0.clientIdentifier ?? "0") ?? 0 < Int($1.clientIdentifier ?? "0") ?? 0 }
+                await MainActor.run { result = ordered.map(\.targetText) }
+            }
+        } else {
+            content
         }
     }
 }
