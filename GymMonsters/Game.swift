@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // Regras do jogo. Tudo aqui é função pura do histórico de atividades: nada fica guardado
 // além do log, então editar ou apagar uma atividade recalcula XP, nível e evolução na hora.
@@ -202,10 +205,47 @@ struct Species: Identifiable {
         spritePrefix: ""
     )
 
-    /// Para incluir uma espécie: nomes das 10 formas + artes "sprite_<id>_<chave>" no app e no widget
-    static let catalog: [Species] = [standard]
+    /// Para incluir uma espécie: nomes das 10 formas + artes "sprite_<id>_<chave>" no app e no widget.
+    /// Uma espécie só nasce e aparece na Dex quando as artes dela estão no app (`isReady`).
+    static let all: [Species] = [standard] + [
+        make("urso", "Urso", .forca, ["Pelucimon", "Ursamon", "Supinomon", "Trilhamon", "Rolamon", "Sumomon",
+                                      "Grizzlimon", "Montanhamon", "Avalanchemon", "Kodiamon"]),
+        make("rato", "Rato", .forca, ["Queijimon", "Ratimon", "Marombamon", "Rodimon", "Fuximon", "Labirimon",
+                                      "Ratazanamon", "Esteiramon", "Sombramon", "Engenhomon"]),
+        make("lobo", "Lobo", .resistencia, ["Uivimon", "Lobinmon", "Alfamon", "Trotemon", "Caçamon", "Matilhamon",
+                                             "Fenrimon", "Luamon", "Ventomon", "Ancestramon"]),
+        make("cachorro", "Cachorro", .resistencia, ["Filhotimon", "Caramelmon", "Pitbulmon", "Galgomon", "Frisbeemon", "Pastormon",
+                                                     "Mastimon", "Huskymon", "Agilitymon", "Guiamon"]),
+        make("esquilo", "Esquilo", .agilidade, ["Nozimon", "Esquilmon", "Quebranozmon", "Galhomon", "Pulamon", "Acrobamon",
+                                                 "Carvalhomon", "Florestamon", "Voadormon", "Parkourmon"]),
+        make("gato", "Gato", .agilidade, ["Novelmon", "Bichanomon", "Garramon", "Rondamon", "Telhadomon", "Ronromon",
+                                          "Jubamon", "Panteramon", "Linxmon", "Esfingemon"]),
+        make("coruja", "Coruja", .tecnica, ["Penugmon", "Corujamon", "Rapinamon", "Noturnmon", "Planamon", "Sabiomon",
+                                             "Harpiamon", "Luarmon", "Rasantemon", "Oraculomon"]),
+    ]
 
-    static func byID(_ id: String) -> Species? { catalog.first { $0.id == id } }
+    /// Ordem das formas nas listas de nomes acima
+    static let keys = ["baby", "rookie", "champion_forca", "champion_resistencia", "champion_agilidade", "champion_tecnica",
+                       "ultimate_forca", "ultimate_resistencia", "ultimate_agilidade", "ultimate_tecnica"]
+
+    private static func make(_ id: String, _ name: String, _ affinity: Attribute, _ names: [String]) -> Species {
+        Species(id: id, name: name, affinity: affinity, names: Dictionary(uniqueKeysWithValues: zip(keys, names)), spritePrefix: "\(id)_")
+    }
+
+    /// Espécies com arte pronta
+    static var catalog: [Species] { all.filter(\.isReady) }
+
+    /// Tem as 10 artes no app
+    var isReady: Bool {
+        if id == Species.standard.id { return true }
+        #if canImport(UIKit)
+        return Species.keys.allSatisfy { UIImage(named: sprite($0)) != nil }
+        #else
+        return false
+        #endif
+    }
+
+    static func byID(_ id: String) -> Species? { all.first { $0.id == id } }
 
     /// Espécie de um ovo que acabou de chocar, pelos treinos que o chocaram.
     /// Entre várias espécies com a mesma afinidade, escolhe de forma estável pelo id do monstro.

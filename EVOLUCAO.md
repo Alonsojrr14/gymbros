@@ -61,3 +61,16 @@ XP de cada atividade = duração × gasto típico (MET) × esforço; acima de 15
 A espécie é decidida quando o ovo choca, pelos treinos que o chocaram: se o atributo dominante bate com a afinidade de alguma espécie, nasce ela; senão, nasce o Coelho (espécie padrão). Depois de nascer, a espécie fica gravada no monstro. Liga nenhuma restringe espécie.
 
 Para incluir uma espécie (`Species.catalog` em `GymMonsters/Game.swift`): id, nome, afinidade, nomes das 10 formas e as artes `sprite_<id>_<forma>` (baby, rookie, champion_forca… ultimate_tecnica) no app e no widget.
+
+| Espécie | Afinidade | Bebê → Rookie | Champions (Força / Resistência / Agilidade / Técnica) | Ultimates |
+|---|---|---|---|---|
+| Coelho | padrão | Gymmon → Cutemon | Halteromon / Maratomon / Saltamon / Zenmon | Trebomon / Fôlegomon / Relampamon / Mestremon |
+| Urso | Força | Pelucimon → Ursamon | Supinomon / Trilhamon / Rolamon / Sumomon | Grizzlimon / Montanhamon / Avalanchemon / Kodiamon |
+| Rato | Força | Queijimon → Ratimon | Marombamon / Rodimon / Fuximon / Labirimon | Ratazanamon / Esteiramon / Sombramon / Engenhomon |
+| Lobo | Resistência | Uivimon → Lobinmon | Alfamon / Trotemon / Caçamon / Matilhamon | Fenrimon / Luamon / Ventomon / Ancestramon |
+| Cachorro | Resistência | Filhotimon → Caramelmon | Pitbulmon / Galgomon / Frisbeemon / Pastormon | Mastimon / Huskymon / Agilitymon / Guiamon |
+| Esquilo | Agilidade | Nozimon → Esquilmon | Quebranozmon / Galhomon / Pulamon / Acrobamon | Carvalhomon / Florestamon / Voadormon / Parkourmon |
+| Gato | Agilidade | Novelmon → Bichanomon | Garramon / Rondamon / Telhadomon / Ronromon | Jubamon / Panteramon / Linxmon / Esfingemon |
+| Coruja | Técnica | Penugmon → Corujamon | Rapinamon / Noturnmon / Planamon / Sabiomon | Harpiamon / Luarmon / Rasantemon / Oraculomon |
+
+Só nascem espécies com as 10 artes no app; as demais ficam cadastradas esperando a arte.
