@@ -129,7 +129,7 @@ struct FakeCheckIn {
 }
 
 enum MockLeague {
-    static let name = "Liga dos Amigos"
+    static let name = "Liga dos Bros"
     static let code = "AMIGOS"
 
     /// Check-ins simulados, determinísticos: o mesmo dia gera sempre o mesmo resultado

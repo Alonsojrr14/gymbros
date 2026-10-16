@@ -176,8 +176,8 @@ struct GymMonstersWidgets: WidgetBundle {
 struct GymMonstersWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "GymMonsters", provider: Provider()) { WidgetView(entry: $0) }
-            .configurationDisplayName("Status do monstro")
-            .description("Humor, nível e sequência do seu GymMonster.")
+            .configurationDisplayName("Status do bro")
+            .description("Humor, nível e sequência do seu bro.")
             .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryCircular])
     }
 }

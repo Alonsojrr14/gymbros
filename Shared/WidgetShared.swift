@@ -101,7 +101,7 @@ struct WidgetData: Codable {
         WidgetData.defaults?.set(data, forKey: WidgetData.key)
     }
 
-    static let placeholder = WidgetData(monsterName: "Gymmon", formName: "Gymmon", stageName: "Bebê", sprite: "sprite_baby", hue: 0,
+    static let placeholder = WidgetData(monsterName: "Gymbro", formName: "Gymbro", stageName: "Bebê", sprite: "sprite_baby", hue: 0,
                                         isEgg: false, level: 4, totalXP: 80, progress: 0.1, xpToNext: 220, streak: 3,
                                         lastActivity: .now, todayXP: 30, todayRoutine: [:], updated: .now)
 }

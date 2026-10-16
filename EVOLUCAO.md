@@ -1,17 +1,17 @@
-# Árvore de evolução
+# Árvore de evolução dos bros
 
 ```mermaid
 flowchart LR
-    O[🥚 Ovo<br/>0 XP] -->|60 XP| G[Gymmon<br/>Bebê]
-    G -->|300 XP| C[Cutemon<br/>Rookie]
-    C -->|1200 XP · Força| HF[Halteromon]
-    C -->|1200 XP · Resistência| MR[Maratomon]
-    C -->|1200 XP · Agilidade| SA[Saltamon]
-    C -->|1200 XP · Técnica| ZE[Zenmon]
-    HF & MR & SA & ZE -->|3600 XP · Força| TR[Trebomon]
-    HF & MR & SA & ZE -->|3600 XP · Resistência| FO[Fôlegomon]
-    HF & MR & SA & ZE -->|3600 XP · Agilidade| RE[Relampamon]
-    HF & MR & SA & ZE -->|3600 XP · Técnica| ME[Mestremon]
+    O[🥚 Ovo<br/>0 XP] -->|60 XP| G[Gymbro<br/>Bebê]
+    G -->|300 XP| C[Cutebro<br/>Rookie]
+    C -->|1200 XP · Força| HF[Halterobro]
+    C -->|1200 XP · Resistência| MR[Maratobro]
+    C -->|1200 XP · Agilidade| SA[Saltabro]
+    C -->|1200 XP · Técnica| ZE[Zenbro]
+    HF & MR & SA & ZE -->|3600 XP · Força| TR[Trebobro]
+    HF & MR & SA & ZE -->|3600 XP · Resistência| FO[Fôlegobro]
+    HF & MR & SA & ZE -->|3600 XP · Agilidade| RE[Relampabro]
+    HF & MR & SA & ZE -->|3600 XP · Técnica| ME[Mestrebro]
 ```
 
 ## Estágios
@@ -19,22 +19,22 @@ flowchart LR
 | Estágio | XP total | Forma |
 |---|---|---|
 | Ovo | 0 | <img src="GymMonsters/Assets.xcassets/sprite_egg.imageset/egg.png" width="80"> |
-| Bebê | 60 | <img src="GymMonsters/Assets.xcassets/sprite_baby.imageset/baby.png" width="80"><br>Gymmon |
-| Rookie | 300 | <img src="GymMonsters/Assets.xcassets/sprite_rookie.imageset/rookie.png" width="80"><br>Cutemon |
+| Bebê | 60 | <img src="GymMonsters/Assets.xcassets/sprite_baby.imageset/baby.png" width="80"><br>Gymbro |
+| Rookie | 300 | <img src="GymMonsters/Assets.xcassets/sprite_rookie.imageset/rookie.png" width="80"><br>Cutebro |
 
 ## Galhos (Champion → Ultimate)
 
 | Atributo | Champion · 1200 XP | Ultimate · 3600 XP |
 |---|---|---|
-| 💪 Força | <img src="GymMonsters/Assets.xcassets/sprite_champion_forca.imageset/champion_forca.png" width="90"><br>Halteromon | <img src="GymMonsters/Assets.xcassets/sprite_ultimate_forca.imageset/ultimate_forca.png" width="90"><br>Trebomon |
-| ❤️ Resistência | <img src="GymMonsters/Assets.xcassets/sprite_champion_resistencia.imageset/champion_resistencia.png" width="90"><br>Maratomon | <img src="GymMonsters/Assets.xcassets/sprite_ultimate_resistencia.imageset/ultimate_resistencia.png" width="90"><br>Fôlegomon |
-| ⚡ Agilidade | <img src="GymMonsters/Assets.xcassets/sprite_champion_agilidade.imageset/champion_agilidade.png" width="90"><br>Saltamon | <img src="GymMonsters/Assets.xcassets/sprite_ultimate_agilidade.imageset/ultimate_agilidade.png" width="90"><br>Relampamon |
-| ✨ Técnica | <img src="GymMonsters/Assets.xcassets/sprite_champion_tecnica.imageset/champion_tecnica.png" width="90"><br>Zenmon | <img src="GymMonsters/Assets.xcassets/sprite_ultimate_tecnica.imageset/ultimate_tecnica.png" width="90"><br>Mestremon |
+| 💪 Força | <img src="GymMonsters/Assets.xcassets/sprite_champion_forca.imageset/champion_forca.png" width="90"><br>Halterobro | <img src="GymMonsters/Assets.xcassets/sprite_ultimate_forca.imageset/ultimate_forca.png" width="90"><br>Trebobro |
+| ❤️ Resistência | <img src="GymMonsters/Assets.xcassets/sprite_champion_resistencia.imageset/champion_resistencia.png" width="90"><br>Maratobro | <img src="GymMonsters/Assets.xcassets/sprite_ultimate_resistencia.imageset/ultimate_resistencia.png" width="90"><br>Fôlegobro |
+| ⚡ Agilidade | <img src="GymMonsters/Assets.xcassets/sprite_champion_agilidade.imageset/champion_agilidade.png" width="90"><br>Saltabro | <img src="GymMonsters/Assets.xcassets/sprite_ultimate_agilidade.imageset/ultimate_agilidade.png" width="90"><br>Relampabro |
+| ✨ Técnica | <img src="GymMonsters/Assets.xcassets/sprite_champion_tecnica.imageset/champion_tecnica.png" width="90"><br>Zenbro | <img src="GymMonsters/Assets.xcassets/sprite_ultimate_tecnica.imageset/ultimate_tecnica.png" width="90"><br>Mestrebro |
 
 ## Como o galho é escolhido
 
 - Ao chegar em **Champion** (1200 XP), vence o atributo que você mais treinou **desde que virou Rookie**.
-- Ao chegar em **Ultimate** (3600 XP), vence o atributo mais treinado **durante a fase Champion**. Dá para trocar de linha: um Halteromon que passou a fase correndo vira Fôlegomon.
+- Ao chegar em **Ultimate** (3600 XP), vence o atributo mais treinado **durante a fase Champion**. Dá para trocar de linha: um Halterobro que passou a fase correndo vira Fôlegobro.
 - Empate fica com a ordem Força → Resistência → Agilidade → Técnica.
 
 ## Atividade → atributos
@@ -64,13 +64,13 @@ Para incluir uma espécie (`Species.catalog` em `GymMonsters/Game.swift`): id, n
 
 | Espécie | Afinidade | Bebê → Rookie | Champions (Força / Resistência / Agilidade / Técnica) | Ultimates |
 |---|---|---|---|---|
-| Coelho | padrão | Gymmon → Cutemon | Halteromon / Maratomon / Saltamon / Zenmon | Trebomon / Fôlegomon / Relampamon / Mestremon |
-| Urso | Força | Pelucimon → Ursamon | Supinomon / Trilhamon / Rolamon / Sumomon | Grizzlimon / Montanhamon / Avalanchemon / Kodiamon |
-| Rato | Força | Queijimon → Ratimon | Marombamon / Rodimon / Fuximon / Labirimon | Ratazanamon / Esteiramon / Sombramon / Engenhomon |
-| Lobo | Resistência | Uivimon → Lobinmon | Alfamon / Trotemon / Caçamon / Matilhamon | Fenrimon / Luamon / Ventomon / Ancestramon |
-| Cachorro | Resistência | Filhotimon → Caramelmon | Pitbulmon / Galgomon / Frisbeemon / Pastormon | Mastimon / Huskymon / Agilitymon / Guiamon |
-| Esquilo | Agilidade | Nozimon → Esquilmon | Quebranozmon / Galhomon / Pulamon / Acrobamon | Carvalhomon / Florestamon / Voadormon / Parkourmon |
-| Gato | Agilidade | Novelmon → Bichanomon | Garramon / Rondamon / Telhadomon / Ronromon | Jubamon / Panteramon / Linxmon / Esfingemon |
-| Coruja | Técnica | Penugmon → Corujamon | Rapinamon / Noturnmon / Planamon / Sabiomon | Harpiamon / Luarmon / Rasantemon / Oraculomon |
+| Coelho | padrão | Gymbro → Cutebro | Halterobro / Maratobro / Saltabro / Zenbro | Trebobro / Fôlegobro / Relampabro / Mestrebro |
+| Urso | Força | Pelucibro → Ursabro | Supinobro / Trilhabro / Rolabro / Sumobro | Grizzlibro / Montanhabro / Avalanchebro / Kodiabro |
+| Rato | Força | Queijibro → Ratibro | Marombabro / Rodibro / Fuxibro / Labiribro | Ratazanabro / Esteirabro / Sombrabro / Engenhobro |
+| Lobo | Resistência | Uivibro → Lobinbro | Alfabro / Trotebro / Caçabro / Matilhabro | Fenribro / Luabro / Ventobro / Ancestrabro |
+| Cachorro | Resistência | Filhotibro → Caramelbro | Pitbulbro / Galgobro / Frisbeebro / Pastorbro | Mastibro / Huskybro / Agilitybro / Guiabro |
+| Esquilo | Agilidade | Nozibro → Esquilbro | Quebranozbro / Galhobro / Pulabro / Acrobabro | Carvalhobro / Florestabro / Voadorbro / Parkourbro |
+| Gato | Agilidade | Novelbro → Bichanobro | Garrabro / Rondabro / Telhadobro / Ronrobro | Jubabro / Panterabro / Linxbro / Esfingebro |
+| Coruja | Técnica | Penugbro → Corujabro | Rapinabro / Noturnbro / Planabro / Sabiobro | Harpiabro / Luarbro / Rasantebro / Oraculobro |
 
 Só nascem espécies com as 10 artes no app; as demais ficam cadastradas esperando a arte. Prontas: todas as 8.

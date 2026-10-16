@@ -162,7 +162,7 @@ struct LeagueDetailView: View {
     }
 
     private var inviteText: String {
-        "Entra na minha liga \(league.emoji) \(league.name) no GymMonsters! Código: \(league.code)"
+        "Entra na minha liga \(league.emoji) \(league.name) no GymBros! Código: \(league.code)"
     }
 
     private func header(_ m: Snapshot, monster: Monster?) -> some View {

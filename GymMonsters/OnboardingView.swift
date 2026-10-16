@@ -12,7 +12,7 @@ struct OnboardingView: View {
             Theme.bg.ignoresSafeArea()
             VStack(spacing: 28) {
                 Spacer()
-                Text(received ? "Este ovo é seu!" : "GymMonsters")
+                Text(received ? "Este ovo é seu!" : "GymBros")
                     .font(.system(size: 34, weight: .heavy, design: .rounded))
                     .contentTransition(.numericText())
 
@@ -21,7 +21,7 @@ struct OnboardingView: View {
                     .scaleEffect(received ? 1.1 : 0.9)
 
                 Text(received
-                     ? "Ele choca com seus treinos. Musculação, corrida, vôlei, o que você fizer conta. E o jeito que você treina decide no que ele vai se transformar."
+                     ? "Dentro dele está o seu bro, seu parceiro de treino. Ele choca com seus treinos: musculação, corrida, vôlei, o que você fizer conta. E o jeito que você treina decide no que ele vai se transformar."
                      : "Todo treinador começa com um ovo. Como você se chama?")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Theme.dim)

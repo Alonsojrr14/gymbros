@@ -97,7 +97,7 @@ struct SettingsView: View {
                        pendingRestore = nil
                    }])
         .fileExporter(isPresented: $exporting, document: exportDoc, contentType: .json,
-                      defaultFilename: "GymMonsters-\(Date.now.formatted(.iso8601.year().month().day()))") { result in
+                      defaultFilename: "GymBros-\(Date.now.formatted(.iso8601.year().month().day()))") { result in
             if case .success = result { backupMessage = "Backup salvo." }
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
@@ -149,7 +149,7 @@ struct SettingsView: View {
             let r = try await HealthSync.sync(context: context)
             var parts = [r.imported.isEmpty ? "Nenhum treino novo" : "\(r.imported.count) treino(s) importado(s)"]
             if r.skippedOverlap > 0 { parts.append("\(r.skippedOverlap) já registrado(s) aqui") }
-            healthStatus = parts.joined(separator: ", ") + ". Se esperava algo, confira em Ajustes do iPhone → Saúde → Acesso a Dados → GymMonsters."
+            healthStatus = parts.joined(separator: ", ") + ". Se esperava algo, confira em Ajustes do iPhone → Saúde → Acesso a Dados → GymBros."
         } catch {
             healthStatus = "Falha ao sincronizar: \(error.localizedDescription)"
         }

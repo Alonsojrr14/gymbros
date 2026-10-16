@@ -1,4 +1,4 @@
-# GymMonsters
+# GymBros
 
 App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem um monstrinho.
 

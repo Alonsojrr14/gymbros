@@ -197,31 +197,31 @@ struct Species: Identifiable {
 
     static let standard = Species(
         id: "coelho", name: "Coelho", affinity: nil,
-        names: ["baby": "Gymmon", "rookie": "Cutemon",
-                "champion_forca": "Halteromon", "champion_resistencia": "Maratomon",
-                "champion_agilidade": "Saltamon", "champion_tecnica": "Zenmon",
-                "ultimate_forca": "Trebomon", "ultimate_resistencia": "Fôlegomon",
-                "ultimate_agilidade": "Relampamon", "ultimate_tecnica": "Mestremon"],
+        names: ["baby": "Gymbro", "rookie": "Cutebro",
+                "champion_forca": "Halterobro", "champion_resistencia": "Maratobro",
+                "champion_agilidade": "Saltabro", "champion_tecnica": "Zenbro",
+                "ultimate_forca": "Trebobro", "ultimate_resistencia": "Fôlegobro",
+                "ultimate_agilidade": "Relampabro", "ultimate_tecnica": "Mestrebro"],
         spritePrefix: ""
     )
 
     /// Para incluir uma espécie: nomes das 10 formas + artes "sprite_<id>_<chave>" no app e no widget.
     /// Uma espécie só nasce e aparece na Dex quando as artes dela estão no app (`isReady`).
     static let all: [Species] = [standard] + [
-        make("urso", "Urso", .forca, ["Pelucimon", "Ursamon", "Supinomon", "Trilhamon", "Rolamon", "Sumomon",
-                                      "Grizzlimon", "Montanhamon", "Avalanchemon", "Kodiamon"]),
-        make("rato", "Rato", .forca, ["Queijimon", "Ratimon", "Marombamon", "Rodimon", "Fuximon", "Labirimon",
-                                      "Ratazanamon", "Esteiramon", "Sombramon", "Engenhomon"]),
-        make("lobo", "Lobo", .resistencia, ["Uivimon", "Lobinmon", "Alfamon", "Trotemon", "Caçamon", "Matilhamon",
-                                             "Fenrimon", "Luamon", "Ventomon", "Ancestramon"]),
-        make("cachorro", "Cachorro", .resistencia, ["Filhotimon", "Caramelmon", "Pitbulmon", "Galgomon", "Frisbeemon", "Pastormon",
-                                                     "Mastimon", "Huskymon", "Agilitymon", "Guiamon"]),
-        make("esquilo", "Esquilo", .agilidade, ["Nozimon", "Esquilmon", "Quebranozmon", "Galhomon", "Pulamon", "Acrobamon",
-                                                 "Carvalhomon", "Florestamon", "Voadormon", "Parkourmon"]),
-        make("gato", "Gato", .agilidade, ["Novelmon", "Bichanomon", "Garramon", "Rondamon", "Telhadomon", "Ronromon",
-                                          "Jubamon", "Panteramon", "Linxmon", "Esfingemon"]),
-        make("coruja", "Coruja", .tecnica, ["Penugmon", "Corujamon", "Rapinamon", "Noturnmon", "Planamon", "Sabiomon",
-                                             "Harpiamon", "Luarmon", "Rasantemon", "Oraculomon"]),
+        make("urso", "Urso", .forca, ["Pelucibro", "Ursabro", "Supinobro", "Trilhabro", "Rolabro", "Sumobro",
+                                      "Grizzlibro", "Montanhabro", "Avalanchebro", "Kodiabro"]),
+        make("rato", "Rato", .forca, ["Queijibro", "Ratibro", "Marombabro", "Rodibro", "Fuxibro", "Labiribro",
+                                      "Ratazanabro", "Esteirabro", "Sombrabro", "Engenhobro"]),
+        make("lobo", "Lobo", .resistencia, ["Uivibro", "Lobinbro", "Alfabro", "Trotebro", "Caçabro", "Matilhabro",
+                                             "Fenribro", "Luabro", "Ventobro", "Ancestrabro"]),
+        make("cachorro", "Cachorro", .resistencia, ["Filhotibro", "Caramelbro", "Pitbulbro", "Galgobro", "Frisbeebro", "Pastorbro",
+                                                     "Mastibro", "Huskybro", "Agilitybro", "Guiabro"]),
+        make("esquilo", "Esquilo", .agilidade, ["Nozibro", "Esquilbro", "Quebranozbro", "Galhobro", "Pulabro", "Acrobabro",
+                                                 "Carvalhobro", "Florestabro", "Voadorbro", "Parkourbro"]),
+        make("gato", "Gato", .agilidade, ["Novelbro", "Bichanobro", "Garrabro", "Rondabro", "Telhadobro", "Ronrobro",
+                                          "Jubabro", "Panterabro", "Linxbro", "Esfingebro"]),
+        make("coruja", "Coruja", .tecnica, ["Penugbro", "Corujabro", "Rapinabro", "Noturnbro", "Planabro", "Sabiobro",
+                                             "Harpiabro", "Luarbro", "Rasantebro", "Oraculobro"]),
     ]
 
     /// Ordem das formas nas listas de nomes acima

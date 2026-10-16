@@ -34,7 +34,7 @@ enum PetStore {
 
 struct PetIntent: AppIntent {
     static var title: LocalizedStringResource = "Fazer carinho"
-    static var description = IntentDescription("Faz carinho no seu GymMonster.")
+    static var description = IntentDescription("Faz carinho no seu bro.")
 
     func perform() async throws -> some IntentResult {
         PetStore.pet()
@@ -223,8 +223,8 @@ struct PetView: View {
 struct PetWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "GymMonstersPet", provider: PetProvider()) { PetView(entry: $0) }
-            .configurationDisplayName("Meu monstro")
-            .description("Seu GymMonster se mexendo na tela de início. Toque para fazer carinho.")
+            .configurationDisplayName("Meu bro")
+            .description("Seu bro se mexendo na tela de início. Toque para fazer carinho.")
             .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular])
     }
 }
