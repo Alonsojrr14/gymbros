@@ -6,7 +6,7 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @AppStorage("trainerName") private var trainerName = ""
-    @AppStorage("monsterNick") private var monsterNick = ""
+    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
     @AppStorage("lastFormID") private var lastFormID = ""
     @AppStorage("discovered") private var discovered = ""
     @State private var confirmReset = false
@@ -29,7 +29,10 @@ struct SettingsView: View {
                     TextField("Seu nome", text: $trainerName)
                 }
                 Section {
-                    TextField("Apelido do monstro", text: $monsterNick)
+                    TextField("Apelido do monstro principal", text: Binding(
+                        get: { mainMonster?.name ?? "" },
+                        set: { mainMonster?.name = $0 }
+                    ))
                 } footer: {
                     Text("Vazio usa o nome da forma atual.")
                 }
@@ -92,7 +95,7 @@ struct SettingsView: View {
                 Section {
                     Button("Recomeçar jornada", role: .destructive) { confirmReset = true }
                 } footer: {
-                    Text("Apaga todas as atividades e devolve um ovo novo.")
+                    Text("Apaga todas as atividades e monstros e devolve um ovo novo. Ligas e rotinas continuam.")
                 }
                 Section("Como funciona") {
                     Text("Cada atividade rende XP pela duração, tipo e esforço, e soma em Força, Resistência, Agilidade e Técnica. Acima de 150 XP no mesmo dia o ganho cai, com teto de 300 por dia. Nas evoluções para Champion e Ultimate, o atributo que você mais treinou na fase decide a forma.")
@@ -179,12 +182,20 @@ struct SettingsView: View {
         }
     }
 
+    private var mainMonster: Monster? {
+        monsters.first { $0.uuid == MainMonster.id } ?? monsters.first { $0.isStarter }
+    }
+
     private func reset() {
         try? context.delete(model: Activity.self)
         try? context.save()
         // Só treinos do Saúde feitos daqui para frente alimentam o ovo novo
         HealthSync.lastSync = .now
-        monsterNick = ""
+        // Volta a ter um monstro só: o novo ovo inicial é criado ao reabrir
+        try? context.delete(model: Monster.self)
+        try? context.save()
+        MainMonster.id = nil
+        UserDefaults.standard.removeObject(forKey: "monsterNick")
         discovered = ""
         lastFormID = ""
         trainerName = ""

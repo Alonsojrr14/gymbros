@@ -11,7 +11,7 @@ struct GymMonstersApp: App {
                 .preferredColorScheme(.dark)
                 .tint(Theme.accent)
         }
-        .modelContainer(for: [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self, CustomExercise.self, League.self, LeagueCheckIn.self])
+        .modelContainer(for: [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self, CustomExercise.self, League.self, LeagueCheckIn.self, Monster.self])
     }
 }
 
@@ -43,11 +43,12 @@ struct MainView: View {
     @Query private var customs: [CustomExercise]
     @Query(sort: \Routine.order) private var routines: [Routine]
     @Query(filter: #Predicate<WorkoutSession> { $0.end != nil }, sort: \WorkoutSession.start) private var sessions: [WorkoutSession]
-    @AppStorage("lastFormID") private var lastFormID = ""
+    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
+    @Query private var checkIns: [LeagueCheckIn]
+    @Query private var leagues: [League]
     @AppStorage("discovered") private var discovered = ""
     @AppStorage("achievementsSeen") private var achievementsSeen = ""
     @AppStorage("trainerName") private var trainerName = ""
-    @AppStorage("monsterNick") private var monsterNick = ""
     @AppStorage("remindersOn") private var remindersOn = false
     @AppStorage("reminderMinute") private var reminderMinute = 18 * 60
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
@@ -57,30 +58,32 @@ struct MainView: View {
     @Environment(\.scenePhase) private var phase
 
     var body: some View {
-        let s = Game.snapshot(activities.map(\.record))
+        let d = derive()
+        let roster = d.roster, s = d.main, history = d.history, mainName = d.mainName
         let _ = Exercise.register(customs)
         let logs = sessions.map(\.log)
         let achievements = Achievements.evaluate(.init(activities: activities.map(\.record),
                                                        fromHealth: activities.filter { $0.healthUUID != nil }.count,
-                                                       snapshot: s, sessions: logs))
-        let companion = companionContext(s, logs: logs)
+                                                       snapshot: d.best, sessions: logs))
+        let companion = companionContext(s, logs: logs, name: mainName)
         TabView {
-            HomeView(snapshot: s, activities: activities, mood: companion.mood, line: Companion.line(companion))
+            HomeView(snapshot: s, activities: activities, mood: companion.mood, line: Companion.line(companion), monsterName: mainName)
                 .tabItem { Label("Monstro", systemImage: "pawprint.fill") }
             TrainView()
                 .tabItem { Label("Treino", systemImage: "dumbbell.fill") }
             LeaguesView()
                 .tabItem { Label("Ligas", systemImage: "trophy.fill") }
-            HistoryView(snapshot: s, activities: activities)
+            HistoryView(snapshot: history, activities: activities)
                 .tabItem { Label("Histórico", systemImage: "list.bullet") }
             DexView(snapshot: s, discovered: Set(discovered.split(separator: ",").map(String.init)), achievements: achievements)
                 .tabItem { Label("Dex", systemImage: "square.grid.3x3.fill") }
         }
-        .task(id: s.form.id) { check(s) }
+        .task { Roster.ensureStarter(context: context) }
+        .task(id: monsters.map { roster.snapshot($0.uuid).form.id + $0.uuid.uuidString }.joined()) { check(roster) }
         .task(id: phase) { if phase == .active { await syncHealth() } }
         .task(id: achievements.filter(\.unlocked).map(\.id)) { announce(achievements) }
         // Widget e lembretes acompanham qualquer mudança relevante
-        .task(id: "\(s.totalXP)|\(s.lastActivity?.timeIntervalSince1970 ?? 0)|\(routineKey)|\(remindersOn)|\(reminderMinute)|\(reminderRoutineOnly)|\(monsterNick)|\(phase == .active)") {
+        .task(id: "\(s.totalXP)|\(s.lastActivity?.timeIntervalSince1970 ?? 0)|\(routineKey)|\(remindersOn)|\(reminderMinute)|\(reminderRoutineOnly)|\(mainName)|\(phase == .active)") {
             publish(s, companion: companion)
         }
         .overlay(alignment: .top) {
@@ -100,6 +103,33 @@ struct MainView: View {
         }
     }
 
+    private struct Derived {
+        let roster: Roster
+        /// Monstro principal, com sequência e humor do jogador (que contam todas as atividades)
+        let main: Snapshot
+        /// Para conquistas: estágio do monstro mais evoluído
+        let best: Snapshot
+        /// Para o histórico: XP de cada atividade no monstro que a recebeu
+        let history: Snapshot
+        let mainName: String
+    }
+
+    private func derive() -> Derived {
+        let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues)
+        let player = Game.snapshot(activities.map(\.record))
+        var main = roster.mainSnapshot
+        main.streak = player.streak
+        main.bestStreak = player.bestStreak
+        main.lastActivity = player.lastActivity
+        main.todayXP = player.todayXP
+        var best = player
+        best.form = roster.snapshots.values.map(\.form).max { $0.stage < $1.stage } ?? .egg
+        var history = player
+        history.xpByActivity = roster.xpByActivity
+        return Derived(roster: roster, main: main, best: best, history: history,
+                       mainName: roster.main?.displayName(main.form) ?? main.form.name)
+    }
+
     private var routineKey: String { routines.map { "\($0.name)\($0.weekdaysRaw)" }.joined() }
 
     private var routinesByWeekday: [Int: String] {
@@ -110,7 +140,7 @@ struct MainView: View {
         return out
     }
 
-    private func companionContext(_ s: Snapshot, logs: [SessionLog]) -> Companion.Context {
+    private func companionContext(_ s: Snapshot, logs: [SessionLog], name: String) -> Companion.Context {
         let cal = Calendar.current
         let trainedToday = activities.contains { cal.isDateInToday($0.date) }
         let away = s.lastActivity.map { cal.dateComponents([.day], from: cal.startOfDay(for: $0), to: cal.startOfDay(for: .now)).day ?? 0 } ?? 0
@@ -121,13 +151,13 @@ struct MainView: View {
         let hit = Set(muscleLoad(recent.flatMap(\.sets)).keys)
         let neglected = logs.isEmpty ? [] : main.filter { !hit.contains($0) }
         let mood = Mood.of(isEgg: s.stage == .egg, lastActivity: s.lastActivity, todayXP: s.todayXP, streak: s.streak)
-        return Companion.Context(name: monsterNick.isEmpty ? s.form.name : monsterNick, mood: mood, snapshot: s,
+        return Companion.Context(name: name, mood: mood, snapshot: s,
                                  trainedToday: trainedToday, todayRoutine: routinesByWeekday[cal.component(.weekday, from: .now)],
                                  neglected: neglected, daysAway: away)
     }
 
     private func publish(_ s: Snapshot, companion: Companion.Context) {
-        WidgetData(monsterName: s.stage == .egg || monsterNick.isEmpty ? s.form.name : monsterNick,
+        WidgetData(monsterName: companion.name,
                    formName: s.form.name, stageName: s.stage.name, sprite: s.form.sprite, hue: s.form.hue,
                    isEgg: s.stage == .egg, level: s.level, totalXP: s.totalXP, progress: s.progress, xpToNext: s.xpToNext,
                    streak: s.streak, lastActivity: s.lastActivity, todayXP: s.todayXP, todayRoutine: routinesByWeekday,
@@ -164,17 +194,23 @@ struct MainView: View {
         show(Banner(symbol: "heart.fill", text: "\(n) treino\(n == 1 ? "" : "s") do Saúde · +\(xp) XP"))
     }
 
-    private func check(_ s: Snapshot) {
+    /// Descobertas da Dex e cena de evolução, para qualquer monstro da coleção
+    private func check(_ roster: Roster) {
+        guard !monsters.isEmpty else { return }
         var seen = Set(discovered.split(separator: ",").map(String.init))
         seen.insert(MonsterForm.egg.id)
-        seen.formUnion(s.evolutions.map(\.form.id))
+        for snap in roster.snapshots.values { seen.formUnion(snap.evolutions.map(\.form.id)) }
         discovered = seen.sorted().joined(separator: ",")
 
-        let old = MonsterForm.byID(lastFormID) ?? .egg
-        if old != s.form, s.form.stage > old.stage {
-            evolution = EvolutionEvent(from: old, to: s.form)
+        for m in monsters {
+            let form = roster.snapshot(m.uuid).form
+            let old = MonsterForm.byID(m.lastFormID) ?? .egg
+            if old != form, form.stage > old.stage, evolution == nil {
+                evolution = EvolutionEvent(from: old, to: form)
+            }
+            m.lastFormID = form.id
         }
-        lastFormID = s.form.id
+        try? context.save()
     }
 }
 

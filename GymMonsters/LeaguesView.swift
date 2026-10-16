@@ -10,12 +10,14 @@ struct LeaguesView: View {
     @Query private var checkIns: [LeagueCheckIn]
     @Query private var activities: [Activity]
     @AppStorage("trainerName") private var trainerName = ""
-    @AppStorage("mockLeagueCreated") private var mockLeagueCreated = false
+    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
+    @Query private var allLeagues: [League]
     @State private var creating = false
     @State private var joining = false
+    @State private var joinCode = ""
 
     var body: some View {
-        let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+        let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
         NavigationStack {
             List {
                 if leagues.isEmpty {
@@ -25,32 +27,28 @@ struct LeaguesView: View {
                 }
                 ForEach(leagues) { l in
                     NavigationLink { LeagueDetailView(league: l) } label: {
-                        LeagueRow(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, activities: byID, me: trainerName)
+                        LeagueRow(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, roster: roster, me: trainerName)
                     }
                     .listRowBackground(Theme.card)
                 }
                 Section {
                     Button { creating = true } label: { Label("Criar liga", systemImage: "plus.circle") }
-                    Button { joining = true } label: { Label("Entrar com código", systemImage: "ticket") }
+                    Button { joinCode = ""; joining = true } label: { Label("Entrar com código", systemImage: "ticket") }
+                    if !leagues.contains(where: { $0.code == MockLeague.code }) {
+                        Button { joinCode = MockLeague.code; joining = true } label: {
+                            Label("Experimentar a liga de exemplo", systemImage: "sparkles")
+                        }
+                    }
                 } footer: {
-                    Text("Cada liga é um ranking de check-ins, de qualquer atividade. Ao entrar numa liga você ganha um ovo novo, que só cresce com os check-ins dela; seu parceiro continua ganhando com tudo.")
+                    Text("Cada liga é um ranking de check-ins, de qualquer atividade. Ao entrar, você escolhe quem te representa: um monstro seu ou um ovo novo. Os check-ins da liga dão XP só para ele.")
                 }
             }
             .scrollContentBackground(.hidden)
             .background(Theme.bg)
             .navigationTitle("Ligas")
             .sheet(isPresented: $creating) { CreateLeagueView() }
-            .sheet(isPresented: $joining) { JoinLeagueView() }
-            .onAppear(perform: seedMock)
+            .sheet(isPresented: $joining) { JoinLeagueView(code: joinCode) }
         }
-    }
-
-    /// Na primeira vez, cria a liga de exemplo com participantes simulados
-    private func seedMock() {
-        guard !mockLeagueCreated else { return }
-        mockLeagueCreated = true
-        context.insert(MockLeague.make())
-        try? context.save()
     }
 }
 
@@ -66,12 +64,14 @@ extension MockLeague {
 private struct LeagueRow: View {
     let league: League
     let mine: [LeagueCheckIn]
-    let activities: [UUID: Activity]
+    let roster: Roster
     let me: String
+    @Query private var activities: [Activity]
 
     var body: some View {
-        let egg = leagueMonster(mine: mine, activities: activities)
-        let feed = LeagueBoard.feed(league: league, mine: mine, activities: activities, me: me, myAvatar: egg.form)
+        let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+        let egg = roster.snapshot(league.monsterUUID)
+        let feed = LeagueBoard.feed(league: league, mine: mine, activities: byID, me: me, myAvatar: egg.form)
         let rank = LeagueBoard.ranking(feed: feed, league: league, me: me, myAvatar: egg.form, since: nil)
         let pos = (rank.firstIndex { $0.isMe } ?? 0) + 1
         HStack(spacing: 12) {
@@ -90,11 +90,6 @@ private struct LeagueRow: View {
     }
 }
 
-/// Monstro da liga: nasce do ovo ganho ao entrar e cresce só com os check-ins dela
-func leagueMonster(mine: [LeagueCheckIn], activities: [UUID: Activity]) -> Snapshot {
-    let ids = Set(mine.map(\.activityUUID))
-    return Game.snapshot(ids.compactMap { activities[$0]?.record })
-}
 
 // MARK: - Detalhe
 
@@ -104,6 +99,8 @@ struct LeagueDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var allCheckIns: [LeagueCheckIn]
     @Query private var activities: [Activity]
+    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
+    @Query private var leagues: [League]
     @AppStorage("trainerName") private var trainerName = ""
     @AppStorage("likes") private var likes = ""
     @State private var tab = 0
@@ -114,14 +111,16 @@ struct LeagueDetailView: View {
     var body: some View {
         let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
         let mine = allCheckIns.filter { $0.leagueUUID == league.uuid }
-        // Dentro da liga você aparece com o monstro dela, não com o parceiro
-        let avatar = leagueMonster(mine: mine, activities: byID).form
+        // Dentro da liga você aparece com o monstro que te representa nela
+        let roster = Roster(monsters: monsters, activities: activities, checkIns: allCheckIns, leagues: leagues)
+        let rep = roster.snapshot(league.monsterUUID)
+        let avatar = rep.form
         let feed = LeagueBoard.feed(league: league, mine: mine, activities: byID, me: trainerName, myAvatar: avatar)
         let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.start
         let rank = LeagueBoard.ranking(feed: feed, league: league, me: trainerName, myAvatar: avatar, since: weekOnly ? weekStart : nil)
 
         List {
-            Section { header(mine: mine, activities: byID) }
+            Section { header(rep, monster: roster.monster(league.monsterUUID)) }
                 .listRowBackground(Theme.card)
 
             Picker("", selection: $tab) {
@@ -193,17 +192,16 @@ struct LeagueDetailView: View {
         "Entra na minha liga \(league.emoji) \(league.name) no GymMonsters! Código: \(league.code)"
     }
 
-    private func header(mine: [LeagueCheckIn], activities: [UUID: Activity]) -> some View {
-        let m = leagueMonster(mine: mine, activities: activities)
-        return HStack(spacing: 14) {
+    private func header(_ m: Snapshot, monster: Monster?) -> some View {
+        HStack(spacing: 14) {
             LivingMonster(form: m.form, progress: m.progress).frame(width: 84, height: 84)
             VStack(alignment: .leading, spacing: 5) {
                 Text("\(league.emoji) \(league.name)").font(.headline)
                 Text("Código \(league.code) · desde \(league.start.formatted(.dateTime.day().month(.abbreviated)))")
                     .font(.caption)
                     .foregroundStyle(Theme.dim)
-                Text(m.stage == .egg ? "Ovo da liga: faltam \(m.xpToNext ?? 0) XP de check-ins para chocar"
-                                     : "\(m.form.name) da liga · \(m.xpToNext.map { "faltam \($0) XP" } ?? "forma final")")
+                Text("Te representa: \(monster?.displayName(m.form) ?? m.form.name)" +
+                     (m.stage == .egg ? " · faltam \(m.xpToNext ?? 0) XP para chocar" : " · Nível \(m.level)"))
                     .font(.caption)
                 ProgressView(value: m.progress).tint(Theme.accent)
             }
@@ -277,6 +275,7 @@ struct CreateLeagueView: View {
     @State private var emoji = "🏆"
     @State private var scoring: LeagueScoring = .pontos
     @State private var withExamples = false
+    @State private var rep: UUID? = MainMonster.id
 
     private let emojis = ["🏆", "🔥", "💪", "🏃", "⚡️", "🦁", "🐉", "⭐️", "🏐", "🧘"]
 
@@ -302,6 +301,7 @@ struct CreateLeagueView: View {
                     }
                     .pickerStyle(.segmented)
                 } footer: { Text(scoring.detail) }
+                MonsterChoiceSection(choice: $rep)
                 Section {
                     Toggle("Participantes de exemplo", isOn: $withExamples)
                 } footer: {
@@ -314,7 +314,9 @@ struct CreateLeagueView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Criar") {
-                        context.insert(League(name: name.trimmingCharacters(in: .whitespaces), emoji: emoji, scoring: scoring, isMock: withExamples))
+                        let l = League(name: name.trimmingCharacters(in: .whitespaces), emoji: emoji, scoring: scoring, isMock: withExamples)
+                        l.monsterUUID = context.representative(rep)
+                        context.insert(l)
                         try? context.save()
                         dismiss()
                     }
@@ -330,8 +332,11 @@ struct JoinLeagueView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var leagues: [League]
-    @State private var code = ""
+    @State private var code: String
     @State private var message: String?
+    @State private var rep: UUID? = MainMonster.id
+
+    init(code: String = "") { _code = State(initialValue: code) }
 
     var body: some View {
         NavigationStack {
@@ -344,6 +349,7 @@ struct JoinLeagueView: View {
                 } footer: {
                     Text(message ?? "Peça o código para quem criou a liga. Para testar, use \(MockLeague.code).")
                 }
+                MonsterChoiceSection(choice: $rep)
             }
             .navigationTitle("Entrar numa liga")
             .navigationBarTitleDisplayMode(.inline)
@@ -361,7 +367,9 @@ struct JoinLeagueView: View {
         if leagues.contains(where: { $0.code == c }) {
             message = "Você já está nessa liga."
         } else if c == MockLeague.code {
-            context.insert(MockLeague.make())
+            let l = MockLeague.make()
+            l.monsterUUID = context.representative(rep)
+            context.insert(l)
             try? context.save()
             dismiss()
         } else {

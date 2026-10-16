@@ -5,14 +5,11 @@ struct HomeView: View {
     let activities: [Activity]
     let mood: Mood
     let line: String
+    let monsterName: String
     @AppStorage("trainerName") private var trainerName = ""
-    @AppStorage("monsterNick") private var monsterNick = ""
+    @State private var team = false
     @State private var logging = false
     @State private var settings = false
-
-    private var monsterName: String {
-        snapshot.stage == .egg || monsterNick.isEmpty ? snapshot.form.name : monsterNick
-    }
 
     var body: some View {
         NavigationStack {
@@ -44,11 +41,15 @@ struct HomeView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { settings = true } label: { Image(systemName: "gearshape") }
+                    HStack {
+                        Button { team = true } label: { Image(systemName: "square.stack.3d.up") }
+                        Button { settings = true } label: { Image(systemName: "gearshape") }
+                    }
                 }
             }
             .sheet(isPresented: $logging) { LogActivityView(snapshot: snapshot) }
             .sheet(isPresented: $settings) { SettingsView() }
+            .sheet(isPresented: $team) { TeamView() }
         }
     }
 

@@ -13,10 +13,12 @@ struct Backup: Codable {
     var sessions: [SessionDTO]
     var customExercises: [CustomDTO]
     var leagues: [LeagueDTO]? = nil
+    var monsters: [MonsterDTO]? = nil
     var checkIns: [CheckInDTO]? = nil
 
     struct LeagueDTO: Codable {
         var uuid: UUID, name: String, emoji: String, scoring: String, start: Date, code: String, isMock: Bool, joinedAt: Date
+        var monsterUUID: UUID?
     }
 
     /// Fotos ficam de fora para o arquivo não ficar enorme
@@ -26,7 +28,11 @@ struct Backup: Codable {
 
     struct ActivityDTO: Codable {
         var uuid: UUID, kind: String, date: Date, minutes: Int, effort: Int, note: String
-        var healthUUID: String?, source: String?
+        var healthUUID: String?, source: String?, monsterUUID: UUID?
+    }
+
+    struct MonsterDTO: Codable {
+        var uuid: UUID, name: String, createdAt: Date, isStarter: Bool, lastFormID: String
     }
 
     struct RoutineDTO: Codable {
@@ -51,7 +57,7 @@ struct Backup: Codable {
         var uuid: UUID, name: String, group: String, equipment: String, type: String, notes: String
     }
 
-    static let settingKeys = ["trainerName", "monsterNick", "lastFormID", "discovered", "bodyGender"]
+    static let settingKeys = ["trainerName", "monsterNick", "lastFormID", "discovered", "bodyGender", "mainMonster"]
 
     @MainActor
     static func make(context: ModelContext) throws -> Backup {
@@ -60,7 +66,7 @@ struct Backup: Codable {
             settings: Dictionary(uniqueKeysWithValues: settingKeys.compactMap { k in d.string(forKey: k).map { (k, $0) } }),
             activities: try context.fetch(FetchDescriptor<Activity>()).map {
                 ActivityDTO(uuid: $0.uuid, kind: $0.kindRaw, date: $0.date, minutes: $0.minutes, effort: $0.effort,
-                            note: $0.note, healthUUID: $0.healthUUID, source: $0.source)
+                            note: $0.note, healthUUID: $0.healthUUID, source: $0.source, monsterUUID: $0.monsterUUID)
             },
             routines: try context.fetch(FetchDescriptor<Routine>()).map { r in
                 RoutineDTO(uuid: r.uuid, name: r.name, weekdays: r.weekdaysRaw, order: r.order, items: r.sortedItems.map {
@@ -79,7 +85,10 @@ struct Backup: Codable {
             },
             leagues: try context.fetch(FetchDescriptor<League>()).map {
                 LeagueDTO(uuid: $0.uuid, name: $0.name, emoji: $0.emoji, scoring: $0.scoringRaw, start: $0.start, code: $0.code,
-                          isMock: $0.isMock, joinedAt: $0.joinedAt)
+                          isMock: $0.isMock, joinedAt: $0.joinedAt, monsterUUID: $0.monsterUUID)
+            },
+            monsters: try context.fetch(FetchDescriptor<Monster>()).map {
+                MonsterDTO(uuid: $0.uuid, name: $0.name, createdAt: $0.createdAt, isStarter: $0.isStarter, lastFormID: $0.lastFormID)
             },
             checkIns: try context.fetch(FetchDescriptor<LeagueCheckIn>()).map {
                 CheckInDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, activityUUID: $0.activityUUID, title: $0.title, note: $0.note, date: $0.date)
@@ -98,12 +107,14 @@ struct Backup: Codable {
         try context.delete(model: CustomExercise.self)
         try context.delete(model: LeagueCheckIn.self)
         try context.delete(model: League.self)
+        try context.delete(model: Monster.self)
 
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
             act.uuid = a.uuid
             act.healthUUID = a.healthUUID
             act.source = a.source
+            act.monsterUUID = a.monsterUUID
             context.insert(act)
         }
         for r in routines {
@@ -142,7 +153,15 @@ struct Backup: Codable {
             league.uuid = l.uuid
             league.code = l.code
             league.joinedAt = l.joinedAt
+            league.monsterUUID = l.monsterUUID
             context.insert(league)
+        }
+        for m in monsters ?? [] {
+            let mon = Monster(name: m.name, isStarter: m.isStarter)
+            mon.uuid = m.uuid
+            mon.createdAt = m.createdAt
+            mon.lastFormID = m.lastFormID
+            context.insert(mon)
         }
         for c in checkIns ?? [] {
             let ci = LeagueCheckIn(leagueUUID: c.leagueUUID, activityUUID: c.activityUUID, title: c.title, note: c.note, date: c.date, photo: nil)
@@ -153,6 +172,8 @@ struct Backup: Codable {
 
         let d = UserDefaults.standard
         for k in Backup.settingKeys { d.set(settings[k], forKey: k) }
+        // Backups antigos não têm a coleção de monstros
+        Roster.ensureStarter(context: context)
     }
 
     static let encoder: JSONEncoder = {

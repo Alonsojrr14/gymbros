@@ -14,6 +14,8 @@ final class Activity {
     var healthUUID: String?
     /// App ou aparelho de origem (ex.: "Apple Watch de Zero")
     var source: String?
+    /// Monstro que recebe o XP quando a atividade não é postada em nenhuma liga
+    var monsterUUID: UUID?
 
     init(kind: ActivityKind, date: Date, minutes: Int, effort: Int, note: String = "") {
         self.kindRaw = kind.rawValue
@@ -21,6 +23,7 @@ final class Activity {
         self.minutes = minutes
         self.effort = effort
         self.note = note
+        self.monsterUUID = MainMonster.id
     }
 
     var kind: ActivityKind { ActivityKind(rawValue: kindRaw) ?? .outro }

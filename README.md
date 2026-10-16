@@ -25,7 +25,7 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
 
 - Inspiradas no GymRats: cada liga é um ranking contínuo de check-ins de qualquer atividade, com pontuação por pontos (XP da atividade), treinos ou minutos; ranking "desde o início" e "esta semana", e feed com foto.
 - Check-in em várias ligas de uma vez: ao registrar atividade, ao concluir treino guiado ou pelo botão da liga (nova atividade ou uma já registrada, inclusive do Saúde).
-- Cada liga em que você entra dá um ovo próprio, que cresce só com os check-ins dela; o parceiro continua ganhando XP de tudo.
+- Coleção de monstros (`GymMonsters/Monsters.swift`): ao entrar numa liga você escolhe quem te representa, um monstro seu ou um ovo novo adotado na hora. Os check-ins da liga dão XP só para ele; atividades fora de ligas vão para o monstro principal (tela inicial e widgets), que pode ser trocado em "Meus monstros".
 - Sem servidor ainda: convites são só um código para compartilhar. A "Liga dos Amigos" (código `AMIGOS`) tem 5 participantes simulados (`GymMonsters/Leagues.swift`).
 
 ## Apple Saúde e backup

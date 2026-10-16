@@ -47,6 +47,8 @@ final class League {
     /// Liga de exemplo, com participantes simulados
     var isMock: Bool = false
     var joinedAt: Date = Date.now
+    /// Monstro que representa o jogador nesta liga (recebe o XP dos check-ins dela)
+    var monsterUUID: UUID?
 
     init(name: String, emoji: String, scoring: LeagueScoring, start: Date = .now, isMock: Bool = false) {
         self.name = name

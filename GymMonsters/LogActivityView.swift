@@ -6,6 +6,9 @@ struct LogActivityView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var activities: [Activity]
+    @Query private var monsters: [Monster]
+    @Query private var checkIns: [LeagueCheckIn]
+    @Query private var allLeagues: [League]
 
     @State private var kind: ActivityKind = .musculacao
     @State private var date = Date.now
@@ -17,7 +20,8 @@ struct LogActivityView: View {
 
     private var preview: (xp: Int, after: Snapshot) {
         let new = ActivityRecord(id: UUID(), kind: kind, date: date, minutes: minutes, effort: Int(effort))
-        let after = Game.snapshot(activities.map(\.record) + [new])
+        let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
+        let after = Game.snapshot((roster.mainID.flatMap { roster.records[$0] } ?? []) + [new])
         return (after.xpByActivity[new.id] ?? 0, after)
     }
 

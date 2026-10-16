@@ -285,6 +285,9 @@ struct FinishWorkoutView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var activities: [Activity]
+    @Query private var monsters: [Monster]
+    @Query private var checkIns: [LeagueCheckIn]
+    @Query private var allLeagues: [League]
     @State private var effort = 7.0
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
@@ -296,7 +299,8 @@ struct FinishWorkoutView: View {
         let volume = done.reduce(0) { $0 + $1.weight * Double($1.reps) }
         let records = Progression.records(in: session.log, history: history)
         let new = ActivityRecord(id: UUID(), kind: .musculacao, date: session.start, minutes: minutes, effort: Int(effort))
-        let xp = Game.snapshot(activities.map(\.record) + [new]).xpByActivity[new.id] ?? 0
+        let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
+        let xp = Game.snapshot((roster.mainID.flatMap { roster.records[$0] } ?? []) + [new]).xpByActivity[new.id] ?? 0
 
         NavigationStack {
             Form {
