@@ -155,36 +155,28 @@ struct MonsterForm: Hashable, Identifiable {
         case (.egg, _): "Ovo"
         case (.baby, _): "Gymmon"
         case (.rookie, _): "Cutemon"
-        case (.champion, .forca): "Leomon"
+        case (.champion, .forca): "Halteromon"
         case (.champion, .resistencia): "Maratomon"
         case (.champion, .agilidade): "Saltamon"
         case (.champion, _): "Zenmon"
         case (.ultimate, .forca): "Trebomon"
-        case (.ultimate, .resistencia): "Ultramon"
+        case (.ultimate, .resistencia): "Fôlegomon"
         case (.ultimate, .agilidade): "Relampamon"
         case (.ultimate, _): "Mestremon"
         }
     }
 
-    /// Arte: os galhos sem desenho próprio reaproveitam o de Força com outra cor (provisório)
     var sprite: String {
         switch stage {
         case .egg: "sprite_egg"
         case .baby: "sprite_baby"
         case .rookie: "sprite_rookie"
-        case .champion: "sprite_champion_forca"
-        case .ultimate: "sprite_ultimate_forca"
+        case .champion, .ultimate: "sprite_\(stage)_\((attribute ?? .forca).rawValue)"
         }
     }
 
-    var hue: Double {
-        switch attribute {
-        case .resistencia: 170
-        case .agilidade: 80
-        case .tecnica: 250
-        default: 0
-        }
-    }
+    /// Mantido para quem ainda usa (widget); todas as formas têm arte própria agora
+    var hue: Double { 0 }
 }
 
 struct ActivityRecord: Identifiable {

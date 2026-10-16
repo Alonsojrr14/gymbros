@@ -34,7 +34,6 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
 - Widget "Meu monstro" (pequeno, médio, grande e tela bloqueada redondo/retangular): muda de pose a cada minuto com transição animada e reage a carinho com um toque (widget interativo).
 - Widget "Status do monstro" (pequeno, médio e tela bloqueada) com monstro, humor, XP e sequência. Os dados chegam pelo App Group `group.com.alonsoalmeida.gymmonsters` (`Shared/WidgetShared.swift`).
 
-As artes dos galhos de Resistência, Agilidade e Técnica são provisórias (as de Força com outra cor).
 
 ## Rodar no iPhone
 
