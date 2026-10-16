@@ -158,10 +158,17 @@ struct WidgetView: View {
 }
 
 @main
+struct GymMonstersWidgets: WidgetBundle {
+    var body: some Widget {
+        PetWidget()
+        GymMonstersWidget()
+    }
+}
+
 struct GymMonstersWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "GymMonsters", provider: Provider()) { WidgetView(entry: $0) }
-            .configurationDisplayName("Seu monstro")
+            .configurationDisplayName("Status do monstro")
             .description("Humor, nível e sequência do seu GymMonster.")
             .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryCircular])
     }

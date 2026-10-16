@@ -31,7 +31,8 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
 - Humor do monstro (animado, feliz, entediado, triste, exausto) pelos dias sem treinar, sequência e excesso no dia; balão com frases que citam a rotina do dia e músculos esquecidos na semana.
 - 22 conquistas (Dex → Conquistas), com aviso ao desbloquear.
 - Lembretes locais no horário escolhido, só nos dias sem treino (opcional: só em dias de rotina).
-- Widget (pequeno, médio e tela bloqueada) com monstro, humor, XP e sequência. Os dados chegam pelo App Group `group.com.alonsoalmeida.gymmonsters` (`Shared/WidgetShared.swift`).
+- Widget "Meu monstro" (pequeno, médio, grande): muda de pose a cada minuto com transição animada e reage a carinho com um toque (widget interativo).
+- Widget "Status do monstro" (pequeno, médio e tela bloqueada) com monstro, humor, XP e sequência. Os dados chegam pelo App Group `group.com.alonsoalmeida.gymmonsters` (`Shared/WidgetShared.swift`).
 
 As artes dos galhos de Resistência, Agilidade e Técnica são provisórias (as de Força com outra cor).
 
