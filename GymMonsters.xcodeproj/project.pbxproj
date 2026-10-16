@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AC0000000000000000000010 /* MuscleMap in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000011 /* MuscleMap */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		AC0000000000000000000001 /* GymMonsters.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GymMonsters.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AC0000000000000000000010 /* MuscleMap in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +70,7 @@
 			);
 			name = GymMonsters;
 			packageProductDependencies = (
+				AC0000000000000000000011 /* MuscleMap */,
 			);
 			productName = GymMonsters;
 			productReference = AC0000000000000000000001 /* GymMonsters.app */;
@@ -94,6 +100,9 @@
 			);
 			mainGroup = AC0000000000000000000004;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AC0000000000000000000012 /* XCRemoteSwiftPackageReference "MuscleMap" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = AC0000000000000000000005 /* Products */;
 			projectDirPath = "";
@@ -239,6 +248,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AC0000000000000000000012 /* XCRemoteSwiftPackageReference "MuscleMap" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/melihcolpan/MuscleMap.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AC0000000000000000000011 /* MuscleMap */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC0000000000000000000012 /* XCRemoteSwiftPackageReference "MuscleMap" */;
+			productName = MuscleMap;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AC000000000000000000000A /* Project object */;
 }

@@ -16,6 +16,9 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
 - Treino guiado: cargas sugeridas a partir do histórico, timer de descanso com aviso em segundo plano, tela sempre acesa.
 - Progressão (`GymMonsters/Training.swift`): completou todas as séries → +2,5 kg (+5 kg em pernas/costas); 3 treinos seguidos sem completar → deload de 10 %. Peso do corpo progride em reps, isometria em segundos.
 - Recordes de carga e 1RM estimado (Epley, até 12 reps), gráfico por exercício.
+- Biblioteca com fotos animadas (posição inicial/final), instruções em português e músculos trabalhados; exercícios personalizados.
+- Peso do corpo e isometria aceitam carga extra (cinto de peso, colete); com carga, a progressão volta a ser por peso.
+- Mapa muscular (frente e costas): por exercício, por rotina, ao concluir o treino e por período (7/30 dias/tudo), com a lista do que ficou sem treino.
 - Concluir um treino gera uma atividade de musculação, que dá XP ao monstro.
 
 As artes dos galhos de Resistência, Agilidade e Técnica são provisórias (as de Força com outra cor).
@@ -29,3 +32,5 @@ xcrun devicectl device install app --device <UDID> build/Build/Products/Debug-ip
 ```
 
 A versão web anterior (Next.js + Express) continua no branch `main`.
+
+Créditos de terceiros em [NOTICE.md](NOTICE.md).

@@ -9,7 +9,7 @@ struct GymMonstersApp: App {
                 .preferredColorScheme(.dark)
                 .tint(Theme.accent)
         }
-        .modelContainer(for: [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self])
+        .modelContainer(for: [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self, CustomExercise.self])
     }
 }
 
@@ -33,6 +33,7 @@ struct EvolutionEvent: Identifiable {
 
 struct MainView: View {
     @Query(sort: \Activity.date, order: .reverse) private var activities: [Activity]
+    @Query private var customs: [CustomExercise]
     @AppStorage("lastFormID") private var lastFormID = ""
     @AppStorage("discovered") private var discovered = ""
     @State private var evolution: EvolutionEvent?
@@ -41,6 +42,7 @@ struct MainView: View {
 
     var body: some View {
         let s = snapshot
+        let _ = Exercise.register(customs)
         TabView {
             HomeView(snapshot: s, activities: activities)
                 .tabItem { Label("Monstro", systemImage: "pawprint.fill") }

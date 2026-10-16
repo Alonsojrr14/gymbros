@@ -1,4 +1,5 @@
 import Foundation
+import MuscleMap
 
 enum MuscleGroup: String, CaseIterable, Identifiable {
     case peito, costas, ombros, biceps, triceps, antebraco, quadriceps, posterior, gluteos, panturrilha, abdomen, corpo
@@ -24,15 +25,54 @@ enum MuscleGroup: String, CaseIterable, Identifiable {
 
     /// Grupos em que um salto de 5 kg é normal
     var heavy: Bool { [.costas, .quadriceps, .posterior, .gluteos, .panturrilha].contains(self) }
+
+    /// Músculos padrão, para exercícios personalizados
+    var muscles: MuscleTargets {
+        switch self {
+        case .peito: MuscleTargets(primary: [.chest], secondary: [.deltoids, .triceps])
+        case .costas: MuscleTargets(primary: [.upperBack], secondary: [.biceps, .trapezius])
+        case .ombros: MuscleTargets(primary: [.deltoids], secondary: [.trapezius, .triceps])
+        case .biceps: MuscleTargets(primary: [.biceps], secondary: [.forearm])
+        case .triceps: MuscleTargets(primary: [.triceps], secondary: [])
+        case .antebraco: MuscleTargets(primary: [.forearm], secondary: [])
+        case .quadriceps: MuscleTargets(primary: [.quadriceps], secondary: [.gluteal, .hamstring])
+        case .posterior: MuscleTargets(primary: [.hamstring], secondary: [.gluteal, .lowerBack])
+        case .gluteos: MuscleTargets(primary: [.gluteal], secondary: [.hamstring])
+        case .panturrilha: MuscleTargets(primary: [.calves], secondary: [])
+        case .abdomen: MuscleTargets(primary: [.abs], secondary: [.obliques])
+        case .corpo: MuscleTargets(primary: [.quadriceps, .chest, .upperBack], secondary: [.deltoids, .gluteal, .abs])
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .peito, .ombros, .triceps: "figure.arms.open"
+        case .costas: "figure.rower"
+        case .biceps, .antebraco: "dumbbell.fill"
+        case .quadriceps, .posterior, .gluteos, .panturrilha: "figure.step.training"
+        case .abdomen: "figure.core.training"
+        case .corpo: "figure.cross.training"
+        }
+    }
 }
 
-enum ExerciseType {
+enum ExerciseType: String, CaseIterable, Identifiable {
     /// Carga × repetições
     case weighted
     /// Peso do corpo: progride em repetições (carga extra opcional)
     case bodyweight
     /// Medido em segundos (prancha, isometria)
     case time
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .weighted: "Carga × reps"
+        case .bodyweight: "Peso do corpo"
+        case .time: "Por tempo"
+        }
+    }
 }
 
 struct Exercise: Identifiable, Hashable {
@@ -44,7 +84,19 @@ struct Exercise: Identifiable, Hashable {
 
     var increment: Double { group.heavy && equipment != "Halteres" ? 5 : 2.5 }
 
-    static func byID(_ id: String) -> Exercise? { index[id] }
+    var isCustom: Bool { id.hasPrefix("custom-") }
+    var hasPhotos: Bool { ExerciseData.withPhotos.contains(id) }
+    var muscles: MuscleTargets { ExerciseData.muscles[id] ?? group.muscles }
+    var instructions: [String] { ExerciseInstructions.steps[id] ?? [] }
+
+    static func byID(_ id: String) -> Exercise? { index[id] ?? custom[id] }
+
+    /// Exercícios criados pelo usuário (atualizado a partir do SwiftData)
+    static var custom: [String: Exercise] = [:]
+
+    static var all: [Exercise] { library + custom.values.sorted { $0.name < $1.name } }
+
+    static let equipments = ["Barra", "Halteres", "Máquina", "Polia", "Peso do corpo", "Kettlebell", "Elástico", "Outro"]
 
     static func name(_ id: String) -> String { index[id]?.name ?? id }
 
@@ -115,7 +167,7 @@ struct Exercise: Identifiable, Hashable {
         .init(id: "agachamento-livre-corpo", name: "Agachamento sem carga", group: .quadriceps, equipment: "Peso do corpo", type: .bodyweight),
         // Posterior
         .init(id: "stiff", name: "Stiff", group: .posterior, equipment: "Barra"),
-        .init(id: "terra-romeno", name: "Terra romeno", group: .posterior, equipment: "Halteres"),
+        .init(id: "terra-romeno", name: "Terra romeno", group: .posterior, equipment: "Barra"),
         .init(id: "mesa-flexora", name: "Mesa flexora", group: .posterior, equipment: "Máquina"),
         .init(id: "cadeira-flexora", name: "Cadeira flexora", group: .posterior, equipment: "Máquina"),
         .init(id: "good-morning", name: "Good morning", group: .posterior, equipment: "Barra"),

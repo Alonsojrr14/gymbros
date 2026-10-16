@@ -8,6 +8,7 @@ struct TrainView: View {
     @Query(sort: \WorkoutSession.start, order: .reverse) private var sessions: [WorkoutSession]
     @State private var active: WorkoutSession?
     @State private var templates = false
+    @State private var library = false
 
     private var finished: [WorkoutSession] { sessions.filter { $0.end != nil } }
     private var inProgress: WorkoutSession? { sessions.first { $0.end == nil } }
@@ -71,6 +72,12 @@ struct TrainView: View {
                     NavigationLink { ExerciseStatsList(sessions: finished) } label: {
                         Label("Exercícios e recordes", systemImage: "chart.line.uptrend.xyaxis")
                     }
+                    NavigationLink { MuscleMapView(sessions: finished) } label: {
+                        Label("Mapa muscular", systemImage: "figure.stand")
+                    }
+                    Button { library = true } label: {
+                        Label("Biblioteca de exercícios", systemImage: "books.vertical")
+                    }
                 }
 
                 if !finished.isEmpty {
@@ -88,6 +95,7 @@ struct TrainView: View {
             .background(Theme.bg)
             .navigationTitle("Treino")
             .sheet(isPresented: $templates) { TemplatesView(startingOrder: routines.count) }
+            .sheet(isPresented: $library) { ExercisePicker() }
             .fullScreenCover(item: $active) { s in
                 WorkoutView(session: s, history: finished.reversed().map(\.log))
             }

@@ -1,0 +1,15 @@
+{
+  "originHash" : "78c8a89766e3d9ab153336f7885a41ee730cd1023ca2a7388b46940c2ca870d5",
+  "pins" : [
+    {
+      "identity" : "musclemap",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/melihcolpan/MuscleMap.git",
+      "state" : {
+        "revision" : "3aa662bd5147463b20d523f95d74e1a12c7c8b2e",
+        "version" : "1.9.0"
+      }
+    }
+  ],
+  "version" : 3
+}

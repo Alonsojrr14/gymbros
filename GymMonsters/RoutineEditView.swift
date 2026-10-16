@@ -28,6 +28,15 @@ struct RoutineEditView: View {
                     }
                 }
             }
+            if !routine.items.isEmpty {
+                Section("O que essa rotina treina") {
+                    let sets = routine.items.flatMap { item in
+                        (0..<item.sets).map { _ in SetLog(exerciseID: item.exerciseID, weight: 0, reps: 0, target: 0, done: true) }
+                    }
+                    BodyPair(intensities: normalized(muscleLoad(sets)))
+                        .frame(height: 220)
+                }
+            }
             Section {
                 ForEach(routine.sortedItems) { item in
                     ItemEditor(item: item)
@@ -107,9 +116,13 @@ struct MiniStepper: View {
 }
 
 struct ExercisePicker: View {
-    let onPick: (Exercise) -> Void
+    /// nil = só navegar pela biblioteca (toque abre os detalhes)
+    var onPick: ((Exercise) -> Void)?
     @Environment(\.dismiss) private var dismiss
+    @Query private var customs: [CustomExercise]
     @State private var search = ""
+    @State private var info: Exercise?
+    @State private var creating = false
 
     private func matches(_ e: Exercise) -> Bool {
         search.isEmpty || e.name.localizedStandardContains(search) || e.group.name.localizedStandardContains(search)
@@ -119,22 +132,20 @@ struct ExercisePicker: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Button { creating = true } label: { Label("Criar exercício", systemImage: "plus") }
+                }
+                let mine = customs.map(\.exercise).filter(matches).sorted { $0.name < $1.name }
+                if !mine.isEmpty {
+                    Section("Meus exercícios") {
+                        ForEach(mine) { row($0) }
+                    }
+                }
                 ForEach(MuscleGroup.allCases) { g in
                     let items = Exercise.library.filter { $0.group == g && matches($0) }
                     if !items.isEmpty {
                         Section(g.name) {
-                            ForEach(items) { e in
-                                Button {
-                                    onPick(e)
-                                    dismiss()
-                                } label: {
-                                    HStack {
-                                        Text(e.name).foregroundStyle(.white)
-                                        Spacer()
-                                        Text(e.equipment).font(.caption).foregroundStyle(Theme.dim)
-                                    }
-                                }
-                            }
+                            ForEach(items) { row($0) }
                         }
                     }
                 }
@@ -142,7 +153,60 @@ struct ExercisePicker: View {
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Buscar exercício")
             .navigationTitle("Exercícios")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button(onPick == nil ? "OK" : "Cancelar") { dismiss() } } }
+            .sheet(item: $info) { ExerciseInfoView(exercise: $0) }
+            .sheet(isPresented: $creating) {
+                CustomExerciseForm(onCreate: { e in
+                    if let onPick {
+                        onPick(e)
+                        dismiss()
+                    }
+                })
+            }
         }
+    }
+
+    private func row(_ e: Exercise) -> some View {
+        HStack(spacing: 12) {
+            ExerciseThumb(exercise: e)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(e.name).foregroundStyle(.white)
+                Text(e.equipment).font(.caption).foregroundStyle(Theme.dim)
+            }
+            Spacer()
+            if onPick != nil {
+                Button { info = e } label: { Image(systemName: "info.circle") }
+                    .buttonStyle(.borderless)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let onPick {
+                onPick(e)
+                dismiss()
+            } else {
+                info = e
+            }
+        }
+    }
+}
+
+struct ExerciseThumb: View {
+    let exercise: Exercise
+    var size: CGFloat = 44
+
+    var body: some View {
+        Group {
+            if exercise.hasPhotos {
+                Image("ex_\(exercise.id)_0").resizable().scaledToFill()
+            } else {
+                Image(systemName: exercise.group.symbol)
+                    .font(.system(size: size * 0.45))
+                    .foregroundStyle(Theme.dim)
+            }
+        }
+        .frame(width: size, height: size)
+        .background(.white.opacity(0.06))
+        .clipShape(.rect(cornerRadius: 8))
     }
 }

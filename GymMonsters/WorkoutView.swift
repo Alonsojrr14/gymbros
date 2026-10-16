@@ -15,6 +15,7 @@ struct WorkoutView: View {
     @State private var picking = false
     @State private var finishing = false
     @State private var confirmDiscard = false
+    @State private var info: Exercise?
 
     var body: some View {
         NavigationStack {
@@ -59,6 +60,7 @@ struct WorkoutView: View {
             }
             .overlay(alignment: .bottom) { if let restEnd { restBar(restEnd) } }
             .sheet(isPresented: $picking) { ExercisePicker(onPick: add) }
+            .sheet(item: $info) { ExerciseInfoView(exercise: $0) }
             .sheet(isPresented: $finishing) {
                 FinishWorkoutView(session: session, history: history) { dismiss() }
             }
@@ -86,7 +88,11 @@ struct WorkoutView: View {
         let suggestion = Progression.suggest(exerciseID: id, sets: sets.count, reps: sets.first?.targetReps ?? 10, history: history)
         let last = history.last { $0.sets.contains { $0.exerciseID == id } }
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top) {
+            HStack(alignment: .top, spacing: 12) {
+                if let ex {
+                    Button { info = ex } label: { ExerciseThumb(exercise: ex, size: 52) }
+                        .buttonStyle(.plain)
+                }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(ex?.name ?? id).font(.headline)
                     Text([ex?.group.name, ex?.equipment].compactMap { $0 }.joined(separator: " · "))
@@ -227,10 +233,9 @@ private struct SetRow: View {
                 .foregroundStyle(Theme.dim)
                 .frame(width: 18)
 
-            if type == .weighted || set.weight > 0 {
-                field(value: Binding(get: { set.weight }, set: { set.weight = max($0, 0) }),
-                      step: increment, unit: "kg", decimals: true)
-            }
+            // Peso do corpo e isometria aceitam carga extra (cinto, colete, halteres)
+            field(value: Binding(get: { set.weight }, set: { set.weight = max($0, 0) }),
+                  step: type == .weighted ? increment : 2.5, unit: type == .weighted ? "kg" : "+kg", decimals: true)
             field(value: Binding(get: { Double(set.reps) }, set: { set.reps = max(Int($0), 0) }),
                   step: type == .time ? 5 : 1, unit: type == .time ? "s" : "reps", decimals: false)
 
@@ -298,6 +303,12 @@ struct FinishWorkoutView: View {
                         stat(durationText(minutes), "duração")
                         stat("\(done.count)/\(session.sets.count)", "séries")
                         stat(volume > 0 ? "\(Progression.fmt(volume.rounded())) kg" : "–", "volume")
+                    }
+                }
+                if !done.isEmpty {
+                    Section("Músculos trabalhados") {
+                        BodyPair(intensities: normalized(muscleLoad(session.log.sets)))
+                            .frame(height: 220)
                     }
                 }
                 if !records.isEmpty {
