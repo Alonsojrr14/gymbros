@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UserNotifications
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
@@ -9,6 +10,9 @@ struct SettingsView: View {
     @AppStorage("lastFormID") private var lastFormID = ""
     @AppStorage("discovered") private var discovered = ""
     @State private var confirmReset = false
+    @AppStorage("remindersOn") private var remindersOn = false
+    @AppStorage("reminderMinute") private var reminderMinute = 18 * 60
+    @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
     @State private var healthOn = HealthSync.enabled
     @State private var healthStatus: String?
     @State private var syncing = false
@@ -29,6 +33,24 @@ struct SettingsView: View {
                 } footer: {
                     Text("Vazio usa o nome da forma atual.")
                 }
+                Section {
+                    Toggle("Lembrete para treinar", isOn: $remindersOn)
+                        .onChange(of: remindersOn) { _, on in
+                            if on { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in } }
+                        }
+                    if remindersOn {
+                        DatePicker("Horário", selection: Binding(
+                            get: { Calendar.current.date(byAdding: .minute, value: reminderMinute, to: Calendar.current.startOfDay(for: .now))! },
+                            set: { let c = Calendar.current.dateComponents([.hour, .minute], from: $0); reminderMinute = (c.hour ?? 18) * 60 + (c.minute ?? 0) }
+                        ), displayedComponents: .hourAndMinute)
+                        Toggle("Só em dias de rotina", isOn: $reminderRoutineOnly)
+                    }
+                } header: {
+                    Text("Lembretes")
+                } footer: {
+                    Text("Seu monstro te chama no horário escolhido, só nos dias em que você ainda não treinou.")
+                }
+
                 if HealthSync.available {
                     Section {
                         Toggle("Importar treinos do Saúde", isOn: $healthOn)

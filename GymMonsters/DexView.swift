@@ -3,10 +3,49 @@ import SwiftUI
 struct DexView: View {
     let snapshot: Snapshot
     let discovered: Set<String>
+    let achievements: [Achievement]
+    @State private var tab = 0
 
     var body: some View {
         NavigationStack {
             ScrollView {
+                Picker("", selection: $tab) {
+                    Text("Monstros").tag(0)
+                    Text("Conquistas \(achievements.filter(\.unlocked).count)/\(achievements.count)").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                if tab == 0 { monsters } else { trophies }
+            }
+            .background(Theme.bg)
+            .navigationTitle(tab == 0 ? "Dex · \(discovered.count)/\(MonsterForm.all.count)" : "Conquistas")
+        }
+    }
+
+    private var trophies: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+            ForEach(achievements.sorted { ($0.unlocked ? 0 : 1, -$0.progress) < ($1.unlocked ? 0 : 1, -$1.progress) }) { a in
+                VStack(spacing: 8) {
+                    Image(systemName: a.symbol)
+                        .font(.system(size: 30))
+                        .foregroundStyle(a.unlocked ? Color.yellow : Theme.dim)
+                        .frame(height: 38)
+                    Text(a.title).font(.subheadline.bold()).multilineTextAlignment(.center)
+                    Text(a.detail).font(.caption).foregroundStyle(Theme.dim).multilineTextAlignment(.center)
+                    if !a.unlocked {
+                        ProgressView(value: a.progress).tint(Theme.accent)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, minHeight: 150)
+                .background(Theme.card, in: .rect(cornerRadius: 18))
+                .opacity(a.unlocked ? 1 : 0.7)
+            }
+        }
+        .padding(16)
+    }
+
+    private var monsters: some View {
                 VStack(alignment: .leading, spacing: 22) {
                     ForEach(Stage.allCases, id: \.self) { stage in
                         VStack(alignment: .leading, spacing: 10) {
@@ -25,10 +64,6 @@ struct DexView: View {
                     }
                 }
                 .padding(16)
-            }
-            .background(Theme.bg)
-            .navigationTitle("Dex · \(discovered.count)/\(MonsterForm.all.count)")
-        }
     }
 
     private func cell(_ f: MonsterForm) -> some View {

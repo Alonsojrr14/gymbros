@@ -26,6 +26,13 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
 - Treinos do iPhone/Apple Watch são importados ao abrir o app (Ajustes → Apple Saúde; na primeira vez, últimos 14 dias). O tipo vira a atividade correspondente e o esforço é estimado pelas calorias ativas em relação ao esperado para a atividade. Treinos que se sobrepõem a algo já registrado (ex.: treino guiado também gravado no Watch) não contam duas vezes. Só leitura.
 - Backup completo em JSON (Ajustes → Backup): exportar para o Arquivos/iCloud Drive e restaurar.
 
+## Companheiro, conquistas e widget
+
+- Humor do monstro (animado, feliz, entediado, triste, exausto) pelos dias sem treinar, sequência e excesso no dia; balão com frases que citam a rotina do dia e músculos esquecidos na semana.
+- 22 conquistas (Dex → Conquistas), com aviso ao desbloquear.
+- Lembretes locais no horário escolhido, só nos dias sem treino (opcional: só em dias de rotina).
+- Widget (pequeno, médio e tela bloqueada) com monstro, humor, XP e sequência. Os dados chegam pelo App Group `group.com.alonsoalmeida.gymmonsters` (`Shared/WidgetShared.swift`).
+
 As artes dos galhos de Resistência, Agilidade e Técnica são provisórias (as de Força com outra cor).
 
 ## Rodar no iPhone

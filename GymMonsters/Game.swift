@@ -210,6 +210,9 @@ struct Snapshot {
     var evolutions: [Evolution] = []
     var xpByActivity: [UUID: Int] = [:]
     var streak = 0
+    var bestStreak = 0
+    var lastActivity: Date?
+    var todayXP = 0
 
     var stage: Stage { form.stage }
     var level: Int { Game.level(for: totalXP) }
@@ -277,7 +280,26 @@ enum Game {
         }
 
         s.streak = streak(days: Set(dayTotals.keys), now: now, calendar: calendar)
+        s.bestStreak = bestStreak(days: Set(dayTotals.keys), calendar: calendar)
+        s.lastActivity = records.map(\.date).max()
+        s.todayXP = dayGained[calendar.startOfDay(for: now)] ?? 0
         return s
+    }
+
+    /// Maior sequência de dias seguidos já feita
+    static func bestStreak(days: Set<Date>, calendar: Calendar) -> Int {
+        var best = 0
+        for d in days {
+            // Só começa a contar no primeiro dia de cada sequência
+            guard let prev = calendar.date(byAdding: .day, value: -1, to: d), !days.contains(prev) else { continue }
+            var n = 1, cur = d
+            while let next = calendar.date(byAdding: .day, value: 1, to: cur), days.contains(next) {
+                n += 1
+                cur = next
+            }
+            best = max(best, n)
+        }
+        return best
     }
 
     /// Dias seguidos com atividade, terminando hoje ou ontem

@@ -3,6 +3,8 @@ import SwiftUI
 struct HomeView: View {
     let snapshot: Snapshot
     let activities: [Activity]
+    let mood: Mood
+    let line: String
     @AppStorage("trainerName") private var trainerName = ""
     @AppStorage("monsterNick") private var monsterNick = ""
     @State private var logging = false
@@ -52,9 +54,11 @@ struct HomeView: View {
 
     private var monsterCard: some View {
         VStack(spacing: 14) {
+            SpeechBubble(text: line, emoji: mood.emoji)
             LivingMonster(form: snapshot.form, progress: snapshot.progress)
+                // Triste ou entediado, o monstro perde a cor
+                .saturation(mood == .triste ? 0.35 : mood == .entediado ? 0.7 : 1)
                 .frame(height: 200)
-                .padding(.top, 8)
 
             VStack(spacing: 4) {
                 Text(monsterName)
@@ -68,6 +72,8 @@ struct HomeView: View {
                     if snapshot.stage != .egg {
                         Text("·")
                         Text("Nível \(snapshot.level)")
+                        Text("·")
+                        Text(mood.name)
                     }
                 }
                 .font(.subheadline.weight(.semibold))
@@ -185,6 +191,41 @@ struct ActivityRow: View {
             Text("+\(xp) XP")
                 .font(.subheadline.weight(.bold).monospacedDigit())
                 .foregroundStyle(Theme.accent)
+        }
+    }
+}
+
+struct SpeechBubble: View {
+    let text: String
+    let emoji: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(emoji).font(.title3)
+            Text(text)
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(.white.opacity(0.07), in: .rect(cornerRadius: 14))
+        .overlay(alignment: .bottom) {
+            // Pontinha do balão apontando para o monstro
+            Triangle().fill(.white.opacity(0.07)).frame(width: 16, height: 8).offset(y: 8)
+        }
+        .padding(.bottom, 4)
+        .contentTransition(.opacity)
+        .animation(.default, value: text)
+    }
+}
+
+private struct Triangle: Shape {
+    func path(in r: CGRect) -> Path {
+        Path { p in
+            p.move(to: CGPoint(x: r.minX, y: r.minY))
+            p.addLine(to: CGPoint(x: r.maxX, y: r.minY))
+            p.addLine(to: CGPoint(x: r.midX, y: r.maxY))
+            p.closeSubpath()
         }
     }
 }
