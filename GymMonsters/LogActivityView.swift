@@ -13,83 +13,45 @@ struct LogActivityView: View {
     @State private var kind: ActivityKind = .musculacao
     @State private var date = Date.now
     @State private var minutes = 60
-    @State private var effort = 6.0
+    @State private var effort = 6
     @State private var note = ""
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
 
     private var preview: (xp: Int, after: Snapshot) {
-        let new = ActivityRecord(id: UUID(), kind: kind, date: date, minutes: minutes, effort: Int(effort))
+        let new = ActivityRecord(id: UUID(), kind: kind, date: date, minutes: minutes, effort: effort)
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
         let after = Game.snapshot((roster.mainID.flatMap { roster.records[$0] } ?? []) + [new])
         return (after.xpByActivity[new.id] ?? 0, after)
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Atividade") {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                        ForEach(ActivityKind.allCases) { k in
-                            Button { kind = k } label: {
-                                VStack(spacing: 6) {
-                                    Image(systemName: k.symbol).font(.title2)
-                                    Text(k.name).font(.caption2).lineLimit(1).minimumScaleFactor(0.7)
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 64)
-                                .background(kind == k ? Theme.accent.opacity(0.22) : .white.opacity(0.05), in: .rect(cornerRadius: 12))
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(kind == k ? Theme.accent : .clear, lineWidth: 1.5))
-                                .foregroundStyle(kind == k ? Theme.accent : .white)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
+        GMModal("Nova atividade", confirm: "Salvar", onConfirm: save) {
+            GMSection("Atividade") { ActivityKindGrid(kind: $kind) }
 
-                Section("Duração") {
-                    Stepper(value: $minutes, in: 5...Game.maxMinutes, step: 5) {
-                        Text(durationText(minutes)).font(.headline.monospacedDigit())
-                    }
-                    HStack {
-                        ForEach([30, 45, 60, 90], id: \.self) { m in
-                            Button("\(m) min") { minutes = m }
-                                .buttonStyle(.bordered)
-                                .tint(minutes == m ? Theme.accent : .gray)
-                                .frame(maxWidth: .infinity)
-                        }
+            GMSection("Duração") {
+                GMStepper(value: $minutes, range: 5...Game.maxMinutes, step: 5, format: durationText)
+                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    ForEach([30, 45, 60, 90], id: \.self) { m in
+                        GMChip(title: "\(m) min", selected: minutes == m) { minutes = m }
                     }
                 }
-
-                Section {
-                    Slider(value: $effort, in: 1...10, step: 1)
-                } header: {
-                    HStack {
-                        Text("Esforço")
-                        Spacer()
-                        Text("\(Int(effort))/10 · \(effortLabel(Int(effort)))").monospacedDigit()
-                    }
-                } footer: {
-                    Text("Quão puxado foi, de 1 (bem leve) a 10 (no limite).")
-                }
-
-                Section {
-                    DatePicker("Quando", selection: $date, in: ...Date.now)
-                    TextField("Observação (opcional)", text: $note)
-                }
-
-                Section { previewView }
-
-                LeaguePostSection(selected: $leagues, photo: $photo)
+                .frame(maxWidth: .infinity)
             }
-            .scrollContentBackground(.hidden)
-            .background(Theme.bg)
-            .navigationTitle("Nova atividade")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Salvar", action: save).bold() }
+
+            GMSection(footer: "Quão puxado foi, de 1 (bem leve) a 10 (no limite).") {
+                GMEffortPicker(value: $effort)
             }
+
+            GMSection("Quando") {
+                GMDateTimePicker(date: $date)
+                GMTextField(placeholder: "Observação (opcional)", text: $note)
+            }
+
+            GMCard { previewView }
+
+            LeaguePostSection(selected: $leagues, photo: $photo)
         }
     }
 
@@ -112,7 +74,7 @@ struct LogActivityView: View {
             if p.after.stage > snapshot.stage {
                 Text(snapshot.stage == .egg ? "Isso vai fazer o ovo chocar! 🥚" : "Isso vai fazer seu monstro evoluir! ✨")
                     .font(.subheadline.bold())
-            } else if p.xp < Game.xp(kind: kind, minutes: minutes, effort: Int(effort)) {
+            } else if p.xp < Game.xp(kind: kind, minutes: minutes, effort: effort) {
                 Text("Você já treinou bastante nesse dia, então rende menos XP. Descanso também faz parte.")
                     .font(.caption)
                     .foregroundStyle(Theme.dim)
@@ -121,11 +83,38 @@ struct LogActivityView: View {
     }
 
     private func save() {
-        let activity = Activity(kind: kind, date: date, minutes: minutes, effort: Int(effort), note: note)
+        let activity = Activity(kind: kind, date: date, minutes: minutes, effort: effort, note: note)
         context.insert(activity)
         postCheckIns(activity: activity, leagues: leagues, title: note, note: "", photo: photo, context: context)
         try? context.save()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()
+    }
+}
+
+/// Grade de tipos de atividade
+struct ActivityKindGrid: View {
+    @Binding var kind: ActivityKind
+
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+            ForEach(ActivityKind.allCases) { k in
+                let on = kind == k
+                Button {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    kind = k
+                } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: k.symbol).font(.title2)
+                        Text(k.name).font(.caption2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 66)
+                    .background(on ? Theme.accent.opacity(0.2) : Theme.raised, in: .rect(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(on ? Theme.accent : .clear, lineWidth: 1.5))
+                    .foregroundStyle(on ? Theme.accent : .white)
+                }
+                .buttonStyle(GMPress())
+            }
+        }
     }
 }

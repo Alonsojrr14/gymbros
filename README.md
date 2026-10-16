@@ -21,6 +21,10 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
 - Mapa muscular (frente e costas): por exercício, por rotina, ao concluir o treino e por período (7/30 dias/tudo), com a lista do que ficou sem treino.
 - Concluir um treino gera uma atividade de musculação, que dá XP ao monstro.
 
+## Design system
+
+O app não usa controles padrão do iOS: telas, cabeçalhos, barra de abas, botões, abas segmentadas, chaves, steppers, seletor de esforço, data/hora, campos, bottom sheets de ações/confirmação e diálogos ficam em `GymMonsters/DesignSystem.swift` (prefixo `GM`). Só continuam do sistema o teclado, o seletor de fotos, a tela de compartilhar, o seletor de arquivos e os pedidos de permissão.
+
 ## Ligas
 
 - Inspiradas no GymRats: cada liga é um ranking contínuo de check-ins de qualquer atividade, com pontuação por pontos (XP da atividade), treinos ou minutos; ranking "desde o início" e "esta semana", e feed com foto.

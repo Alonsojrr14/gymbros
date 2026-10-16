@@ -54,6 +54,7 @@ struct MainView: View {
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
     @State private var evolution: EvolutionEvent?
     @State private var banner: Banner?
+    @State private var tab = 0
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var phase
 
@@ -66,17 +67,27 @@ struct MainView: View {
                                                        fromHealth: activities.filter { $0.healthUUID != nil }.count,
                                                        snapshot: d.best, sessions: logs))
         let companion = companionContext(s, logs: logs, name: mainName)
-        TabView {
+        TabView(selection: $tab) {
             HomeView(snapshot: s, activities: activities, mood: companion.mood, line: Companion.line(companion), monsterName: mainName)
-                .tabItem { Label("Monstro", systemImage: "pawprint.fill") }
+                .tag(0).toolbar(.hidden, for: .tabBar)
             TrainView()
-                .tabItem { Label("Treino", systemImage: "dumbbell.fill") }
+                .tag(1).toolbar(.hidden, for: .tabBar)
             LeaguesView()
-                .tabItem { Label("Ligas", systemImage: "trophy.fill") }
+                .tag(2).toolbar(.hidden, for: .tabBar)
             HistoryView(snapshot: history, activities: activities)
-                .tabItem { Label("Histórico", systemImage: "list.bullet") }
+                .tag(3).toolbar(.hidden, for: .tabBar)
             DexView(snapshot: s, discovered: Set(discovered.split(separator: ",").map(String.init)), achievements: achievements)
-                .tabItem { Label("Dex", systemImage: "square.grid.3x3.fill") }
+                .tag(4).toolbar(.hidden, for: .tabBar)
+        }
+        .overlay(alignment: .bottom) {
+            GMTabBar(items: [
+                GMTabItem(icon: "pawprint.fill", title: "Monstro"),
+                GMTabItem(icon: "dumbbell.fill", title: "Treino"),
+                GMTabItem(icon: "trophy.fill", title: "Ligas"),
+                GMTabItem(icon: "list.bullet", title: "Histórico"),
+                GMTabItem(icon: "square.grid.3x3.fill", title: "Dex"),
+            ], selection: $tab)
+            .ignoresSafeArea(.keyboard)
         }
         .task { Roster.ensureStarter(context: context) }
         .task(id: monsters.map { roster.snapshot($0.uuid).form.id + $0.uuid.uuidString }.joined()) { check(roster) }

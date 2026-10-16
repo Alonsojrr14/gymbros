@@ -23,125 +23,98 @@ struct SettingsView: View {
     @State private var backupMessage: String?
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Treinador") {
-                    TextField("Seu nome", text: $trainerName)
-                }
-                Section {
-                    TextField("Apelido do monstro principal", text: Binding(
-                        get: { mainMonster?.name ?? "" },
-                        set: { mainMonster?.name = $0 }
+        GMModal("Ajustes", cancel: "Fechar") {
+            GMSection("Treinador") {
+                GMTextField(placeholder: "Seu nome", text: $trainerName, capitalization: .words)
+            }
+            GMSection("Monstro principal", footer: "Vazio usa o nome da forma atual.") {
+                GMTextField(placeholder: "Apelido", text: Binding(
+                    get: { mainMonster?.name ?? "" },
+                    set: { mainMonster?.name = $0 }
+                ), capitalization: .words)
+            }
+            GMSection("Lembretes", footer: "Seu monstro te chama no horário escolhido, só nos dias em que você ainda não treinou.") {
+                GMToggle(title: "Lembrete para treinar", isOn: $remindersOn)
+                    .onChange(of: remindersOn) { _, on in
+                        if on { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in } }
+                    }
+                if remindersOn {
+                    GMDivider()
+                    GMTimeStepper(date: Binding(
+                        get: { Calendar.current.date(byAdding: .minute, value: reminderMinute, to: Calendar.current.startOfDay(for: .now))! },
+                        set: { let c = Calendar.current.dateComponents([.hour, .minute], from: $0); reminderMinute = (c.hour ?? 18) * 60 + (c.minute ?? 0) }
                     ))
-                } footer: {
-                    Text("Vazio usa o nome da forma atual.")
+                    GMDivider()
+                    GMToggle(title: "Só em dias de rotina", isOn: $reminderRoutineOnly)
                 }
-                Section {
-                    Toggle("Lembrete para treinar", isOn: $remindersOn)
-                        .onChange(of: remindersOn) { _, on in
-                            if on { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in } }
-                        }
-                    if remindersOn {
-                        DatePicker("Horário", selection: Binding(
-                            get: { Calendar.current.date(byAdding: .minute, value: reminderMinute, to: Calendar.current.startOfDay(for: .now))! },
-                            set: { let c = Calendar.current.dateComponents([.hour, .minute], from: $0); reminderMinute = (c.hour ?? 18) * 60 + (c.minute ?? 0) }
-                        ), displayedComponents: .hourAndMinute)
-                        Toggle("Só em dias de rotina", isOn: $reminderRoutineOnly)
-                    }
-                } header: {
-                    Text("Lembretes")
-                } footer: {
-                    Text("Seu monstro te chama no horário escolhido, só nos dias em que você ainda não treinou.")
-                }
+            }
 
-                if HealthSync.available {
-                    Section {
-                        Toggle("Importar treinos do Saúde", isOn: $healthOn)
-                            .onChange(of: healthOn) { _, on in Task { await toggleHealth(on) } }
-                        if healthOn {
-                            Button {
-                                Task { await syncNow() }
-                            } label: {
-                                HStack {
-                                    Text("Sincronizar agora")
-                                    Spacer()
-                                    if syncing { ProgressView() }
-                                }
-                            }
-                            .disabled(syncing)
-                        }
-                        if let healthStatus {
-                            Text(healthStatus).font(.footnote).foregroundStyle(Theme.dim)
-                        }
-                    } header: {
-                        Text("Apple Saúde")
-                    } footer: {
-                        Text("Corridas, caminhadas, vôlei e outros treinos do iPhone ou Apple Watch viram atividades automaticamente ao abrir o app (na primeira vez, os últimos \(HealthSync.firstImportDays) dias). Treinos que coincidem com algo já registrado aqui não contam duas vezes. Só leitura.")
+            if HealthSync.available {
+                GMSection("Apple Saúde", footer: "Corridas, caminhadas, vôlei e outros treinos do iPhone ou Apple Watch viram atividades automaticamente ao abrir o app (na primeira vez, os últimos \(HealthSync.firstImportDays) dias). Treinos que coincidem com algo já registrado aqui não contam duas vezes. Só leitura.") {
+                    GMToggle(title: "Importar treinos do Saúde", isOn: $healthOn)
+                        .onChange(of: healthOn) { _, on in Task { await toggleHealth(on) } }
+                    if healthOn {
+                        GMButton(syncing ? "Sincronizando…" : "Sincronizar agora", icon: "arrow.triangle.2.circlepath",
+                                 kind: .secondary, small: true, enabled: !syncing) { Task { await syncNow() } }
+                    }
+                    if let healthStatus {
+                        Text(healthStatus).font(.footnote).foregroundStyle(Theme.dim)
                     }
                 }
+            }
 
-                Section {
-                    Button("Exportar backup", systemImage: "square.and.arrow.up") { export() }
-                    Button("Restaurar backup", systemImage: "square.and.arrow.down") { importing = true }
-                    if let backupMessage {
-                        Text(backupMessage).font(.footnote).foregroundStyle(Theme.dim)
-                    }
-                } header: {
-                    Text("Backup")
-                } footer: {
-                    Text("Os dados ficam só neste iPhone. Exporte de vez em quando e guarde no Arquivos ou iCloud Drive: se o app for apagado, é assim que você recupera tudo.")
+            GMSection("Backup", footer: "Os dados ficam só neste iPhone. Exporte de vez em quando e guarde no Arquivos ou iCloud Drive: se o app for apagado, é assim que você recupera tudo.") {
+                GMRow(icon: "square.and.arrow.up", title: "Exportar backup", chevron: true) { export() }
+                GMDivider()
+                GMRow(icon: "square.and.arrow.down", title: "Restaurar backup", chevron: true) { importing = true }
+                if let backupMessage {
+                    Text(backupMessage).font(.footnote).foregroundStyle(Theme.dim)
                 }
+            }
 
-                Section {
-                    Button("Recomeçar jornada", role: .destructive) { confirmReset = true }
-                } footer: {
-                    Text("Apaga todas as atividades e monstros e devolve um ovo novo. Ligas e rotinas continuam.")
-                }
-                Section("Como funciona") {
-                    Text("Cada atividade rende XP pela duração, tipo e esforço, e soma em Força, Resistência, Agilidade e Técnica. Acima de 150 XP no mesmo dia o ganho cai, com teto de 300 por dia. Nas evoluções para Champion e Ultimate, o atributo que você mais treinou na fase decide a forma.")
-                        .font(.footnote)
-                        .foregroundStyle(Theme.dim)
-                }
+            GMSection(footer: "Apaga todas as atividades e monstros e devolve um ovo novo. Ligas e rotinas continuam.") {
+                GMRow(icon: "arrow.counterclockwise", iconTint: Theme.danger, title: "Recomeçar jornada") { confirmReset = true }
             }
-            .navigationTitle("Ajustes")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
-            .confirmationDialog("Apagar tudo e recomeçar com um ovo?", isPresented: $confirmReset, titleVisibility: .visible) {
-                Button("Recomeçar", role: .destructive, action: reset)
+            GMSection("Como funciona") {
+                Text("Cada atividade rende XP pela duração, tipo e esforço, e soma em Força, Resistência, Agilidade e Técnica. Acima de 150 XP no mesmo dia o ganho cai, com teto de 300 por dia. Nas evoluções para Champion e Ultimate, o atributo que você mais treinou na fase decide a forma.")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.dim)
             }
-            .fileExporter(isPresented: $exporting, document: exportDoc, contentType: .json,
-                          defaultFilename: "GymMonsters-\(Date.now.formatted(.iso8601.year().month().day()))") { result in
-                if case .success = result { backupMessage = "Backup salvo." }
-            }
-            .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
-                do {
-                    let url = try result.get()
-                    let scoped = url.startAccessingSecurityScopedResource()
-                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                    pendingRestore = try Backup.decoder.decode(Backup.self, from: Data(contentsOf: url))
-                } catch {
-                    backupMessage = "Não consegui ler o arquivo: \(error.localizedDescription)"
-                }
-            }
-            .confirmationDialog(restoreTitle, isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
-                                titleVisibility: .visible) {
-                Button("Substituir tudo", role: .destructive) {
-                    guard let b = pendingRestore else { return }
-                    do {
-                        try b.restore(into: context)
-                        backupMessage = "Backup restaurado: \(b.activities.count) atividades."
-                    } catch {
-                        backupMessage = "Falha ao restaurar: \(error.localizedDescription)"
-                    }
-                    pendingRestore = nil
-                }
+        }
+        .gmActions(isPresented: $confirmReset, title: "Recomeçar a jornada?",
+                   message: "Apaga atividades e monstros e devolve um ovo novo.",
+                   actions: [GMAction("Recomeçar", icon: "arrow.counterclockwise", destructive: true, action: reset)])
+        .gmActions(isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
+                   title: "Restaurar backup?", message: restoreTitle,
+                   actions: [GMAction("Substituir tudo", icon: "square.and.arrow.down", destructive: true) {
+                       guard let b = pendingRestore else { return }
+                       do {
+                           try b.restore(into: context)
+                           backupMessage = "Backup restaurado: \(b.activities.count) atividades."
+                       } catch {
+                           backupMessage = "Falha ao restaurar: \(error.localizedDescription)"
+                       }
+                       pendingRestore = nil
+                   }])
+        .fileExporter(isPresented: $exporting, document: exportDoc, contentType: .json,
+                      defaultFilename: "GymMonsters-\(Date.now.formatted(.iso8601.year().month().day()))") { result in
+            if case .success = result { backupMessage = "Backup salvo." }
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
+            do {
+                let url = try result.get()
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                pendingRestore = try Backup.decoder.decode(Backup.self, from: Data(contentsOf: url))
+            } catch {
+                backupMessage = "Não consegui ler o arquivo: \(error.localizedDescription)"
             }
         }
     }
 
     private var restoreTitle: String {
         guard let b = pendingRestore else { return "" }
-        return "Backup de \(b.exportedAt.formatted(date: .abbreviated, time: .shortened)) com \(b.activities.count) atividades. Isso substitui todos os dados atuais."
+        return "De \(b.exportedAt.formatted(date: .abbreviated, time: .shortened)), com \(b.activities.count) atividades. Isso substitui todos os dados atuais."
     }
 
     private func export() {

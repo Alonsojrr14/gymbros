@@ -28,26 +28,26 @@ struct ExerciseStatsList: View {
     }
 
     var body: some View {
-        List {
+        GMScreen("Exercícios e recordes", back: true) {
             if rows.isEmpty {
-                Text("Conclua um treino para ver seus recordes aqui.").foregroundStyle(Theme.dim)
-            }
-            ForEach(rows, id: \.id) { r in
-                NavigationLink {
-                    ExerciseDetailView(exerciseID: r.id, sessions: sessions)
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(Exercise.name(r.id)).font(.subheadline.weight(.semibold))
-                            Text("\(r.count) treino\(r.count == 1 ? "" : "s")").font(.caption).foregroundStyle(Theme.dim)
+                GMEmptyState(icon: "chart.line.uptrend.xyaxis", title: "Sem recordes ainda",
+                             message: "Conclua um treino guiado para ver seus recordes aqui.")
+            } else {
+                GMCard {
+                    ForEach(rows, id: \.id) { r in
+                        NavigationLink {
+                            ExerciseDetailView(exerciseID: r.id, sessions: sessions)
+                        } label: {
+                            GMRow(title: Exercise.name(r.id), subtitle: "\(r.count) treino\(r.count == 1 ? "" : "s")", chevron: true) {
+                                Text(r.best).font(.subheadline.bold().monospacedDigit()).foregroundStyle(Theme.accent)
+                            }
                         }
-                        Spacer()
-                        Text(r.best).font(.subheadline.bold().monospacedDigit()).foregroundStyle(Theme.accent)
+                        .buttonStyle(GMPress())
+                        if r.id != rows.last?.id { GMDivider() }
                     }
                 }
             }
         }
-        .navigationTitle("Exercícios")
     }
 }
 
@@ -79,8 +79,8 @@ struct ExerciseDetailView: View {
 
     var body: some View {
         let pts = points
-        List {
-            Section(weighted ? "1RM estimado (kg)" : (Exercise.byID(exerciseID)?.type == .time ? "Melhor tempo (s)" : "Mais reps")) {
+        GMScreen(Exercise.name(exerciseID), back: true) {
+            GMSection(weighted ? "1RM estimado (kg)" : (Exercise.byID(exerciseID)?.type == .time ? "Melhor tempo (s)" : "Mais reps")) {
                 if pts.count >= 2 {
                     Chart(pts) { p in
                         LineMark(x: .value("Data", p.date), y: .value("Valor", p.value))
@@ -95,15 +95,17 @@ struct ExerciseDetailView: View {
                     Text("O gráfico aparece a partir do segundo treino.").foregroundStyle(Theme.dim)
                 }
                 if weighted, let best = pts.map(\.value).max() {
-                    LabeledContent("Melhor 1RM estimado", value: "\(Progression.fmt((best * 10).rounded() / 10)) kg")
-                    LabeledContent("Calculadora") {
+                    GMDivider()
+                    GMValueRow(label: "Melhor 1RM estimado", value: "\(Progression.fmt((best * 10).rounded() / 10)) kg")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Calculadora (reps × carga)").font(.subheadline).foregroundStyle(Theme.dim)
                         Text([12, 10, 8, 5, 3].map { r in "\(r)×\(Progression.fmt(((best / (1 + Double(r) / 30)) / 2.5).rounded() * 2.5))" }
-                            .joined(separator: "  "))
-                            .font(.caption.monospacedDigit())
+                            .joined(separator: "   "))
+                            .font(.subheadline.monospacedDigit().weight(.semibold))
                     }
                 }
             }
-            Section("Histórico") {
+            GMSection("Histórico") {
                 ForEach(pts.reversed()) { p in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(p.date.formatted(.dateTime.day().month(.abbreviated).year())).font(.caption).foregroundStyle(Theme.dim)
@@ -113,7 +115,5 @@ struct ExerciseDetailView: View {
                 }
             }
         }
-        .navigationTitle(Exercise.name(exerciseID))
-        .navigationBarTitleDisplayMode(.inline)
     }
 }

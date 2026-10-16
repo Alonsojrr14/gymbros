@@ -14,109 +14,116 @@ struct TrainView: View {
     private var inProgress: WorkoutSession? { sessions.first { $0.end == nil } }
     private var today: Int { Calendar.current.component(.weekday, from: .now) }
 
+    @State private var routineMenu: Routine?
+    @State private var sessionMenu: WorkoutSession?
+    @State private var editing: Routine?
+
     var body: some View {
         NavigationStack {
-            List {
+            GMScreen("Treino") {
                 if let s = inProgress {
-                    Section {
-                        Button { active = s } label: {
-                            card(title: s.title, subtitle: "Em andamento desde \(s.start.formatted(date: .omitted, time: .shortened))",
-                                 action: "Continuar", icon: "play.fill")
-                        }
-                        .buttonStyle(.plain)
+                    GMCard {
+                        card(title: s.title, subtitle: "Em andamento desde \(s.start.formatted(date: .omitted, time: .shortened))",
+                             action: "Continuar") { active = s }
                     }
                 } else {
                     let todays = routines.filter { $0.weekdays.contains(today) }
-                    Section(todays.isEmpty ? "Hoje" : "Hoje · \(Date.now.formatted(.dateTime.weekday(.wide)))") {
+                    GMSection(todays.isEmpty ? "Hoje" : "Hoje · \(Date.now.formatted(.dateTime.weekday(.wide)))") {
                         if todays.isEmpty {
                             Text(routines.isEmpty ? "Crie uma rotina ou use um modelo pronto." : "Nenhuma rotina para hoje. Descanso também evolui o monstro.")
                                 .font(.subheadline)
                                 .foregroundStyle(Theme.dim)
                         }
                         ForEach(todays) { r in
-                            Button { start(r) } label: {
-                                card(title: r.name, subtitle: "\(r.items.count) exercícios · \(r.items.reduce(0) { $0 + $1.sets }) séries",
-                                     action: "Começar", icon: "play.fill")
-                            }
-                            .buttonStyle(.plain)
+                            card(title: r.name, subtitle: "\(r.items.count) exercícios · \(r.items.reduce(0) { $0 + $1.sets }) séries",
+                                 action: "Começar") { start(r) }
+                            GMDivider()
                         }
-                        Button { start(nil) } label: { Label("Treino livre", systemImage: "plus") }
+                        GMRow(icon: "plus", iconTint: Theme.accent, title: "Treino livre", subtitle: "Monte na hora", chevron: true) { start(nil) }
                     }
                 }
 
-                Section("Minhas rotinas") {
+                GMSection("Minhas rotinas") {
                     ForEach(routines) { r in
-                        NavigationLink { RoutineEditView(routine: r) } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(r.name).font(.subheadline.weight(.semibold))
-                                Text(weekdaysText(r.weekdays) + " · \(r.items.count) exercícios")
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.dim)
-                            }
+                        GMRow(icon: "list.bullet.rectangle", title: r.name,
+                              subtitle: weekdaysText(r.weekdays) + " · \(r.items.count) exercícios",
+                              action: { editing = r }) {
+                            GMIconButton(icon: "ellipsis", size: 32) { routineMenu = r }
                         }
-                        .swipeActions(edge: .leading) {
-                            if inProgress == nil {
-                                Button("Começar") { start(r) }.tint(Theme.accent)
-                            }
-                        }
+                        GMDivider()
                     }
-                    .onDelete { idx in
-                        idx.map { routines[$0] }.forEach(context.delete)
-                        try? context.save()
-                    }
-                    Button { newRoutine() } label: { Label("Nova rotina", systemImage: "plus") }
-                    Button { templates = true } label: { Label("Usar modelo pronto", systemImage: "square.stack") }
+                    GMRow(icon: "plus", iconTint: Theme.accent, title: "Nova rotina", action: newRoutine)
+                    GMDivider()
+                    GMRow(icon: "square.stack", iconTint: Theme.accent, title: "Usar modelo pronto", chevron: true) { templates = true }
                 }
 
-                Section {
+                GMSection("Evolução") {
                     NavigationLink { ExerciseStatsList(sessions: finished) } label: {
-                        Label("Exercícios e recordes", systemImage: "chart.line.uptrend.xyaxis")
+                        GMRow(icon: "chart.line.uptrend.xyaxis", title: "Exercícios e recordes", chevron: true)
                     }
+                    .buttonStyle(GMPress())
+                    GMDivider()
                     NavigationLink { MuscleMapView(sessions: finished) } label: {
-                        Label("Mapa muscular", systemImage: "figure.stand")
+                        GMRow(icon: "figure.stand", title: "Mapa muscular", chevron: true)
                     }
-                    Button { library = true } label: {
-                        Label("Biblioteca de exercícios", systemImage: "books.vertical")
-                    }
+                    .buttonStyle(GMPress())
+                    GMDivider()
+                    GMRow(icon: "books.vertical", title: "Biblioteca de exercícios", chevron: true) { library = true }
                 }
 
                 if !finished.isEmpty {
-                    Section("Treinos recentes") {
+                    GMSection("Treinos recentes") {
                         ForEach(finished.prefix(10)) { s in
-                            NavigationLink { SessionDetailView(session: s) } label: { SessionRow(session: s) }
-                        }
-                        .onDelete { idx in
-                            idx.map { finished[$0] }.forEach(deleteSession)
+                            NavigationLink { SessionDetailView(session: s) } label: {
+                                HStack {
+                                    SessionRow(session: s)
+                                    Spacer()
+                                    GMIconButton(icon: "ellipsis", size: 32) { sessionMenu = s }
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(GMPress())
+                            if s.id != finished.prefix(10).last?.id { GMDivider() }
                         }
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(Theme.bg)
-            .navigationTitle("Treino")
-            .sheet(isPresented: $templates) { TemplatesView(startingOrder: routines.count) }
-            .sheet(isPresented: $library) { ExercisePicker() }
-            .fullScreenCover(item: $active) { s in
+            .navigationDestination(item: $editing) { RoutineEditView(routine: $0) }
+            .gmModal(isPresented: $templates) { TemplatesView(startingOrder: routines.count) }
+            .gmModal(isPresented: $library) { ExercisePicker() }
+            .gmModal(item: $active) { s in
                 WorkoutView(session: s, history: finished.reversed().map(\.log))
             }
+            .gmActions(isPresented: Binding(get: { routineMenu != nil }, set: { if !$0 { routineMenu = nil } }),
+                       title: routineMenu?.name, actions: routineActions)
+            .gmActions(isPresented: Binding(get: { sessionMenu != nil }, set: { if !$0 { sessionMenu = nil } }),
+                       title: sessionMenu?.title, message: "O XP desse treino também sai do monstro.", actions: [
+                GMAction("Apagar treino", icon: "trash", destructive: true) { if let s = sessionMenu { deleteSession(s) } }
+            ])
         }
     }
 
-    private func card(title: String, subtitle: String, action: String, icon: String) -> some View {
+    private var routineActions: [GMAction] {
+        guard let r = routineMenu else { return [] }
+        var list: [GMAction] = []
+        if inProgress == nil { list.append(GMAction("Começar agora", icon: "play.fill") { start(r) }) }
+        list.append(GMAction("Editar", icon: "pencil") { editing = r })
+        list.append(GMAction("Apagar rotina", icon: "trash", destructive: true) {
+            context.delete(r)
+            try? context.save()
+        })
+        return list
+    }
+
+    private func card(title: String, subtitle: String, action: String, onTap: @escaping () -> Void) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.headline)
                 Text(subtitle).font(.caption).foregroundStyle(Theme.dim)
             }
             Spacer()
-            Label(action, systemImage: icon)
-                .font(.subheadline.bold())
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Theme.accent, in: .capsule)
-                .foregroundStyle(.black)
+            GMButton(action, icon: "play.fill", full: false, small: true, action: onTap)
         }
-        .contentShape(Rectangle())
     }
 
     private func start(_ routine: Routine?) {
@@ -178,9 +185,9 @@ struct SessionDetailView: View {
     let session: WorkoutSession
 
     var body: some View {
-        List {
+        GMScreen(session.title, subtitle: session.start.formatted(date: .complete, time: .shortened), back: true) {
             ForEach(Array(session.exerciseIDs.enumerated()), id: \.offset) { _, id in
-                Section(Exercise.name(id)) {
+                GMSection(Exercise.name(id)) {
                     ForEach(session.orderedSets.filter { $0.exerciseID == id }) { s in
                         HStack {
                             Text("\(s.index + 1)").foregroundStyle(Theme.dim).frame(width: 24, alignment: .leading)
@@ -189,15 +196,10 @@ struct SessionDetailView: View {
                             Image(systemName: s.done ? "checkmark.circle.fill" : "xmark.circle")
                                 .foregroundStyle(s.done ? Theme.accent : Theme.dim)
                         }
-                        .listRowBackground(Theme.card)
                     }
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Theme.bg)
-        .navigationTitle(session.title)
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -215,26 +217,22 @@ struct TemplatesView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            List(RoutineTemplate.all) { t in
+        GMModal("Modelos prontos") {
+            ForEach(RoutineTemplate.all) { t in
                 Button {
                     t.install(in: context, startingOrder: startingOrder)
                     dismiss()
                 } label: {
-                    VStack(alignment: .leading, spacing: 6) {
+                    GMCard {
                         Text(t.name).font(.headline)
                         Text(t.detail).font(.subheadline).foregroundStyle(Theme.dim)
                         ForEach(t.routines, id: \.name) { r in
                             Text("• \(r.name) (\(weekdaysText(r.weekdays)))").font(.caption).foregroundStyle(Theme.dim)
                         }
                     }
-                    .padding(.vertical, 4)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(GMPress())
             }
-            .navigationTitle("Modelos prontos")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } } }
         }
     }
 }

@@ -8,17 +8,12 @@ struct DexView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                Picker("", selection: $tab) {
-                    Text("Monstros").tag(0)
-                    Text("Conquistas \(achievements.filter(\.unlocked).count)/\(achievements.count)").tag(1)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
+            GMScreen(tab == 0 ? "Dex" : "Conquistas",
+                     subtitle: tab == 0 ? "\(discovered.count) de \(MonsterForm.all.count) formas descobertas"
+                                        : "\(achievements.filter(\.unlocked).count) de \(achievements.count) desbloqueadas") {
+                GMSegmented(options: [(0, "Monstros"), (1, "Conquistas")], selection: $tab)
                 if tab == 0 { monsters } else { trophies }
             }
-            .background(Theme.bg)
-            .navigationTitle(tab == 0 ? "Dex · \(discovered.count)/\(MonsterForm.all.count)" : "Conquistas")
         }
     }
 
@@ -33,7 +28,7 @@ struct DexView: View {
                     Text(a.title).font(.subheadline.bold()).multilineTextAlignment(.center)
                     Text(a.detail).font(.caption).foregroundStyle(Theme.dim).multilineTextAlignment(.center)
                     if !a.unlocked {
-                        ProgressView(value: a.progress).tint(Theme.accent)
+                        GMProgressBar(value: a.progress, height: 6)
                     }
                 }
                 .padding(12)
@@ -42,7 +37,7 @@ struct DexView: View {
                 .opacity(a.unlocked ? 1 : 0.7)
             }
         }
-        .padding(16)
+
     }
 
     private var monsters: some View {
@@ -63,7 +58,7 @@ struct DexView: View {
                         }
                     }
                 }
-                .padding(16)
+
     }
 
     private func cell(_ f: MonsterForm) -> some View {

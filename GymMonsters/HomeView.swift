@@ -13,43 +13,27 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    monsterCard
-                    if snapshot.stage != .egg { attributesCard }
-                    Button { logging = true } label: {
-                        Label("Registrar atividade", systemImage: "plus.circle.fill")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Theme.accent, in: .rect(cornerRadius: 16))
-                            .foregroundStyle(.black)
-                    }
-                    if !activities.isEmpty { recentCard }
-                }
-                .padding(16)
-            }
-            .background(Theme.bg)
-            .navigationTitle("Olá, \(trainerName)")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+            GMScreen("Olá, \(trainerName)") {
+                HStack(spacing: 8) {
                     if snapshot.streak > 0 {
                         Label("\(snapshot.streak)", systemImage: "flame.fill")
-                            .labelStyle(.titleAndIcon)
-                            .foregroundStyle(.orange)
                             .font(.subheadline.bold())
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 12).padding(.vertical, 9)
+                            .background(Theme.raised, in: .capsule)
                     }
+                    GMIconButton(icon: "square.stack.3d.up") { team = true }
+                    GMIconButton(icon: "gearshape") { settings = true }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack {
-                        Button { team = true } label: { Image(systemName: "square.stack.3d.up") }
-                        Button { settings = true } label: { Image(systemName: "gearshape") }
-                    }
-                }
+            } content: {
+                monsterCard
+                if snapshot.stage != .egg { attributesCard }
+                GMButton("Registrar atividade", icon: "plus.circle.fill") { logging = true }
+                if !activities.isEmpty { recentCard }
             }
-            .sheet(isPresented: $logging) { LogActivityView(snapshot: snapshot) }
-            .sheet(isPresented: $settings) { SettingsView() }
-            .sheet(isPresented: $team) { TeamView() }
+            .gmModal(isPresented: $logging) { LogActivityView(snapshot: snapshot) }
+            .gmModal(isPresented: $settings) { SettingsView() }
+            .gmModal(isPresented: $team) { TeamView() }
         }
     }
 
@@ -82,9 +66,7 @@ struct HomeView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                ProgressView(value: snapshot.progress)
-                    .tint(Theme.accent)
-                    .scaleEffect(y: 1.6)
+                GMProgressBar(value: snapshot.progress)
                 HStack {
                     Text("\(snapshot.totalXP) XP")
                     Spacer()

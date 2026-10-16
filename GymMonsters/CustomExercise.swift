@@ -47,59 +47,46 @@ struct CustomExerciseForm: View {
     @State private var type: ExerciseType = .weighted
     @State private var notes = ""
 
+    @State private var confirmDelete = false
+
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Nome do exercício", text: $name)
+        GMModal(editing == nil ? "Novo exercício" : "Editar exercício", confirm: "Salvar",
+                confirmEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty, onConfirm: save) {
+            GMSection("Nome") {
+                GMTextField(placeholder: "Nome do exercício", text: $name, capitalization: .sentences)
+            }
+            GMSection(footer: "Peso do corpo progride em reps (dá para somar carga extra). Por tempo registra segundos.") {
+                GMChoiceChips(title: "Grupo muscular", options: MuscleGroup.allCases.map { ($0, $0.name) }, selection: $group)
+                GMDivider()
+                GMChoiceChips(title: "Equipamento", options: Exercise.equipments.map { ($0, $0) }, selection: $equipment)
+                GMDivider()
+                GMChoiceChips(title: "Registro", options: ExerciseType.allCases.map { ($0, $0.name) }, selection: $type)
+            }
+            GMSection("Descrição (opcional)") {
+                GMTextField(placeholder: "Como fazer, ajustes da máquina…", text: $notes, axis: .vertical)
+            }
+            if editing != nil {
+                GMSection(footer: "O histórico de treinos com ele continua salvo.") {
+                    GMRow(icon: "trash", iconTint: Theme.danger, title: "Apagar exercício") { confirmDelete = true }
                 }
-                Section {
-                    Picker("Grupo muscular", selection: $group) {
-                        ForEach(MuscleGroup.allCases) { Text($0.name).tag($0) }
-                    }
-                    Picker("Equipamento", selection: $equipment) {
-                        ForEach(Exercise.equipments, id: \.self) { Text($0).tag($0) }
-                    }
-                    Picker("Registro", selection: $type) {
-                        ForEach(ExerciseType.allCases) { Text($0.name).tag($0) }
-                    }
-                } footer: {
-                    Text("Peso do corpo progride em reps (dá para somar carga extra). Por tempo registra segundos.")
-                }
-                Section("Descrição (opcional)") {
-                    TextField("Como fazer, ajustes da máquina…", text: $notes, axis: .vertical)
-                        .lineLimit(3...6)
-                }
+            }
+        }
+        .gmActions(isPresented: $confirmDelete, title: "Apagar \(name)?", actions: [
+            GMAction("Apagar", icon: "trash", destructive: true) {
                 if let editing {
-                    Section {
-                        Button("Apagar exercício", role: .destructive) {
-                            context.delete(editing)
-                            try? context.save()
-                            dismiss()
-                        }
-                    } footer: {
-                        Text("O histórico de treinos com ele continua salvo.")
-                    }
+                    context.delete(editing)
+                    try? context.save()
                 }
+                dismiss()
             }
-            .navigationTitle(editing == nil ? "Novo exercício" : "Editar exercício")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Salvar", action: save)
-                        .bold()
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-            .onAppear {
-                guard let e = editing else { return }
-                name = e.name
-                group = MuscleGroup(rawValue: e.groupRaw) ?? .corpo
-                equipment = e.equipment
-                type = ExerciseType(rawValue: e.typeRaw) ?? .weighted
-                notes = e.notes
-            }
+        ])
+        .onAppear {
+            guard let e = editing else { return }
+            name = e.name
+            group = MuscleGroup(rawValue: e.groupRaw) ?? .corpo
+            equipment = e.equipment
+            type = ExerciseType(rawValue: e.typeRaw) ?? .weighted
+            notes = e.notes
         }
     }
 

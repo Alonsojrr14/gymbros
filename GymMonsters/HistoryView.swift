@@ -11,50 +11,53 @@ struct HistoryView: View {
         return groups.keys.sorted(by: >).map { ($0, groups[$0]!.sorted { $0.date > $1.date }) }
     }
 
+    @State private var menu: Activity?
+
     var body: some View {
         NavigationStack {
-            Group {
+            GMScreen("Histórico") {
                 if activities.isEmpty {
-                    ContentUnavailableView("Nenhuma atividade ainda", systemImage: "figure.run",
-                                           description: Text("Seus treinos aparecem aqui."))
+                    GMEmptyState(icon: "figure.run", title: "Nenhuma atividade ainda", message: "Seus treinos aparecem aqui.")
                 } else {
-                    List {
-                        summary
-                        ForEach(days, id: \.day) { group in
-                            Section(group.day.formatted(.dateTime.weekday(.wide).day().month(.wide))) {
-                                ForEach(group.items) { a in
+                    summary
+                    ForEach(days, id: \.day) { group in
+                        GMSection(group.day.formatted(.dateTime.weekday(.wide).day().month(.wide))) {
+                            ForEach(group.items) { a in
+                                Button { menu = a } label: {
                                     ActivityRow(activity: a, xp: snapshot.xpByActivity[a.uuid] ?? 0)
-                                        .listRowBackground(Theme.card)
+                                        .contentShape(Rectangle())
                                 }
-                                .onDelete { idx in
-                                    for a in idx.map({ group.items[$0] }) {
-                                        // Treino guiado ligado a esta atividade some junto
-                                        let id = a.uuid
-                                        let linked = (try? context.fetch(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
-                                        linked.forEach(context.delete)
-                                        if let h = a.healthUUID { HealthSync.ignored.insert(h) }
-                                        let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
-                                        posts.forEach(context.delete)
-                                        context.delete(a)
-                                    }
-                                    try? context.save()
-                                }
+                                .buttonStyle(GMPress())
+                                if a.id != group.items.last?.id { GMDivider() }
                             }
                         }
                     }
-                    .scrollContentBackground(.hidden)
                 }
             }
-            .background(Theme.bg)
-            .navigationTitle("Histórico")
+            .gmActions(isPresented: Binding(get: { menu != nil }, set: { if !$0 { menu = nil } }),
+                       title: menu.map { "\($0.kind.name) · \(durationText($0.minutes))" },
+                       message: menu.map { $0.date.formatted(date: .complete, time: .shortened) + ($0.note.isEmpty ? "" : "\n\($0.note)") },
+                       actions: [GMAction("Apagar atividade", icon: "trash", destructive: true) { if let a = menu { delete(a) } }])
         }
+    }
+
+    private func delete(_ a: Activity) {
+        // Treino guiado e check-ins ligados a esta atividade somem junto
+        let id = a.uuid
+        let linked = (try? context.fetch(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
+        linked.forEach(context.delete)
+        if let h = a.healthUUID { HealthSync.ignored.insert(h) }
+        let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
+        posts.forEach(context.delete)
+        context.delete(a)
+        try? context.save()
     }
 
     private var summary: some View {
         let total = activities.reduce(0) { $0 + $1.minutes }
         let attrs = snapshot.lifetimeAttributes
         let sum = max(attrs.values.reduce(0, +), 1)
-        return Section {
+        return GMCard {
             HStack {
                 stat("\(activities.count)", "atividades")
                 stat(total >= 60 ? "\(total / 60) h" : "\(total) min", "treinando")
@@ -77,7 +80,6 @@ struct HistoryView: View {
             }
             .font(.caption.weight(.semibold))
         }
-        .listRowBackground(Theme.card)
     }
 
     private func stat(_ value: String, _ label: String) -> some View {

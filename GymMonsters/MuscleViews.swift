@@ -86,42 +86,25 @@ struct MuscleMapView: View {
         let sets = sessions.filter { days == 0 || $0.start >= since }.flatMap(\.log.sets)
         let load = muscleLoad(sets)
         let missing = Muscle.tracked.filter { (load[$0] ?? 0) == 0 }
-        List {
-            Section {
-                Picker("Período", selection: $days) {
-                    Text("7 dias").tag(7)
-                    Text("30 dias").tag(30)
-                    Text("Tudo").tag(0)
-                }
-                .pickerStyle(.segmented)
-                BodyPair(intensities: normalized(load))
-                    .frame(height: 320)
-                    .listRowBackground(Theme.card)
-                Picker("Figura", selection: $genderRaw) {
-                    Text("Masculina").tag(BodyGender.male.rawValue)
-                    Text("Feminina").tag(BodyGender.female.rawValue)
-                }
+        GMScreen("Mapa muscular", back: true) {
+            GMSegmented(options: [(7, "7 dias"), (30, "30 dias"), (0, "Tudo")], selection: $days)
+            GMCard {
+                BodyPair(intensities: normalized(load)).frame(height: 320)
+                GMSegmented(options: [(BodyGender.male.rawValue, "Masculina"), (BodyGender.female.rawValue, "Feminina")],
+                            selection: $genderRaw)
             }
             if !load.isEmpty {
-                Section("Séries por músculo") {
+                GMSection("Séries por músculo") {
                     ForEach(load.sorted { $0.value > $1.value }, id: \.key) { m, v in
-                        LabeledContent(m.ptName, value: Progression.fmt((v * 2).rounded() / 2))
+                        GMValueRow(label: m.ptName, value: Progression.fmt((v * 2).rounded() / 2))
                     }
                 }
             }
-            Section {
-                if missing.isEmpty {
-                    Text("Você treinou todos os grupos no período. 💪")
-                } else {
-                    Text(missing.map(\.ptName).joined(separator: ", "))
-                }
-            } header: {
-                Text("Sem treino no período")
-            } footer: {
-                Text("Série principal conta 1, músculo auxiliar conta meia.")
+            GMSection("Sem treino no período", footer: "Série principal conta 1, músculo auxiliar conta meia.") {
+                Text(missing.isEmpty ? "Você treinou todos os grupos no período. 💪" : missing.map(\.ptName).joined(separator: ", "))
+                    .font(.subheadline)
             }
         }
-        .navigationTitle("Mapa muscular")
     }
 }
 
@@ -154,67 +137,44 @@ struct ExerciseInfoView: View {
 
     var body: some View {
         let m = exercise.muscles
-        NavigationStack {
-            List {
-                if exercise.hasPhotos {
-                    Section {
-                        ExerciseAnimation(exerciseID: exercise.id)
-                            .listRowInsets(EdgeInsets())
-                    }
-                }
-                Section {
-                    LabeledContent("Grupo", value: exercise.group.name)
-                    LabeledContent("Equipamento", value: exercise.equipment)
-                    LabeledContent("Registro", value: exercise.type.name)
-                }
-                let steps = exercise.instructions
-                if !steps.isEmpty {
-                    Section("Como fazer") {
-                        ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
-                            HStack(alignment: .top, spacing: 10) {
-                                Text("\(i + 1)").font(.subheadline.bold()).foregroundStyle(Theme.accent)
-                                Text(step).font(.subheadline)
-                            }
+        GMModal(exercise.name, cancel: "Fechar") {
+            if exercise.hasPhotos {
+                ExerciseAnimation(exerciseID: exercise.id)
+            }
+            GMCard {
+                GMValueRow(label: "Grupo", value: exercise.group.name)
+                GMValueRow(label: "Equipamento", value: exercise.equipment)
+                GMValueRow(label: "Registro", value: exercise.type.name)
+            }
+            let steps = exercise.instructions
+            if !steps.isEmpty {
+                GMSection("Como fazer") {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
+                        HStack(alignment: .top, spacing: 10) {
+                            Text("\(i + 1)").font(.subheadline.bold()).foregroundStyle(Theme.accent)
+                            Text(step).font(.subheadline)
                         }
                     }
                 }
-                if let notes = Exercise.customNotes[exercise.id], !notes.isEmpty {
-                    Section("Descrição") { Text(notes).font(.subheadline) }
-                }
-                Section {
-                    BodyPair(intensities: Dictionary(m.primary.map { ($0, 1.0) } + m.secondary.map { ($0, 0.45) },
-                                                     uniquingKeysWith: max))
-                        .frame(height: 260)
-                    HStack {
-                        Text("Principal: " + m.primary.map(\.ptName).joined(separator: ", "))
-                        Spacer()
-                    }
-                    .font(.caption)
-                    if !m.secondary.isEmpty {
-                        Text("Auxiliar: " + m.secondary.map(\.ptName).joined(separator: ", "))
-                            .font(.caption)
-                            .foregroundStyle(Theme.dim)
-                    }
-                } header: {
-                    Text("Músculos")
-                }
-                if exercise.hasPhotos {
-                    Section {} footer: {
-                        Text("Fotos: free-exercise-db (domínio público).")
-                    }
+            }
+            if let notes = Exercise.customNotes[exercise.id], !notes.isEmpty {
+                GMSection("Descrição") { Text(notes).font(.subheadline) }
+            }
+            GMSection("Músculos", footer: exercise.hasPhotos ? "Fotos: free-exercise-db (domínio público)." : nil) {
+                BodyPair(intensities: Dictionary(m.primary.map { ($0, 1.0) } + m.secondary.map { ($0, 0.45) },
+                                                 uniquingKeysWith: max))
+                    .frame(height: 260)
+                Text("Principal: " + m.primary.map(\.ptName).joined(separator: ", ")).font(.caption)
+                if !m.secondary.isEmpty {
+                    Text("Auxiliar: " + m.secondary.map(\.ptName).joined(separator: ", ")).font(.caption).foregroundStyle(Theme.dim)
                 }
             }
-            .navigationTitle(exercise.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } }
-                if exercise.isCustom {
-                    ToolbarItem(placement: .topBarLeading) { Button("Editar") { editing = true } }
-                }
+            if exercise.isCustom {
+                GMButton("Editar exercício", icon: "pencil", kind: .secondary) { editing = true }
             }
-            .sheet(isPresented: $editing) {
-                CustomExerciseForm(editing: customs.first { $0.exerciseID == exercise.id })
-            }
+        }
+        .gmModal(isPresented: $editing) {
+            CustomExerciseForm(editing: customs.first { $0.exerciseID == exercise.id })
         }
     }
 }

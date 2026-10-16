@@ -19,35 +19,31 @@ struct LeaguesView: View {
     var body: some View {
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
         NavigationStack {
-            List {
+            GMScreen("Ligas") {
                 if leagues.isEmpty {
-                    ContentUnavailableView("Nenhuma liga", systemImage: "trophy",
-                                           description: Text("Crie uma liga e chame os amigos, ou entre com um código."))
-                        .listRowBackground(Color.clear)
+                    GMEmptyState(icon: "trophy", title: "Nenhuma liga", message: "Crie uma liga e chame os amigos, ou entre com um código.")
                 }
                 ForEach(leagues) { l in
                     NavigationLink { LeagueDetailView(league: l) } label: {
-                        LeagueRow(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, roster: roster, me: trainerName)
+                        GMCard { LeagueRow(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, roster: roster, me: trainerName) }
                     }
-                    .listRowBackground(Theme.card)
+                    .buttonStyle(GMPress())
                 }
-                Section {
-                    Button { creating = true } label: { Label("Criar liga", systemImage: "plus.circle") }
-                    Button { joinCode = ""; joining = true } label: { Label("Entrar com código", systemImage: "ticket") }
+                GMSection(footer: "Cada liga é um ranking de check-ins, de qualquer atividade. Ao entrar, você escolhe quem te representa: um monstro seu ou um ovo novo. Os check-ins da liga dão XP só para ele.") {
+                    GMRow(icon: "plus.circle", iconTint: Theme.accent, title: "Criar liga", chevron: true) { creating = true }
+                    GMDivider()
+                    GMRow(icon: "ticket", iconTint: Theme.accent, title: "Entrar com código", chevron: true) { joinCode = ""; joining = true }
                     if !leagues.contains(where: { $0.code == MockLeague.code }) {
-                        Button { joinCode = MockLeague.code; joining = true } label: {
-                            Label("Experimentar a liga de exemplo", systemImage: "sparkles")
+                        GMDivider()
+                        GMRow(icon: "sparkles", iconTint: Theme.accent, title: "Experimentar a liga de exemplo", chevron: true) {
+                            joinCode = MockLeague.code
+                            joining = true
                         }
                     }
-                } footer: {
-                    Text("Cada liga é um ranking de check-ins, de qualquer atividade. Ao entrar, você escolhe quem te representa: um monstro seu ou um ovo novo. Os check-ins da liga dão XP só para ele.")
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(Theme.bg)
-            .navigationTitle("Ligas")
-            .sheet(isPresented: $creating) { CreateLeagueView() }
-            .sheet(isPresented: $joining) { JoinLeagueView(code: joinCode) }
+            .gmModal(isPresented: $creating) { CreateLeagueView() }
+            .gmModal(isPresented: $joining) { JoinLeagueView(code: joinCode) }
         }
     }
 }
@@ -79,14 +75,14 @@ private struct LeagueRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(league.name).font(.headline)
-                    if league.isMock { Text("exemplo").font(.caption2.bold()).padding(.horizontal, 6).padding(.vertical, 2).background(.white.opacity(0.1), in: .capsule) }
+                    if league.isMock { GMBadge(text: "exemplo", tint: .white) }
                 }
                 Text("\(pos)º de \(rank.count) · \(league.scoring.name)").font(.caption).foregroundStyle(Theme.dim)
             }
             Spacer()
             MonsterSprite(form: egg.form).frame(width: 44, height: 44)
+            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
         }
-        .padding(.vertical, 4)
     }
 }
 
@@ -107,6 +103,7 @@ struct LeagueDetailView: View {
     @State private var weekOnly = false
     @State private var checkingIn = false
     @State private var confirmLeave = false
+    @State private var leaving = false
 
     var body: some View {
         let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
@@ -119,73 +116,49 @@ struct LeagueDetailView: View {
         let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.start
         let rank = LeagueBoard.ranking(feed: feed, league: league, me: trainerName, myAvatar: avatar, since: weekOnly ? weekStart : nil)
 
-        List {
-            Section { header(rep, monster: roster.monster(league.monsterUUID)) }
-                .listRowBackground(Theme.card)
+        GMScreen(league.name, back: true, bottomInset: 170) {
+            GMIconButton(icon: "ellipsis") { confirmLeave = true }
+        } content: {
+            GMCard { header(rep, monster: roster.monster(league.monsterUUID)) }
 
-            Picker("", selection: $tab) {
-                Text("Ranking").tag(0)
-                Text("Feed").tag(1)
-            }
-            .pickerStyle(.segmented)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
+            GMSegmented(options: [(0, "Ranking"), (1, "Feed")], selection: $tab)
 
             if tab == 0 {
-                Section {
-                    Picker("Período", selection: $weekOnly) {
-                        Text("Desde o início").tag(false)
-                        Text("Esta semana").tag(true)
-                    }
-                    .pickerStyle(.segmented)
+                GMSegmented(options: [(false, "Desde o início"), (true, "Esta semana")], selection: $weekOnly)
+                GMSection(footer: league.scoring.detail) {
                     ForEach(Array(rank.enumerated()), id: \.element.id) { i, r in
                         rankRow(i + 1, r)
+                        if i < rank.count - 1 { GMDivider() }
                     }
-                } footer: {
-                    Text(league.scoring.detail)
                 }
-                .listRowBackground(Theme.card)
             } else {
                 if feed.isEmpty {
-                    Text("Nenhum check-in ainda. Seja o primeiro!").foregroundStyle(Theme.dim).listRowBackground(Theme.card)
+                    GMEmptyState(icon: "camera", title: "Nenhum check-in ainda", message: "Seja o primeiro!")
                 }
                 ForEach(feed.prefix(80)) { item in
-                    post(item).listRowBackground(Theme.card)
+                    GMCard { post(item) }
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Theme.bg)
-        .navigationTitle(league.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            Button { checkingIn = true } label: {
-                Label("Fazer check-in", systemImage: "camera.fill")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Theme.accent, in: .rect(cornerRadius: 16))
-                    .foregroundStyle(.black)
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 6)
+        .overlay(alignment: .bottom) {
+            // Acima da barra de abas
+            GMButton("Fazer check-in", icon: "camera.fill") { checkingIn = true }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 76)
         }
-        .toolbar {
-            Menu {
-                ShareLink(item: inviteText) { Label("Convidar", systemImage: "person.badge.plus") }
-                Button("Sair da liga", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { confirmLeave = true }
-            } label: { Image(systemName: "ellipsis.circle") }
-        }
-        .sheet(isPresented: $checkingIn) { CheckInForm(preselected: [league.uuid]) }
-        .confirmationDialog("Sair de \(league.name)? Os check-ins e o monstro desta liga somem; suas atividades continuam.",
-                            isPresented: $confirmLeave, titleVisibility: .visible) {
-            Button("Sair", role: .destructive) {
+        .gmModal(isPresented: $checkingIn) { CheckInForm(preselected: [league.uuid]) }
+        .gmActions(isPresented: $confirmLeave, title: "\(league.emoji) \(league.name)", actions: [
+            GMAction("Sair da liga", icon: "rectangle.portrait.and.arrow.right", destructive: true) { leaving = true }
+        ])
+        .gmActions(isPresented: $leaving, title: "Sair de \(league.name)?",
+                   message: "Os check-ins desta liga somem. Suas atividades e seus monstros continuam.", actions: [
+            GMAction("Sair", icon: "rectangle.portrait.and.arrow.right", destructive: true) {
                 mine.forEach(context.delete)
                 context.delete(league)
                 try? context.save()
                 dismiss()
             }
-        }
+        ])
     }
 
     private var inviteText: String {
@@ -203,10 +176,17 @@ struct LeagueDetailView: View {
                 Text("Te representa: \(monster?.displayName(m.form) ?? m.form.name)" +
                      (m.stage == .egg ? " · faltam \(m.xpToNext ?? 0) XP para chocar" : " · Nível \(m.level)"))
                     .font(.caption)
-                ProgressView(value: m.progress).tint(Theme.accent)
+                GMProgressBar(value: m.progress, height: 6)
+                ShareLink(item: inviteText) {
+                    Label("Convidar", systemImage: "person.badge.plus")
+                        .font(.subheadline.bold())
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(Theme.raised, in: .capsule)
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(GMPress())
             }
         }
-        .padding(.vertical, 6)
     }
 
     private func rankRow(_ pos: Int, _ r: RankRow) -> some View {
@@ -255,14 +235,13 @@ struct LeagueDetailView: View {
                         likes = set.sorted().joined(separator: ",")
                     } label: {
                         Text(liked ? "💪 1" : "💪").font(.subheadline)
-                            .padding(.horizontal, 10).padding(.vertical, 4)
-                            .background(liked ? Theme.accent.opacity(0.25) : .white.opacity(0.07), in: .capsule)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(liked ? Theme.accent.opacity(0.25) : Theme.raised, in: .capsule)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(GMPress())
                 }
             }
         }
-        .padding(.vertical, 6)
     }
 }
 
@@ -280,49 +259,32 @@ struct CreateLeagueView: View {
     private let emojis = ["🏆", "🔥", "💪", "🏃", "⚡️", "🦁", "🐉", "⭐️", "🏐", "🧘"]
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Nome da liga", text: $name)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(emojis, id: \.self) { e in
-                                Text(e).font(.title)
-                                    .padding(6)
-                                    .background(emoji == e ? Theme.accent.opacity(0.3) : .clear, in: .rect(cornerRadius: 10))
-                                    .onTapGesture { emoji = e }
-                            }
+        GMModal("Nova liga", confirm: "Criar", confirmEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty) {
+            let l = League(name: name.trimmingCharacters(in: .whitespaces), emoji: emoji, scoring: scoring, isMock: withExamples)
+            l.monsterUUID = context.representative(rep)
+            context.insert(l)
+            try? context.save()
+            dismiss()
+        } content: {
+            GMSection("Nome") {
+                GMTextField(placeholder: "Nome da liga", text: $name)
+                GMFlow {
+                    ForEach(emojis, id: \.self) { e in
+                        Button { emoji = e } label: {
+                            Text(e).font(.title)
+                                .frame(width: 48, height: 48)
+                                .background(emoji == e ? Theme.accent.opacity(0.3) : Theme.raised, in: .rect(cornerRadius: 12))
                         }
+                        .buttonStyle(GMPress())
                     }
-                }
-                Section {
-                    Picker("Pontuação", selection: $scoring) {
-                        ForEach(LeagueScoring.allCases) { Text($0.name).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                } footer: { Text(scoring.detail) }
-                MonsterChoiceSection(choice: $rep)
-                Section {
-                    Toggle("Participantes de exemplo", isOn: $withExamples)
-                } footer: {
-                    Text("Enquanto não há servidor, os convites não chegam em outras pessoas. Ative para ver a liga com participantes simulados.")
                 }
             }
-            .navigationTitle("Nova liga")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Criar") {
-                        let l = League(name: name.trimmingCharacters(in: .whitespaces), emoji: emoji, scoring: scoring, isMock: withExamples)
-                        l.monsterUUID = context.representative(rep)
-                        context.insert(l)
-                        try? context.save()
-                        dismiss()
-                    }
-                    .bold()
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
+            GMSection("Pontuação", footer: scoring.detail) {
+                GMSegmented(options: LeagueScoring.allCases.map { ($0, $0.name) }, selection: $scoring)
+            }
+            MonsterChoiceSection(choice: $rep)
+            GMSection(footer: "Enquanto não há servidor, os convites não chegam em outras pessoas. Ative para ver a liga com participantes simulados.") {
+                GMToggle(title: "Participantes de exemplo", isOn: $withExamples)
             }
         }
     }
@@ -339,26 +301,13 @@ struct JoinLeagueView: View {
     init(code: String = "") { _code = State(initialValue: code) }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("Código da liga", text: $code)
-                        .textInputAutocapitalization(.characters)
-                        .autocorrectionDisabled()
-                        .font(.title3.monospaced())
-                } footer: {
-                    Text(message ?? "Peça o código para quem criou a liga. Para testar, use \(MockLeague.code).")
-                }
-                MonsterChoiceSection(choice: $rep)
+        GMModal("Entrar numa liga", confirm: "Entrar", confirmEnabled: code.count >= 4, onConfirm: join) {
+            GMSection("Código", footer: message ?? "Peça o código para quem criou a liga. Para testar, use \(MockLeague.code).") {
+                GMTextField(placeholder: "Código da liga", text: $code, capitalization: .characters)
+                    .font(.title3.monospaced())
+                    .autocorrectionDisabled()
             }
-            .navigationTitle("Entrar numa liga")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Entrar", action: join).bold().disabled(code.count < 4)
-                }
-            }
+            MonsterChoiceSection(choice: $rep)
         }
     }
 
@@ -410,29 +359,34 @@ struct LeaguePostSection: View {
 
     var body: some View {
         if !leagues.isEmpty {
-            Section {
+            GMSection("Check-in nas ligas") {
                 ForEach(leagues) { l in
-                    Toggle("\(l.emoji) \(l.name)", isOn: Binding(
+                    GMToggle(title: "\(l.emoji) \(l.name)", isOn: Binding(
                         get: { selected.contains(l.uuid) },
                         set: { if $0 { selected.insert(l.uuid) } else { selected.remove(l.uuid) } }
                     ))
+                    GMDivider()
                 }
                 PhotosPicker(selection: $pick, matching: .images) {
-                    HStack {
-                        Label(photo == nil ? "Adicionar foto" : "Trocar foto", systemImage: "photo")
+                    HStack(spacing: 12) {
+                        Image(systemName: "photo")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 34, height: 34)
+                            .background(Theme.raised, in: .rect(cornerRadius: 10))
+                        Text(photo == nil ? "Adicionar foto" : "Trocar foto").font(.subheadline.weight(.semibold))
                         Spacer()
                         if let photo, let img = UIImage(data: photo) {
                             Image(uiImage: img).resizable().scaledToFill().frame(width: 44, height: 44).clipShape(.rect(cornerRadius: 8))
                         }
                     }
+                    .foregroundStyle(.white)
                 }
+                .buttonStyle(GMPress())
                 .onChange(of: pick) { _, item in
                     Task {
                         if let data = try? await item?.loadTransferable(type: Data.self) { photo = compressedPhoto(data) }
                     }
                 }
-            } header: {
-                Text("Check-in nas ligas")
             }
             .onAppear { if selectAllByDefault && selected.isEmpty { selected = Set(leagues.map(\.uuid)) } }
         }
@@ -450,7 +404,7 @@ struct CheckInForm: View {
     @State private var existing: UUID?
     @State private var kind: ActivityKind = .musculacao
     @State private var minutes = 60
-    @State private var effort = 6.0
+    @State private var effort = 6
     @State private var date = Date.now
     @State private var title = ""
     @State private var note = ""
@@ -468,67 +422,38 @@ struct CheckInForm: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Picker("", selection: $useExisting) {
-                        Text("Nova atividade").tag(false)
-                        Text("Já registrada").tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                }
-                if useExisting {
-                    Section {
-                        if recent.isEmpty { Text("Nada registrado nos últimos 7 dias.").foregroundStyle(Theme.dim) }
-                        ForEach(recent) { a in
-                            let posted = checkIns.contains { $0.activityUUID == a.uuid && leagues.contains($0.leagueUUID) }
-                            Button { existing = a.uuid } label: {
-                                HStack {
-                                    Image(systemName: a.kind.symbol).frame(width: 28)
-                                    VStack(alignment: .leading) {
-                                        Text(a.kind.name)
-                                        Text("\(durationText(a.minutes)) · \(a.date.formatted(.dateTime.weekday().day().hour().minute()))")
-                                            .font(.caption).foregroundStyle(Theme.dim)
-                                    }
-                                    Spacer()
-                                    if posted { Text("já postada").font(.caption2).foregroundStyle(Theme.dim) }
-                                    Image(systemName: existing == a.uuid ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(existing == a.uuid ? Theme.accent : Theme.dim)
-                                }
-                            }
-                            .buttonStyle(.plain)
+        GMModal("Check-in", confirm: "Postar", confirmEnabled: !leagues.isEmpty && !(useExisting && existing == nil), onConfirm: post) {
+            GMSegmented(options: [(false, "Nova atividade"), (true, "Já registrada")], selection: $useExisting)
+            if useExisting {
+                GMSection("Atividades recentes", footer: "Treinos guiados e os importados do Apple Saúde aparecem aqui.") {
+                    if recent.isEmpty { Text("Nada registrado nos últimos 7 dias.").foregroundStyle(Theme.dim) }
+                    ForEach(recent) { a in
+                        let posted = checkIns.contains { $0.activityUUID == a.uuid && leagues.contains($0.leagueUUID) }
+                        GMRow(icon: a.kind.symbol, title: a.kind.name,
+                              subtitle: "\(durationText(a.minutes)) · \(a.date.formatted(.dateTime.weekday().day().hour().minute()))",
+                              action: { existing = a.uuid }) {
+                            if posted { Text("já postada").font(.caption2).foregroundStyle(Theme.dim) }
+                            Image(systemName: existing == a.uuid ? "checkmark.circle.fill" : "circle")
+                                .font(.title3)
+                                .foregroundStyle(existing == a.uuid ? Theme.accent : Theme.dim)
                         }
-                    } header: { Text("Atividades recentes") } footer: {
-                        Text("Treinos guiados e os importados do Apple Saúde aparecem aqui.")
-                    }
-                } else {
-                    Section("Atividade") {
-                        Picker("Tipo", selection: $kind) {
-                            ForEach(ActivityKind.allCases) { Label($0.name, systemImage: $0.symbol).tag($0) }
-                        }
-                        Stepper(value: $minutes, in: 5...Game.maxMinutes, step: 5) { Text(durationText(minutes)) }
-                        VStack(alignment: .leading) {
-                            Text("Esforço \(Int(effort))/10 · \(effortLabel(Int(effort)))").font(.subheadline)
-                            Slider(value: $effort, in: 1...10, step: 1)
-                        }
-                        DatePicker("Quando", selection: $date, in: ...Date.now)
+                        if a.id != recent.last?.id { GMDivider() }
                     }
                 }
-                Section("Post") {
-                    TextField("Título (ex.: Dia de perna 🦵)", text: $title)
-                    TextField("Descrição (opcional)", text: $note, axis: .vertical)
+            } else {
+                GMSection("Atividade") { ActivityKindGrid(kind: $kind) }
+                GMSection {
+                    GMStepper(title: "Duração", value: $minutes, range: 5...Game.maxMinutes, step: 5, format: durationText)
+                    GMDivider()
+                    GMEffortPicker(value: $effort)
                 }
-                LeaguePostSection(selected: $leagues, photo: $photo, selectAllByDefault: false)
+                GMSection("Quando") { GMDateTimePicker(date: $date) }
             }
-            .navigationTitle("Check-in")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Postar", action: post).bold()
-                        .disabled(leagues.isEmpty || (useExisting && existing == nil))
-                }
+            GMSection("Post") {
+                GMTextField(placeholder: "Título (ex.: Dia de perna 🦵)", text: $title)
+                GMTextField(placeholder: "Descrição (opcional)", text: $note, axis: .vertical)
             }
+            LeaguePostSection(selected: $leagues, photo: $photo, selectAllByDefault: false)
         }
     }
 
@@ -537,7 +462,7 @@ struct CheckInForm: View {
         if useExisting, let id = existing, let a = activities.first(where: { $0.uuid == id }) {
             activity = a
         } else {
-            activity = Activity(kind: kind, date: date, minutes: minutes, effort: Int(effort), note: title)
+            activity = Activity(kind: kind, date: date, minutes: minutes, effort: effort, note: title)
             context.insert(activity)
         }
         // Não posta duas vezes a mesma atividade na mesma liga
