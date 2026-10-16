@@ -11,7 +11,7 @@ struct GymMonstersApp: App {
                 .preferredColorScheme(.dark)
                 .tint(Theme.accent)
         }
-        .modelContainer(for: [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self, CustomExercise.self])
+        .modelContainer(for: [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self, CustomExercise.self, League.self, LeagueCheckIn.self])
     }
 }
 
@@ -69,6 +69,8 @@ struct MainView: View {
                 .tabItem { Label("Monstro", systemImage: "pawprint.fill") }
             TrainView()
                 .tabItem { Label("Treino", systemImage: "dumbbell.fill") }
+            LeaguesView()
+                .tabItem { Label("Ligas", systemImage: "trophy.fill") }
             HistoryView(snapshot: s, activities: activities)
                 .tabItem { Label("Histórico", systemImage: "list.bullet") }
             DexView(snapshot: s, discovered: Set(discovered.split(separator: ",").map(String.init)), achievements: achievements)

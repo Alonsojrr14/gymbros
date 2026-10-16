@@ -21,6 +21,13 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
 - Mapa muscular (frente e costas): por exercício, por rotina, ao concluir o treino e por período (7/30 dias/tudo), com a lista do que ficou sem treino.
 - Concluir um treino gera uma atividade de musculação, que dá XP ao monstro.
 
+## Ligas
+
+- Inspiradas no GymRats: cada liga é um ranking contínuo de check-ins de qualquer atividade, com pontuação por pontos (XP da atividade), treinos ou minutos; ranking "desde o início" e "esta semana", e feed com foto.
+- Check-in em várias ligas de uma vez: ao registrar atividade, ao concluir treino guiado ou pelo botão da liga (nova atividade ou uma já registrada, inclusive do Saúde).
+- Cada liga em que você entra dá um ovo próprio, que cresce só com os check-ins dela; o parceiro continua ganhando XP de tudo.
+- Sem servidor ainda: convites são só um código para compartilhar. A "Liga dos Amigos" (código `AMIGOS`) tem 5 participantes simulados (`GymMonsters/Leagues.swift`).
+
 ## Apple Saúde e backup
 
 - Treinos do iPhone/Apple Watch são importados ao abrir o app (Ajustes → Apple Saúde; na primeira vez, últimos 14 dias). O tipo vira a atividade correspondente e o esforço é estimado pelas calorias ativas em relação ao esperado para a atividade. Treinos que se sobrepõem a algo já registrado (ex.: treino guiado também gravado no Watch) não contam duas vezes. Só leitura.

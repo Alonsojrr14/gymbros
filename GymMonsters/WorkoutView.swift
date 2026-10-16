@@ -286,6 +286,8 @@ struct FinishWorkoutView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var activities: [Activity]
     @State private var effort = 7.0
+    @State private var leagues: Set<UUID> = []
+    @State private var photo: Data?
 
     private var minutes: Int { max(Int(Date.now.timeIntervalSince(session.start) / 60), 1) }
 
@@ -325,6 +327,7 @@ struct FinishWorkoutView: View {
                         Text("\(Int(effort))/10 · \(effortLabel(Int(effort)))")
                     }
                 }
+                LeaguePostSection(selected: $leagues, photo: $photo)
                 Section {
                     HStack {
                         Text("+\(xp) XP").font(.title2.weight(.heavy).monospacedDigit()).foregroundStyle(Theme.accent)
@@ -355,9 +358,13 @@ struct FinishWorkoutView: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var records: [String] { Progression.records(in: session.log, history: history) }
+
     private func save() {
         let activity = Activity(kind: .musculacao, date: session.start, minutes: minutes, effort: Int(effort), note: session.title)
         context.insert(activity)
+        let summary = records.isEmpty ? "" : "🏆 " + records.joined(separator: " · ")
+        postCheckIns(activity: activity, leagues: leagues, title: session.title, note: summary, photo: photo, context: context)
         session.end = .now
         session.effort = Int(effort)
         session.activityUUID = activity.uuid

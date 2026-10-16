@@ -12,6 +12,8 @@ struct LogActivityView: View {
     @State private var minutes = 60
     @State private var effort = 6.0
     @State private var note = ""
+    @State private var leagues: Set<UUID> = []
+    @State private var photo: Data?
 
     private var preview: (xp: Int, after: Snapshot) {
         let new = ActivityRecord(id: UUID(), kind: kind, date: date, minutes: minutes, effort: Int(effort))
@@ -73,6 +75,8 @@ struct LogActivityView: View {
                 }
 
                 Section { previewView }
+
+                LeaguePostSection(selected: $leagues, photo: $photo)
             }
             .scrollContentBackground(.hidden)
             .background(Theme.bg)
@@ -113,7 +117,9 @@ struct LogActivityView: View {
     }
 
     private func save() {
-        context.insert(Activity(kind: kind, date: date, minutes: minutes, effort: Int(effort), note: note))
+        let activity = Activity(kind: kind, date: date, minutes: minutes, effort: Int(effort), note: note)
+        context.insert(activity)
+        postCheckIns(activity: activity, leagues: leagues, title: note, note: "", photo: photo, context: context)
         try? context.save()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()

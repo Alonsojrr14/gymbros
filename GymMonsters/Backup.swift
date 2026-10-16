@@ -12,6 +12,17 @@ struct Backup: Codable {
     var routines: [RoutineDTO]
     var sessions: [SessionDTO]
     var customExercises: [CustomDTO]
+    var leagues: [LeagueDTO]? = nil
+    var checkIns: [CheckInDTO]? = nil
+
+    struct LeagueDTO: Codable {
+        var uuid: UUID, name: String, emoji: String, scoring: String, start: Date, code: String, isMock: Bool, joinedAt: Date
+    }
+
+    /// Fotos ficam de fora para o arquivo não ficar enorme
+    struct CheckInDTO: Codable {
+        var uuid: UUID, leagueUUID: UUID, activityUUID: UUID, title: String, note: String, date: Date
+    }
 
     struct ActivityDTO: Codable {
         var uuid: UUID, kind: String, date: Date, minutes: Int, effort: Int, note: String
@@ -65,6 +76,13 @@ struct Backup: Codable {
             },
             customExercises: try context.fetch(FetchDescriptor<CustomExercise>()).map {
                 CustomDTO(uuid: $0.uuid, name: $0.name, group: $0.groupRaw, equipment: $0.equipment, type: $0.typeRaw, notes: $0.notes)
+            },
+            leagues: try context.fetch(FetchDescriptor<League>()).map {
+                LeagueDTO(uuid: $0.uuid, name: $0.name, emoji: $0.emoji, scoring: $0.scoringRaw, start: $0.start, code: $0.code,
+                          isMock: $0.isMock, joinedAt: $0.joinedAt)
+            },
+            checkIns: try context.fetch(FetchDescriptor<LeagueCheckIn>()).map {
+                CheckInDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, activityUUID: $0.activityUUID, title: $0.title, note: $0.note, date: $0.date)
             }
         )
     }
@@ -78,6 +96,8 @@ struct Backup: Codable {
         try context.delete(model: Routine.self)
         try context.delete(model: Activity.self)
         try context.delete(model: CustomExercise.self)
+        try context.delete(model: LeagueCheckIn.self)
+        try context.delete(model: League.self)
 
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
@@ -116,6 +136,18 @@ struct Backup: Codable {
                                    type: ExerciseType(rawValue: c.type) ?? .weighted, notes: c.notes)
             e.uuid = c.uuid
             context.insert(e)
+        }
+        for l in leagues ?? [] {
+            let league = League(name: l.name, emoji: l.emoji, scoring: LeagueScoring(rawValue: l.scoring) ?? .pontos, start: l.start, isMock: l.isMock)
+            league.uuid = l.uuid
+            league.code = l.code
+            league.joinedAt = l.joinedAt
+            context.insert(league)
+        }
+        for c in checkIns ?? [] {
+            let ci = LeagueCheckIn(leagueUUID: c.leagueUUID, activityUUID: c.activityUUID, title: c.title, note: c.note, date: c.date, photo: nil)
+            ci.uuid = c.uuid
+            context.insert(ci)
         }
         try context.save()
 
