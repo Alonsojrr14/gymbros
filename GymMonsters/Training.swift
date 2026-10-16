@@ -56,6 +56,8 @@ final class WorkoutSession {
     var effort: Int = 6
     /// Atividade gerada ao concluir (é ela que dá XP)
     var activityUUID: UUID?
+    /// Exercício marcado como "fazendo agora" (aparece no Live Activity)
+    var currentExerciseID: String?
     @Relationship(deleteRule: .cascade, inverse: \LoggedSet.session) var sets: [LoggedSet] = []
 
     init(title: String, routineUUID: UUID?) {

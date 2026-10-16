@@ -97,7 +97,12 @@ struct MainView: View {
         }
         .task { Roster.ensureStarter(context: context) }
         .task(id: monsters.map { roster.snapshot($0.uuid).form.id + $0.uuid.uuidString }.joined()) { check(roster) }
-        .task(id: phase) { if phase == .active { await syncHealth() } }
+        .task(id: phase) {
+            guard phase == .active else { return }
+            let running = (try? context.fetchCount(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end == nil }))) ?? 0
+            if running == 0 { await LiveWorkout.endAll() }
+            await syncHealth()
+        }
         .task(id: achievements.filter(\.unlocked).map(\.id)) { announce(achievements) }
         // Widget e lembretes acompanham qualquer mudança relevante
         .task(id: "\(s.totalXP)|\(s.lastActivity?.timeIntervalSince1970 ?? 0)|\(routineKey)|\(remindersOn)|\(reminderMinute)|\(reminderRoutineOnly)|\(mainName)|\(phase == .active)") {

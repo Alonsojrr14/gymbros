@@ -296,6 +296,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = GymBros;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Para transformar seus treinos do iPhone e Apple Watch em XP para o seu bro.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "O GymMonsters não grava nada no Saúde.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -325,6 +326,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = GymBros;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Para transformar seus treinos do iPhone e Apple Watch em XP para o seu bro.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "O GymMonsters não grava nada no Saúde.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

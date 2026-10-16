@@ -69,6 +69,7 @@ struct WorkoutView: View {
                 cancelRest()
                 context.delete(session)
                 try? context.save()
+                Task { await LiveWorkout.endAll() }
                 dismiss()
             }
         ])
@@ -82,6 +83,8 @@ struct WorkoutView: View {
                   placeholder: "Ex.: banco na posição 4", text: $noteText) {
             if let id = noteFor { saveNote(id, noteText) }
         }
+        // Live Activity acompanha qualquer mudança do treino
+        .task(id: liveState) { await LiveWorkout.show(title: session.title, start: session.start, state: liveState) }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
@@ -122,6 +125,29 @@ struct WorkoutView: View {
         .background(LinearGradient(colors: [Theme.bg.opacity(0), Theme.bg, Theme.bg], startPoint: .top, endPoint: .bottom).ignoresSafeArea())
     }
 
+    /// Exercício "fazendo agora": o marcado, ou o primeiro que ainda tem série a fazer
+    private var currentID: String? {
+        let ids = session.exerciseIDs
+        if let c = session.currentExerciseID, ids.contains(c) { return c }
+        return ids.first { id in !session.orderedSets.filter { $0.exerciseID == id }.allSatisfy(\.done) } ?? ids.last
+    }
+
+    private var liveState: WorkoutAttributes.ContentState {
+        let cur = currentID
+        let sets = cur.map { id in session.orderedSets.filter { $0.exerciseID == id } } ?? []
+        let next = sets.firstIndex { !$0.done }
+        return WorkoutAttributes.ContentState(
+            exercise: cur.map(Exercise.name) ?? "Treino livre",
+            setNumber: (next ?? sets.count) + 1,
+            setCount: sets.count,
+            setText: next.map { setText(sets[$0]) } ?? "",
+            doneSets: session.sets.filter(\.done).count,
+            totalSets: session.sets.count,
+            restEnd: restEnd,
+            sprite: WidgetData.load()?.sprite ?? "sprite_baby"
+        )
+    }
+
     /// Terminou todas as séries de um exercício: recolhe e rola até o próximo que falta
     private func setToggled(_ id: String) {
         let sets = session.orderedSets.filter { $0.exerciseID == id }
@@ -134,6 +160,7 @@ struct WorkoutView: View {
             }
             if let next {
                 collapsed.remove(next)
+                session.currentExerciseID = next
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { scrollTarget = next }
             }
         }
@@ -210,7 +237,26 @@ struct WorkoutView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(GMPress())
+                // Marca o exercício que está fazendo agora (aparece no Live Activity e na Dynamic Island)
+                let isCurrent = currentID == id
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    session.currentExerciseID = id
+                    withAnimation(.snappy) { _ = collapsed.remove(id) }
+                } label: {
+                    Image(systemName: isCurrent ? "play.fill" : "play")
+                        .font(.subheadline.bold())
+                        .frame(width: 34, height: 34)
+                        .background(isCurrent ? Theme.accent : Theme.raised, in: .circle)
+                        .foregroundStyle(isCurrent ? .black : .white)
+                }
+                .buttonStyle(GMPress())
                 GMIconButton(icon: "ellipsis", size: 34) { exerciseMenu = id }
+            }
+            if currentID == id && !isCollapsed {
+                Label("Fazendo agora", systemImage: "dot.radiowaves.left.and.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(Theme.accent)
             }
             if !isCollapsed {
 
@@ -257,7 +303,8 @@ struct WorkoutView: View {
         }
         .padding(isCollapsed ? 12 : 16)
         .background(Theme.card, in: .rect(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(complete ? Theme.accent.opacity(0.35) : .clear, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(currentID == id ? Theme.accent : complete ? Theme.accent.opacity(0.35) : .clear,
+                                                           lineWidth: currentID == id ? 2 : 1))
     }
 
     private func add(_ ex: Exercise) {
@@ -466,6 +513,7 @@ struct FinishWorkoutView: View {
         try? context.save()
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["rest"])
         UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Task { await LiveWorkout.endAll() }
         dismiss()
         onDone()
     }

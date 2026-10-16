@@ -170,6 +170,7 @@ struct GymMonstersWidgets: WidgetBundle {
     var body: some Widget {
         PetWidget()
         GymMonstersWidget()
+        WorkoutLiveActivity()
     }
 }
 
