@@ -8,6 +8,7 @@ struct GymMonstersApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .onAppear { GMKeyboardDismisser.shared.install() }
                 .preferredColorScheme(.dark)
                 .tint(Theme.accent)
         }

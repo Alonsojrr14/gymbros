@@ -37,10 +37,12 @@ struct WorkoutView: View {
                 .padding(16)
                 .padding(.bottom, restEnd == nil ? 20 : 110)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.immediately)
         }
         .background(Theme.bg.ignoresSafeArea())
-        .overlay(alignment: .bottom) { if let restEnd { restBar(restEnd) } }
+        // O descanso fica atrás do teclado enquanto você digita
+        .overlay(alignment: .bottom) { if let restEnd { restBar(restEnd).ignoresSafeArea(.keyboard) } }
+        .gmKeyboardDone()
         .gmModal(isPresented: $picking) { ExercisePicker(onPick: add) }
         .gmModal(item: $info) { ExerciseInfoView(exercise: $0) }
         .gmModal(isPresented: $finishing) {
