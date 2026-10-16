@@ -184,14 +184,18 @@ struct PlateCalculatorView: View {
         let side = r.plates.reduce(0, +)
         VStack(alignment: .leading, spacing: 16) {
             Text("Calculadora de anilhas").font(.headline).frame(maxWidth: .infinity)
-            GMDecimalField(title: "Carga total", value: Binding(get: { total }, set: { total = $0 ?? 0 }), step: 2.5, start: 60)
+            GMDecimalField(title: "Carga total", value: Binding(get: { total }, set: { total = max($0 ?? 0, 0) }), step: 2.5, start: 60,
+                           clearable: false)
+            GMRuler(value: $total, range: 0...300, step: 2.5)
             GMChoiceChips(title: "Barra", options: Plates.bars.map { ($0, $0 == 0 ? "Sem barra" : "\(Progression.fmt($0)) kg") }, selection: $bar)
 
             GMCard {
+                barbell(r.plates)
                 if total <= bar {
-                    Text(bar == 0 ? "Coloque uma carga." : "Só a barra já dá \(Progression.fmt(bar)) kg.").font(.headline)
+                    Text(bar == 0 ? "Escolha uma carga." : total < bar ? "A carga é menor que a barra (\(Progression.fmt(bar)) kg)."
+                                                         : "Só a barra: \(Progression.fmt(bar)) kg, sem anilhas.")
+                        .font(.subheadline.weight(.semibold))
                 } else {
-                    barbell(r.plates)
                     VStack(alignment: .leading, spacing: 8) {
                         line("Barra", bar == 0 ? "—" : "\(Progression.fmt(bar)) kg")
                         line("Em cada lado", "\(Progression.fmt(side)) kg")

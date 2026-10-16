@@ -1103,6 +1103,8 @@ struct GMDecimalField: View {
     var unit: String = "kg"
     /// Valor usado no primeiro + quando ainda está vazio
     var start: Double = 70
+    /// Mostra o X para apagar (campos opcionais)
+    var clearable = true
 
     var body: some View {
         HStack(spacing: 10) {
@@ -1110,7 +1112,7 @@ struct GMDecimalField: View {
             Spacer()
             stepButton("minus") { value = max((value ?? start) - step, 0) }
             HStack(spacing: 3) {
-                TextField("—", value: $value, format: .number.precision(.fractionLength(0...1)))
+                TextField("—", value: $value, format: .number.precision(.fractionLength(0...2)).locale(GMDateText.locale))
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .font(.headline.monospacedDigit())
@@ -1118,7 +1120,7 @@ struct GMDecimalField: View {
                 Text(unit).font(.caption).foregroundStyle(Theme.dim)
             }
             stepButton("plus") { value = (value.map { $0 + step }) ?? start }
-            if value != nil {
+            if clearable, value != nil {
                 Button { value = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.dim) }
                     .buttonStyle(GMPress())
             }
@@ -1134,5 +1136,67 @@ struct GMDecimalField: View {
                 .background(Theme.raised, in: .circle).foregroundStyle(.white)
         }
         .buttonStyle(GMPress())
+    }
+}
+
+
+/// Régua deslizante: arraste para escolher um valor; encaixa no passo e vibra a cada um
+struct GMRuler: View {
+    @Binding var value: Double
+    var range: ClosedRange<Double> = 0...300
+    var step: Double = 2.5
+    /// Marca maior (com número) a cada quantos passos
+    var majorEvery = 4
+    @State private var position: Int?
+
+    private static let tick: CGFloat = 12
+    private var count: Int { Int(((range.upperBound - range.lowerBound) / step).rounded()) + 1 }
+    private func index(_ v: Double) -> Int { min(max(Int(((v - range.lowerBound) / step).rounded()), 0), count - 1) }
+    private func valueAt(_ i: Int) -> Double { range.lowerBound + Double(i) * step }
+
+    var body: some View {
+        GeometryReader { g in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 0) {
+                    ForEach(0..<count, id: \.self) { i in
+                        let major = i % majorEvery == 0
+                        VStack(spacing: 4) {
+                            Capsule()
+                                .fill(major ? Color.white.opacity(0.7) : Color.white.opacity(0.25))
+                                .frame(width: 2, height: major ? 26 : 14)
+                            Text(major ? Progression.fmt(valueAt(i)) : " ")
+                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(Theme.dim)
+                                .fixedSize()
+                        }
+                        .frame(width: GMRuler.tick, height: 50, alignment: .top)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .contentMargins(.horizontal, g.size.width / 2 - GMRuler.tick / 2, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $position, anchor: .center)
+            .overlay(alignment: .top) {
+                // Ponteiro fixo no centro
+                Capsule().fill(Theme.accent).frame(width: 4, height: 34).offset(y: -4)
+            }
+            .mask(LinearGradient(colors: [.clear, .black, .black, .clear], startPoint: .leading, endPoint: .trailing))
+        }
+        .frame(height: 56)
+        .onAppear { position = index(value) }
+        .onChange(of: position) { _, i in
+            guard let i else { return }
+            let v = valueAt(i)
+            if v != value {
+                UISelectionFeedbackGenerator().selectionChanged()
+                value = v
+            }
+        }
+        // Quando o valor muda por outro meio (+, −, digitação), a régua acompanha
+        .onChange(of: value) { _, v in
+            let i = index(v)
+            if i != position { withAnimation(.snappy) { position = i } }
+        }
     }
 }
