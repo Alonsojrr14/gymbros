@@ -16,7 +16,6 @@ struct LeaguesView: View {
 
     var body: some View {
         let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
-        let partner = Game.snapshot(activities.map(\.record)).form
         NavigationStack {
             List {
                 if leagues.isEmpty {
@@ -26,8 +25,7 @@ struct LeaguesView: View {
                 }
                 ForEach(leagues) { l in
                     NavigationLink { LeagueDetailView(league: l) } label: {
-                        LeagueRow(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, activities: byID,
-                                  me: trainerName, myAvatar: partner)
+                        LeagueRow(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, activities: byID, me: trainerName)
                     }
                     .listRowBackground(Theme.card)
                 }
@@ -70,13 +68,12 @@ private struct LeagueRow: View {
     let mine: [LeagueCheckIn]
     let activities: [UUID: Activity]
     let me: String
-    let myAvatar: MonsterForm
 
     var body: some View {
-        let feed = LeagueBoard.feed(league: league, mine: mine, activities: activities, me: me, myAvatar: myAvatar)
-        let rank = LeagueBoard.ranking(feed: feed, league: league, me: me, myAvatar: myAvatar, since: nil)
-        let pos = (rank.firstIndex { $0.isMe } ?? 0) + 1
         let egg = leagueMonster(mine: mine, activities: activities)
+        let feed = LeagueBoard.feed(league: league, mine: mine, activities: activities, me: me, myAvatar: egg.form)
+        let rank = LeagueBoard.ranking(feed: feed, league: league, me: me, myAvatar: egg.form, since: nil)
+        let pos = (rank.firstIndex { $0.isMe } ?? 0) + 1
         HStack(spacing: 12) {
             Text(league.emoji).font(.largeTitle)
             VStack(alignment: .leading, spacing: 3) {
@@ -117,10 +114,11 @@ struct LeagueDetailView: View {
     var body: some View {
         let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
         let mine = allCheckIns.filter { $0.leagueUUID == league.uuid }
-        let partner = Game.snapshot(activities.map(\.record)).form
-        let feed = LeagueBoard.feed(league: league, mine: mine, activities: byID, me: trainerName, myAvatar: partner)
+        // Dentro da liga você aparece com o monstro dela, não com o parceiro
+        let avatar = leagueMonster(mine: mine, activities: byID).form
+        let feed = LeagueBoard.feed(league: league, mine: mine, activities: byID, me: trainerName, myAvatar: avatar)
         let weekStart = Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.start
-        let rank = LeagueBoard.ranking(feed: feed, league: league, me: trainerName, myAvatar: partner, since: weekOnly ? weekStart : nil)
+        let rank = LeagueBoard.ranking(feed: feed, league: league, me: trainerName, myAvatar: avatar, since: weekOnly ? weekStart : nil)
 
         List {
             Section { header(mine: mine, activities: byID) }
