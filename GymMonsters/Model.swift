@@ -10,6 +10,10 @@ final class Activity {
     var minutes: Int = 0
     var effort: Int = 5
     var note: String = ""
+    /// UUID do treino no app Saúde, quando importado de lá
+    var healthUUID: String?
+    /// App ou aparelho de origem (ex.: "Apple Watch de Zero")
+    var source: String?
 
     init(kind: ActivityKind, date: Date, minutes: Int, effort: Int, note: String = "") {
         self.kindRaw = kind.rawValue

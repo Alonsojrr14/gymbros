@@ -179,6 +179,9 @@ struct ActivityRow: View {
                     .foregroundStyle(Theme.dim)
             }
             Spacer()
+            if activity.healthUUID != nil {
+                Image(systemName: "heart.fill").font(.caption2).foregroundStyle(.pink)
+            }
             Text("+\(xp) XP")
                 .font(.subheadline.weight(.bold).monospacedDigit())
                 .foregroundStyle(Theme.accent)

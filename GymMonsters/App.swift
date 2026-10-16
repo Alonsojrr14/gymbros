@@ -37,6 +37,9 @@ struct MainView: View {
     @AppStorage("lastFormID") private var lastFormID = ""
     @AppStorage("discovered") private var discovered = ""
     @State private var evolution: EvolutionEvent?
+    @State private var healthNotice: String?
+    @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var phase
 
     private var snapshot: Snapshot { Game.snapshot(activities.map(\.record)) }
 
@@ -54,9 +57,33 @@ struct MainView: View {
                 .tabItem { Label("Dex", systemImage: "square.grid.3x3.fill") }
         }
         .task(id: s.form.id) { check(s) }
+        .task(id: phase) { if phase == .active { await syncHealth() } }
+        .overlay(alignment: .top) {
+            if let healthNotice {
+                Label(healthNotice, systemImage: "heart.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: .capsule)
+                    .padding(.top, 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .onTapGesture { withAnimation { self.healthNotice = nil } }
+            }
+        }
         .fullScreenCover(item: $evolution) { e in
             EvolutionView(from: e.from, to: e.to) { evolution = nil }
         }
+    }
+
+    private func syncHealth() async {
+        guard HealthSync.enabled else { return }
+        guard let r = try? await HealthSync.sync(context: context), !r.imported.isEmpty else { return }
+        let snap = Game.snapshot(activities.map(\.record))
+        let xp = r.imported.reduce(0) { $0 + (snap.xpByActivity[$1.uuid] ?? 0) }
+        let n = r.imported.count
+        withAnimation { healthNotice = "\(n) treino\(n == 1 ? "" : "s") do Saúde · +\(xp) XP" }
+        try? await Task.sleep(for: .seconds(4))
+        withAnimation { healthNotice = nil }
     }
 
     private func check(_ s: Snapshot) {

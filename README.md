@@ -21,6 +21,11 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
 - Mapa muscular (frente e costas): por exercício, por rotina, ao concluir o treino e por período (7/30 dias/tudo), com a lista do que ficou sem treino.
 - Concluir um treino gera uma atividade de musculação, que dá XP ao monstro.
 
+## Apple Saúde e backup
+
+- Treinos do iPhone/Apple Watch são importados ao abrir o app (Ajustes → Apple Saúde; na primeira vez, últimos 14 dias). O tipo vira a atividade correspondente e o esforço é estimado pelas calorias ativas em relação ao esperado para a atividade. Treinos que se sobrepõem a algo já registrado (ex.: treino guiado também gravado no Watch) não contam duas vezes. Só leitura.
+- Backup completo em JSON (Ajustes → Backup): exportar para o Arquivos/iCloud Drive e restaurar.
+
 As artes dos galhos de Resistência, Agilidade e Técnica são provisórias (as de Força com outra cor).
 
 ## Rodar no iPhone

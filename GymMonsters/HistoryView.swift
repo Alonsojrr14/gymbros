@@ -32,6 +32,7 @@ struct HistoryView: View {
                                         let id = a.uuid
                                         let linked = (try? context.fetch(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
                                         linked.forEach(context.delete)
+                                        if let h = a.healthUUID { HealthSync.ignored.insert(h) }
                                         context.delete(a)
                                     }
                                     try? context.save()
