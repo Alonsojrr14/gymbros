@@ -171,6 +171,7 @@ struct GymMonstersWidgets: WidgetBundle {
         PetWidget()
         GymMonstersWidget()
         WorkoutLiveActivity()
+        WodLiveActivity()
     }
 }
 

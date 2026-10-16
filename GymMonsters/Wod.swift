@@ -251,7 +251,7 @@ struct WodTimerView: View {
     @State private var pausedAt: Date?
     @State private var pausedTotal: TimeInterval = 0
     @State private var countdownEnd: Date?
-    @State private var rounds = 0
+    @State private var counter = WodCounter()
     @State private var finished: Int?
     @State private var lastTick = -1
     @State private var confirmQuit = false
@@ -293,18 +293,31 @@ struct WodTimerView: View {
             }
             .padding(16)
             .onChange(of: Int(e)) { _, sec in tick(sec) }
+            // Live Activity: atualiza quando muda o que ele não calcula sozinho (pausa, rodadas, minuto/fase)
+            .task(id: liveKey(e)) { await publishLive(e) }
             .onChange(of: countdownEnd.map { $0 <= now } ?? false) { _, done in
                 if done && startedAt == nil { begin() }
             }
         }
         .background(Theme.bg.ignoresSafeArea())
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+            let c = counter
+            WorkoutIntentBridge.addRound = {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                c.rounds += 1
+            }
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            WorkoutIntentBridge.addRound = nil
+            Task { await LiveWod.end() }
+        }
         .gmActions(isPresented: $confirmQuit, title: "Sair do WOD?", message: "O tempo não será salvo.", actions: [
             GMAction("Sair sem salvar", icon: "xmark", destructive: true) { dismiss() }
         ])
         .gmModal(item: Binding(get: { finished.map { FinishedWod(seconds: $0) } }, set: { if $0 == nil { finished = nil } })) { f in
-            WodResultForm(wod: wod, seconds: f.seconds, rounds: rounds) { dismiss() }
+            WodResultForm(wod: wod, seconds: f.seconds, rounds: counter.rounds) { dismiss() }
         }
     }
 
@@ -351,15 +364,15 @@ struct WodTimerView: View {
 
     private var roundCounter: some View {
         HStack(spacing: 14) {
-            GMIconButton(icon: "minus", size: 44) { rounds = max(rounds - 1, 0) }
+            GMIconButton(icon: "minus", size: 44) { counter.rounds = max(counter.rounds - 1, 0) }
             VStack(spacing: 0) {
-                Text("\(rounds)").font(.largeTitle.bold().monospacedDigit())
+                Text("\(counter.rounds)").font(.largeTitle.bold().monospacedDigit())
                 Text("rodadas").font(.caption).foregroundStyle(Theme.dim)
             }
             .frame(minWidth: 80)
             Button {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                rounds += 1
+                counter.rounds += 1
             } label: {
                 Image(systemName: "plus").font(.title2.bold()).frame(width: 64, height: 64)
                     .background(Theme.accent, in: .circle).foregroundStyle(.black)
@@ -383,6 +396,46 @@ struct WodTimerView: View {
                 GMButton("Terminar", icon: "flag.checkered") { finish(e) }
             }
         }
+    }
+
+    // MARK: Live Activity
+
+    private var showsRounds: Bool {
+        switch wod.format { case .forTime, .amrap: true; default: false }
+    }
+
+    private func label(_ e: TimeInterval) -> String {
+        let s = Int(e)
+        switch wod.format {
+        case .forTime(let cap): return cap.map { "Limite \($0):00" } ?? "For Time"
+        case .amrap(let m): return "AMRAP \(m) min"
+        case .emom(let m): return "Minuto \(min(s / 60 + 1, m)) de \(m)"
+        case .tabata(let r): return "Rodada \(min(s / 30 + 1, r)) de \(r) · " + (s % 30 < 20 ? "ESFORÇO" : "DESCANSO")
+        }
+    }
+
+    private func liveKey(_ e: TimeInterval) -> String {
+        "\(startedAt?.timeIntervalSince1970 ?? 0)|\(pausedAt != nil)|\(counter.rounds)|\(label(e))|\(pausedTotal)"
+    }
+
+    private func publishLive(_ e: TimeInterval) async {
+        guard startedAt != nil, finished == nil else { return }
+        let start = Date.now.addingTimeInterval(-e)
+        var end: Date?
+        if case .forTime = wod.format { end = nil } else {
+            // EMOM e Tabata: contagem até o fim do minuto/fase atual; AMRAP: até o fim do tempo
+            let s = Int(e)
+            switch wod.format {
+            case .emom: end = start.addingTimeInterval(TimeInterval((s / 60 + 1) * 60))
+            case .tabata: end = start.addingTimeInterval(TimeInterval(s / 30 * 30 + (s % 30 < 20 ? 20 : 30)))
+            default: end = wod.format.totalSeconds.map { start.addingTimeInterval(TimeInterval($0)) }
+            }
+        }
+        let state = WodAttributes.ContentState(
+            countsDown: end != nil, start: start, end: end,
+            pausedText: pausedAt != nil ? clock(Int(e)) : nil,
+            rounds: counter.rounds, showRounds: showsRounds, label: label(e))
+        await LiveWod.show(name: wod.name, format: wod.format.name, state: state)
     }
 
     // MARK: Lógica
@@ -413,6 +466,7 @@ struct WodTimerView: View {
     private func finish(_ e: TimeInterval) {
         guard finished == nil else { return }
         pausedAt = .now
+        Task { await LiveWod.end() }
         beep(long: true)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         finished = max(Int(e), 1)

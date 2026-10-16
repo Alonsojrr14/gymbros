@@ -130,3 +130,28 @@ enum LiveWorkout {
         await refresh(s)
     }
 }
+
+/// Live Activity do WOD em andamento
+@MainActor
+enum LiveWod {
+    static func show(name: String, format: String, state: WodAttributes.ContentState) async {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let content = ActivityContent(state: state, staleDate: nil)
+        if let a = ActivityKit.Activity<WodAttributes>.activities.first, a.attributes.name == name {
+            await a.update(content)
+            return
+        }
+        await end()
+        _ = try? ActivityKit.Activity.request(attributes: WodAttributes(name: name, format: format), content: content, pushType: nil)
+    }
+
+    static func end() async {
+        for a in ActivityKit.Activity<WodAttributes>.activities { await a.end(nil, dismissalPolicy: .immediate) }
+    }
+}
+
+/// Rodadas do WOD, compartilhadas com o botão "+1 rodada" do Live Activity
+@Observable
+final class WodCounter {
+    var rounds = 0
+}

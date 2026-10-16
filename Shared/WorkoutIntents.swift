@@ -7,6 +7,7 @@ import Foundation
 enum WorkoutIntentBridge {
     @MainActor static var completeSet: (@MainActor () async -> Void)?
     @MainActor static var skipRest: (@MainActor () async -> Void)?
+    @MainActor static var addRound: (@MainActor () -> Void)?
 }
 
 struct CompleteSetIntent: LiveActivityIntent {
@@ -30,6 +31,18 @@ struct SkipRestIntent: LiveActivityIntent {
     @MainActor
     func perform() async throws -> some IntentResult {
         await WorkoutIntentBridge.skipRest?()
+        return .result()
+    }
+}
+
+struct AddRoundIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "+1 rodada"
+
+    init() {}
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        WorkoutIntentBridge.addRound?()
         return .result()
     }
 }

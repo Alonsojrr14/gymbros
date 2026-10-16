@@ -251,6 +251,18 @@ struct RoutineTemplate: Identifiable {
             ("Inferior", [3, 6], [("agachamento", 4, 8), ("terra-romeno", 3, 10), ("leg-press", 3, 12),
                                   ("mesa-flexora", 3, 12), ("panturrilha-sentado", 4, 15), ("abdominal", 3, 15)]),
         ]),
+        RoutineTemplate(name: "CrossFit", detail: "3 dias: olímpicos, ginástica e força + metcon", routines: [
+            ("CF A · Olímpicos", [2], [("cf-power-snatch", 5, 3), ("cf-hang-power-clean", 5, 3), ("cf-push-jerk", 4, 3),
+                                         ("cf-overhead-squat", 3, 5), ("cf-box-jump", 3, 10), ("cf-double-under", 3, 50)]),
+            ("CF B · Ginástica", [4], [("cf-kipping-pull-up", 5, 10), ("cf-toes-to-bar", 4, 10), ("cf-hspu", 4, 6),
+                                         ("cf-ring-dip", 3, 10), ("cf-pistol", 3, 8), ("cf-l-sit", 3, 20)]),
+            ("CF C · Força e metcon", [6], [("agachamento-frontal", 5, 5), ("levantamento-terra", 4, 5), ("cf-push-press", 4, 6),
+                                              ("thruster", 3, 12), ("kettlebell-swing", 3, 20), ("cf-wall-ball", 3, 20)]),
+        ]),
+        RoutineTemplate(name: "Kettlebell e metcon", detail: "Corpo todo com kettlebell, 2× por semana", routines: [
+            ("Kettlebell", [3, 6], [("kettlebell-swing", 5, 20), ("agachamento-goblet", 4, 12), ("cf-kb-snatch", 4, 8),
+                                    ("cf-turkish", 3, 3), ("cf-sdhp", 3, 12), ("cf-mountain-climber", 3, 30)]),
+        ]),
         RoutineTemplate(name: "Em casa", detail: "Só peso do corpo, 3× por semana", routines: [
             ("Peso do corpo", [2, 4, 6], [("flexao", 4, 12), ("agachamento-livre-corpo", 4, 20), ("barra-fixa", 3, 6),
                                           ("afundo", 3, 12), ("mergulho-banco", 3, 12), ("prancha", 3, 45), ("burpee", 3, 10)]),

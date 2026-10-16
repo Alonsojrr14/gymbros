@@ -25,3 +25,23 @@ struct WorkoutAttributes: ActivityAttributes {
     var title: String
     var start: Date
 }
+
+/// Live Activity do WOD em andamento (cronômetro na tela de bloqueio e na Dynamic Island)
+struct WodAttributes: ActivityAttributes {
+    struct ContentState: Codable, Hashable {
+        /// Conta para cima (For Time) ou para baixo até `end` (AMRAP, EMOM, Tabata)
+        var countsDown: Bool
+        /// Início ajustado pelas pausas (o cronômetro mostra agora − start)
+        var start: Date
+        var end: Date?
+        /// Pausado: mostra o tempo parado em texto
+        var pausedText: String?
+        var rounds: Int
+        var showRounds: Bool
+        /// Ex.: "Minuto 3 de 20", "Rodada 2/8 · ESFORÇO"
+        var label: String
+    }
+
+    var name: String
+    var format: String
+}

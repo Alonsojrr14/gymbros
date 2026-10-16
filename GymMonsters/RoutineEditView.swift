@@ -86,6 +86,8 @@ struct RoutineEditView: View {
 private struct ItemEditor: View {
     @Bindable var item: RoutineItem
     let onMenu: () -> Void
+    @State private var pickingRest = false
+    @State private var draft = 90
 
     var body: some View {
         let ex = Exercise.byID(item.exerciseID)
@@ -99,7 +101,32 @@ private struct ItemEditor: View {
             HStack(spacing: 8) {
                 MiniStepper(label: "séries", value: $item.sets, range: 1...10, step: 1)
                 MiniStepper(label: ex?.type == .time ? "seg" : "reps", value: $item.reps, range: 1...300, step: ex?.type == .time ? 5 : 1)
-                MiniStepper(label: "descanso", value: $item.rest, range: 0...600, step: 15, format: { "\($0)s" })
+                // Descanso: toque para escolher o tempo exato na roleta
+                Button {
+                    draft = item.rest
+                    pickingRest = true
+                } label: {
+                    VStack(spacing: 0) {
+                        Text(clock(item.rest)).font(.subheadline.bold().monospacedDigit())
+                        Text("descanso").font(.caption2).foregroundStyle(Theme.dim)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                    .frame(minHeight: 42)
+                    .background(Theme.raised, in: .rect(cornerRadius: 12))
+                    .foregroundStyle(.white)
+                }
+                .buttonStyle(GMPress())
+            }
+        }
+        .gmSheet(isPresented: $pickingRest) { close in
+            VStack(spacing: 16) {
+                Text("Descanso · \(Exercise.name(item.exerciseID))").font(.headline)
+                GMDurationWheel(seconds: $draft)
+                GMButton("Confirmar") {
+                    item.rest = draft
+                    close()
+                }
             }
         }
     }
