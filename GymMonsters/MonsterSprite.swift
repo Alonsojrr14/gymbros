@@ -16,7 +16,7 @@ struct MonsterSprite: View {
     }
 }
 
-/// Monstro "vivo": respira de leve. O ovo fica parado.
+/// Monstro "vivo": respira de leve; o ovo dá tremidinhas.
 /// phaseAnimator anima só os efeitos abaixo, sem arrastar tamanho e posição da view junto.
 struct LivingMonster: View {
     let form: MonsterForm
@@ -24,7 +24,21 @@ struct LivingMonster: View {
 
     var body: some View {
         if form.stage == .egg {
+            // Parado, e de tempos em tempos uma tremidinha, como se algo se mexesse dentro.
+            // Quanto mais perto de chocar, mais frequente e mais forte.
+            let pause = max(3.2 - 2.2 * progress, 1.0)
+            let amp = 5 + 7 * progress
             MonsterSprite(form: form)
+                .keyframeAnimator(initialValue: 0.0, repeating: true) { view, angle in
+                    view.rotationEffect(.degrees(angle), anchor: .bottom)
+                } keyframes: { _ in
+                    LinearKeyframe(0, duration: pause)
+                    CubicKeyframe(amp, duration: 0.07)
+                    CubicKeyframe(-amp * 0.9, duration: 0.1)
+                    CubicKeyframe(amp * 0.6, duration: 0.1)
+                    CubicKeyframe(-amp * 0.35, duration: 0.09)
+                    CubicKeyframe(0, duration: 0.09)
+                }
         } else {
             MonsterSprite(form: form)
                 .phaseAnimator([false, true]) { view, up in
