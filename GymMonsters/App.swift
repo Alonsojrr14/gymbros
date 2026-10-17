@@ -68,6 +68,7 @@ struct MainView: View {
     @State private var evolution: EvolutionEvent?
     @State private var banner: Banner?
     @State private var tab = 0
+    @State private var visited: Set<Int> = [0]
     @State private var arrivalPrompt = false
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var phase
@@ -86,20 +87,17 @@ struct MainView: View {
                                                        discovered: discovered.split(separator: ",").count,
                                                        dexTotal: DexView.allForms.count))
         let companion = companionContext(s, logs: logs, name: mainName)
-        TabView(selection: $tab) {
-            HomeView(snapshot: s, activities: activities, mood: companion.mood, line: Companion.line(companion), monsterName: mainName)
-                .tag(0).toolbar(.hidden, for: .tabBar)
-            TrainView()
-                .tag(1).toolbar(.hidden, for: .tabBar)
-            LeaguesView()
-                .tag(2).toolbar(.hidden, for: .tabBar)
-            MapScreen()
-                .tag(3).toolbar(.hidden, for: .tabBar)
-            HistoryView(snapshot: history, activities: activities)
-                .tag(4).toolbar(.hidden, for: .tabBar)
-            DexView(snapshot: s, discovered: Set(discovered.split(separator: ",").map(String.init)), achievements: achievements)
-                .tag(5).toolbar(.hidden, for: .tabBar)
+        // Abas próprias: o TabView do iOS joga da 5ª aba em diante num menu "Mais" com seta de voltar.
+        // Cada aba é criada na primeira visita e fica viva (guarda rolagem e navegação).
+        ZStack {
+            page(0) { HomeView(snapshot: s, activities: activities, mood: companion.mood, line: Companion.line(companion), monsterName: mainName) }
+            page(1) { TrainView() }
+            page(2) { LeaguesView() }
+            page(3) { MapScreen() }
+            page(4) { HistoryView(snapshot: history, activities: activities) }
+            page(5) { DexView(snapshot: s, discovered: Set(discovered.split(separator: ",").map(String.init)), achievements: achievements) }
         }
+        .onChange(of: tab, initial: true) { _, t in visited.insert(t) }
         .overlay(alignment: .bottom) {
             GMTabBar(items: [
                 GMTabItem(icon: "pawprint.fill", title: "Bro"),
@@ -160,6 +158,16 @@ struct MainView: View {
                    }])
         .fullScreenCover(item: $evolution) { e in
             EvolutionView(from: e.from, to: e.to) { evolution = nil }
+        }
+    }
+
+    @ViewBuilder
+    private func page<V: View>(_ i: Int, @ViewBuilder _ content: () -> V) -> some View {
+        if visited.contains(i) || tab == i {
+            content()
+                .opacity(tab == i ? 1 : 0)
+                .allowsHitTesting(tab == i)
+                .accessibilityHidden(tab != i)
         }
     }
 
