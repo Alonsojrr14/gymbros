@@ -948,7 +948,9 @@ extension View {
         fullScreenCover(isPresented: isPresented) {
             GMOverlayHost(isPresented: isPresented) { close in GMSheetCard { content { close(nil) } } }
         }
-        .transaction { $0.disablesAnimations = true }
+        // Só a abertura desta camada fica sem a animação do iOS (ela tem a própria);
+        // sem o `value`, isso desligava a animação de todas as telas abaixo
+        .transaction(value: isPresented.wrappedValue) { $0.disablesAnimations = true }
     }
 
     /// Bottom sheet de ações (substitui Menu e confirmationDialog)
@@ -970,7 +972,9 @@ extension View {
                 }
             }
         }
-        .transaction { $0.disablesAnimations = true }
+        // Só a abertura desta camada fica sem a animação do iOS (ela tem a própria);
+        // sem o `value`, isso desligava a animação de todas as telas abaixo
+        .transaction(value: isPresented.wrappedValue) { $0.disablesAnimations = true }
     }
 
     /// Diálogo central com campo de texto (substitui alert com TextField)
@@ -992,7 +996,9 @@ extension View {
                 .padding(.horizontal, 28)
             }
         }
-        .transaction { $0.disablesAnimations = true }
+        // Só a abertura desta camada fica sem a animação do iOS (ela tem a própria);
+        // sem o `value`, isso desligava a animação de todas as telas abaixo
+        .transaction(value: isPresented.wrappedValue) { $0.disablesAnimations = true }
     }
 }
 
