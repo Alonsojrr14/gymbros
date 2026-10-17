@@ -9,6 +9,11 @@ e aparecem no app junto do conteúdo e na tela "Créditos e licenças". Gerado p
 - Adaptações desse conteúdo (ex.: instruções traduzidas) seguem a mesma licença (share-alike). Isso não se aplica ao código do app.
 - Imagens marcadas como geradas por IA no wger são ignoradas.
 
+## Ilustrações: Everkinetic
+Ilustrações do [Everkinetic](https://github.com/everkinetic/data) (projeto de Greg Priday), licença CC BY-SA 4.0,
+para os exercícios que o wger não ilustra. Só os desenhos originais (`dist/png`); a pasta de imagens geradas por IA
+do repositório fica de fora. Gerado por `tools/wger/everkinetic.py`.
+
 ## Mapa muscular: MuscleMap
 [MuscleMap](https://github.com/melihcolpan/MuscleMap), Copyright (c) 2026 Melih Colpan, licença MIT.
 

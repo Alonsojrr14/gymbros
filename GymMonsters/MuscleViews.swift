@@ -164,7 +164,7 @@ struct ExerciseInfoView: View {
             let steps = exercise.instructions.isEmpty ? wgerSteps : exercise.instructions
             if !steps.isEmpty {
                 GMSection("Como fazer", footer: exercise.instructions.isEmpty ? exercise.wger.map {
-                    "Texto: \($0.text.author) · \($0.text.license) · wger.de" + ($0.language == "en" ? " (traduzido no iPhone)" : "")
+                    "Texto: \($0.text.author) · \($0.text.license) · \($0.url.contains("everkinetic") ? "Everkinetic" : "wger.de")" + ($0.language == "en" ? " (traduzido no iPhone)" : "")
                 } : nil) {
                     ForEach(Array(steps.enumerated()), id: \.offset) { i, step in
                         HStack(alignment: .top, spacing: 10) {

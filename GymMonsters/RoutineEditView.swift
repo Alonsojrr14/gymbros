@@ -182,7 +182,7 @@ struct ExercisePicker: View {
                     }
                 }
             }
-            GMButton("Imagens e vídeos: wger.de · créditos e licenças", kind: .ghost, small: true) { showCredits = true }
+            GMButton("Imagens e vídeos: wger e Everkinetic · créditos", kind: .ghost, small: true) { showCredits = true }
         }
         .gmModal(item: $info) { ExerciseInfoView(exercise: $0) }
         .gmModal(isPresented: $showCredits) { CreditsView() }
