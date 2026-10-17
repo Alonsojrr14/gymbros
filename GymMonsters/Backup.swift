@@ -41,6 +41,11 @@ struct Backup: Codable {
     }
     var wods: [WodDTO]? = nil
     var prs: [PRDTO]? = nil
+    var comments: [CommentDTO]? = nil
+
+    struct CommentDTO: Codable {
+        var uuid: UUID, itemID: String, text: String, date: Date
+    }
 
     struct PRDTO: Codable {
         var uuid: UUID, exerciseID: String, weight: Double, reps: Int, date: Date
@@ -156,6 +161,9 @@ struct Backup: Codable {
             },
             prs: try context.fetch(FetchDescriptor<PersonalRecord>()).map {
                 PRDTO(uuid: $0.uuid, exerciseID: $0.exerciseID, weight: $0.weight, reps: $0.reps, date: $0.date)
+            },
+            comments: try context.fetch(FetchDescriptor<CheckInComment>()).map {
+                CommentDTO(uuid: $0.uuid, itemID: $0.itemID, text: $0.text, date: $0.date)
             }
         )
     }
@@ -179,6 +187,7 @@ struct Backup: Codable {
         try context.delete(model: GymVisit.self)
         try context.delete(model: Gym.self)
         try context.delete(model: PersonalRecord.self)
+        try context.delete(model: CheckInComment.self)
 
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
@@ -265,6 +274,12 @@ struct Backup: Codable {
             let visit = GymVisit(gym: gym)
             visit.uuid = v.uuid; visit.start = v.start; visit.end = v.end
             context.insert(visit)
+        }
+        for c in comments ?? [] {
+            let x = CheckInComment(itemID: c.itemID, text: c.text)
+            x.uuid = c.uuid
+            x.date = c.date
+            context.insert(x)
         }
         for p in prs ?? [] {
             let r = PersonalRecord(exerciseID: p.exerciseID, weight: p.weight, reps: p.reps, date: p.date)

@@ -1,3 +1,4 @@
+import SwiftData
 import Charts
 import SwiftUI
 
@@ -54,6 +55,9 @@ struct ExerciseStatsList: View {
 struct ExerciseDetailView: View {
     let exerciseID: String
     let sessions: [WorkoutSession]
+    @Query(sort: \PersonalRecord.date) private var allPRs: [PersonalRecord]
+
+    private var prs: [PersonalRecord] { allPRs.filter { $0.exerciseID == exerciseID } }
 
     private struct Point: Identifiable {
         let date: Date
@@ -63,8 +67,10 @@ struct ExerciseDetailView: View {
     }
 
     private var weighted: Bool {
-        sessions.contains { $0.sets.contains { $0.exerciseID == exerciseID && $0.weight > 0 } }
+        !prs.isEmpty || sessions.contains { $0.sets.contains { $0.exerciseID == exerciseID && $0.weight > 0 } }
     }
+
+    private func prValue(_ p: PersonalRecord) -> Double { Progression.oneRM(weight: p.weight, reps: p.reps) ?? p.weight }
 
     private var points: [Point] {
         sessions.reversed().compactMap { s in
@@ -81,20 +87,33 @@ struct ExerciseDetailView: View {
         let pts = points
         GMScreen(Exercise.name(exerciseID), back: true) {
             GMSection(weighted ? "1RM estimado (kg)" : (Exercise.byID(exerciseID)?.type == .time ? "Melhor tempo (s)" : "Mais reps")) {
-                if pts.count >= 2 {
-                    Chart(pts) { p in
-                        LineMark(x: .value("Data", p.date), y: .value("Valor", p.value))
-                            .interpolationMethod(.monotone)
-                            .foregroundStyle(Theme.accent)
-                        PointMark(x: .value("Data", p.date), y: .value("Valor", p.value))
-                            .foregroundStyle(Theme.accent)
+                let manual = weighted ? prs : []
+                if pts.count + manual.count >= 2 {
+                    Chart {
+                        ForEach(pts) { p in
+                            LineMark(x: .value("Data", p.date), y: .value("Valor", p.value))
+                                .interpolationMethod(.monotone)
+                                .foregroundStyle(Theme.accent)
+                            PointMark(x: .value("Data", p.date), y: .value("Valor", p.value))
+                                .foregroundStyle(Theme.accent)
+                        }
+                        // PRs registrados à mão
+                        ForEach(manual) { p in
+                            PointMark(x: .value("Data", p.date), y: .value("Valor", prValue(p)))
+                                .symbol(.diamond)
+                                .symbolSize(90)
+                                .foregroundStyle(.yellow)
+                        }
                     }
                     .chartYScale(domain: .automatic(includesZero: false))
                     .frame(height: 200)
+                    if !manual.isEmpty {
+                        Label("PR registrado na sessão de PR", systemImage: "diamond.fill").font(.caption).foregroundStyle(.yellow)
+                    }
                 } else {
                     Text("O gráfico aparece a partir do segundo treino.").foregroundStyle(Theme.dim)
                 }
-                if weighted, let best = pts.map(\.value).max() {
+                if weighted, let best = (pts.map(\.value) + manual.map(prValue)).max() {
                     GMDivider()
                     GMValueRow(label: "Melhor 1RM estimado", value: "\(Progression.fmt((best * 10).rounded() / 10)) kg")
                     VStack(alignment: .leading, spacing: 4) {
@@ -102,6 +121,17 @@ struct ExerciseDetailView: View {
                         Text([12, 10, 8, 5, 3].map { r in "\(r)×\(Progression.fmt(((best / (1 + Double(r) / 30)) / 2.5).rounded() * 2.5))" }
                             .joined(separator: "   "))
                             .font(.subheadline.monospacedDigit().weight(.semibold))
+                    }
+                }
+            }
+            if !prs.isEmpty {
+                GMSection("PRs registrados") {
+                    ForEach(prs.reversed()) { p in
+                        HStack {
+                            Text(p.date.formatted(.dateTime.day().month(.abbreviated).year())).font(.caption).foregroundStyle(Theme.dim)
+                            Spacer()
+                            Text("🏆 \(Progression.fmt(p.weight)) kg × \(p.reps)").font(.subheadline.monospacedDigit().weight(.semibold))
+                        }
                     }
                 }
             }

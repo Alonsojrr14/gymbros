@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("reminderMinute") private var reminderMinute = 18 * 60
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
     @AppStorage("restNotification") private var restNotification = false
+    @AppStorage("weeklySummary") private var weeklySummary = true
     @AppStorage("barCountsBar") private var barCountsBar = false
     @State private var healthOn = HealthSync.enabled
     @State private var healthStatus: String?
@@ -49,6 +50,11 @@ struct SettingsView: View {
                     GMDivider()
                     GMToggle(title: "Só em dias de rotina", isOn: $reminderRoutineOnly)
                 }
+                GMDivider()
+                GMToggle(title: "Resumo da semana", subtitle: "Domingo às 19h: treinos, tempo, PRs e sua posição nas ligas", isOn: $weeklySummary)
+                    .onChange(of: weeklySummary) { _, on in
+                        if on { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in } }
+                    }
                 GMDivider()
                 GMToggle(title: "Notificação no fim do descanso",
                          subtitle: "O Live Activity já mostra o descanso; ligue só se quiser o alerta também", isOn: $restNotification)

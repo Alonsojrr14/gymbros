@@ -64,6 +64,7 @@ struct MainView: View {
     @AppStorage("remindersOn") private var remindersOn = false
     @AppStorage("reminderMinute") private var reminderMinute = 18 * 60
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
+    @AppStorage("weeklySummary") private var weeklySummary = true
     @State private var evolution: EvolutionEvent?
     @State private var banner: Banner?
     @State private var tab = 0
@@ -124,7 +125,7 @@ struct MainView: View {
         }
         .task(id: achievements.filter(\.unlocked).map(\.id)) { announce(achievements) }
         // Widget e lembretes acompanham qualquer mudança relevante
-        .task(id: "\(s.totalXP)|\(s.lastActivity?.timeIntervalSince1970 ?? 0)|\(routineKey)|\(remindersOn)|\(reminderMinute)|\(reminderRoutineOnly)|\(mainName)|\(phase == .active)") {
+        .task(id: "\(s.totalXP)|\(s.lastActivity?.timeIntervalSince1970 ?? 0)|\(routineKey)|\(remindersOn)|\(reminderMinute)|\(reminderRoutineOnly)|\(weeklySummary)|\(mainName)|\(phase == .active)") {
             publish(s, companion: companion)
         }
         .overlay(alignment: .top) {
@@ -218,6 +219,7 @@ struct MainView: View {
         Reminders.schedule(enabled: remindersOn, minuteOfDay: reminderMinute, onlyRoutineDays: reminderRoutineOnly,
                            routines: routinesByWeekday, name: companion.name, streak: s.streak,
                            trainedToday: companion.trainedToday, isEgg: s.stage == .egg)
+        WeeklySummary.schedule(enabled: weeklySummary, trainer: trainerName)
     }
 
     private func announce(_ list: [Achievement]) {

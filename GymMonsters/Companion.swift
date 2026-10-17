@@ -1,5 +1,6 @@
 import Foundation
 import MuscleMap
+import SwiftData
 import UserNotifications
 
 // MARK: - Frases do monstro
@@ -183,5 +184,65 @@ enum Reminders {
             center.add(UNNotificationRequest(identifier: "\(prefix)\(offset)", content: content,
                                              trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
         }
+    }
+}
+
+// MARK: - Resumo semanal
+
+/// Notificação de domingo à noite com a semana: treinos, tempo, PRs e posição nas ligas.
+/// O texto é montado ao agendar e reagendado sempre que os dados mudam.
+enum WeeklySummary {
+    static let id = "weekly-summary"
+
+    @MainActor
+    static func schedule(enabled: Bool, trainer: String) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [id])
+        guard enabled else { return }
+        let cal = Calendar.current
+        // Próximo domingo às 19h (hoje, se ainda não passou)
+        guard let fire = cal.nextDate(after: .now.addingTimeInterval(-1), matching: DateComponents(hour: 19, minute: 0, weekday: 1),
+                                      matchingPolicy: .nextTime),
+              let weekStart = cal.date(byAdding: .day, value: -6, to: cal.startOfDay(for: fire)) else { return }
+
+        let ctx = AppData.container.mainContext
+        let activities = ((try? ctx.fetch(FetchDescriptor<Activity>())) ?? []).filter { $0.date >= weekStart }
+        let sessions = ((try? ctx.fetch(FetchDescriptor<WorkoutSession>(sortBy: [SortDescriptor(\.start)]))) ?? []).filter { $0.end != nil }
+        var prs = 0
+        for (i, s) in sessions.enumerated() where s.start >= weekStart {
+            prs += Progression.records(in: s.log, history: sessions[..<i].map(\.log)).count
+        }
+        prs += ((try? ctx.fetch(FetchDescriptor<PersonalRecord>())) ?? []).filter { $0.date >= weekStart }.count
+
+        var lines: [String] = []
+        if activities.isEmpty {
+            lines.append("Nenhum treino nesta semana. Segunda é um ótimo dia para voltar 💪")
+        } else {
+            let minutes = activities.reduce(0) { $0 + $1.minutes }
+            lines.append("\(activities.count) treino\(activities.count == 1 ? "" : "s") · \(durationText(minutes))" + (prs > 0 ? " · \(prs) PR\(prs == 1 ? "" : "s") 🏆" : ""))
+        }
+
+        // Posição em cada liga ativa
+        let leagues = ((try? ctx.fetch(FetchDescriptor<League>())) ?? []).filter { !$0.isOver }
+        if !leagues.isEmpty {
+            let checkIns = (try? ctx.fetch(FetchDescriptor<LeagueCheckIn>())) ?? []
+            let all = (try? ctx.fetch(FetchDescriptor<Activity>())) ?? []
+            let byID = Dictionary(all.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+            let avatar = MonsterForm(stage: .egg, attribute: nil)
+            for l in leagues.prefix(2) {
+                let feed = LeagueBoard.feed(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, activities: byID, me: trainer, myAvatar: avatar)
+                let rank = LeagueBoard.ranking(feed: feed, league: l, me: trainer, myAvatar: avatar, since: nil)
+                let pos = (rank.firstIndex { $0.isMe } ?? 0) + 1
+                let days = l.end.map { cal.dateComponents([.day], from: cal.startOfDay(for: fire), to: cal.startOfDay(for: $0)).day ?? 0 }
+                lines.append("\(l.emoji) \(pos)º de \(rank.count) na \(l.name)" + (days.map { $0 > 0 ? " · faltam \($0 + 1) dias" : " · último dia!" } ?? ""))
+            }
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Sua semana no GymBros"
+        content.body = lines.joined(separator: "\n")
+        content.sound = .default
+        let comps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
+        center.add(UNNotificationRequest(identifier: id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)))
     }
 }

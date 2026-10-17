@@ -346,6 +346,21 @@ struct WorkoutView: View {
                 }
                 .buttonStyle(GMPress())
             }
+            let pending = sets.filter { !$0.done }
+            if suggestion.weight > 0, !pending.isEmpty, pending.allSatisfy({ $0.weight == 0 }) {
+                // Treino aberto antes de registrar o PR (ou carga em branco): preenche com um toque
+                Button {
+                    pending.forEach { $0.weight = suggestion.weight }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    Label("Usar \(Progression.fmt(suggestion.weight)) kg nas séries", systemImage: "wand.and.stars")
+                        .font(.subheadline.bold())
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(Theme.accent, in: .capsule)
+                        .foregroundStyle(.black)
+                }
+                .buttonStyle(GMPress())
+            }
             let lastMax = last?.sets.filter { $0.exerciseID == id && $0.done }.map(\.weight).max()
             if let lastMax, suggestion.weight > lastMax {
                 // Completou tudo da última vez: subir a carga
