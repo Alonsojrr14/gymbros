@@ -146,6 +146,11 @@ enum Progression {
             return mine.isEmpty ? nil : mine
         }
         guard let last = past.last else {
+            if ex?.type ?? .weighted == .weighted,
+               let w = PRBook.workingWeight(exerciseID: exerciseID, reps: reps, increment: ex?.increment ?? 2.5) {
+                return Suggestion(weight: w.weight, reps: reps,
+                                  reason: "Pelo seu PR de \(fmt(w.pr.weight)) kg × \(w.pr.reps): \(fmt(w.weight)) kg para \(reps) reps, com 1–2 de sobra.")
+            }
             return Suggestion(weight: 0, reps: reps, reason: ex?.type == .weighted
                               ? "Primeira vez: escolha uma carga em que as \(reps) reps saiam com boa técnica."
                               : "Primeira vez: faça o que conseguir com boa técnica.")
@@ -208,7 +213,7 @@ enum Progression {
         let ids = session.sets.map(\.exerciseID).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         for id in ids {
             let now = session.sets.filter { $0.exerciseID == id && $0.done }
-            let before = history.flatMap(\.sets).filter { $0.exerciseID == id && $0.done }
+            let before = history.flatMap(\.sets).filter { $0.exerciseID == id && $0.done } + (PRBook.manual[id] ?? [])
             guard !now.isEmpty, !before.isEmpty else { continue }
             let name = Exercise.name(id)
             let maxNow = now.map(\.weight).max() ?? 0, maxBefore = before.map(\.weight).max() ?? 0

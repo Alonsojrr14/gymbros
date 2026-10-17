@@ -68,6 +68,11 @@ struct TrainView: View {
                 }
 
                 GMSection("Evolução") {
+                    NavigationLink { PRBookView() } label: {
+                        GMRow(icon: "trophy.fill", iconTint: .yellow, title: "Meus PRs", subtitle: "Sessão de PR: carga e reps de cada exercício", chevron: true)
+                    }
+                    .buttonStyle(GMPress())
+                    GMDivider()
                     NavigationLink { ExerciseStatsList(sessions: finished) } label: {
                         GMRow(icon: "chart.line.uptrend.xyaxis", title: "Exercícios e recordes", chevron: true)
                     }

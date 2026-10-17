@@ -13,6 +13,7 @@ struct GymMonstersApp: App {
         GymBrosShortcuts.updateAppShortcutParameters()
         NotificationRouter.shared.install()
         GymLocation.shared.startMonitoring()
+        PRBook.reload()
     }
 
     var body: some Scene {

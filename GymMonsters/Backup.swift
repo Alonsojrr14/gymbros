@@ -40,6 +40,11 @@ struct Backup: Codable {
         var uuid: UUID, name: String, latitude: Double, longitude: Double, radius: Double, createdAt: Date
     }
     var wods: [WodDTO]? = nil
+    var prs: [PRDTO]? = nil
+
+    struct PRDTO: Codable {
+        var uuid: UUID, exerciseID: String, weight: Double, reps: Int, date: Date
+    }
 
     struct RouteDTO: Codable {
         var uuid: UUID, activityUUID: UUID?, kind: String, start: Date, seconds: Int, meters: Double, points: Data
@@ -148,6 +153,9 @@ struct Backup: Codable {
             wods: try context.fetch(FetchDescriptor<WodResult>()).map {
                 WodDTO(uuid: $0.uuid, wodID: $0.wodID, wodName: $0.wodName, formatName: $0.formatName, date: $0.date,
                        seconds: $0.seconds, rounds: $0.rounds, reps: $0.reps, rx: $0.rx, note: $0.note, activityUUID: $0.activityUUID)
+            },
+            prs: try context.fetch(FetchDescriptor<PersonalRecord>()).map {
+                PRDTO(uuid: $0.uuid, exerciseID: $0.exerciseID, weight: $0.weight, reps: $0.reps, date: $0.date)
             }
         )
     }
@@ -170,6 +178,7 @@ struct Backup: Codable {
         try context.delete(model: RouteRecord.self)
         try context.delete(model: GymVisit.self)
         try context.delete(model: Gym.self)
+        try context.delete(model: PersonalRecord.self)
 
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
@@ -257,6 +266,12 @@ struct Backup: Codable {
             visit.uuid = v.uuid; visit.start = v.start; visit.end = v.end
             context.insert(visit)
         }
+        for p in prs ?? [] {
+            let r = PersonalRecord(exerciseID: p.exerciseID, weight: p.weight, reps: p.reps, date: p.date)
+            r.uuid = p.uuid
+            context.insert(r)
+        }
+        defer { PRBook.reload() }
         for w in wods ?? [] {
             let r = WodResult(wodID: w.wodID, wodName: w.wodName, formatName: w.formatName)
             r.uuid = w.uuid; r.date = w.date; r.seconds = w.seconds; r.rounds = w.rounds; r.reps = w.reps
