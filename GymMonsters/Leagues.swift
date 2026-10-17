@@ -74,6 +74,21 @@ final class League {
         return max(0, (cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: end)).day ?? 0) + 1)
     }
 
+    var hasStarted: Bool { start <= .now }
+
+    /// Dias até começar (0 se já começou)
+    var daysToStart: Int {
+        let cal = Calendar.current
+        return max(0, cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: start)).day ?? 0)
+    }
+
+    /// Período escolhido no calendário: do começo do dia de início ao fim do dia final (nil = sem fim)
+    func setPeriod(start s: Date, end e: Date?) {
+        let cal = Calendar.current
+        start = cal.startOfDay(for: s)
+        end = e.map { cal.date(byAdding: .second, value: -1, to: cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: max($0, s)))!)! }
+    }
+
     /// Define a duração em dias a partir do início (0 = sem fim)
     func setDuration(days: Int) {
         let cal = Calendar.current

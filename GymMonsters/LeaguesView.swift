@@ -242,8 +242,11 @@ struct LeagueDetailView: View {
             }
             Rectangle().fill(Theme.stroke).frame(width: 1, height: 96)
             VStack(spacing: 4) {
-                Text(league.isOver ? "Fim" : "Faltam").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
-                if league.isOver {
+                Text(league.isOver ? "Fim" : league.hasStarted ? "Faltam" : "Começa em").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
+                if !league.hasStarted {
+                    Text("\(league.daysToStart)").font(.system(size: 40, weight: .heavy, design: .rounded).monospacedDigit()).frame(height: 50)
+                    Text(league.daysToStart == 1 ? "dia" : "dias").font(.caption2).foregroundStyle(Theme.dim)
+                } else if league.isOver {
                     Text("🏁").font(.system(size: 38)).frame(height: 50)
                     Text("liga encerrada").font(.caption2).foregroundStyle(Theme.dim)
                 } else if let d = league.daysLeft {
@@ -409,7 +412,9 @@ struct CreateLeagueView: View {
     @State private var name = ""
     @State private var emoji = "🏆"
     @State private var scoring: LeagueScoring = .pontos
-    @State private var days = 30
+    @State private var start = Calendar.current.startOfDay(for: .now)
+    @State private var end: Date = Calendar.current.date(byAdding: .day, value: 29, to: Calendar.current.startOfDay(for: .now))!
+    @State private var hasEnd = true
     @State private var cover: Data?
     @State private var coverPick: PhotosPickerItem?
     @State private var withExamples = false
@@ -417,7 +422,12 @@ struct CreateLeagueView: View {
     @State private var loaded = false
 
     private let emojis = ["🏆", "🔥", "💪", "🏃", "⚡️", "🦁", "🐉", "⭐️", "🏐", "🧘"]
-    private let durations = [(7, "1 semana"), (14, "2 semanas"), (30, "30 dias"), (60, "60 dias"), (90, "90 dias"), (0, "Sem fim")]
+    private let durations = [(7, "1 semana"), (14, "2 semanas"), (30, "30 dias"), (60, "60 dias"), (90, "90 dias")]
+
+    private var cal: Calendar { .current }
+
+    /// Dias do período, contando início e fim
+    private var periodDays: Int { (cal.dateComponents([.day], from: cal.startOfDay(for: start), to: cal.startOfDay(for: end)).day ?? 0) + 1 }
 
     var body: some View {
         GMModal(league == nil ? "Nova liga" : "Editar liga", confirm: league == nil ? "Criar" : "Salvar",
@@ -458,8 +468,33 @@ struct CreateLeagueView: View {
                     GMButton("Tirar capa", kind: .secondary, small: true) { cover = nil; coverPick = nil }
                 }
             }
-            GMSection("Duração", footer: endText) {
-                GMChoiceChips(options: durations, selection: $days)
+            GMSection("Período", footer: endText) {
+                GMDateField(date: Binding(get: { start }, set: { new in
+                    // Mover o início leva o fim junto, mantendo a duração
+                    let len = periodDays
+                    start = cal.startOfDay(for: new)
+                    end = cal.date(byAdding: .day, value: max(len, 1) - 1, to: start)!
+                }), limitToNow: false, title: "Início")
+                GMDivider()
+                GMToggle(title: "Tem data de fim", isOn: $hasEnd)
+                if hasEnd {
+                    GMDateField(date: Binding(get: { end }, set: { end = max(cal.startOfDay(for: $0), start) }), limitToNow: false, title: "Fim")
+                    GMDivider()
+                    Text("Atalhos").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
+                    GMFlow {
+                        ForEach(durations, id: \.0) { n, label in
+                            GMChip(title: label, selected: periodDays == n) {
+                                UISelectionFeedbackGenerator().selectionChanged()
+                                end = cal.date(byAdding: .day, value: n - 1, to: start)!
+                            }
+                        }
+                        let monthEnd = cal.date(byAdding: .day, value: -1, to: cal.dateInterval(of: .month, for: start)!.end)!
+                        GMChip(title: "Até o fim do mês", selected: cal.isDate(end, inSameDayAs: monthEnd)) {
+                            UISelectionFeedbackGenerator().selectionChanged()
+                            end = monthEnd
+                        }
+                    }
+                }
             }
             GMSection("Pontuação", footer: scoring.detail) {
                 GMSegmented(options: LeagueScoring.allCases.map { ($0, $0.name) }, selection: $scoring)
@@ -477,16 +512,18 @@ struct CreateLeagueView: View {
             name = l.name
             emoji = l.emoji
             scoring = l.scoring
-            days = l.durationDays
+            start = l.start
+            hasEnd = l.end != nil
+            if let e = l.end { end = cal.startOfDay(for: e) }
             cover = l.cover
         }
     }
 
     private var endText: String {
-        guard days > 0 else { return "A liga segue até alguém encerrar." }
-        let start = league?.start ?? Calendar.current.startOfDay(for: .now)
-        let end = Calendar.current.date(byAdding: .day, value: days - 1, to: start)!
-        return "Começa em \(start.formatted(.dateTime.day().month(.abbreviated))) e termina em \(end.formatted(.dateTime.day().month(.abbreviated).year())). Ganha quem estiver na frente no último dia."
+        let f = Date.FormatStyle.dateTime.day().month(.abbreviated)
+        let begins = cal.isDateInToday(start) ? "Começa hoje" : start > .now ? "Começa em \(start.formatted(f))" : "Começou em \(start.formatted(f))"
+        guard hasEnd else { return "\(begins) e segue sem data de fim." }
+        return "\(begins) e termina em \(end.formatted(f.year())): \(periodDays) dia\(periodDays == 1 ? "" : "s"). Ganha quem estiver na frente no último dia. Check-ins fora do período não contam."
     }
 
     private func save() {
@@ -495,7 +532,7 @@ struct CreateLeagueView: View {
         l.emoji = emoji
         l.scoringRaw = scoring.rawValue
         l.cover = cover
-        l.setDuration(days: days)
+        l.setPeriod(start: start, end: hasEnd ? end : nil)
         if league == nil {
             l.monsterUUID = context.representative(rep)
             context.insert(l)
@@ -599,7 +636,7 @@ struct LeaguePostSection: View {
 
     /// Ligas ativas, mais as encerradas em que já está postado (para poder tirar)
     private var leagues: [League] { allLeagues.filter { !$0.isOver || selected.contains($0.uuid) } }
-    private var everything: Set<UUID> { Set(leagues.filter { !$0.isOver }.map(\.uuid)).union([ProfileFeed.id]) }
+    private var everything: Set<UUID> { Set(leagues.filter { !$0.isOver && $0.hasStarted }.map(\.uuid)).union([ProfileFeed.id]) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -636,6 +673,7 @@ struct LeaguePostSection: View {
 
     private func leagueSubtitle(_ l: League) -> String {
         if l.isOver { return "Encerrada" }
+        if !l.hasStarted { return "Liga · começa em \(l.daysToStart) dia\(l.daysToStart == 1 ? "" : "s")" }
         let days = l.daysLeft.map { $0 == 1 ? "último dia" : "faltam \($0) dias" } ?? "sem fim"
         return "Liga · \(days)"
     }

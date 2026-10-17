@@ -115,4 +115,22 @@ final class WorkoutTests: GymTestCase {
         XCTAssertTrue(league.isOver)
         XCTAssertEqual(league.durationDays, 8)
     }
+
+    func testLeaguePeriodFromCalendar() {
+        let l = League(name: "P", emoji: "🏆", scoring: .pontos)
+        // Começa daqui a 3 dias e termina 10 dias depois: fim no último segundo do dia
+        l.setPeriod(start: day(3, hour: 15), end: day(12, hour: 8))
+        let cal = Calendar.current
+        XCTAssertEqual(l.start, cal.startOfDay(for: day(3)))
+        XCTAssertEqual(l.durationDays, 10)
+        XCTAssertEqual(cal.component(.hour, from: l.end!), 23)
+        XCTAssertFalse(l.hasStarted)
+        XCTAssertEqual(l.daysToStart, 3)
+        XCTAssertFalse(l.isOver)
+        // Fim antes do início vira um dia só
+        l.setPeriod(start: day(0), end: day(-5))
+        XCTAssertEqual(l.durationDays, 1)
+        l.setPeriod(start: day(0), end: nil)
+        XCTAssertNil(l.end)
+    }
 }
