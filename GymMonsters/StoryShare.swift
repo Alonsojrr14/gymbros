@@ -1,3 +1,4 @@
+import CoreLocation
 import PhotosUI
 import SwiftData
 import SwiftUI
@@ -15,22 +16,111 @@ func presentShare(_ items: [Any], delay: Double = 0.4) {
     }
 }
 
+/// O que vai na arte do story, montado a partir de um treino guiado ou de qualquer atividade
+struct StoryData {
+    var title: String
+    var date: Date
+    var place: String?
+    /// Números da moldura; só entra o que existe (sem "–")
+    var stats: [(value: String, label: String)]
+    /// Melhor série de cada exercício (musculação)
+    var lines: [(name: String, best: String, sets: Int)] = []
+    var records: [String] = []
+    /// Trajeto do GPS (corrida, caminhada, bike)
+    var route: [CLLocationCoordinate2D] = []
+    var sprite: String
+
+    /// Linha curta para a moldura mínima
+    var summary: String { stats.map { $0.value }.joined(separator: " · ") }
+
+    /// Calorias ativas: o número real do Apple Saúde, ou estimativa pelo peso cadastrado; sem peso, nada
+    @MainActor
+    static func kcal(_ activity: Activity?, kind: ActivityKind, minutes: Int, effort: Int, context: ModelContext) -> String? {
+        if let a = activity, a.healthUUID != nil,
+           let m = a.note.firstMatch(of: /(\d+) kcal/), let v = Int(m.1), v > 0 { return "\(v)" }
+        let latest = ((try? context.fetch(FetchDescriptor<BodyEntry>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? [])
+            .compactMap(\.weight).first
+        guard let weight = latest ?? BodyProfile.weight, minutes > 0 else { return nil }
+        let k = HealthSync.activeKcal(kind: kind, minutes: minutes, effort: effort, weight: weight)
+        return k >= 1 ? "\(Int(k.rounded()))" : nil
+    }
+
+    @MainActor
+    static func workout(_ session: WorkoutSession, context: ModelContext) -> StoryData {
+        let finished = ((try? context.fetch(FetchDescriptor<WorkoutSession>(sortBy: [SortDescriptor(\.start)]))) ?? [])
+            .filter { $0.end != nil && $0.start < session.start }
+        let work = session.orderedSets.filter { $0.done && !$0.warmup }
+        let minutes = max(Int(((session.end ?? .now).timeIntervalSince(session.start)) / 60), 1)
+        let activity = session.activityUUID.flatMap { id in
+            ((try? context.fetch(FetchDescriptor<Activity>(predicate: #Predicate { $0.uuid == id }))) ?? []).first
+        }
+        var stats: [(String, String)] = [(durationText(minutes), "duração"), ("\(work.count)", "séries")]
+        if let k = kcal(activity, kind: session.isCrossfit ? .crossfit : .musculacao, minutes: minutes,
+                        effort: activity?.effort ?? session.effort, context: context) {
+            stats.append((k, "kcal"))
+        }
+        let lines: [(String, String, Int)] = session.exerciseIDs.compactMap { id in
+            let s = work.filter { $0.exerciseID == id }
+            guard let best = s.max(by: { ($0.weight, $0.reps) < ($1.weight, $1.reps) }) else { return nil }
+            let text = best.weight > 0 ? "\(Progression.fmt(best.weight)) kg × \(best.reps)"
+                : Exercise.byID(id)?.type == .time ? "\(best.reps) s" : "\(best.reps) reps"
+            return (Exercise.name(id), text, s.count)
+        }
+        return StoryData(title: session.title, date: session.start, place: GymLocation.shared.gym(session.gymUUID)?.name,
+                         stats: stats.map { (value: $0.0, label: $0.1) }, lines: lines.map { (name: $0.0, best: $0.1, sets: $0.2) },
+                         records: Progression.records(in: session.log, history: finished.map(\.log)),
+                         sprite: WidgetData.load()?.sprite ?? "sprite_baby")
+    }
+
+    /// Atividade sem treino guiado: corrida com GPS mostra distância, ritmo e o trajeto
+    @MainActor
+    static func activity(_ a: Activity, context: ModelContext) -> StoryData {
+        let id = a.uuid
+        let route = ((try? context.fetch(FetchDescriptor<RouteRecord>(predicate: #Predicate { $0.activityUUID == id }))) ?? []).first
+        var stats: [(String, String)] = []
+        if let r = route, r.meters > 20 {
+            stats.append((kmText(r.meters), "distância"))
+            let pace = paceText(kind: r.kind, meters: r.meters, seconds: r.seconds)
+            if pace != "–" { stats.append((pace.replacingOccurrences(of: " /km", with: ""), r.kind == .bike ? "velocidade" : "pace /km")) }
+            stats.append((clock(r.seconds), "tempo"))
+        } else {
+            stats.append((durationText(a.minutes), "duração"))
+        }
+        if let k = kcal(a, kind: a.kind, minutes: a.minutes, effort: a.effort, context: context) { stats.append((k, "kcal")) }
+        let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
+        let title = posts.first?.title ?? (a.note.isEmpty || a.healthUUID != nil ? a.kind.name : a.note)
+        return StoryData(title: title, date: a.date,
+                         place: posts.compactMap(\.place).first ?? GymLocation.shared.gym(a.gymUUID)?.name,
+                         stats: stats.map { (value: $0.0, label: $0.1) }, route: route?.coordinates ?? [],
+                         sprite: WidgetData.load()?.sprite ?? "sprite_baby")
+    }
+
+    /// Foto do check-in da atividade, se tiver
+    @MainActor
+    static func photo(activityUUID: UUID?, context: ModelContext) -> UIImage? {
+        guard let id = activityUUID else { return nil }
+        let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
+        return posts.compactMap(\.photo).first.flatMap(UIImage.init(data:))
+    }
+}
+
 /// Abre a escolha de moldura do story do treino (depois vem o compartilhar do iPhone)
 @MainActor
 func shareWorkoutStory(_ session: WorkoutSession, context: ModelContext, photo chosen: UIImage? = nil) {
-    let finished = ((try? context.fetch(FetchDescriptor<WorkoutSession>(sortBy: [SortDescriptor(\.start)]))) ?? [])
-        .filter { $0.end != nil && $0.start < session.start }
-    let records = Progression.records(in: session.log, history: finished.map(\.log))
-    let place = GymLocation.shared.gym(session.gymUUID)?.name
-    // Foto do check-in desse treino, se tiver
-    var photo = chosen
-    if photo == nil, let id = session.activityUUID {
-        let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
-        photo = posts.compactMap(\.photo).first.flatMap(UIImage.init(data:))
-    }
-    let composer = StoryComposerView(session: session, records: records, place: place,
-                                     sprite: WidgetData.load()?.sprite ?? "sprite_baby", photo: photo)
-    let vc = UIHostingController(rootView: composer.preferredColorScheme(.dark).tint(Theme.accent))
+    presentStory(StoryData.workout(session, context: context),
+                 photo: chosen ?? StoryData.photo(activityUUID: session.activityUUID, context: context))
+}
+
+/// Story de qualquer atividade (corrida, caminhada, bike, esportes…)
+@MainActor
+func shareActivityStory(_ activity: Activity, context: ModelContext, photo chosen: UIImage? = nil) {
+    presentStory(StoryData.activity(activity, context: context),
+                 photo: chosen ?? StoryData.photo(activityUUID: activity.uuid, context: context))
+}
+
+@MainActor
+private func presentStory(_ data: StoryData, photo: UIImage?) {
+    let vc = UIHostingController(rootView: StoryComposerView(data: data, photo: photo).preferredColorScheme(.dark).tint(Theme.accent))
     vc.modalPresentationStyle = .fullScreen
     // Espera menus e folhas fecharem antes de abrir
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -59,10 +149,7 @@ enum StoryFrame: String, CaseIterable, Identifiable {
 
 /// Tela entre "compartilhar" e o compartilhar do iPhone: escolhe a moldura e, se quiser, troca a foto
 struct StoryComposerView: View {
-    let session: WorkoutSession
-    let records: [String]
-    let place: String?
-    let sprite: String
+    let data: StoryData
     @State var photo: UIImage?
     @AppStorage("storyFrame") private var frameRaw = StoryFrame.completo.rawValue
     @State private var pick: PhotosPickerItem?
@@ -71,7 +158,7 @@ struct StoryComposerView: View {
     private var frame: StoryFrame { StoryFrame(rawValue: frameRaw) ?? .completo }
 
     private func card(_ f: StoryFrame) -> WorkoutStoryCard {
-        WorkoutStoryCard(session: session, records: records, place: place, sprite: sprite, photo: photo, frame: f)
+        WorkoutStoryCard(data: data, photo: photo, frame: f)
     }
 
     var body: some View {
@@ -151,27 +238,14 @@ struct StoryComposerView: View {
 
 /// Arte 9:16 (1080 × 1920): a foto do check-in ocupa a tela toda e o treino vem por cima
 struct WorkoutStoryCard: View {
-    let session: WorkoutSession
-    let records: [String]
-    let place: String?
-    let sprite: String
+    let data: StoryData
     var photo: UIImage?
     var frame: StoryFrame = .completo
 
-    private var work: [LoggedSet] { session.orderedSets.filter { $0.done && !$0.warmup } }
-    private var minutes: Int { max(Int(((session.end ?? .now).timeIntervalSince(session.start)) / 60), 1) }
-    private var volume: Double { work.reduce(0) { $0 + $1.weight * Double($1.reps) } }
-
-    /// Melhor série de cada exercício
-    private var lines: [(String, String, Int)] {
-        session.exerciseIDs.compactMap { id in
-            let s = work.filter { $0.exerciseID == id }
-            guard let best = s.max(by: { ($0.weight, $0.reps) < ($1.weight, $1.reps) }) else { return nil }
-            let text = best.weight > 0 ? "\(Progression.fmt(best.weight)) kg × \(best.reps)"
-                : Exercise.byID(id)?.type == .time ? "\(best.reps) s" : "\(best.reps) reps"
-            return (Exercise.name(id), text, s.count)
-        }
-    }
+    private var sprite: String { data.sprite }
+    private var place: String? { data.place }
+    private var records: [String] { data.records }
+    private var lines: [(name: String, best: String, sets: Int)] { data.lines }
 
     var body: some View {
         Group {
@@ -197,7 +271,7 @@ struct WorkoutStoryCard: View {
                 HStack {
                     Text("GymBros").font(.system(size: 20, weight: .black, design: .rounded)).foregroundStyle(Theme.accent)
                     Spacer()
-                    Text(session.start.formatted(.dateTime.day().month(.abbreviated).year()))
+                    Text(data.date.formatted(.dateTime.day().month(.abbreviated).year()))
                         .font(.caption.bold())
                         .padding(.horizontal, 10).padding(.vertical, 5)
                         .background(.black.opacity(0.45), in: .capsule)
@@ -208,19 +282,24 @@ struct WorkoutStoryCard: View {
                         if let place {
                             Label(place, systemImage: "mappin.and.ellipse").font(.caption.bold()).foregroundStyle(Theme.accent)
                         }
-                        Text(session.title).font(.system(size: 30, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.6)
+                        Text(data.title).font(.system(size: 30, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.6)
                     }
                     Spacer(minLength: 0)
                     Image(sprite).resizable().interpolation(.none).scaledToFit().frame(width: 78, height: 78)
                         .shadow(color: .black.opacity(0.5), radius: 6)
                 }
                 HStack(spacing: 8) {
-                    stat(durationText(minutes), "duração")
-                    stat("\(work.count)", "séries")
-                    stat(volume > 0 ? "\(Progression.fmt((volume / 10).rounded() * 10)) kg" : "–", "volume")
+                    ForEach(Array(data.stats.prefix(4).enumerated()), id: \.offset) { _, st in stat(st.value, st.label) }
                 }
+                if !data.route.isEmpty {
+                    RouteDrawing(coords: data.route)
+                        .frame(height: photo == nil ? 220 : 150)
+                        .padding(12)
+                        .background(.black.opacity(0.35), in: .rect(cornerRadius: Theme.radiusL))
+                }
+                if !lines.isEmpty {
                 VStack(alignment: .leading, spacing: 7) {
-                    ForEach(lines.prefix(photo == nil ? 8 : 5), id: \.0) { name, best, count in
+                    ForEach(lines.prefix(photo == nil ? 8 : 5), id: \.name) { name, best, count in
                         HStack {
                             Text(name).font(.footnote.weight(.semibold)).lineLimit(1)
                             Spacer()
@@ -234,6 +313,7 @@ struct WorkoutStoryCard: View {
                 }
                 .padding(12)
                 .background(.black.opacity(0.5), in: .rect(cornerRadius: Theme.radiusL))
+                }
                 if !records.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("RECORDES 🏆").font(.caption2.weight(.black)).foregroundStyle(Theme.trophy)
@@ -262,16 +342,19 @@ struct WorkoutStoryCard: View {
                 background
             }
             VStack(alignment: .leading, spacing: 8) {
+                if !data.route.isEmpty {
+                    RouteDrawing(coords: data.route, lineWidth: 4).frame(width: 140, height: 140)
+                }
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("GymBros").font(.system(size: 13, weight: .black, design: .rounded)).foregroundStyle(Theme.accent)
-                        Text(session.title).font(.system(size: 22, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.6)
+                        Text(data.title).font(.system(size: 22, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.6)
                     }
                     Spacer(minLength: 0)
                     Image(sprite).resizable().interpolation(.none).scaledToFit().frame(width: 48, height: 48)
                 }
-                Text([durationText(minutes), "\(work.count) séries", volume > 0 ? "\(Progression.fmt((volume / 10).rounded() * 10)) kg" : nil]
-                    .compactMap { $0 }.joined(separator: " · "))
+                Text(data.stats.map { $0.label == "kcal" ? "\($0.value) kcal" : $0.label == "séries" ? "\($0.value) séries" : $0.value }
+                    .joined(separator: " · "))
                     .font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
             }
             .padding(.horizontal, 22)
@@ -295,9 +378,16 @@ struct WorkoutStoryCard: View {
                     }
                     .frame(width: 260, height: 300)
                     .clipped()
+                    .overlay(alignment: .bottomTrailing) {
+                        if !data.route.isEmpty {
+                            RouteDrawing(coords: data.route, lineWidth: 3)
+                                .frame(width: 96, height: 96).padding(8)
+                                .background(.black.opacity(0.45), in: .rect(cornerRadius: 12)).padding(8)
+                        }
+                    }
                     VStack(spacing: 2) {
-                        Text(session.title).font(.system(size: 20, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.6)
-                        Text(session.start.formatted(.dateTime.day().month(.wide)) + (place.map { " · \($0)" } ?? ""))
+                        Text(data.title).font(.system(size: 20, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.6)
+                        Text(data.date.formatted(.dateTime.day().month(.wide)) + (place.map { " · \($0)" } ?? ""))
                             .font(.caption.weight(.semibold)).lineLimit(1)
                     }
                     .foregroundStyle(.black)
@@ -308,9 +398,7 @@ struct WorkoutStoryCard: View {
                 .shadow(color: .black.opacity(0.35), radius: 14, y: 8)
                 .rotationEffect(.degrees(-3))
                 HStack(spacing: 8) {
-                    stat(durationText(minutes), "duração")
-                    stat("\(work.count)", "séries")
-                    stat(volume > 0 ? "\(Progression.fmt((volume / 10).rounded() * 10)) kg" : "–", "volume")
+                    ForEach(Array(data.stats.prefix(4).enumerated()), id: \.offset) { _, st in stat(st.value, st.label) }
                 }
                 .padding(.horizontal, 30)
                 Text("GymBros").font(.system(size: 16, weight: .black, design: .rounded)).foregroundStyle(Theme.accent)
@@ -328,6 +416,9 @@ struct WorkoutStoryCard: View {
                 Text("GymBros").font(.system(size: 18, weight: .black, design: .rounded)).foregroundStyle(Theme.accent)
                 Spacer(minLength: 0)
                 ZStack(alignment: .bottomTrailing) {
+                    if !data.route.isEmpty {
+                        RouteDrawing(coords: data.route, lineWidth: 5).frame(width: 260, height: 260).opacity(0.55)
+                    }
                     Image(sprite).resizable().interpolation(.none).scaledToFit().frame(width: 220, height: 220)
                         .shadow(color: Theme.accent.opacity(0.6), radius: 24)
                     if let photo {
@@ -337,13 +428,11 @@ struct WorkoutStoryCard: View {
                             .offset(x: 18, y: 10)
                     }
                 }
-                Text(session.title).font(.system(size: 26, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.6)
+                Text(data.title).font(.system(size: 26, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.6)
                     .multilineTextAlignment(.center)
-                Text(session.start.formatted(.dateTime.day().month(.wide).year())).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.7))
+                Text(data.date.formatted(.dateTime.day().month(.wide).year())).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.7))
                 HStack(spacing: 8) {
-                    stat(durationText(minutes), "duração")
-                    stat("\(work.count)", "séries")
-                    stat(volume > 0 ? "\(Progression.fmt((volume / 10).rounded() * 10)) kg" : "–", "volume")
+                    ForEach(Array(data.stats.prefix(4).enumerated()), id: \.offset) { _, st in stat(st.value, st.label) }
                 }
                 if let r = records.first {
                     Text("🏆 " + r).font(.caption.weight(.bold)).foregroundStyle(Theme.trophy).lineLimit(1).minimumScaleFactor(0.7)
@@ -383,5 +472,45 @@ struct WorkoutStoryCard: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 9)
         .background(.black.opacity(0.5), in: .rect(cornerRadius: Theme.radiusM))
+    }
+}
+
+/// Trajeto do GPS desenhado como uma linha, sem mapa (proporção real, centralizado)
+struct RouteDrawing: View {
+    let coords: [CLLocationCoordinate2D]
+    var lineWidth: CGFloat = 5
+
+    var body: some View {
+        GeometryReader { geo in
+            let pts = points(in: geo.size)
+            ZStack {
+                Path { p in p.addLines(pts) }
+                    .stroke(Theme.accent.opacity(0.35), style: StrokeStyle(lineWidth: lineWidth * 2.6, lineCap: .round, lineJoin: .round))
+                    .blur(radius: 4)
+                Path { p in p.addLines(pts) }
+                    .stroke(Theme.accent, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                if let first = pts.first { dot(first, .white) }
+                if let last = pts.last { dot(last, Theme.accent) }
+            }
+        }
+    }
+
+    private func dot(_ p: CGPoint, _ c: Color) -> some View {
+        Circle().fill(c).frame(width: lineWidth * 2.4, height: lineWidth * 2.4)
+            .overlay(Circle().stroke(.black.opacity(0.6), lineWidth: 1.5))
+            .position(p)
+    }
+
+    /// Latitude/longitude → pontos na tela; a longitude encolhe com a latitude para não distorcer
+    private func points(in size: CGSize) -> [CGPoint] {
+        guard coords.count > 1 else { return [] }
+        let k = cos(coords[0].latitude * .pi / 180)
+        let xs = coords.map { $0.longitude * k }, ys = coords.map { $0.latitude }
+        let minX = xs.min()!, maxX = xs.max()!, minY = ys.min()!, maxY = ys.max()!
+        let w = max(maxX - minX, 1e-9), h = max(maxY - minY, 1e-9)
+        let pad = lineWidth * 2
+        let scale = min((size.width - pad * 2) / w, (size.height - pad * 2) / h)
+        let ox = (size.width - w * scale) / 2, oy = (size.height - h * scale) / 2
+        return zip(xs, ys).map { CGPoint(x: ox + ($0 - minX) * scale, y: oy + (maxY - $1) * scale) }
     }
 }

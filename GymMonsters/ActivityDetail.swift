@@ -119,6 +119,27 @@ struct ActivityDetailView: View {
                     }
                 }
             }
+            if sessions.isEmpty {
+                GMSection("Compartilhar") {
+                    GMRow(icon: "square.and.arrow.up", iconTint: Theme.accent, title: "Compartilhar nos Stories",
+                          subtitle: routes.isEmpty ? "Arte com a atividade e as calorias" : "Arte com distância, pace e o trajeto") {
+                        shareActivityStory(activity, context: context)
+                    }
+                    GMDivider()
+                    PhotosPicker(selection: $storyPick, matching: .images) {
+                        GMRow(icon: "photo.on.rectangle", title: "Stories com outra foto", chevron: true)
+                    }
+                    .buttonStyle(GMPress())
+                    .onChange(of: storyPick) { _, item in
+                        Task {
+                            if let data = try? await item?.loadTransferable(type: Data.self), let img = UIImage(data: data) {
+                                shareActivityStory(activity, context: context, photo: img)
+                            }
+                            storyPick = nil
+                        }
+                    }
+                }
+            }
             GMButton("Apagar atividade", icon: "trash", kind: .secondary) { confirmDelete = true }
         }
         .gmModal(isPresented: $editing) { LogActivityView(snapshot: snapshot, editing: activity) }
