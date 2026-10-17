@@ -1097,6 +1097,8 @@ private struct GMOverlayHost<Content: View>: View {
     let content: (_ close: @escaping (_ then: (() -> Void)?) -> Void) -> Content
     @State private var shown = false
     @State private var drag: CGFloat = 0
+    /// Ação escolhida, que espera a camada sair de verdade
+    @State private var pending: (() -> Void)?
 
     var body: some View {
         ZStack(alignment: center ? .center : .bottom) {
@@ -1114,16 +1116,23 @@ private struct GMOverlayHost<Content: View>: View {
         }
         .presentationBackground(.clear)
         .onAppear { withAnimation(.spring(duration: 0.35, bounce: 0.15)) { shown = true } }
+        // A ação só roda quando a camada saiu de verdade: com um tempo fixo, abrir outra camada
+        // (ex.: menu → confirmação) às vezes pegava a anterior ainda saindo e sobrava uma camada
+        // transparente por cima, engolindo os toques
+        .onDisappear {
+            guard let p = pending else { return }
+            pending = nil
+            DispatchQueue.main.async(execute: p)
+        }
     }
 
     private func close(_ then: (() -> Void)?) {
+        pending = then
         withAnimation(.easeOut(duration: 0.2)) { shown = false }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
             var t = Transaction()
             t.disablesAnimations = true
             withTransaction(t) { isPresented = false }
-            // A ação roda depois que a camada saiu, para poder abrir outra tela em seguida
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { then?() }
         }
     }
 }
