@@ -255,6 +255,9 @@ struct WodTimerView: View {
     @State private var finished: Int?
     @State private var lastTick = -1
     @State private var confirmQuit = false
+    @State private var gymID: UUID?
+    @State private var choosingPlace = false
+    @State private var placeAsked = false
 
     private func elapsed(_ now: Date) -> TimeInterval {
         guard let startedAt else { return 0 }
@@ -276,6 +279,14 @@ struct WodTimerView: View {
                     Spacer()
                     Color.clear.frame(width: 40, height: 40)
                 }
+                Button { choosingPlace = true } label: {
+                    Label(GymLocation.shared.gym(gymID)?.name ?? (placeAsked ? "Sem local" : "Onde você está?"), systemImage: "mappin.and.ellipse")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(gymID != nil ? Theme.accent.opacity(0.18) : Theme.raised, in: .capsule)
+                        .foregroundStyle(gymID != nil ? Theme.accent : .white)
+                }
+                .buttonStyle(GMPress())
                 if !wod.lines.isEmpty {
                     GMCard { ForEach(wod.lines, id: \.self) { Text($0).font(.subheadline.weight(.semibold)) } }
                 }
@@ -313,11 +324,25 @@ struct WodTimerView: View {
             WorkoutIntentBridge.addRound = nil
             Task { await LiveWod.end() }
         }
+        .gmSheet(isPresented: $choosingPlace) { close in
+            GymChooserView { g in
+                gymID = g?.uuid
+                placeAsked = true
+                close()
+            }
+        }
+        .task {
+            guard !placeAsked else { return }
+            switch await PlaceDetector.detect() {
+            case .known(let g): gymID = g.uuid; placeAsked = true
+            case .ask: choosingPlace = true
+            }
+        }
         .gmActions(isPresented: $confirmQuit, title: "Sair do WOD?", message: "O tempo não será salvo.", actions: [
             GMAction("Sair sem salvar", icon: "xmark", destructive: true) { dismiss() }
         ])
         .gmModal(item: Binding(get: { finished.map { FinishedWod(seconds: $0) } }, set: { if $0 == nil { finished = nil } })) { f in
-            WodResultForm(wod: wod, seconds: f.seconds, rounds: counter.rounds) { dismiss() }
+            WodResultForm(wod: wod, seconds: f.seconds, rounds: counter.rounds, gymID: gymID) { dismiss() }
         }
     }
 
@@ -484,6 +509,7 @@ struct WodResultForm: View {
     let wod: Wod
     let seconds: Int
     let rounds: Int
+    var gymID: UUID? = nil
     let onDone: () -> Void
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -530,6 +556,7 @@ struct WodResultForm: View {
         r.note = note
         let activity = Activity(kind: .crossfit, date: Date.now.addingTimeInterval(-TimeInterval(seconds)),
                                 minutes: max(seconds / 60, 1), effort: effort, note: "\(wod.name) · \(r.text)")
+        activity.gymUUID = gymID
         context.insert(activity)
         r.activityUUID = activity.uuid
         context.insert(r)

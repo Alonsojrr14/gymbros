@@ -139,7 +139,7 @@ struct MainView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.startWorkout)) { _ in tab = 1 }
-        .gmActions(isPresented: $arrivalPrompt, title: "Chegou na \(GymLocation.shared.gym?.name ?? "academia") 💪",
+        .gmActions(isPresented: $arrivalPrompt, title: "Chegou na \(GymLocation.shared.insideGym?.name ?? "academia") 💪",
                    message: GymLocation.todayRoutineName().map { "Hoje é dia de \($0)." } ?? "Bora treinar?",
                    actions: [GMAction("Começar treino", icon: "play.fill") {
                        GymLocation.shared.pendingArrival = nil

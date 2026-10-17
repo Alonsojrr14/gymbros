@@ -333,7 +333,7 @@ struct JoinLeagueView: View {
 /// Publica a mesma atividade em uma ou mais ligas
 @MainActor
 func postCheckIns(activity: Activity, leagues: Set<UUID>, title: String, note: String, photo: Data?, context: ModelContext) {
-    let place = GymLocation.shared.placeNow
+    let place = GymLocation.shared.gym(activity.gymUUID)?.name ?? GymLocation.shared.placeNow
     for id in leagues {
         let c = LeagueCheckIn(leagueUUID: id, activityUUID: activity.uuid,
                               title: title.isEmpty ? activity.kind.name : title, note: note, date: activity.date, photo: photo)

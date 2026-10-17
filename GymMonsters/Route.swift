@@ -286,19 +286,23 @@ struct RouteMap: View {
     }
 }
 
-// MARK: - Escolher a academia no mapa
+// MARK: - Lugar de treino no mapa (criar ou editar)
 
-struct GymPickerView: View {
+struct GymEditorView: View {
+    /// nil = lugar novo
+    let gym: Gym?
     @Environment(\.dismiss) private var dismiss
-    @State private var name = GymLocation.shared.gym?.name ?? "Minha academia"
-    @State private var center: CLLocationCoordinate2D? = GymLocation.shared.gym?.coordinate
-    @State private var radius = GymLocation.shared.gym?.radius ?? 100
+    @State private var name = ""
+    @State private var center: CLLocationCoordinate2D?
+    @State private var radius = 100.0
     @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var locating = false
+    @State private var suggestions: [(name: String, meters: Double)] = []
+    @State private var confirmDelete = false
 
     var body: some View {
-        GMModal("Minha academia", confirm: "Salvar", confirmEnabled: center != nil, onConfirm: save) {
-            GMSection("Local", footer: "Toque no mapa para marcar a academia, ou use sua localização atual se estiver lá agora.") {
+        GMModal(gym == nil ? "Novo lugar" : "Editar lugar", confirm: "Salvar", confirmEnabled: center != nil, onConfirm: save) {
+            GMSection("Local", footer: "Toque no mapa para marcar, ou use sua localização atual se estiver lá agora.") {
                 MapReader { proxy in
                     Map(position: $camera) {
                         UserAnnotation()
@@ -310,7 +314,7 @@ struct GymPickerView: View {
                         }
                     }
                     .onTapGesture { point in
-                        if let c = proxy.convert(point, from: .local) { center = c }
+                        if let c = proxy.convert(point, from: .local) { center = c; Task { await suggest(CLLocation(latitude: c.latitude, longitude: c.longitude)) } }
                     }
                 }
                 .frame(height: 280)
@@ -321,26 +325,138 @@ struct GymPickerView: View {
                         if let loc = await GymLocation.shared.currentLocation() {
                             center = loc.coordinate
                             camera = .region(MKCoordinateRegion(center: loc.coordinate, latitudinalMeters: 600, longitudinalMeters: 600))
+                            await suggest(loc)
                         }
                         locating = false
                     }
                 }
             }
-            GMSection("Nome") { GMTextField(placeholder: "Ex.: Smart Fit Paulista", text: $name) }
+            GMSection("Nome") {
+                GMTextField(placeholder: "Ex.: Smart Fit Paulista", text: $name)
+                if !suggestions.isEmpty {
+                    Text("Academias aqui perto").font(.caption).foregroundStyle(Theme.dim)
+                    GMFlow {
+                        ForEach(suggestions, id: \.name) { s in GMChip(title: s.name, selected: name == s.name) { name = s.name } }
+                    }
+                }
+            }
             GMSection("Raio", footer: "Uma academia comum cabe em 100 m. Aumente se o GPS da região for impreciso.") {
                 GMChoiceChips(options: [(50.0, "50 m"), (100.0, "100 m"), (150.0, "150 m"), (250.0, "250 m")], selection: $radius)
             }
+            if let gym {
+                GMSection(footer: "O histórico de treinos continua; só o lugar some.") {
+                    GMRow(icon: "trash", iconTint: Theme.danger, title: "Apagar \(gym.name)") { confirmDelete = true }
+                }
+            }
         }
+        .gmActions(isPresented: $confirmDelete, title: "Apagar \(gym?.name ?? "")?", actions: [
+            GMAction("Apagar lugar", icon: "trash", destructive: true) {
+                if let gym { GymLocation.shared.delete(gym) }
+                dismiss()
+            }
+        ])
         .onAppear {
-            if let c = center { camera = .region(MKCoordinateRegion(center: c, latitudinalMeters: 600, longitudinalMeters: 600)) }
+            guard let g = gym else { return }
+            name = g.name
+            center = g.coordinate
+            radius = g.radius
+            camera = .region(MKCoordinateRegion(center: g.coordinate, latitudinalMeters: 600, longitudinalMeters: 600))
         }
+    }
+
+    private func suggest(_ loc: CLLocation) async {
+        suggestions = await GymLocation.shared.suggestions(near: loc)
+        if name.isEmpty, let first = suggestions.first, first.meters < 150 { name = first.name }
     }
 
     private func save() {
         guard let center else { return }
-        GymLocation.shared.gym = GymLocation.Gym(name: name.trimmingCharacters(in: .whitespaces).isEmpty ? "Minha academia" : name,
-                                                 latitude: center.latitude, longitude: center.longitude, radius: radius)
-        GymLocation.shared.requestAlways()
+        if let gym {
+            gym.name = name.trimmingCharacters(in: .whitespaces).isEmpty ? gym.name : name
+            gym.latitude = center.latitude
+            gym.longitude = center.longitude
+            gym.radius = radius
+            try? AppData.container.mainContext.save()
+            GymLocation.shared.startMonitoring()
+        } else {
+            GymLocation.shared.add(name: name, at: center, radius: radius)
+        }
         dismiss()
+    }
+}
+
+// MARK: - "Onde você está treinando?"
+
+/// Ao começar um treino num lugar desconhecido: escolhe um lugar salvo, salva um novo ou segue sem lugar
+struct GymChooserView: View {
+    let onPick: (Gym?) -> Void
+    @State private var here: CLLocation?
+    @State private var nearby: [(gym: Gym, meters: Double)] = []
+    @State private var suggestions: [(name: String, meters: Double)] = []
+    @State private var newName = ""
+    @State private var loading = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Onde você está treinando?").font(.headline)
+            if loading {
+                HStack { Spacer(); Text("Procurando…").foregroundStyle(Theme.dim); Spacer() }.padding(.vertical, 20)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if !nearby.isEmpty {
+                            Text("Seus lugares por perto").font(.caption.bold()).foregroundStyle(Theme.dim)
+                            ForEach(nearby, id: \.gym.uuid) { n in
+                                GMRow(icon: "dumbbell.fill", iconTint: Theme.accent, title: n.gym.name, subtitle: distance(n.meters),
+                                      action: { onPick(n.gym) }) { EmptyView() }
+                            }
+                        }
+                        if here != nil {
+                            Text("Salvar um lugar novo aqui").font(.caption.bold()).foregroundStyle(Theme.dim).padding(.top, 6)
+                            if !suggestions.isEmpty {
+                                GMFlow {
+                                    ForEach(suggestions, id: \.name) { s in
+                                        GMChip(title: "\(s.name) · \(distance(s.meters))", selected: newName == s.name) { newName = s.name }
+                                    }
+                                }
+                            }
+                            GMTextField(placeholder: "Nome do lugar", text: $newName)
+                            GMButton("Salvar e usar este lugar", icon: "plus", enabled: !newName.trimmingCharacters(in: .whitespaces).isEmpty) {
+                                if let here { onPick(GymLocation.shared.add(name: newName, at: here.coordinate)) }
+                            }
+                        } else {
+                            Text("Não consegui sua localização. Confira a permissão em Ajustes do iPhone → GymBros → Localização.")
+                                .font(.caption).foregroundStyle(Theme.dim)
+                        }
+                    }
+                }
+                .frame(maxHeight: 420)
+            }
+            GMButton("Não estou numa academia", kind: .ghost) { onPick(nil) }
+        }
+        .task {
+            here = await GymLocation.shared.currentLocation()
+            if let here {
+                nearby = GymLocation.shared.nearby(here)
+                suggestions = await GymLocation.shared.suggestions(near: here)
+                if let first = suggestions.first, first.meters < 150 { newName = first.name }
+            }
+            loading = false
+        }
+    }
+
+    private func distance(_ m: Double) -> String { m < 1000 ? "\(Int(m)) m" : kmText(m) }
+}
+
+/// Identifica o lugar ao começar um treino: lugar conhecido é escolhido sozinho; senão, pergunta
+@MainActor
+enum PlaceDetector {
+    enum Result { case known(Gym), ask }
+
+    static func detect() async -> Result {
+        if let g = GymLocation.shared.insideGym { return .known(g) }
+        guard let loc = await GymLocation.shared.currentLocation() else { return .ask }
+        if let g = GymLocation.shared.gym(containing: loc) { return .known(g) }
+        return .ask
     }
 }

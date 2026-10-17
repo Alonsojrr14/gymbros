@@ -61,6 +61,10 @@ final class WorkoutSession {
     /// Descanso em andamento (salvo para o Live Activity poder controlar com o app fechado)
     var restEnd: Date?
     var restTotal: Int = 90
+    /// Lugar onde o treino está sendo feito
+    var gymUUID: UUID?
+    /// Já perguntou/identificou o lugar (não pergunta de novo)
+    var placeAsked: Bool = false
     @Relationship(deleteRule: .cascade, inverse: \LoggedSet.session) var sets: [LoggedSet] = []
 
     init(title: String, routineUUID: UUID?) {

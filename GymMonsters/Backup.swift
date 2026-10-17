@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import SwiftData
 import SwiftUI
@@ -28,9 +29,15 @@ struct Backup: Codable {
     var checkIns: [CheckInDTO]? = nil
     var routes: [RouteDTO]? = nil
     var visits: [VisitDTO]? = nil
+    var gyms: [GymDTO]? = nil
 
     struct VisitDTO: Codable {
         var uuid: UUID, gymName: String, start: Date, end: Date?
+        var gymUUID: UUID?
+    }
+
+    struct GymDTO: Codable {
+        var uuid: UUID, name: String, latitude: Double, longitude: Double, radius: Double, createdAt: Date
     }
     var wods: [WodDTO]? = nil
 
@@ -56,6 +63,7 @@ struct Backup: Codable {
     struct ActivityDTO: Codable {
         var uuid: UUID, kind: String, date: Date, minutes: Int, effort: Int, note: String
         var healthUUID: String?, source: String?, monsterUUID: UUID?
+        var gymUUID: UUID?
     }
 
     struct MonsterDTO: Codable {
@@ -94,7 +102,7 @@ struct Backup: Codable {
             settings: Dictionary(uniqueKeysWithValues: settingKeys.compactMap { k in d.string(forKey: k).map { (k, $0) } }),
             activities: try context.fetch(FetchDescriptor<Activity>()).map {
                 ActivityDTO(uuid: $0.uuid, kind: $0.kindRaw, date: $0.date, minutes: $0.minutes, effort: $0.effort,
-                            note: $0.note, healthUUID: $0.healthUUID, source: $0.source, monsterUUID: $0.monsterUUID)
+                            note: $0.note, healthUUID: $0.healthUUID, source: $0.source, monsterUUID: $0.monsterUUID, gymUUID: $0.gymUUID)
             },
             routines: try context.fetch(FetchDescriptor<Routine>()).map { r in
                 RoutineDTO(uuid: r.uuid, name: r.name, weekdays: r.weekdaysRaw, order: r.order, items: r.sortedItems.map {
@@ -130,7 +138,12 @@ struct Backup: Codable {
                 RouteDTO(uuid: $0.uuid, activityUUID: $0.activityUUID, kind: $0.kindRaw, start: $0.start, seconds: $0.seconds,
                          meters: $0.meters, points: $0.points)
             },
-            visits: try context.fetch(FetchDescriptor<GymVisit>()).map { VisitDTO(uuid: $0.uuid, gymName: $0.gymName, start: $0.start, end: $0.end) },
+            visits: try context.fetch(FetchDescriptor<GymVisit>()).map {
+                VisitDTO(uuid: $0.uuid, gymName: $0.gymName, start: $0.start, end: $0.end, gymUUID: $0.gymUUID)
+            },
+            gyms: try context.fetch(FetchDescriptor<Gym>()).map {
+                GymDTO(uuid: $0.uuid, name: $0.name, latitude: $0.latitude, longitude: $0.longitude, radius: $0.radius, createdAt: $0.createdAt)
+            },
             wods: try context.fetch(FetchDescriptor<WodResult>()).map {
                 WodDTO(uuid: $0.uuid, wodID: $0.wodID, wodName: $0.wodName, formatName: $0.formatName, date: $0.date,
                        seconds: $0.seconds, rounds: $0.rounds, reps: $0.reps, rx: $0.rx, note: $0.note, activityUUID: $0.activityUUID)
@@ -155,6 +168,7 @@ struct Backup: Codable {
         try context.delete(model: WodResult.self)
         try context.delete(model: RouteRecord.self)
         try context.delete(model: GymVisit.self)
+        try context.delete(model: Gym.self)
 
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
@@ -162,6 +176,7 @@ struct Backup: Codable {
             act.healthUUID = a.healthUUID
             act.source = a.source
             act.monsterUUID = a.monsterUUID
+            act.gymUUID = a.gymUUID
             context.insert(act)
         }
         for r in routines {
@@ -224,8 +239,19 @@ struct Backup: Codable {
             route.uuid = r.uuid; route.activityUUID = r.activityUUID; route.seconds = r.seconds; route.meters = r.meters; route.points = r.points
             context.insert(route)
         }
+        var restoredGyms: [UUID: Gym] = [:]
+        for g in gyms ?? [] {
+            let gym = Gym(name: g.name, coordinate: CLLocationCoordinate2D(latitude: g.latitude, longitude: g.longitude), radius: g.radius)
+            gym.uuid = g.uuid
+            gym.createdAt = g.createdAt
+            context.insert(gym)
+            restoredGyms[g.uuid] = gym
+        }
         for v in visits ?? [] {
-            let visit = GymVisit(gymName: v.gymName)
+            // Visitas de backups antigos (sem lugar) ficam no primeiro lugar com o mesmo nome, ou num novo
+            let gym = v.gymUUID.flatMap { restoredGyms[$0] } ?? restoredGyms.values.first { $0.name == v.gymName }
+                ?? Gym(name: v.gymName, coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0))
+            let visit = GymVisit(gym: gym)
             visit.uuid = v.uuid; visit.start = v.start; visit.end = v.end
             context.insert(visit)
         }

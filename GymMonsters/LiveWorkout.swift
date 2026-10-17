@@ -10,7 +10,7 @@ enum AppData {
     static let container: ModelContainer = {
         try! ModelContainer(for: Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
                             CustomExercise.self, League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
-                            WodResult.self, RouteRecord.self, GymVisit.self)
+                            WodResult.self, RouteRecord.self, GymVisit.self, Gym.self)
     }()
 }
 
@@ -166,6 +166,7 @@ enum LiveWorkout {
         }
         let minutes = max(Int(Date.now.timeIntervalSince(s.start) / 60), 1)
         let activity = Activity(kind: .musculacao, date: s.start, minutes: minutes, effort: s.effort, note: s.title + (place.map { " · 📍 \($0)" } ?? ""))
+        activity.gymUUID = s.gymUUID
         ctx.insert(activity)
         s.end = .now
         s.activityUUID = activity.uuid
@@ -181,6 +182,11 @@ enum LiveWorkout {
                                                                       sortBy: [SortDescriptor(\.start)]))) ?? []
         let history = finished.map(\.log)
         let session = WorkoutSession(title: routine?.name ?? "Treino livre", routineUUID: routine?.uuid)
+        // Se já está num lugar conhecido (evento de chegada), usa ele
+        if let g = GymLocation.shared.insideGym {
+            session.gymUUID = g.uuid
+            session.placeAsked = true
+        }
         ctx.insert(session)
         for (i, item) in (routine?.sortedItems ?? []).enumerated() {
             let sug = Progression.suggest(exerciseID: item.exerciseID, sets: item.sets, reps: item.reps, history: history)

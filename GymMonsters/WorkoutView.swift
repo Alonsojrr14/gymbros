@@ -23,6 +23,7 @@ struct WorkoutView: View {
     @State private var restPicker: RestTarget?
     @State private var restDraft = 90
     @State private var historyFor: String?
+    @State private var choosingPlace = false
     @Query(filter: #Predicate<WorkoutSession> { $0.end != nil }, sort: \WorkoutSession.start, order: .reverse) private var doneSessions: [WorkoutSession]
     @State private var headphones = HeadphoneControl.shared.isOn
     @State private var headphoneInfo = false
@@ -33,6 +34,7 @@ struct WorkoutView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            placeChip
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 12) {
@@ -125,6 +127,15 @@ struct WorkoutView: View {
                 }
             }
         }
+        .gmSheet(isPresented: $choosingPlace) { close in
+            GymChooserView { g in
+                session.gymUUID = g?.uuid
+                session.placeAsked = true
+                try? context.save()
+                close()
+            }
+        }
+        .task { await detectPlace() }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
@@ -170,6 +181,35 @@ struct WorkoutView: View {
     }
 
     private var currentID: String? { LiveWorkout.currentExercise(session) }
+
+    /// Onde está treinando: toque para trocar
+    private var placeChip: some View {
+        let g = GymLocation.shared.gym(session.gymUUID)
+        return Button { choosingPlace = true } label: {
+            Label(g?.name ?? (session.placeAsked ? "Sem local" : "Onde você está?"), systemImage: "mappin.and.ellipse")
+                .font(.caption.bold())
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(g != nil ? Theme.accent.opacity(0.18) : Theme.raised, in: .capsule)
+                .foregroundStyle(g != nil ? Theme.accent : .white)
+        }
+        .buttonStyle(GMPress())
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 4)
+    }
+
+    /// Lugar conhecido é escolhido sozinho; desconhecido, pergunta (uma vez por treino)
+    private func detectPlace() async {
+        guard !session.placeAsked else { return }
+        switch await PlaceDetector.detect() {
+        case .known(let g):
+            session.gymUUID = g.uuid
+            session.placeAsked = true
+            try? context.save()
+        case .ask:
+            choosingPlace = true
+        }
+    }
 
     private func toggleHeadphones() {
         if headphones { HeadphoneControl.shared.stop() } else { HeadphoneControl.shared.start() }
@@ -578,6 +618,7 @@ struct FinishWorkoutView: View {
 
     private func save() {
         let activity = Activity(kind: .musculacao, date: session.start, minutes: minutes, effort: effort, note: session.title)
+        activity.gymUUID = session.gymUUID
         context.insert(activity)
         let summary = records.isEmpty ? "" : "🏆 " + records.joined(separator: " · ")
         postCheckIns(activity: activity, leagues: leagues, title: session.title, note: summary, photo: photo, context: context)

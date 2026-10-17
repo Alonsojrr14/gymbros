@@ -16,6 +16,8 @@ final class Activity {
     var source: String?
     /// Monstro que recebe o XP quando a atividade não é postada em nenhuma liga
     var monsterUUID: UUID?
+    /// Lugar de treino (academia) onde foi feita
+    var gymUUID: UUID?
 
     init(kind: ActivityKind, date: Date, minutes: Int, effort: Int, note: String = "") {
         self.kindRaw = kind.rawValue

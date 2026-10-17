@@ -1,21 +1,51 @@
 import CoreLocation
+import MapKit
 import SwiftData
 import UserNotifications
 
-/// "Minha academia": raio no mapa, aviso ao chegar e fim automático do treino ao sair.
-/// Usa o CLMonitor do iOS 17, que acorda o app em segundo plano ao entrar/sair do raio.
+/// Um lugar onde a pessoa treina (academia, box de CrossFit, condomínio…)
+@Model
+final class Gym {
+    var uuid: UUID = UUID()
+    var name: String = ""
+    var latitude: Double = 0
+    var longitude: Double = 0
+    var radius: Double = 100
+    var createdAt: Date = Date.now
+
+    init(name: String, coordinate: CLLocationCoordinate2D, radius: Double = 100) {
+        self.name = name
+        self.latitude = coordinate.latitude
+        self.longitude = coordinate.longitude
+        self.radius = radius
+    }
+
+    var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: latitude, longitude: longitude) }
+    var location: CLLocation { CLLocation(latitude: latitude, longitude: longitude) }
+}
+
+/// Uma ida a um lugar de treino: da entrada à saída do raio
+@Model
+final class GymVisit {
+    var uuid: UUID = UUID()
+    var gymUUID: UUID?
+    var gymName: String = ""
+    var start: Date = Date.now
+    var end: Date?
+
+    init(gym: Gym) {
+        self.gymUUID = gym.uuid
+        self.gymName = gym.name
+    }
+
+    var minutes: Int? { end.map { max(Int($0.timeIntervalSince(start) / 60), 0) } }
+}
+
+/// Lugares de treino: identifica onde a pessoa está, avisa ao chegar e encerra o treino ao sair.
+/// Usa o CLMonitor do iOS 17 (até 20 lugares), que acorda o app em segundo plano ao entrar/sair de um raio.
 @MainActor
 final class GymLocation: NSObject, CLLocationManagerDelegate {
     static let shared = GymLocation()
-
-    struct Gym: Codable, Equatable {
-        var name: String
-        var latitude: Double
-        var longitude: Double
-        var radius: Double
-
-        var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: latitude, longitude: longitude) }
-    }
 
     let manager = CLLocationManager()
     private var monitorTask: Task<Void, Never>?
@@ -23,6 +53,8 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
 
     /// Treinos com menos tempo que isso não são encerrados ao sair (evita falso alarme do GPS)
     static let minWorkoutMinutes = 10.0
+    /// Até onde procurar lugares salvos e academias por perto ao perguntar
+    static let nearbyMeters = 3000.0
 
     override init() {
         super.init()
@@ -30,15 +62,60 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         manager.desiredAccuracy = kCLLocationAccuracyBest
     }
 
-    // MARK: Configuração
+    private var ctx: ModelContext { AppData.container.mainContext }
 
-    var gym: Gym? {
-        get { UserDefaults.standard.data(forKey: "gym").flatMap { try? JSONDecoder().decode(Gym.self, from: $0) } }
-        set {
-            UserDefaults.standard.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: "gym")
-            startMonitoring()
-        }
+    // MARK: Lugares
+
+    var gyms: [Gym] { (try? ctx.fetch(FetchDescriptor<Gym>(sortBy: [SortDescriptor(\.createdAt)]))) ?? [] }
+
+    func gym(_ id: UUID?) -> Gym? {
+        guard let id else { return nil }
+        return try? ctx.fetch(FetchDescriptor<Gym>(predicate: #Predicate { $0.uuid == id })).first
     }
+
+    @discardableResult
+    func add(name: String, at coordinate: CLLocationCoordinate2D, radius: Double = 100) -> Gym {
+        let g = Gym(name: name.trimmingCharacters(in: .whitespaces).isEmpty ? "Academia" : name, coordinate: coordinate, radius: radius)
+        ctx.insert(g)
+        try? ctx.save()
+        startMonitoring()
+        requestAlways()
+        return g
+    }
+
+    func delete(_ g: Gym) {
+        if insideID == g.uuid { insideID = nil }
+        ctx.delete(g)
+        try? ctx.save()
+        startMonitoring()
+    }
+
+    /// Lugar salvo que contém a localização (o mais próximo, se houver mais de um)
+    func gym(containing loc: CLLocation) -> Gym? {
+        gyms.map { ($0, $0.location.distance(from: loc)) }
+            .filter { $0.1 <= max($0.0.radius, loc.horizontalAccuracy) }
+            .min { $0.1 < $1.1 }?.0
+    }
+
+    /// Lugares salvos por perto, do mais próximo ao mais distante
+    func nearby(_ loc: CLLocation) -> [(gym: Gym, meters: Double)] {
+        gyms.map { ($0, $0.location.distance(from: loc)) }.filter { $0.1 <= Self.nearbyMeters }.sorted { $0.1 < $1.1 }
+    }
+
+    /// Academias reais por perto, pelo mapa da Apple (para sugerir o nome de um lugar novo)
+    func suggestions(near loc: CLLocation) async -> [(name: String, meters: Double)] {
+        let req = MKLocalPointsOfInterestRequest(center: loc.coordinate, radius: 400)
+        req.pointOfInterestFilter = MKPointOfInterestFilter(including: [.fitnessCenter])
+        guard let items = try? await MKLocalSearch(request: req).start().mapItems else { return [] }
+        return items.compactMap { item in
+            guard let name = item.name, let l = item.placemark.location else { return nil }
+            return (name, l.distance(from: loc))
+        }
+        .sorted { $0.1 < $1.1 }
+        .prefix(5).map { $0 }
+    }
+
+    // MARK: Preferências
 
     var notifyArrival: Bool {
         get { UserDefaults.standard.object(forKey: "gymNotifyArrival") as? Bool ?? true }
@@ -50,11 +127,13 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         set { UserDefaults.standard.set(newValue, forKey: "gymAutoFinish") }
     }
 
-    /// Está dentro do raio agora (último evento recebido)
-    var inside: Bool {
-        get { UserDefaults.standard.bool(forKey: "gymInside") }
-        set { UserDefaults.standard.set(newValue, forKey: "gymInside") }
+    /// Lugar em que está agora (último evento de entrada)
+    var insideID: UUID? {
+        get { UserDefaults.standard.string(forKey: "gymInsideID").flatMap(UUID.init) }
+        set { UserDefaults.standard.set(newValue?.uuidString, forKey: "gymInsideID") }
     }
+
+    var insideGym: Gym? { gym(insideID) }
 
     /// Chegada recente ainda sem treino começado (o app oferece começar ao abrir)
     var pendingArrival: Date? {
@@ -62,8 +141,8 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         set { UserDefaults.standard.set(newValue, forKey: "gymArrival") }
     }
 
-    /// Nome do local para check-ins feitos agora (só quando está na academia)
-    var placeNow: String? { inside ? gym?.name : nil }
+    /// Nome do lugar para check-ins feitos agora
+    var placeNow: String? { insideGym?.name }
 
     var authorization: CLAuthorizationStatus { manager.authorizationStatus }
 
@@ -72,7 +151,8 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         manager.requestAlwaysAuthorization()
     }
 
-    /// Localização atual uma vez (para marcar a academia)
+    // MARK: Localização atual
+
     func currentLocation() async -> CLLocation? {
         if manager.authorizationStatus == .notDetermined { manager.requestWhenInUseAuthorization() }
         return await withCheckedContinuation { c in
@@ -101,18 +181,23 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
 
     /// Precisa rodar a cada abertura do app (inclusive quando o iOS o acorda em segundo plano)
     func startMonitoring() {
+        migrateSingleGym()
         monitorTask?.cancel()
+        let list = recentGyms(limit: 20)
         monitorTask = Task { @MainActor in
             let monitor = await CLMonitor("gymbros")
             for id in await monitor.identifiers { await monitor.remove(id) }
-            guard let gym = self.gym else { return }
-            await monitor.add(CLMonitor.CircularGeographicCondition(center: gym.coordinate, radius: gym.radius),
-                              identifier: "gym", assuming: self.inside ? .satisfied : .unsatisfied)
+            for g in list {
+                await monitor.add(CLMonitor.CircularGeographicCondition(center: g.coordinate, radius: g.radius),
+                                  identifier: g.uuid.uuidString, assuming: insideID == g.uuid ? .satisfied : .unsatisfied)
+            }
+            guard !list.isEmpty else { return }
             do {
                 for try await event in await monitor.events {
+                    guard let id = UUID(uuidString: event.identifier), let g = self.gym(id) else { continue }
                     switch event.state {
-                    case .satisfied: await self.arrived()
-                    case .unsatisfied: await self.left()
+                    case .satisfied: await self.arrived(g)
+                    case .unsatisfied: await self.left(g)
                     default: break
                     }
                 }
@@ -120,34 +205,54 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    private func arrived() async {
-        guard !inside else { return }
-        inside = true
-        let ctx = AppData.container.mainContext
-        ctx.insert(GymVisit(gymName: gym?.name ?? "Academia"))
+    /// O iOS monitora até 20 lugares: os visitados mais recentemente
+    private func recentGyms(limit: Int) -> [Gym] {
+        let visits = (try? ctx.fetch(FetchDescriptor<GymVisit>(sortBy: [SortDescriptor(\.start, order: .reverse)]))) ?? []
+        let last = Dictionary(visits.compactMap { v in v.gymUUID.map { ($0, v.start) } }, uniquingKeysWith: { a, _ in a })
+        return gyms.sorted { (last[$0.uuid] ?? $0.createdAt) > (last[$1.uuid] ?? $1.createdAt) }.prefix(limit).map { $0 }
+    }
+
+    /// Versões anteriores guardavam uma academia só, fora do banco
+    private func migrateSingleGym() {
+        guard let data = UserDefaults.standard.data(forKey: "gym") else { return }
+        struct Old: Codable { var name: String; var latitude: Double; var longitude: Double; var radius: Double }
+        if let old = try? JSONDecoder().decode(Old.self, from: data) {
+            let g = Gym(name: old.name, coordinate: CLLocationCoordinate2D(latitude: old.latitude, longitude: old.longitude), radius: old.radius)
+            ctx.insert(g)
+            for v in (try? ctx.fetch(FetchDescriptor<GymVisit>())) ?? [] where v.gymUUID == nil { v.gymUUID = g.uuid }
+            if UserDefaults.standard.bool(forKey: "gymInside") { insideID = g.uuid }
+            try? ctx.save()
+        }
+        UserDefaults.standard.removeObject(forKey: "gym")
+    }
+
+    private func arrived(_ g: Gym) async {
+        guard insideID != g.uuid else { return }
+        insideID = g.uuid
+        ctx.insert(GymVisit(gym: g))
         try? ctx.save()
         guard notifyArrival, LiveWorkout.runningSession == nil else { return }
         pendingArrival = .now
         let routine = Self.todayRoutineName()
-        notify(id: "gym-arrival", title: "Chegou na \(gym?.name ?? "academia") 💪",
+        notify(id: "gym-arrival", title: "Chegou na \(g.name) 💪",
                body: routine.map { "Começar \($0)? Toque para abrir o treino." } ?? "Bora treinar? Toque para começar.",
                category: "ARRIVAL")
     }
 
-    private func left() async {
-        guard inside else { return }
-        inside = false
+    private func left(_ g: Gym) async {
+        guard insideID == g.uuid else { return }
+        insideID = nil
         pendingArrival = nil
-        let ctx = AppData.container.mainContext
         if let open = try? ctx.fetch(FetchDescriptor<GymVisit>(predicate: #Predicate { $0.end == nil },
                                                                sortBy: [SortDescriptor(\.start, order: .reverse)])).first {
             open.end = .now
             try? ctx.save()
         }
-        guard autoFinish, let s = LiveWorkout.runningSession,
+        // Encerra só o treino daquele lugar (ou sem lugar definido)
+        guard autoFinish, let s = LiveWorkout.runningSession, s.gymUUID == nil || s.gymUUID == g.uuid,
               Date.now.timeIntervalSince(s.start) >= Self.minWorkoutMinutes * 60 else { return }
-        let summary = await LiveWorkout.autoFinish(s, place: gym?.name)
-        notify(id: "gym-finished", title: "Treino encerrado ao sair da academia", body: summary, category: nil)
+        let summary = await LiveWorkout.autoFinish(s, place: g.name)
+        notify(id: "gym-finished", title: "Treino encerrado ao sair da \(g.name)", body: summary, category: nil)
     }
 
     private func notify(id: String, title: String, body: String, category: String?) {
@@ -166,7 +271,7 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
     }
 }
 
-/// Toques nas notificações (ex.: "Começar treino" ao chegar na academia)
+/// Toques nas notificações (ex.: "Começar treino" ao chegar num lugar de treino)
 final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationRouter()
     static let startWorkout = Notification.Name("gymbros.startWorkout")
@@ -187,19 +292,4 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound]
     }
-}
-
-/// Uma ida à academia: da entrada à saída do raio
-@Model
-final class GymVisit {
-    var uuid: UUID = UUID()
-    var gymName: String = ""
-    var start: Date = Date.now
-    var end: Date?
-
-    init(gymName: String) {
-        self.gymName = gymName
-    }
-
-    var minutes: Int? { end.map { max(Int($0.timeIntervalSince(start) / 60), 0) } }
 }
