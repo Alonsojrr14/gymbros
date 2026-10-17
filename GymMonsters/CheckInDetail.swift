@@ -27,7 +27,8 @@ struct CheckInDetailView: View {
     @AppStorage("trainerName") private var trainerName = ""
     @State private var text = ""
     @State private var menu = false
-    @State private var editing: LeagueCheckIn?
+    @State private var editing: Activity?
+    @Query private var activities: [Activity]
     @State private var confirmDelete = false
     @State private var reacting = false
     @State private var commentMenu: CheckInComment?
@@ -70,7 +71,8 @@ struct CheckInDetailView: View {
                 dismiss()
             }
         ])
-        .gmModal(item: $editing) { CheckInEditView(checkIn: $0) }
+        // Edita a atividade e o post juntos: destinos (perfil e ligas), título, foto e local
+        .gmModal(item: $editing) { LogActivityView(snapshot: Snapshot(), editing: $0) }
         .gmActions(isPresented: Binding(get: { commentMenu != nil }, set: { if !$0 { commentMenu = nil } }), title: "Comentário",
                    actions: commentMenu.map { c in [
                        GMAction("Apagar comentário", icon: "trash", destructive: true) {
@@ -83,7 +85,9 @@ struct CheckInDetailView: View {
     private var menuActions: [GMAction] {
         var list = [GMAction("Compartilhar", icon: "square.and.arrow.up") { share() }]
         if let c = mine {
-            list.append(GMAction("Editar", icon: "pencil") { editing = c })
+            if let a = activities.first(where: { $0.uuid == c.activityUUID }) {
+                list.append(GMAction("Editar", icon: "pencil") { editing = a })
+            }
             list.append(GMAction("Apagar check-in", icon: "trash", destructive: true) { confirmDelete = true })
         }
         return list

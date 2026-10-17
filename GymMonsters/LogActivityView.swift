@@ -26,11 +26,20 @@ struct LogActivityView: View {
     @State private var choosingPlace = false
     @Query(sort: \Gym.createdAt) private var gyms: [Gym]
 
-    private var preview: (xp: Int, after: Snapshot) {
-        let new = ActivityRecord(id: UUID(), kind: kind, date: date, minutes: minutes, effort: effort)
+    @State private var loaded = false
+
+    /// XP desta atividade e o bro antes/depois. Na edição, a versão antiga sai da conta
+    /// (senão somaria o treino duas vezes e avisaria de uma evolução que não vai acontecer).
+    private var preview: (xp: Int, before: Snapshot, after: Snapshot) {
+        let id = editing?.uuid ?? UUID()
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
-        let after = Game.snapshot((roster.mainID.flatMap { roster.records[$0] } ?? []) + [new])
-        return (after.xpByActivity[new.id] ?? 0, after)
+        // Bro que recebe o XP desta atividade (na edição, o que já recebia)
+        let owner = editing.flatMap { e in roster.records.first { $0.value.contains { $0.id == e.uuid } }?.key } ?? roster.mainID
+        let current = owner.flatMap { roster.records[$0] } ?? []
+        let others = current.filter { $0.id != id }
+        let new = ActivityRecord(id: id, kind: kind, date: date, minutes: minutes, effort: effort)
+        let after = Game.snapshot(others + [new])
+        return (after.xpByActivity[id] ?? 0, Game.snapshot(current), after)
     }
 
     var body: some View {
@@ -78,7 +87,9 @@ struct LogActivityView: View {
             gyms.map { g in GMAction(g.name, icon: "dumbbell.fill") { place = g.name } }
             + [GMAction("Sem local", icon: "xmark") { place = nil }])
         .onAppear {
-            guard let a = editing else { return }
+            // Só na primeira vez: não pode desfazer o que a pessoa já mudou na tela
+            guard !loaded, let a = editing else { return }
+            loaded = true
             kind = a.kind
             date = a.date
             minutes = a.minutes
@@ -115,8 +126,8 @@ struct LogActivityView: View {
                     }
                 }
             }
-            if p.after.stage > snapshot.stage {
-                Text(snapshot.stage == .egg ? "Isso vai fazer o ovo chocar! 🥚" : "Isso vai fazer seu bro evoluir! ✨")
+            if p.after.stage > p.before.stage {
+                Text(p.before.stage == .egg ? "Isso vai fazer o ovo chocar! 🥚" : "Isso vai fazer seu bro evoluir! ✨")
                     .font(.subheadline.bold())
             } else if p.xp < Game.xp(kind: kind, minutes: minutes, effort: effort) {
                 Text("Você já treinou bastante nesse dia, então rende menos XP. Descanso também faz parte.")
