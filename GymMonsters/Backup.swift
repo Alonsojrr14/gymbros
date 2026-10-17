@@ -89,15 +89,18 @@ struct Backup: Codable {
 
     struct ItemDTO: Codable {
         var exerciseID: String, sets: Int, reps: Int, rest: Int, order: Int
+        var supersetNext: Bool? = nil
     }
 
     struct SessionDTO: Codable {
         var uuid: UUID, title: String, routineUUID: UUID?, start: Date, end: Date?, effort: Int, activityUUID: UUID?
         var sets: [SetDTO]
+        var superset: String? = nil
     }
 
     struct SetDTO: Codable {
         var exerciseID: String, exerciseOrder: Int, index: Int, weight: Double, reps: Int, targetReps: Int, rest: Int, done: Bool
+        var warmup: Bool? = nil
     }
 
     struct CustomDTO: Codable {
@@ -117,15 +120,15 @@ struct Backup: Codable {
             },
             routines: try context.fetch(FetchDescriptor<Routine>()).map { r in
                 RoutineDTO(uuid: r.uuid, name: r.name, weekdays: r.weekdaysRaw, order: r.order, items: r.sortedItems.map {
-                    ItemDTO(exerciseID: $0.exerciseID, sets: $0.sets, reps: $0.reps, rest: $0.rest, order: $0.order)
+                    ItemDTO(exerciseID: $0.exerciseID, sets: $0.sets, reps: $0.reps, rest: $0.rest, order: $0.order, supersetNext: $0.supersetNext)
                 })
             },
             sessions: try context.fetch(FetchDescriptor<WorkoutSession>()).map { s in
                 SessionDTO(uuid: s.uuid, title: s.title, routineUUID: s.routineUUID, start: s.start, end: s.end,
                            effort: s.effort, activityUUID: s.activityUUID, sets: s.orderedSets.map {
                     SetDTO(exerciseID: $0.exerciseID, exerciseOrder: $0.exerciseOrder, index: $0.index, weight: $0.weight,
-                           reps: $0.reps, targetReps: $0.targetReps, rest: $0.rest, done: $0.done)
-                })
+                           reps: $0.reps, targetReps: $0.targetReps, rest: $0.rest, done: $0.done, warmup: $0.warmup)
+                }, superset: s.supersetRaw)
             },
             customExercises: try context.fetch(FetchDescriptor<CustomExercise>()).map {
                 CustomDTO(uuid: $0.uuid, name: $0.name, group: $0.groupRaw, equipment: $0.equipment, type: $0.typeRaw, notes: $0.notes)
@@ -204,7 +207,9 @@ struct Backup: Codable {
             routine.weekdaysRaw = r.weekdays
             context.insert(routine)
             for i in r.items {
-                routine.items.append(RoutineItem(exerciseID: i.exerciseID, sets: i.sets, reps: i.reps, rest: i.rest, order: i.order))
+                let item = RoutineItem(exerciseID: i.exerciseID, sets: i.sets, reps: i.reps, rest: i.rest, order: i.order)
+                item.supersetNext = i.supersetNext ?? false
+                routine.items.append(item)
             }
         }
         for s in sessions {
@@ -213,6 +218,7 @@ struct Backup: Codable {
             session.start = s.start
             session.end = s.end
             session.effort = s.effort
+            session.supersetRaw = s.superset ?? ""
             session.activityUUID = s.activityUUID
             context.insert(session)
             for x in s.sets {
@@ -220,6 +226,7 @@ struct Backup: Codable {
                                     weight: x.weight, reps: x.reps, rest: x.rest)
                 set.targetReps = x.targetReps
                 set.done = x.done
+                set.warmup = x.warmup ?? false
                 session.sets.append(set)
             }
         }

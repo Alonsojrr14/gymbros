@@ -41,8 +41,17 @@ struct WorkoutView: View {
                         if session.exerciseIDs.isEmpty {
                             GMEmptyState(icon: "dumbbell", title: "Treino vazio", message: "Toque em + Exercício, aqui embaixo, para começar.")
                         }
-                        ForEach(Array(session.exerciseIDs.enumerated()), id: \.element) { _, id in
+                        ForEach(Array(session.exerciseIDs.enumerated()), id: \.element) { i, id in
                             exerciseCard(id).id(id)
+                            if session.linkedNext(id) && i < session.exerciseIDs.count - 1 {
+                                // Elo do superset
+                                Image(systemName: "link")
+                                    .font(.caption.bold())
+                                    .frame(width: 28, height: 28)
+                                    .background(Color.cyan.opacity(0.2), in: .circle)
+                                    .foregroundStyle(.cyan)
+                                    .padding(.vertical, -10)
+                            }
                         }
                     }
                     .padding(16)
@@ -220,6 +229,12 @@ struct WorkoutView: View {
     /// Terminou todas as séries de um exercício: recolhe e rola até o próximo que falta
     private func setToggled(_ id: String) {
         let sets = session.orderedSets.filter { $0.exerciseID == id }
+        // Superset: mostra o próximo do bloco
+        if let cur = session.currentExerciseID, cur != id, session.group(of: id).contains(cur), !sets.allSatisfy(\.done) {
+            collapsed.remove(cur)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { scrollTarget = cur }
+            return
+        }
         guard !sets.isEmpty, sets.allSatisfy(\.done) else { return }
         withAnimation(.snappy) { _ = collapsed.insert(id) }
         let ids = session.exerciseIDs
@@ -233,6 +248,28 @@ struct WorkoutView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { scrollTarget = next }
             }
         }
+    }
+
+    /// Três séries leves antes da carga de trabalho
+    private func addWarmup(_ ex: Exercise) {
+        let sets = session.orderedSets.filter { $0.exerciseID == ex.id }
+        guard let first = sets.first, first.weight > 0 else { return }
+        let warm = Progression.warmup(work: first.weight, increment: ex.increment, minimum: ex.usesBar && ex.weightIncludesBar ? 20 : 0)
+        sets.forEach { $0.index += warm.count }
+        for (k, w) in warm.enumerated() {
+            let s = LoggedSet(exerciseID: ex.id, exerciseOrder: first.exerciseOrder, index: k, weight: w.weight, reps: w.reps, rest: 60)
+            s.warmup = true
+            session.sets.append(s)
+        }
+        collapsed.remove(ex.id)
+        try? context.save()
+    }
+
+    private func removeWarmup(_ id: String) {
+        let sets = session.orderedSets.filter { $0.exerciseID == id }
+        sets.filter(\.warmup).forEach(context.delete)
+        for (k, s) in sets.filter({ !$0.warmup }).enumerated() { s.index = k }
+        try? context.save()
     }
 
     private func saveNote(_ id: String, _ text: String) {
@@ -262,6 +299,20 @@ struct WorkoutView: View {
             restDraft = rest
             restPicker = RestTarget(exerciseID: id)
         })
+        let ids = session.exerciseIDs
+        if let i = ids.firstIndex(of: id), i < ids.count - 1 {
+            let on = session.linkedNext(id)
+            list.append(GMAction(on ? "Separar de \(Exercise.name(ids[i + 1]))" : "Superset com \(Exercise.name(ids[i + 1]))", icon: on ? "link.badge.plus" : "link") {
+                session.setLinkedNext(id, !on)
+                try? context.save()
+            })
+        }
+        let sets = session.orderedSets.filter { $0.exerciseID == id }
+        if sets.contains(where: \.warmup) {
+            list.append(GMAction("Tirar aquecimento", icon: "flame") { removeWarmup(id) })
+        } else if let ex = Exercise.byID(id), ex.type == .weighted, (sets.first?.weight ?? 0) > 0 {
+            list.append(GMAction("Adicionar aquecimento", icon: "flame") { addWarmup(ex) })
+        }
         list.append(GMAction("Histórico de cargas", icon: "chart.line.uptrend.xyaxis") { historyFor = id })
         let current = notes.first { $0.exerciseID == id }?.text ?? ""
         list.append(GMAction(current.isEmpty ? "Adicionar nota" : "Editar nota", icon: "note.text") {
@@ -280,7 +331,10 @@ struct WorkoutView: View {
     private func exerciseCard(_ id: String) -> some View {
         let ex = Exercise.byID(id)
         let sets = session.orderedSets.filter { $0.exerciseID == id }
-        let suggestion = Progression.suggest(exerciseID: id, sets: sets.count, reps: sets.first?.targetReps ?? 10, history: history)
+        let work = sets.filter { !$0.warmup }
+        let warmups = sets.count - work.count
+        let suggestion = Progression.suggest(exerciseID: id, sets: work.count, reps: work.first?.targetReps ?? 10, history: history)
+        let group = session.group(of: id)
         let last = history.last { $0.sets.contains { $0.exerciseID == id } }
         let done = sets.filter(\.done).count
         let complete = !sets.isEmpty && done == sets.count
@@ -337,6 +391,12 @@ struct WorkoutView: View {
             }
             if !isCollapsed {
 
+            if group.count > 1 {
+                Label("Superset \((group.firstIndex(of: id) ?? 0) + 1)/\(group.count) · descanso depois de \(Exercise.name(group.last ?? id))",
+                      systemImage: "link")
+                    .font(.caption.bold())
+                    .foregroundStyle(.cyan)
+            }
             if let note = notes.first(where: { $0.exerciseID == id }), !note.text.isEmpty {
                 Button { noteText = note.text; noteFor = id } label: {
                     Label(note.text, systemImage: "note.text")
@@ -346,7 +406,7 @@ struct WorkoutView: View {
                 }
                 .buttonStyle(GMPress())
             }
-            let pending = sets.filter { !$0.done }
+            let pending = work.filter { !$0.done }
             if suggestion.weight > 0, !pending.isEmpty, pending.allSatisfy({ $0.weight == 0 }) {
                 // Treino aberto antes de registrar o PR (ou carga em branco): preenche com um toque
                 Button {
@@ -386,9 +446,11 @@ struct WorkoutView: View {
             }
 
             ForEach(sets) { s in
-                SetRow(set: s, type: ex?.type ?? .weighted, increment: ex?.increment ?? 2.5, unit: ex?.weightUnit ?? "kg") { done in
+                SetRow(set: s, label: s.warmup ? "A" : "\(s.index - warmups + 1)",
+                       type: ex?.type ?? .weighted, increment: ex?.increment ?? 2.5, unit: ex?.weightUnit ?? "kg") { done in
                     if done {
-                        startRest(s.rest)
+                        // Superset: vai para o próximo do bloco sem descanso
+                        if session.advance(after: id) { startRest(s.rest) } else { cancelRest() }
                         setToggled(id)
                     }
                 }
@@ -483,15 +545,17 @@ struct WorkoutView: View {
 
 private struct SetRow: View {
     @Bindable var set: LoggedSet
+    /// Número da série, ou "A" no aquecimento
+    let label: String
     let type: ExerciseType
     let increment: Double
     var unit = "kg"
     let onToggle: (Bool) -> Void
     var body: some View {
         HStack(spacing: 10) {
-            Text("\(set.index + 1)")
+            Text(label)
                 .font(.subheadline.bold().monospacedDigit())
-                .foregroundStyle(Theme.dim)
+                .foregroundStyle(set.warmup ? .orange : Theme.dim)
                 .frame(width: 18)
 
             // Peso do corpo e isometria aceitam carga extra (cinto, colete, halteres)
@@ -520,7 +584,7 @@ private struct SetRow: View {
     }
 
     /// Fez menos que o planejado
-    private var missed: Bool { self.set.reps < self.set.targetReps }
+    private var missed: Bool { !self.set.warmup && self.set.reps < self.set.targetReps }
 
     private var repsLabel: Text {
         let unit = type == .time ? "s" : "reps"
@@ -567,7 +631,7 @@ struct FinishWorkoutView: View {
     private var minutes: Int { max(Int(Date.now.timeIntervalSince(session.start) / 60), 1) }
 
     var body: some View {
-        let done = session.sets.filter(\.done)
+        let done = session.sets.filter { $0.done && !$0.warmup }
         let volume = done.reduce(0) { $0 + $1.weight * Double($1.reps) }
         let records = Progression.records(in: session.log, history: history)
         let new = ActivityRecord(id: UUID(), kind: .musculacao, date: session.start, minutes: minutes, effort: effort)
@@ -578,7 +642,7 @@ struct FinishWorkoutView: View {
             GMCard {
                 HStack {
                     stat(durationText(minutes), "duração")
-                    stat("\(done.count)/\(session.sets.count)", "séries")
+                    stat("\(done.count)/\(session.sets.filter { !$0.warmup }.count)", "séries")
                     stat(volume > 0 ? "\(Progression.fmt(volume.rounded())) kg" : "–", "volume")
                 }
             }
@@ -642,7 +706,7 @@ struct FinishWorkoutView: View {
     /// (exercício, reps feitas por série, meta) dos exercícios com alguma série abaixo do planejado
     private var missRows: [(String, String, Int)] {
         session.exerciseIDs.compactMap { id in
-            let sets = session.orderedSets.filter { $0.exerciseID == id && $0.done }
+            let sets = session.orderedSets.filter { $0.exerciseID == id && $0.done && !$0.warmup }
             guard let target = sets.map(\.targetReps).max(), sets.contains(where: { $0.reps < $0.targetReps }) else { return nil }
             return (Exercise.name(id), sets.map { "\($0.reps)" }.joined(separator: " · "), target)
         }

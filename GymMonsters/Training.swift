@@ -34,6 +34,8 @@ final class RoutineItem {
     var reps: Int = 10
     var rest: Int = 90
     var order: Int = 0
+    /// Superset com o exercício seguinte (sem descanso entre eles)
+    var supersetNext: Bool = false
     var routine: Routine?
 
     init(exerciseID: String, sets: Int, reps: Int, rest: Int, order: Int) {
@@ -65,6 +67,8 @@ final class WorkoutSession {
     var gymUUID: UUID?
     /// Já perguntou/identificou o lugar (não pergunta de novo)
     var placeAsked: Bool = false
+    /// Exercícios ligados ao seguinte em superset (ids separados por vírgula)
+    var supersetRaw: String = ""
     @Relationship(deleteRule: .cascade, inverse: \LoggedSet.session) var sets: [LoggedSet] = []
 
     init(title: String, routineUUID: UUID?) {
@@ -80,8 +84,51 @@ final class WorkoutSession {
         return orderedSets.map(\.exerciseID).filter { seen.insert($0).inserted }
     }
 
+    // MARK: Superset
+
+    func linkedNext(_ id: String) -> Bool { supersetRaw.split(separator: ",").contains { $0 == id } }
+
+    func setLinkedNext(_ id: String, _ on: Bool) {
+        var s = Set(supersetRaw.split(separator: ",").map(String.init))
+        if on { s.insert(id) } else { s.remove(id) }
+        supersetRaw = s.sorted().joined(separator: ",")
+    }
+
+    /// Bloco de exercícios seguidos ligados em superset que contém `id` (só ele, se não está em superset)
+    func group(of id: String) -> [String] {
+        let ids = exerciseIDs
+        guard var i = ids.firstIndex(of: id) else { return [id] }
+        while i > 0 && linkedNext(ids[i - 1]) { i -= 1 }
+        var out = [ids[i]]
+        while i < ids.count - 1 && linkedNext(ids[i]) { i += 1; out.append(ids[i]) }
+        return out
+    }
+
+    func pending(_ id: String) -> Bool { sets.contains { $0.exerciseID == id && !$0.done } }
+
+    /// Depois de uma série de `id`: escolhe o exercício atual e diz se é hora de descansar.
+    /// No superset vai para o próximo do bloco sem descanso; descansa ao fechar a volta.
+    @discardableResult
+    func advance(after id: String) -> Bool {
+        let members = group(of: id)
+        let i = members.firstIndex(of: id) ?? 0
+        if let later = members[(i + 1)...].first(where: pending) {
+            currentExerciseID = later
+            return false
+        }
+        if let first = members.first(where: pending) {
+            currentExerciseID = first
+            return true
+        }
+        let ids = exerciseIDs
+        if let last = members.last, let j = ids.firstIndex(of: last) {
+            currentExerciseID = (ids[(j + 1)...] + ids[..<j]).first(where: pending) ?? id
+        }
+        return true
+    }
+
     var log: SessionLog {
-        SessionLog(date: start, sets: orderedSets.map {
+        SessionLog(date: start, sets: orderedSets.filter { !$0.warmup }.map {
             SetLog(exerciseID: $0.exerciseID, weight: $0.weight, reps: $0.reps, target: $0.targetReps, done: $0.done)
         })
     }
@@ -97,6 +144,8 @@ final class LoggedSet {
     var targetReps: Int = 0
     var rest: Int = 90
     var done: Bool = false
+    /// Série de aquecimento: não conta para progressão, recordes e volume
+    var warmup: Bool = false
     var session: WorkoutSession?
 
     init(exerciseID: String, exerciseOrder: Int, index: Int, weight: Double, reps: Int, rest: Int) {
@@ -194,6 +243,15 @@ enum Progression {
             }
             return Suggestion(weight: lastWeight, reps: target,
                               reason: "Mesma carga: faltou completar da última vez (\(misses)/\(deloadAfter) antes do deload).")
+        }
+    }
+
+    /// Aquecimento antes da carga de trabalho: 40 % × 10, 60 % × 6, 80 % × 3 (arredondado ao incremento)
+    static func warmup(work: Double, increment: Double, minimum: Double = 0) -> [(weight: Double, reps: Int)] {
+        guard work > 0 else { return [] }
+        return [(0.4, 10), (0.6, 6), (0.8, 3)].compactMap { pct, reps in
+            let w = max((work * pct / increment).rounded() * increment, minimum)
+            return w < work ? (w, reps) : nil
         }
     }
 

@@ -15,6 +15,7 @@ struct ActivityDetailView: View {
     @State private var confirmDelete = false
     @State private var opened: FeedItem?
     @State private var showRoute = false
+    @Query private var sessions: [WorkoutSession]
 
     init(activity: Activity, snapshot: Snapshot) {
         self.activity = activity
@@ -22,6 +23,7 @@ struct ActivityDetailView: View {
         let id = activity.uuid
         _posts = Query(filter: #Predicate<LeagueCheckIn> { $0.activityUUID == id })
         _routes = Query(filter: #Predicate<RouteRecord> { $0.activityUUID == id })
+        _sessions = Query(filter: #Predicate<WorkoutSession> { $0.activityUUID == id })
     }
 
     private var photo: Data? { posts.compactMap(\.photo).first }
@@ -89,6 +91,18 @@ struct ActivityDetailView: View {
                 }
             }
 
+            if let s = sessions.first {
+                GMSection("Treino") {
+                    NavigationLink { SessionDetailView(session: s) } label: {
+                        GMRow(icon: "list.bullet.rectangle", title: "Ver séries", subtitle: "\(s.sets.filter { $0.done && !$0.warmup }.count) séries · \(s.exerciseIDs.count) exercícios", chevron: true)
+                    }
+                    .buttonStyle(GMPress())
+                    GMDivider()
+                    GMRow(icon: "square.and.arrow.up", iconTint: Theme.accent, title: "Compartilhar nos Stories", subtitle: "Imagem com o treino, o bro e os recordes") {
+                        shareWorkoutStory(s, context: context)
+                    }
+                }
+            }
             GMButton("Apagar atividade", icon: "trash", kind: .secondary) { confirmDelete = true }
         }
         .gmModal(isPresented: $editing) { LogActivityView(snapshot: snapshot, editing: activity) }

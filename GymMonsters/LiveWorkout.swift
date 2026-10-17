@@ -40,7 +40,7 @@ enum LiveWorkout {
             exercise: cur.map(Exercise.name) ?? "Treino livre",
             setNumber: (next ?? sets.count) + 1,
             setCount: sets.count,
-            setText: next.map { setText(sets[$0]) } ?? "",
+            setText: next.map { (sets[$0].warmup ? "Aquecimento · " : "") + setText(sets[$0]) } ?? "",
             doneSets: s.sets.filter(\.done).count,
             totalSets: s.sets.count,
             restEnd: s.restEnd.flatMap { $0 > .now ? $0 : nil },
@@ -114,21 +114,14 @@ enum LiveWorkout {
         guard let set = sets.first(where: { !$0.done }) else { return "\(Exercise.name(id)) já está completo." }
         set.done = true
         let number = (sets.firstIndex { $0 === set } ?? 0) + 1
-        // Exercício terminado: o próximo que falta vira o atual
-        if sets.allSatisfy(\.done) {
-            let ids = s.exerciseIDs
-            if let i = ids.firstIndex(of: id) {
-                s.currentExerciseID = (ids[(i + 1)...] + ids[..<i]).first { e in
-                    !s.orderedSets.filter { $0.exerciseID == e }.allSatisfy(\.done)
-                } ?? id
-            }
-        }
-        startRest(s, seconds: set.rest)
+        // Superset passa direto para o próximo do bloco; senão descansa e, se acabou, vai para o próximo exercício
+        let rest = s.advance(after: id)
+        if rest { startRest(s, seconds: set.rest) } else { cancelRest(s) }
         try? AppData.container.mainContext.save()
         await refresh(s)
         HeadphoneControl.shared.refresh()
-        var msg = "\(Exercise.name(id)): série \(number) de \(sets.count) feita. Descanso de \(spoken(set.rest))."
-        if sets.allSatisfy(\.done), let next = s.currentExerciseID, next != id { msg += " Próximo: \(Exercise.name(next))." }
+        var msg = "\(Exercise.name(id)): \(set.warmup ? "aquecimento" : "série \(number) de \(sets.count)") feita." + (rest ? " Descanso de \(spoken(set.rest))." : "")
+        if let next = s.currentExerciseID, next != id { msg += rest ? " Próximo: \(Exercise.name(next))." : " Superset: agora \(Exercise.name(next))." }
         if s.sets.allSatisfy(\.done) { msg = "Última série feita! Treino completo, é só concluir no app." }
         return msg
     }
@@ -188,12 +181,27 @@ enum LiveWorkout {
             session.placeAsked = true
         }
         ctx.insert(session)
+        let autoWarmup = UserDefaults.standard.object(forKey: "autoWarmup") as? Bool ?? true
+        var warmedUp = false
         for (i, item) in (routine?.sortedItems ?? []).enumerated() {
             let sug = Progression.suggest(exerciseID: item.exerciseID, sets: item.sets, reps: item.reps, history: history)
-            for k in 0..<item.sets {
+            var k = 0
+            // Aquecimento automático no primeiro exercício com carga
+            if autoWarmup, !warmedUp, let ex = Exercise.byID(item.exerciseID), ex.type == .weighted, sug.weight >= 20 {
+                warmedUp = true
+                for w in Progression.warmup(work: sug.weight, increment: ex.increment, minimum: ex.usesBar && ex.weightIncludesBar ? 20 : 0) {
+                    let set = LoggedSet(exerciseID: item.exerciseID, exerciseOrder: i, index: k, weight: w.weight, reps: w.reps, rest: 60)
+                    set.warmup = true
+                    session.sets.append(set)
+                    k += 1
+                }
+            }
+            for _ in 0..<item.sets {
                 session.sets.append(LoggedSet(exerciseID: item.exerciseID, exerciseOrder: i, index: k,
                                               weight: sug.weight, reps: sug.reps, rest: item.rest))
+                k += 1
             }
+            if item.supersetNext { session.setLinkedNext(item.exerciseID, true) }
         }
         try? ctx.save()
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }

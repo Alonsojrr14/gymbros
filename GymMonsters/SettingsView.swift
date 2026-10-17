@@ -15,6 +15,7 @@ struct SettingsView: View {
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
     @AppStorage("restNotification") private var restNotification = false
     @AppStorage("weeklySummary") private var weeklySummary = true
+    @AppStorage("autoWarmup") private var autoWarmup = true
     @AppStorage("barCountsBar") private var barCountsBar = false
     @State private var healthOn = HealthSync.enabled
     @State private var healthStatus: String?
@@ -58,6 +59,9 @@ struct SettingsView: View {
                 GMDivider()
                 GMToggle(title: "Notificação no fim do descanso",
                          subtitle: "O Live Activity já mostra o descanso; ligue só se quiser o alerta também", isOn: $restNotification)
+            }
+            GMSection("Aquecimento", footer: "Ao começar uma rotina, o primeiro exercício com carga ganha 3 séries leves (40 %, 60 % e 80 % da carga). Elas não contam para recordes, progressão nem volume. No menu ⋯ de cada exercício dá para adicionar ou tirar.") {
+                GMToggle(title: "Aquecimento automático", isOn: $autoWarmup)
             }
             GMSection("Carga na barra", footer: "Na musculação é comum anotar só as anilhas. Exercícios de CrossFit sempre contam o total com a barra; polia e máquina não têm barra.") {
                 GMSegmented(options: [(false, "Só anilhas"), (true, "Total com barra")], selection: $barCountsBar)

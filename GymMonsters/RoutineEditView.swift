@@ -39,9 +39,16 @@ struct RoutineEditView: View {
                 }
             }
             GMSection("Exercícios", footer: "A carga não fica na rotina: o app sugere a cada treino a partir do seu histórico.") {
-                ForEach(routine.sortedItems) { item in
+                let items = routine.sortedItems
+                ForEach(items) { item in
                     ItemEditor(item: item) { itemMenu = item }
-                    GMDivider()
+                    if item.supersetNext && item.id != items.last?.id {
+                        Label("Superset: sem descanso até o próximo", systemImage: "link")
+                            .font(.caption.bold())
+                            .foregroundStyle(.cyan)
+                    } else {
+                        GMDivider()
+                    }
                 }
                 GMRow(icon: "plus", iconTint: Theme.accent, title: "Adicionar exercício") { picking = true }
             }
@@ -64,7 +71,13 @@ struct RoutineEditView: View {
         let i = items.firstIndex { $0.id == item.id } ?? 0
         var list: [GMAction] = []
         if i > 0 { list.append(GMAction("Mover para cima", icon: "arrow.up") { move(i, to: i - 1) }) }
-        if i < items.count - 1 { list.append(GMAction("Mover para baixo", icon: "arrow.down") { move(i, to: i + 1) }) }
+        if i < items.count - 1 {
+            list.append(GMAction("Mover para baixo", icon: "arrow.down") { move(i, to: i + 1) })
+            let next = Exercise.name(items[i + 1].exerciseID)
+            list.append(GMAction(item.supersetNext ? "Separar de \(next)" : "Superset com \(next)", icon: "link") {
+                item.supersetNext.toggle()
+            })
+        }
         list.append(GMAction("Remover da rotina", icon: "trash", destructive: true) {
             context.delete(item)
             renumber()

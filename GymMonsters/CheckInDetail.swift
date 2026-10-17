@@ -255,14 +255,7 @@ struct CheckInDetailView: View {
     private func share() {
         var items: [Any] = ["\(title) · \(item.kind.name), \(durationText(item.minutes)) no GymBros 💪"]
         if let data = photo, let img = UIImage(data: data) { items.insert(img, at: 0) }
-        let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        // Espera o menu fechar antes de abrir a folha do sistema
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-            var top = scene?.keyWindow?.rootViewController
-            while let next = top?.presentedViewController { top = next }
-            top?.present(vc, animated: true)
-        }
+        presentShare(items)
     }
 }
 

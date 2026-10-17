@@ -201,14 +201,18 @@ struct SessionRow: View {
 
 struct SessionDetailView: View {
     let session: WorkoutSession
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         GMScreen(session.title, subtitle: session.start.formatted(date: .complete, time: .shortened), back: true) {
+            GMIconButton(icon: "square.and.arrow.up") { shareWorkoutStory(session, context: context) }
+        } content: {
             ForEach(Array(session.exerciseIDs.enumerated()), id: \.offset) { _, id in
                 GMSection(Exercise.name(id)) {
                     ForEach(session.orderedSets.filter { $0.exerciseID == id }) { s in
                         HStack {
-                            Text("\(s.index + 1)").foregroundStyle(Theme.dim).frame(width: 24, alignment: .leading)
+                            Text(s.warmup ? "A" : "\(s.index - session.orderedSets.filter { $0.exerciseID == id && $0.warmup }.count + 1)")
+                                .foregroundStyle(s.warmup ? .orange : Theme.dim).frame(width: 24, alignment: .leading)
                             Text(setText(s))
                             Spacer()
                             if s.done && s.reps < s.targetReps {
