@@ -472,7 +472,7 @@ private struct SetRow: View {
     let increment: Double
     var unit = "kg"
     let onToggle: (Bool) -> Void
-    @AppStorage("logSetFeel") private var logSetFeel = false
+    @AppStorage("logSetFeel") private var logSetFeel = true
 
     var body: some View {
         VStack(spacing: 6) {

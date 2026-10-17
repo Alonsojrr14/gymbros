@@ -15,7 +15,7 @@ struct SettingsView: View {
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
     @AppStorage("restNotification") private var restNotification = false
     @AppStorage("barCountsBar") private var barCountsBar = false
-    @AppStorage("logSetFeel") private var logSetFeel = false
+    @AppStorage("logSetFeel") private var logSetFeel = true
     @State private var healthOn = HealthSync.enabled
     @State private var healthStatus: String?
     @State private var syncing = false
