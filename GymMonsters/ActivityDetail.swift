@@ -189,6 +189,7 @@ func deleteActivity(_ a: Activity, context: ModelContext) {
     let linked = (try? context.fetch(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
     linked.forEach(context.delete)
     if let h = a.healthUUID { HealthSync.ignored.insert(h) }
+    HealthSync.deleteWritten(a.healthWrittenUUID)
     let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
     posts.forEach(context.delete)
     let route = (try? context.fetch(FetchDescriptor<RouteRecord>(predicate: #Predicate { $0.activityUUID == id }))) ?? []

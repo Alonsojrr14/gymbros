@@ -2,8 +2,8 @@ import Foundation
 import HealthKit
 import SwiftData
 
-/// Importa treinos do app Saúde (iPhone/Apple Watch) como atividades.
-/// Só leitura; nada é escrito no Saúde.
+/// Importa treinos do app Saúde (iPhone/Apple Watch) como atividades e, se ligado,
+/// grava no Saúde as atividades registradas aqui (contam nos anéis do Fitness).
 @MainActor
 enum HealthSync {
     static let store = HKHealthStore()
@@ -36,6 +36,97 @@ enum HealthSync {
         try await store.requestAuthorization(toShare: [], read: [HKObjectType.workoutType(), HKQuantityType(.bodyMass)])
     }
 
+    // MARK: Gravar no Saúde
+
+    private static let writeKey = "healthWrite", writeSinceKey = "healthWriteSince"
+
+    static var writeEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: writeKey) }
+        set {
+            UserDefaults.standard.set(newValue, forKey: writeKey)
+            // Só grava o que for registrado daqui para frente (o passado pode já estar no Saúde pelo Watch)
+            if newValue { UserDefaults.standard.set(Date.now.addingTimeInterval(-3600), forKey: writeSinceKey) }
+        }
+    }
+
+    private static var writeSince: Date { UserDefaults.standard.object(forKey: writeSinceKey) as? Date ?? .now }
+
+    static func requestWrite() async throws {
+        try await store.requestAuthorization(toShare: [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned)],
+                                             read: [HKObjectType.workoutType(), HKQuantityType(.bodyMass)])
+    }
+
+    private static var exporting = false
+
+    /// Grava no Saúde as atividades registradas aqui que ainda não foram (as importadas de lá ficam de fora)
+    static func exportPending(context: ModelContext) async {
+        guard available, writeEnabled, !exporting else { return }
+        exporting = true
+        defer { exporting = false }
+        let since = writeSince
+        let list = ((try? context.fetch(FetchDescriptor<Activity>())) ?? [])
+            .filter { $0.healthUUID == nil && $0.healthWrittenUUID == nil && $0.date >= since
+                && $0.date.addingTimeInterval(Double($0.minutes) * 60) <= .now.addingTimeInterval(120) }
+        guard !list.isEmpty else { return }
+        let bodyWeight = ((try? context.fetch(FetchDescriptor<BodyEntry>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? [])
+            .compactMap(\.weight).first
+        let weight: Double
+        if let bodyWeight { weight = bodyWeight } else { weight = await bodyMass() ?? 70 }
+        for a in list {
+            if let id = try? await write(a, weight: weight) {
+                a.healthWrittenUUID = id.uuidString
+                try? context.save()
+            }
+        }
+    }
+
+    /// Calorias ativas estimadas: MET da atividade ajustado pelo esforço, sem o metabolismo basal
+    static func activeKcal(kind: ActivityKind, minutes: Int, effort: Int, weight: Double) -> Double {
+        let met = kind.met * (0.6 + 0.08 * Double(effort))
+        return max(met - 1, 0) * 3.5 * weight / 200 * Double(minutes)
+    }
+
+    private static func write(_ a: Activity, weight: Double) async throws -> UUID? {
+        let config = HKWorkoutConfiguration()
+        config.activityType = activityType(a.kind)
+        config.locationType = [.corrida, .caminhada, .bike, .futebol, .volei].contains(a.kind) ? .outdoor : .indoor
+        let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: .local())
+        let start = a.date, end = a.date.addingTimeInterval(Double(max(a.minutes, 1)) * 60)
+        try await builder.beginCollection(at: start)
+        let kcal = activeKcal(kind: a.kind, minutes: a.minutes, effort: a.effort, weight: weight)
+        let sample = HKQuantitySample(type: HKQuantityType(.activeEnergyBurned),
+                                      quantity: HKQuantity(unit: .kilocalorie(), doubleValue: kcal), start: start, end: end)
+        try await builder.addSamples([sample])
+        try await builder.endCollection(at: end)
+        return try await builder.finishWorkout()?.uuid
+    }
+
+    /// Apaga do Saúde um treino gravado pelo GymBros (atividade apagada ou editada)
+    static func deleteWritten(_ uuid: String?) {
+        guard available, let uuid, let id = UUID(uuidString: uuid) else { return }
+        Task {
+            let q = HKSampleQueryDescriptor(predicates: [.workout(HKQuery.predicateForObject(with: id))], sortDescriptors: [])
+            if let w = try? await q.result(for: store).first { try? await store.delete(w) }
+        }
+    }
+
+    static func activityType(_ k: ActivityKind) -> HKWorkoutActivityType {
+        switch k {
+        case .musculacao: .traditionalStrengthTraining
+        case .crossfit: .crossTraining
+        case .corrida: .running
+        case .caminhada: .walking
+        case .bike: .cycling
+        case .natacao: .swimming
+        case .volei: .volleyball
+        case .futebol: .soccer
+        case .lutas: .martialArts
+        case .danca: .cardioDance
+        case .yoga: .yoga
+        case .outro: .other
+        }
+    }
+
     struct Result {
         var imported: [Activity] = []
         var skippedOverlap = 0
@@ -56,13 +147,15 @@ enum HealthSync {
         let weight = await bodyMass() ?? 70
 
         let existing = try context.fetch(FetchDescriptor<Activity>())
-        let known = Set(existing.compactMap(\.healthUUID)).union(ignored)
+        let known = Set(existing.compactMap(\.healthUUID)).union(existing.compactMap(\.healthWrittenUUID)).union(ignored)
         var ranges = existing.map { ($0.date, $0.date.addingTimeInterval(Double($0.minutes) * 60)) }
 
         var result = Result()
         for w in workouts {
             let id = w.uuid.uuidString
-            guard !known.contains(id), w.duration >= 5 * 60 else { continue }
+            // Treinos que o próprio GymBros gravou não voltam como importados
+            guard !known.contains(id), w.duration >= 5 * 60,
+                  w.sourceRevision.source.bundleIdentifier != Bundle.main.bundleIdentifier else { continue }
             let start = w.startDate, end = w.endDate
             // Sobreposição de mais da metade do treino com algo já registrado → mesmo treino
             let overlaps = ranges.contains { r in

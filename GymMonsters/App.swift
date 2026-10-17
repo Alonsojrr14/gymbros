@@ -228,6 +228,7 @@ struct MainView: View {
                            routines: routinesByWeekday, name: companion.name, streak: s.streak,
                            trainedToday: companion.trainedToday, isEgg: s.stage == .egg)
         WeeklySummary.schedule(enabled: weeklySummary, trainer: trainerName)
+        Task { await HealthSync.exportPending(context: context) }
     }
 
     private func announce(_ list: [Achievement]) {
@@ -248,6 +249,7 @@ struct MainView: View {
     }
 
     private func syncHealth() async {
+        await HealthSync.exportPending(context: context)
         guard HealthSync.enabled else { return }
         guard let r = try? await HealthSync.sync(context: context), !r.imported.isEmpty else { return }
         let snap = Game.snapshot(activities.map(\.record))

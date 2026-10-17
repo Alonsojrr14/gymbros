@@ -18,6 +18,8 @@ final class Activity {
     var monsterUUID: UUID?
     /// Lugar de treino (academia) onde foi feita
     var gymUUID: UUID?
+    /// Treino que o GymBros gravou no app Saúde para esta atividade
+    var healthWrittenUUID: String?
 
     init(kind: ActivityKind, date: Date, minutes: Int, effort: Int, note: String = "") {
         self.kindRaw = kind.rawValue

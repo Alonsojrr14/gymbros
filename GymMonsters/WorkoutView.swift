@@ -26,6 +26,8 @@ struct WorkoutView: View {
     @State private var choosingPlace = false
     /// Exercício cujo objetivo está sendo escolhido
     @State private var goalFor: String?
+    /// Exercício sendo trocado (aparelho ocupado)
+    @State private var swapping: IDBox?
     @Query(filter: #Predicate<WorkoutSession> { $0.end != nil }, sort: \WorkoutSession.start, order: .reverse) private var doneSessions: [WorkoutSession]
     @State private var headphones = HeadphoneControl.shared.isOn
     @State private var headphoneInfo = false
@@ -78,6 +80,9 @@ struct WorkoutView: View {
         }
         .gmKeyboardDone()
         .gmModal(isPresented: $picking) { ExercisePicker(onPick: add) }
+        .gmModal(item: $swapping) { box in
+            SwapExerciseView(current: box.id, exclude: Set(session.exerciseIDs), history: history) { swap(box.id, to: $0) }
+        }
         .gmModal(item: $info) { ExerciseInfoView(exercise: $0) }
         .gmModal(item: Binding(get: { historyFor.map { IDBox(id: $0) } }, set: { historyFor = $0?.id })) { box in
             NavigationStack { ExerciseDetailView(exerciseID: box.id, sessions: doneSessions) }
@@ -258,6 +263,37 @@ struct WorkoutView: View {
         }
     }
 
+    /// Troca as séries que faltam de um exercício por outro do mesmo músculo, com a carga sugerida para ele
+    private func swap(_ old: String, to new: Exercise) {
+        let pending = session.orderedSets.filter { $0.exerciseID == old && !$0.done }
+        let work = pending.filter { !$0.warmup }
+        let s = Progression.suggest(exerciseID: new.id, sets: work.count, reps: work.first?.targetReps ?? 10, history: history)
+        let allMoved = !session.orderedSets.contains { $0.exerciseID == old && $0.done }
+        // Superset: o novo herda o elo com o próximo
+        // Aquecimento do antigo não serve para o novo
+        pending.filter(\.warmup).forEach(context.delete)
+        // Se já fez séries do antigo, o novo entra logo depois dele (abre espaço na ordem)
+        if !allMoved, let order = work.first?.exerciseOrder {
+            session.sets.filter { $0.exerciseOrder > order }.forEach { $0.exerciseOrder += 1 }
+            work.forEach { $0.exerciseOrder = order + 1 }
+        }
+        for (k, set) in work.enumerated() {
+            set.exerciseID = new.id
+            set.index = k
+            set.weight = s.weight
+            set.reps = s.reps
+            set.targetReps = s.reps
+        }
+        if allMoved && session.linkedNext(old) {
+            session.setLinkedNext(old, false)
+            session.setLinkedNext(new.id, true)
+        }
+        session.currentExerciseID = new.id
+        collapsed.remove(new.id)
+        try? context.save()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { scrollTarget = new.id }
+    }
+
     /// Muda o objetivo e já ajusta as séries que faltam neste treino
     private func setGoal(_ g: TrainingGoal?, _ id: String) {
         TrainingGoal.set(g, for: id)
@@ -338,6 +374,9 @@ struct WorkoutView: View {
         if Exercise.byID(id)?.type == .weighted {
             let g = TrainingGoal.of(id)
             list.append(GMAction("Objetivo: \(g?.label ?? "nenhum")", icon: "target") { goalFor = id })
+        }
+        if session.pending(id) {
+            list.append(GMAction("Trocar exercício (aparelho ocupado)", icon: "arrow.triangle.swap") { swapping = IDBox(id: id) })
         }
         list.append(GMAction("Histórico de cargas", icon: "chart.line.uptrend.xyaxis") { historyFor = id })
         let current = notes.first { $0.exerciseID == id }?.text ?? ""

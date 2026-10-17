@@ -69,6 +69,8 @@ final class WorkoutSession {
     var placeAsked: Bool = false
     /// Exercícios ligados ao seguinte em superset (ids separados por vírgula)
     var supersetRaw: String = ""
+    /// Feito numa semana de deload
+    var isDeload: Bool = false
     @Relationship(deleteRule: .cascade, inverse: \LoggedSet.session) var sets: [LoggedSet] = []
 
     init(title: String, routineUUID: UUID?) {
@@ -130,7 +132,7 @@ final class WorkoutSession {
     var log: SessionLog {
         SessionLog(date: start, sets: orderedSets.filter { !$0.warmup }.map {
             SetLog(exerciseID: $0.exerciseID, weight: $0.weight, reps: $0.reps, target: $0.targetReps, done: $0.done)
-        })
+        }, deload: isDeload)
     }
 }
 
@@ -174,6 +176,54 @@ struct SetLog {
 struct SessionLog {
     let date: Date
     let sets: [SetLog]
+    /// Treino de deload: não conta para a progressão (as cargas leves não viram referência)
+    var deload = false
+}
+
+/// Semana de deload: depois de várias semanas seguidas treinando, cargas a 70 % e menos séries
+enum Deload {
+    /// Semanas seguidas de treino antes de sugerir
+    static let after = 5
+    static let load = 0.7
+
+    private static let untilKey = "deloadUntil", snoozeKey = "deloadSnooze"
+
+    static var until: Date? {
+        let t = UserDefaults.standard.double(forKey: untilKey)
+        return t > 0 ? Date(timeIntervalSince1970: t) : nil
+    }
+
+    static var active: Bool { until.map { $0 > .now } ?? false }
+
+    /// Começa agora e vai até o fim da semana
+    static func start() {
+        let end = Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.end ?? .now.addingTimeInterval(7 * 86400)
+        UserDefaults.standard.set(end.timeIntervalSince1970, forKey: untilKey)
+    }
+
+    static func stop() { UserDefaults.standard.set(0, forKey: untilKey) }
+
+    static func snooze() { UserDefaults.standard.set(Date.now.addingTimeInterval(7 * 86400).timeIntervalSince1970, forKey: snoozeKey) }
+
+    static var snoozed: Bool { UserDefaults.standard.double(forKey: snoozeKey) > Date.now.timeIntervalSince1970 }
+
+    /// Semanas seguidas (até esta ou a passada) com treino de musculação, parando numa semana sem treino ou de deload
+    static func streak(_ sessions: [WorkoutSession]) -> Int {
+        let cal = Calendar.current
+        let done = sessions.filter { $0.end != nil }
+        func week(_ d: Date) -> Date { cal.dateInterval(of: .weekOfYear, for: d)!.start }
+        let byWeek = Dictionary(grouping: done) { week($0.start) }
+        var w = week(.now)
+        if byWeek[w] == nil { w = cal.date(byAdding: .weekOfYear, value: -1, to: w)! }
+        var n = 0
+        while let list = byWeek[w], !list.contains(where: \.isDeload) {
+            n += 1
+            w = cal.date(byAdding: .weekOfYear, value: -1, to: w)!
+        }
+        return n
+    }
+
+    static func shouldSuggest(_ sessions: [WorkoutSession]) -> Bool { !active && !snoozed && streak(sessions) >= after }
 }
 
 /// Objetivo do exercício: define a faixa de reps da dupla progressão e o descanso
@@ -240,7 +290,7 @@ enum Progression {
     /// Uma sessão só "conta como sucesso" se todas as séries prescritas foram feitas com as reps alvo.
     static func suggest(exerciseID: String, sets: Int, reps: Int, history: [SessionLog]) -> Suggestion {
         let ex = Exercise.byID(exerciseID)
-        let past = history.compactMap { s -> [SetLog]? in
+        let past = history.filter { !$0.deload }.compactMap { s -> [SetLog]? in
             let mine = s.sets.filter { $0.exerciseID == exerciseID }
             return mine.isEmpty ? nil : mine
         }

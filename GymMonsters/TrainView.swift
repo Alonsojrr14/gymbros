@@ -19,10 +19,13 @@ struct TrainView: View {
     @State private var editing: Routine?
     @State private var plates = false
     @State private var outdoor: ActivityKind?
+    /// Muda quando o deload começa/termina, para a tela redesenhar
+    @AppStorage("deloadUntil") private var deloadUntil: Double = 0
 
     var body: some View {
         NavigationStack {
             GMScreen("Treino", avatar: true) {
+                deloadCard
                 if let s = inProgress {
                     GMCard {
                         card(title: s.title, subtitle: "Em andamento desde \(s.start.formatted(date: .omitted, time: .shortened))",
@@ -152,6 +155,45 @@ struct TrainView: View {
             }
             Spacer()
             GMButton(action, icon: "play.fill", full: false, small: true, action: onTap)
+        }
+    }
+
+    @ViewBuilder
+    private var deloadCard: some View {
+        let _ = deloadUntil
+        if Deload.active, let until = Deload.until {
+            GMCard {
+                HStack(spacing: 12) {
+                    Text("🔋").font(.system(size: 30))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Semana de deload").font(.headline)
+                        Text("Até \(until.addingTimeInterval(-1).formatted(.dateTime.weekday(.wide))): cargas a 70 % e menos séries. Não conta para a progressão.")
+                            .font(.caption).foregroundStyle(Theme.dim)
+                    }
+                }
+                GMButton("Encerrar deload", kind: .ghost, full: false, small: true) { Deload.stop(); deloadUntil = 0 }
+            }
+        } else if Deload.shouldSuggest(sessions) {
+            GMCard {
+                HStack(spacing: 12) {
+                    Text("🔋").font(.system(size: 30))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(Deload.streak(sessions)) semanas seguidas pesado").font(.headline)
+                        Text("Uma semana mais leve ajuda o corpo a recuperar e você volta mais forte. Cargas a 70 % e um terço a menos de séries, só nesta semana.")
+                            .font(.caption).foregroundStyle(Theme.dim)
+                    }
+                }
+                HStack(spacing: 8) {
+                    GMButton("Fazer deload", icon: "battery.100.bolt", small: true) {
+                        Deload.start()
+                        deloadUntil = Deload.until?.timeIntervalSince1970 ?? 0
+                    }
+                    GMButton("Agora não", kind: .ghost, full: false, small: true) {
+                        Deload.snooze()
+                        deloadUntil = -1
+                    }
+                }
+            }
         }
     }
 

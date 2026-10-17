@@ -16,6 +16,9 @@ final class BodyEntry {
     var hip: Double?
     /// UUID da amostra no app Saúde, quando importada de lá
     var healthUUID: String?
+    /// Fotos de progresso (frente e lado)
+    @Attribute(.externalStorage) var photoFront: Data?
+    @Attribute(.externalStorage) var photoSide: Data?
 
     init(date: Date, weight: Double? = nil) {
         self.date = date

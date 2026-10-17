@@ -18,6 +18,7 @@ struct SettingsView: View {
     @AppStorage("autoWarmup") private var autoWarmup = true
     @AppStorage("barCountsBar") private var barCountsBar = false
     @State private var healthOn = HealthSync.enabled
+    @State private var healthWrite = HealthSync.writeEnabled
     @State private var healthStatus: String?
     @State private var syncing = false
     @State private var exportDoc: BackupDocument?
@@ -68,13 +69,16 @@ struct SettingsView: View {
             }
 
             if HealthSync.available {
-                GMSection("Apple Saúde", footer: "Corridas, caminhadas, vôlei e outros treinos do iPhone ou Apple Watch viram atividades automaticamente ao abrir o app (na primeira vez, os últimos \(HealthSync.firstImportDays) dias). Treinos que coincidem com algo já registrado aqui não contam duas vezes. Só leitura.") {
+                GMSection("Apple Saúde", footer: "Corridas, caminhadas, vôlei e outros treinos do iPhone ou Apple Watch viram atividades automaticamente ao abrir o app (na primeira vez, os últimos \(HealthSync.firstImportDays) dias). Treinos que coincidem com algo já registrado aqui não contam duas vezes. Gravando, o que você registra aqui (musculação, WOD, corrida…) vai para o Saúde com calorias estimadas e conta nos anéis do Fitness.") {
                     GMToggle(title: "Importar treinos do Saúde", isOn: $healthOn)
                         .onChange(of: healthOn) { _, on in Task { await toggleHealth(on) } }
                     if healthOn {
                         GMButton(syncing ? "Sincronizando…" : "Sincronizar agora", icon: "arrow.triangle.2.circlepath",
                                  kind: .secondary, small: true, enabled: !syncing) { Task { await syncNow() } }
                     }
+                    GMDivider()
+                    GMToggle(title: "Gravar treinos no Saúde", subtitle: "Daqui para frente; conta nos anéis", isOn: $healthWrite)
+                        .onChange(of: healthWrite) { _, on in Task { await toggleWrite(on) } }
                     if let healthStatus {
                         Text(healthStatus).font(.footnote).foregroundStyle(Theme.dim)
                     }
@@ -156,6 +160,22 @@ struct SettingsView: View {
         } catch {
             healthOn = false
             healthStatus = "Não consegui acesso ao Saúde: \(error.localizedDescription)"
+        }
+    }
+
+    private func toggleWrite(_ on: Bool) async {
+        guard on else {
+            HealthSync.writeEnabled = false
+            healthStatus = "Não grava mais. O que já foi para o Saúde continua lá."
+            return
+        }
+        do {
+            try await HealthSync.requestWrite()
+            HealthSync.writeEnabled = true
+            healthStatus = "Pronto: os próximos treinos registrados aqui vão para o Saúde."
+        } catch {
+            healthWrite = false
+            healthStatus = "Não consegui permissão para gravar: \(error.localizedDescription)"
         }
     }
 

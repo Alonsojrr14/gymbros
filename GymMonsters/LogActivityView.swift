@@ -133,6 +133,11 @@ struct LogActivityView: View {
             a.minutes = minutes
             a.effort = effort
             a.note = note
+            // Gravado no Saúde: regrava com os dados novos
+            if a.healthWrittenUUID != nil {
+                HealthSync.deleteWritten(a.healthWrittenUUID)
+                a.healthWrittenUUID = nil
+            }
             if let g = gyms.first(where: { $0.name == place }) { a.gymUUID = g.uuid } else if place == nil { a.gymUUID = nil }
             syncCheckIns(activity: a, destinations: leagues, title: postTitle, note: postNote, photo: photo, place: place, context: context)
             try? context.save()

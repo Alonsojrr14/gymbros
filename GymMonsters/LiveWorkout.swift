@@ -181,10 +181,19 @@ enum LiveWorkout {
             session.placeAsked = true
         }
         ctx.insert(session)
+        let deload = Deload.active
+        session.isDeload = deload
         let autoWarmup = UserDefaults.standard.object(forKey: "autoWarmup") as? Bool ?? true
         var warmedUp = false
         for (i, item) in (routine?.sortedItems ?? []).enumerated() {
-            let sug = Progression.suggest(exerciseID: item.exerciseID, sets: item.sets, reps: item.reps, history: history)
+            var sug = Progression.suggest(exerciseID: item.exerciseID, sets: item.sets, reps: item.reps, history: history)
+            // Deload: 70 % da carga e um terço a menos de séries
+            var count = item.sets
+            if deload {
+                let inc = Exercise.byID(item.exerciseID)?.increment ?? 2.5
+                sug = Suggestion(weight: (sug.weight * Deload.load / inc).rounded() * inc, reps: sug.reps, reason: "Semana de deload")
+                count = max(1, Int((Double(item.sets) * 2 / 3).rounded()))
+            }
             var k = 0
             // Aquecimento automático no primeiro exercício com carga
             if autoWarmup, !warmedUp, let ex = Exercise.byID(item.exerciseID), ex.type == .weighted, sug.weight >= 20 {
@@ -196,7 +205,7 @@ enum LiveWorkout {
                     k += 1
                 }
             }
-            for _ in 0..<item.sets {
+            for _ in 0..<count {
                 session.sets.append(LoggedSet(exerciseID: item.exerciseID, exerciseOrder: i, index: k,
                                               weight: sug.weight, reps: sug.reps, rest: item.rest))
                 k += 1
