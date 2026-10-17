@@ -151,14 +151,20 @@ struct BodyProfileSection: View {
 
     var body: some View {
         GMSection("Seu corpo", footer: "Tudo opcional e só neste iPhone; nunca aparece no seu perfil público. O peso vem de Peso e medidas (ou do Apple Saúde).") {
-            GMDecimalField(title: "Altura", value: Binding(get: { height > 0 ? height : nil }, set: { height = $0 ?? 0 }),
-                           step: 1, unit: "cm", start: 170)
+            GMLockedRow(title: "Altura", value: height > 0 ? "\(Int(height)) cm" : "") {
+                GMDecimalField(title: "", value: Binding(get: { height > 0 ? height : nil }, set: { height = $0 ?? 0 }),
+                               step: 1, unit: "cm", start: 170)
+            }
             GMDivider()
-            GMDecimalField(title: "Ano de nascimento", value: Binding(get: { birthYear > 0 ? Double(birthYear) : nil },
-                                                                     set: { birthYear = $0.map { Int($0) } ?? 0 }),
-                           step: 1, unit: "", start: 1995)
+            GMLockedRow(title: "Ano de nascimento", value: birthYear > 0 ? "\(birthYear)" + (BodyProfile.age.map { " · \($0) anos" } ?? "") : "") {
+                GMDecimalField(title: "", value: Binding(get: { birthYear > 0 ? Double(birthYear) : nil },
+                                                        set: { birthYear = $0.map { Int($0) } ?? 0 }),
+                               step: 1, unit: "", start: 1995, grouping: false)
+            }
             GMDivider()
-            GMSegmented(options: [(BodyGender.male.rawValue, "Masculino"), (BodyGender.female.rawValue, "Feminino")], selection: $genderRaw)
+            GMLockedRow(title: "Sexo", value: genderRaw == BodyGender.female.rawValue ? "Feminino" : "Masculino") {
+                GMSegmented(options: [(BodyGender.male.rawValue, "Masculino"), (BodyGender.female.rawValue, "Feminino")], selection: $genderRaw)
+            }
             if let weight {
                 GMDivider()
                 HStack {
@@ -169,11 +175,14 @@ struct BodyProfileSection: View {
                 }
             }
         }
-        GMSection("Objetivo") {
-            GMChoiceChips(options: [("", "Não informar")] + FitnessGoal.allCases.map { ($0.rawValue, $0.name) }, selection: $goalRaw)
-        }
-        GMSection("Experiência", footer: Experience(rawValue: experienceRaw)?.detail) {
-            GMChoiceChips(options: [("", "Não informar")] + Experience.allCases.map { ($0.rawValue, $0.name) }, selection: $experienceRaw)
+        GMSection("Objetivo e experiência", footer: Experience(rawValue: experienceRaw)?.detail) {
+            GMLockedRow(title: "Objetivo", value: FitnessGoal(rawValue: goalRaw)?.name ?? "") {
+                GMChoiceChips(options: [("", "Não informar")] + FitnessGoal.allCases.map { ($0.rawValue, $0.name) }, selection: $goalRaw)
+            }
+            GMDivider()
+            GMLockedRow(title: "Experiência", value: Experience(rawValue: experienceRaw)?.name ?? "") {
+                GMChoiceChips(options: [("", "Não informar")] + Experience.allCases.map { ($0.rawValue, $0.name) }, selection: $experienceRaw)
+            }
         }
         nutrition
             .onChange(of: weight, initial: true) { _, w in BodyProfile.remember(weight: w) }

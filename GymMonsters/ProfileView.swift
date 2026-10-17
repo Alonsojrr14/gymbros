@@ -406,15 +406,23 @@ struct GoalsView: View {
             BodyProfileSection()
             GMSection("Treinos na semana") {
                 ring(Double(thisWeek.count) / Double(weekly), "\(thisWeek.count)/\(weekly)", "treinos")
-                GMStepper(title: "Meta", value: $weekly, range: 1...14, format: { "\($0)×" })
+                GMDivider()
+                GMLockedRow(title: "Meta", value: "\(weekly) por semana") {
+                    GMStepper(value: $weekly, range: 1...14, format: { "\($0)×" })
+                }
             }
             GMSection("Tempo na semana") {
                 ring(Double(minutes) / Double(minutesGoal), hoursText(minutes), "de \(hoursText(minutesGoal))")
-                GMStepper(title: "Meta", value: $minutesGoal, range: 30...1200, step: 30, format: hoursText)
+                GMDivider()
+                GMLockedRow(title: "Meta", value: "\(hoursText(minutesGoal)) por semana") {
+                    GMStepper(value: $minutesGoal, range: 30...1200, step: 30, format: hoursText)
+                }
             }
             GMSection("Peso", footer: "Use Peso e medidas para registrar ou importar do Apple Saúde.") {
-                GMDecimalField(title: "Peso alvo", value: Binding(get: { weightGoal > 0 ? weightGoal : nil }, set: { weightGoal = $0 ?? 0 }),
-                               step: 0.5, start: weight ?? 70)
+                GMLockedRow(title: "Peso alvo", value: weightGoal > 0 ? "\(Progression.fmt(weightGoal)) kg" : "") {
+                    GMDecimalField(title: "", value: Binding(get: { weightGoal > 0 ? weightGoal : nil }, set: { weightGoal = $0 ?? 0 }),
+                                   step: 0.5, start: weight ?? 70)
+                }
                 if let weight, weightGoal > 0 {
                     let diff = ((weight - weightGoal) * 10).rounded() / 10
                     Text(diff == 0 ? "Você chegou no peso alvo! 🎯" : "Atual \(Progression.fmt(weight)) kg · faltam \(Progression.fmt(abs(diff))) kg para \(diff > 0 ? "perder" : "ganhar")")

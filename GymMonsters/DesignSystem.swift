@@ -486,6 +486,43 @@ struct GMToggle: View {
     }
 }
 
+/// Valor salvo que não fica editável o tempo todo: mostra o valor e só abre o editor pelo lápis
+struct GMLockedRow<Editor: View>: View {
+    let title: String
+    /// Vazio = não informado
+    let value: String
+    @ViewBuilder var editor: Editor
+    @State private var editing = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Text(title).font(.subheadline.weight(.semibold))
+                Spacer()
+                if !editing {
+                    Text(value.isEmpty ? "Não informado" : value)
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(value.isEmpty ? Theme.dim : .white)
+                        .lineLimit(1)
+                }
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    withAnimation(.snappy) { editing.toggle() }
+                } label: {
+                    Image(systemName: editing ? "checkmark" : "pencil")
+                        .font(.subheadline.bold())
+                        .frame(width: 34, height: 34)
+                        .background(editing ? Theme.accent : Theme.raised, in: .circle)
+                        .foregroundStyle(editing ? .black : .white)
+                }
+                .buttonStyle(GMPress())
+                .accessibilityLabel(editing ? "Concluir \(title)" : "Editar \(title)")
+            }
+            if editing { editor }
+        }
+    }
+}
+
 /// − valor +
 struct GMStepper: View {
     var title: String?
@@ -936,19 +973,23 @@ struct GMHeader<Leading: View, Trailing: View>: View {
     let title: String
     var subtitle: String?
     var large = true
+    /// Título pequeno na barra (telas sem título grande)
+    var inlineTitle = true
     @ViewBuilder var leading: Leading
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
-                leading
-                if !large {
-                    Spacer()
-                    Text(title).font(.headline).lineLimit(1)
+            // Título no centro da tela, não entre os botões (seta de um lado só o empurrava)
+            ZStack {
+                if !large && inlineTitle {
+                    Text(title).font(.headline).lineLimit(1).padding(.horizontal, 100)
                 }
-                Spacer()
-                trailing
+                HStack(spacing: 10) {
+                    leading
+                    Spacer()
+                    trailing
+                }
             }
             .frame(minHeight: 40)
             if large {
@@ -993,7 +1034,8 @@ struct GMScreen<Content: View, Trailing: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            GMHeader(title: title, subtitle: subtitle, large: large && !back) {
+            // Com seta, o título grande fica embaixo; não repete o pequeno na barra
+            GMHeader(title: title, subtitle: subtitle, large: large && !back, inlineTitle: !(back && large)) {
                 if back { GMIconButton(icon: "chevron.left") { dismiss() } }
                 if avatar { ProfileAvatarButton() }
                 if close { GMIconButton(icon: "xmark", label: "Fechar") { dismiss() } }
@@ -1322,24 +1364,29 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
 struct GMFlow: Layout {
     var spacing: CGFloat = 8
 
+    /// Folga para o arredondamento de pixels: sem ela, a linha mais larga cabia no cálculo da altura e
+    /// quebrava na hora de posicionar, e os chips vazavam para fora do quadro
+    private let slack: CGFloat = 1
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? .infinity
         var x: CGFloat = 0, y: CGFloat = 0, row: CGFloat = 0, maxX: CGFloat = 0
         for v in subviews {
             let s = v.sizeThatFits(.unspecified)
-            if x + s.width > width, x > 0 { x = 0; y += row + spacing; row = 0 }
+            if x + s.width > width - slack, x > 0 { x = 0; y += row + spacing; row = 0 }
             x += s.width + spacing
             maxX = max(maxX, x - spacing)
             row = max(row, s.height)
         }
-        return CGSize(width: min(maxX, width), height: y + row)
+        // Ocupa a largura oferecida: assim o posicionamento quebra as linhas igual ao cálculo
+        return CGSize(width: width.isFinite ? width : maxX, height: y + row)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         var x = bounds.minX, y = bounds.minY, row: CGFloat = 0
         for v in subviews {
             let s = v.sizeThatFits(.unspecified)
-            if x + s.width > bounds.maxX, x > bounds.minX { x = bounds.minX; y += row + spacing; row = 0 }
+            if x + s.width > bounds.maxX - slack, x > bounds.minX { x = bounds.minX; y += row + spacing; row = 0 }
             v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(s))
             x += s.width + spacing
             row = max(row, s.height)
@@ -1377,6 +1424,8 @@ struct GMDecimalField: View {
     var start: Double = 70
     /// Mostra o X para apagar (campos opcionais)
     var clearable = true
+    /// false para anos e números que não levam separador de milhar
+    var grouping = true
 
     var body: some View {
         HStack(spacing: 10) {
@@ -1384,7 +1433,7 @@ struct GMDecimalField: View {
             Spacer()
             stepButton("minus") { value = max((value ?? start) - step, 0) }
             HStack(spacing: 3) {
-                TextField("—", value: $value, format: .number.precision(.fractionLength(0...2)).locale(GMDateText.locale))
+                TextField("—", value: $value, format: .number.precision(.fractionLength(0...2)).grouping(grouping ? .automatic : .never).locale(GMDateText.locale))
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .font(.headline.monospacedDigit())
