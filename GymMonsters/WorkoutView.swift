@@ -363,7 +363,7 @@ struct WorkoutView: View {
                 let prev = last.sets.filter { $0.exerciseID == id && $0.done }
                 if !prev.isEmpty {
                     Text("Última vez: " + prev.map { s in
-                        (ex?.type == .weighted || s.weight > 0 ? "\(Progression.fmt(s.weight))×\(s.reps)" : "\(s.reps)") + SetFeel.emoji(s.feel)
+                        (ex?.type == .weighted || s.weight > 0 ? "\(Progression.fmt(s.weight))×\(s.reps)" : "\(s.reps)") + (s.reps < s.target ? "/\(s.target)" : "")
                     }.joined(separator: ", "))
                         .font(.caption2)
                         .foregroundStyle(Theme.dim)
@@ -472,43 +472,7 @@ private struct SetRow: View {
     let increment: Double
     var unit = "kg"
     let onToggle: (Bool) -> Void
-    @AppStorage("logSetFeel") private var logSetFeel = true
-
     var body: some View {
-        VStack(spacing: 6) {
-            row
-            // Esforço sentido: aparece ao marcar a série; depois vira um selo ao lado do check
-            if logSetFeel && set.done && set.feel == 0 { feelPicker }
-        }
-        .animation(.snappy, value: set.done)
-        .animation(.snappy, value: set.feel)
-    }
-
-    private var feelPicker: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Como foi essa série?").font(.caption2).foregroundStyle(Theme.dim)
-            HStack(spacing: 6) {
-                ForEach(SetFeel.allCases) { f in
-                    Button {
-                        set.feel = f.rawValue
-                        UISelectionFeedbackGenerator().selectionChanged()
-                    } label: {
-                        VStack(spacing: 1) {
-                            Text(f.emoji).font(.title3)
-                            Text(f.name).font(.system(size: 9, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                        .background(Theme.raised, in: .rect(cornerRadius: 10))
-                        .foregroundStyle(.white)
-                    }
-                    .buttonStyle(GMPress())
-                }
-            }
-        }
-        .transition(.opacity.combined(with: .move(edge: .top)))
-    }
-
-    private var row: some View {
         HStack(spacing: 10) {
             Text("\(set.index + 1)")
                 .font(.subheadline.bold().monospacedDigit())
@@ -517,27 +481,22 @@ private struct SetRow: View {
 
             // Peso do corpo e isometria aceitam carga extra (cinto, colete, halteres)
             field(value: Binding(get: { set.weight }, set: { set.weight = max($0, 0) }),
-                  step: type == .weighted ? increment : 2.5, unit: type == .weighted ? unit : "+kg", decimals: true)
+                  step: type == .weighted ? increment : 2.5, label: Text(type == .weighted ? unit : "+kg"), decimals: true)
+            // Planejado × feito: abaixe as reps se não completou; a etiqueta mostra a meta
             field(value: Binding(get: { Double(set.reps) }, set: { set.reps = max(Int($0), 0) }),
-                  step: type == .time ? 5 : 1, unit: type == .time ? "s" : "reps", decimals: false)
+                  step: type == .time ? 5 : 1, label: repsLabel, decimals: false)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(missed ? Color.orange.opacity(0.7) : .clear, lineWidth: 1.5))
 
             Spacer(minLength: 0)
 
-            if set.done, let f = SetFeel(rawValue: set.feel) {
-                // Toque para trocar
-                Button { set.feel = 0 } label: { Text(f.emoji).font(.title3) }
-                    .buttonStyle(GMPress())
-            }
-
             Button {
                 set.done.toggle()
-                if !set.done { set.feel = 0 }
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 onToggle(set.done)
             } label: {
-                Image(systemName: set.done ? "checkmark.circle.fill" : "circle")
+                Image(systemName: set.done ? (missed ? "checkmark.circle" : "checkmark.circle.fill") : "circle")
                     .font(.system(size: 30))
-                    .foregroundStyle(set.done ? Theme.accent : Theme.dim)
+                    .foregroundStyle(set.done ? (missed ? .orange : Theme.accent) : Theme.dim)
             }
             .buttonStyle(GMPress())
         }
@@ -545,7 +504,16 @@ private struct SetRow: View {
         .opacity(set.done ? 0.75 : 1)
     }
 
-    private func field(value: Binding<Double>, step: Double, unit: String, decimals: Bool) -> some View {
+    /// Fez menos que o planejado
+    private var missed: Bool { self.set.reps < self.set.targetReps }
+
+    private var repsLabel: Text {
+        let unit = type == .time ? "s" : "reps"
+        guard self.set.targetReps > 0, set.reps != set.targetReps else { return Text(unit) }
+        return Text("de \(set.targetReps)").foregroundStyle(missed ? Color.orange : Theme.accent).bold()
+    }
+
+    private func field(value: Binding<Double>, step: Double, label: Text, decimals: Bool) -> some View {
         HStack(spacing: 2) {
             Button { value.wrappedValue -= step } label: { Image(systemName: "minus").frame(width: 28, height: 34).contentShape(Rectangle()) }
             VStack(spacing: -2) {
@@ -554,7 +522,7 @@ private struct SetRow: View {
                     .multilineTextAlignment(.center)
                     .font(.body.bold().monospacedDigit())
                     .frame(width: 52)
-                Text(unit).font(.caption2).foregroundStyle(Theme.dim)
+                label.font(.caption2).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.7)
             }
             Button { value.wrappedValue += step } label: { Image(systemName: "plus").frame(width: 28, height: 34).contentShape(Rectangle()) }
         }
@@ -616,17 +584,15 @@ struct FinishWorkoutView: View {
                     }
                 }
             }
-            let feels = feelRows
-            if !feels.isEmpty {
-                GMSection("Esforço por exercício", footer: "🥵/💀 = você está no limite ali: mantenha a carga e capriche na técnica. Tudo 😌 = dá para subir mais.") {
-                    ForEach(feels, id: \.0) { name, emojis, hint in
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                Text(name).font(.subheadline.weight(.semibold))
-                                Spacer()
-                                Text(emojis).font(.subheadline)
-                            }
-                            if let hint { Text(hint).font(.caption).foregroundStyle(Theme.accent) }
+            let misses = missRows
+            if !misses.isEmpty {
+                GMSection("Onde melhorar", footer: "Séries em que você fez menos que o planejado. A carga se mantém no próximo treino até você completar todas.") {
+                    ForEach(misses, id: \.0) { name, done, target in
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(name).font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text(done).font(.subheadline.monospacedDigit())
+                            Text("de \(target)").font(.caption.bold()).foregroundStyle(.orange)
                         }
                     }
                 }
@@ -637,11 +603,6 @@ struct FinishWorkoutView: View {
                 }
             }
             GMSection { GMEffortPicker(value: $effort) }
-                .onAppear {
-                    // Com esforço anotado nas séries, o esforço do treino já vem pela média
-                    let f = session.sets.filter { $0.done && $0.feel > 0 }.map(\.feel)
-                    if !f.isEmpty { effort = [4, 5, 7, 9, 10][Int((Double(f.reduce(0, +)) / Double(f.count)).rounded()) - 1] }
-                }
             LeaguePostSection(selected: $leagues, photo: $photo)
             GMSection(footer: done.isEmpty ? "Marque ao menos uma série feita para salvar." : nil) {
                 HStack {
@@ -663,14 +624,12 @@ struct FinishWorkoutView: View {
 
     private var records: [String] { Progression.records(in: session.log, history: history) }
 
-    /// (exercício, emojis das séries, dica) para os exercícios com esforço anotado
-    private var feelRows: [(String, String, String?)] {
+    /// (exercício, reps feitas por série, meta) dos exercícios com alguma série abaixo do planejado
+    private var missRows: [(String, String, Int)] {
         session.exerciseIDs.compactMap { id in
-            let f = session.orderedSets.filter { $0.exerciseID == id && $0.done && $0.feel > 0 }.map(\.feel)
-            guard !f.isEmpty else { return nil }
-            let hint: String? = f.contains { $0 >= SetFeel.limite.rawValue } ? "No limite: ponto a trabalhar"
-                : f.allSatisfy { $0 == SetFeel.facil.rawValue } ? "Ficou fácil: dá para subir a carga" : nil
-            return (Exercise.name(id), f.map(SetFeel.emoji).joined(separator: " "), hint)
+            let sets = session.orderedSets.filter { $0.exerciseID == id && $0.done }
+            guard let target = sets.map(\.targetReps).max(), sets.contains(where: { $0.reps < $0.targetReps }) else { return nil }
+            return (Exercise.name(id), sets.map { "\($0.reps)" }.joined(separator: " · "), target)
         }
     }
 

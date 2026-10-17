@@ -206,7 +206,9 @@ struct SessionDetailView: View {
                             Text("\(s.index + 1)").foregroundStyle(Theme.dim).frame(width: 24, alignment: .leading)
                             Text(setText(s))
                             Spacer()
-                            if let f = SetFeel(rawValue: s.feel) { Text("\(f.emoji) \(f.name)").font(.caption).foregroundStyle(Theme.dim) }
+                            if s.done && s.reps < s.targetReps {
+                                Text("meta \(s.targetReps)").font(.caption.bold()).foregroundStyle(.orange)
+                            }
                             Image(systemName: s.done ? "checkmark.circle.fill" : "xmark.circle")
                                 .foregroundStyle(s.done ? Theme.accent : Theme.dim)
                         }

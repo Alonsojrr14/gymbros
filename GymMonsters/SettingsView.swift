@@ -15,7 +15,6 @@ struct SettingsView: View {
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
     @AppStorage("restNotification") private var restNotification = false
     @AppStorage("barCountsBar") private var barCountsBar = false
-    @AppStorage("logSetFeel") private var logSetFeel = true
     @State private var healthOn = HealthSync.enabled
     @State private var healthStatus: String?
     @State private var syncing = false
@@ -56,9 +55,6 @@ struct SettingsView: View {
             }
             GMSection("Carga na barra", footer: "Na musculação é comum anotar só as anilhas. Exercícios de CrossFit sempre contam o total com a barra; polia e máquina não têm barra.") {
                 GMSegmented(options: [(false, "Só anilhas"), (true, "Total com barra")], selection: $barCountsBar)
-            }
-            GMSection("Esforço por série", footer: "Ao marcar uma série como feita, escolha como ela foi: 😌 fácil, 🙂 tranquilo, 😤 puxado, 🥵 no limite ou 💀 falhei. A sugestão de carga passa a considerar isso e o fim do treino mostra onde você está no limite.") {
-                GMToggle(title: "Anotar esforço de cada série", isOn: $logSetFeel)
             }
 
             if HealthSync.available {
