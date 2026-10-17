@@ -212,7 +212,8 @@ struct LeagueDetailView: View {
                 MonsterSprite(form: item.avatar).frame(width: 34, height: 34)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.name).font(.subheadline.bold())
-                    Text(item.date.formatted(.relative(presentation: .named))).font(.caption2).foregroundStyle(Theme.dim)
+                    Text(item.date.formatted(.relative(presentation: .named)) + (item.place.map { " · 📍 \($0)" } ?? ""))
+                        .font(.caption2).foregroundStyle(Theme.dim)
                 }
                 Spacer()
                 Text("+\(item.score)").font(.subheadline.bold().monospacedDigit()).foregroundStyle(Theme.accent)
@@ -332,9 +333,12 @@ struct JoinLeagueView: View {
 /// Publica a mesma atividade em uma ou mais ligas
 @MainActor
 func postCheckIns(activity: Activity, leagues: Set<UUID>, title: String, note: String, photo: Data?, context: ModelContext) {
+    let place = GymLocation.shared.placeNow
     for id in leagues {
-        context.insert(LeagueCheckIn(leagueUUID: id, activityUUID: activity.uuid,
-                                     title: title.isEmpty ? activity.kind.name : title, note: note, date: activity.date, photo: photo))
+        let c = LeagueCheckIn(leagueUUID: id, activityUUID: activity.uuid,
+                              title: title.isEmpty ? activity.kind.name : title, note: note, date: activity.date, photo: photo)
+        c.place = place
+        context.insert(c)
     }
 }
 

@@ -26,7 +26,12 @@ struct Backup: Codable {
         var exerciseID: String, text: String
     }
     var checkIns: [CheckInDTO]? = nil
+    var routes: [RouteDTO]? = nil
     var wods: [WodDTO]? = nil
+
+    struct RouteDTO: Codable {
+        var uuid: UUID, activityUUID: UUID?, kind: String, start: Date, seconds: Int, meters: Double, points: Data
+    }
 
     struct WodDTO: Codable {
         var uuid: UUID, wodID: String, wodName: String, formatName: String, date: Date
@@ -116,6 +121,10 @@ struct Backup: Codable {
             checkIns: try context.fetch(FetchDescriptor<LeagueCheckIn>()).map {
                 CheckInDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, activityUUID: $0.activityUUID, title: $0.title, note: $0.note, date: $0.date)
             },
+            routes: try context.fetch(FetchDescriptor<RouteRecord>()).map {
+                RouteDTO(uuid: $0.uuid, activityUUID: $0.activityUUID, kind: $0.kindRaw, start: $0.start, seconds: $0.seconds,
+                         meters: $0.meters, points: $0.points)
+            },
             wods: try context.fetch(FetchDescriptor<WodResult>()).map {
                 WodDTO(uuid: $0.uuid, wodID: $0.wodID, wodName: $0.wodName, formatName: $0.formatName, date: $0.date,
                        seconds: $0.seconds, rounds: $0.rounds, reps: $0.reps, rx: $0.rx, note: $0.note, activityUUID: $0.activityUUID)
@@ -138,6 +147,7 @@ struct Backup: Codable {
         try context.delete(model: BodyEntry.self)
         try context.delete(model: ExerciseNote.self)
         try context.delete(model: WodResult.self)
+        try context.delete(model: RouteRecord.self)
 
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
@@ -201,6 +211,11 @@ struct Backup: Codable {
             mon.lastFormID = m.lastFormID
             mon.speciesID = m.speciesID
             context.insert(mon)
+        }
+        for r in routes ?? [] {
+            let route = RouteRecord(kind: ActivityKind(rawValue: r.kind) ?? .corrida, start: r.start)
+            route.uuid = r.uuid; route.activityUUID = r.activityUUID; route.seconds = r.seconds; route.meters = r.meters; route.points = r.points
+            context.insert(route)
         }
         for w in wods ?? [] {
             let r = WodResult(wodID: w.wodID, wodName: w.wodName, formatName: w.formatName)

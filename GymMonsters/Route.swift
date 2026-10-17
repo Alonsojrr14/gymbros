@@ -1,0 +1,346 @@
+import CoreLocation
+import MapKit
+import SwiftData
+import SwiftUI
+
+// Corrida, caminhada e bike com GPS: percurso no mapa, distância, tempo e ritmo.
+// Continua gravando com a tela bloqueada (localização em segundo plano).
+
+@Model
+final class RouteRecord {
+    var uuid: UUID = UUID()
+    var activityUUID: UUID?
+    var kindRaw: String = ActivityKind.corrida.rawValue
+    var start: Date = Date.now
+    var seconds: Int = 0
+    var meters: Double = 0
+    /// Pontos do percurso: latitude, longitude, latitude, longitude…
+    @Attribute(.externalStorage) var points: Data = Data()
+
+    init(kind: ActivityKind, start: Date) {
+        self.kindRaw = kind.rawValue
+        self.start = start
+    }
+
+    var kind: ActivityKind { ActivityKind(rawValue: kindRaw) ?? .corrida }
+
+    var coordinates: [CLLocationCoordinate2D] {
+        let values = points.withUnsafeBytes { Array($0.bindMemory(to: Double.self)) }
+        return stride(from: 0, to: values.count - 1, by: 2).map { CLLocationCoordinate2D(latitude: values[$0], longitude: values[$0 + 1]) }
+    }
+
+    static func encode(_ coords: [CLLocationCoordinate2D]) -> Data {
+        var values: [Double] = []
+        for c in coords { values.append(c.latitude); values.append(c.longitude) }
+        return values.withUnsafeBufferPointer { Data(buffer: $0) }
+    }
+}
+
+func kmText(_ meters: Double) -> String {
+    String(format: "%.2f km", meters / 1000).replacingOccurrences(of: ".", with: ",")
+}
+
+/// Ritmo (min/km) para corrida e caminhada; velocidade (km/h) para bike
+func paceText(kind: ActivityKind, meters: Double, seconds: Int) -> String {
+    guard meters > 20, seconds > 0 else { return "–" }
+    if kind == .bike {
+        return String(format: "%.1f km/h", meters / 1000 / (Double(seconds) / 3600)).replacingOccurrences(of: ".", with: ",")
+    }
+    let perKm = Double(seconds) / (meters / 1000)
+    return String(format: "%d'%02d\" /km", Int(perKm) / 60, Int(perKm) % 60)
+}
+
+@MainActor
+@Observable
+final class RouteTracker: NSObject, CLLocationManagerDelegate {
+    let kind: ActivityKind
+    private let manager = CLLocationManager()
+    private(set) var coords: [CLLocationCoordinate2D] = []
+    private(set) var meters: Double = 0
+    private(set) var start: Date?
+    private(set) var pausedAt: Date?
+    private var pausedTotal: TimeInterval = 0
+    private var last: CLLocation?
+    private(set) var current: CLLocation?
+
+    init(kind: ActivityKind) {
+        self.kind = kind
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.activityType = kind == .bike ? .otherNavigation : .fitness
+        manager.distanceFilter = 5
+    }
+
+    func elapsed(_ now: Date = .now) -> Int {
+        guard let start else { return 0 }
+        return max(Int((pausedAt ?? now).timeIntervalSince(start) - pausedTotal), 0)
+    }
+
+    func prepare() {
+        manager.requestWhenInUseAuthorization()
+        manager.startUpdatingLocation()
+    }
+
+    func begin() {
+        start = .now
+        manager.allowsBackgroundLocationUpdates = true
+        manager.showsBackgroundLocationIndicator = true
+        manager.pausesLocationUpdatesAutomatically = false
+        manager.startUpdatingLocation()
+    }
+
+    func togglePause() {
+        if let p = pausedAt {
+            pausedTotal += Date.now.timeIntervalSince(p)
+            pausedAt = nil
+            last = nil
+        } else {
+            pausedAt = .now
+        }
+    }
+
+    func stop() {
+        manager.stopUpdatingLocation()
+        manager.allowsBackgroundLocationUpdates = false
+        if pausedAt == nil { pausedAt = .now }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        Task { @MainActor in
+            for loc in locations { self.add(loc) }
+        }
+    }
+
+    private func add(_ loc: CLLocation) {
+        current = loc
+        // Só grava com boa precisão, com o treino rodando e não pausado
+        guard start != nil, pausedAt == nil, loc.horizontalAccuracy >= 0, loc.horizontalAccuracy < 30 else { return }
+        if let last {
+            let d = loc.distance(from: last)
+            // Ignora saltos impossíveis do GPS (mais de 15 m/s)
+            if d / max(loc.timestamp.timeIntervalSince(last.timestamp), 1) > 15 { return }
+            meters += d
+        }
+        last = loc
+        coords.append(loc.coordinate)
+    }
+}
+
+// MARK: - Tela de gravação
+
+struct RouteRunView: View {
+    let kind: ActivityKind
+    @Environment(\.dismiss) private var dismiss
+    @State private var tracker: RouteTracker
+    @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
+    @State private var finishing = false
+    @State private var confirmQuit = false
+
+    init(kind: ActivityKind) {
+        self.kind = kind
+        _tracker = State(initialValue: RouteTracker(kind: kind))
+    }
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+            let secs = tracker.elapsed(ctx.date)
+            ZStack(alignment: .bottom) {
+                Map(position: $camera) {
+                    UserAnnotation()
+                    if tracker.coords.count > 1 {
+                        MapPolyline(coordinates: tracker.coords).stroke(Theme.accent, lineWidth: 6)
+                    }
+                }
+                .mapStyle(.standard(pointsOfInterest: .excludingAll))
+                .ignoresSafeArea()
+
+                VStack(spacing: 14) {
+                    HStack {
+                        stat(clock(secs), "tempo")
+                        stat(kmText(tracker.meters), "distância")
+                        stat(paceText(kind: kind, meters: tracker.meters, seconds: secs), kind == .bike ? "velocidade" : "ritmo")
+                    }
+                    if tracker.start == nil {
+                        GMButton("Começar \(kind.name.lowercased())", icon: "play.fill") { tracker.begin() }
+                    } else {
+                        HStack(spacing: 10) {
+                            GMButton(tracker.pausedAt == nil ? "Pausar" : "Continuar", icon: tracker.pausedAt == nil ? "pause.fill" : "play.fill",
+                                     kind: .secondary) { tracker.togglePause() }
+                            GMButton("Terminar", icon: "flag.checkered") {
+                                tracker.stop()
+                                finishing = true
+                            }
+                        }
+                    }
+                }
+                .padding(18)
+                .background(Theme.card, in: .rect(cornerRadius: 26))
+                .padding(12)
+            }
+            .overlay(alignment: .topLeading) {
+                GMIconButton(icon: "xmark") { if tracker.start == nil { dismiss() } else { confirmQuit = true } }
+                    .padding(16)
+            }
+        }
+        .background(Theme.bg.ignoresSafeArea())
+        .onAppear {
+            tracker.prepare()
+            UIApplication.shared.isIdleTimerDisabled = true
+        }
+        .onDisappear {
+            tracker.stop()
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
+        .gmActions(isPresented: $confirmQuit, title: "Sair sem salvar?", message: "O percurso será descartado.", actions: [
+            GMAction("Sair sem salvar", icon: "xmark", destructive: true) { dismiss() }
+        ])
+        .gmModal(isPresented: $finishing) {
+            RouteFinishView(tracker: tracker) { dismiss() }
+        }
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.title3.weight(.heavy).monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
+            Text(label).font(.caption).foregroundStyle(Theme.dim)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+struct RouteFinishView: View {
+    let tracker: RouteTracker
+    let onDone: () -> Void
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State private var effort = 6
+    @State private var leagues: Set<UUID> = []
+    @State private var photo: Data?
+
+    var body: some View {
+        let secs = tracker.elapsed()
+        GMModal("\(tracker.kind.name) concluída", confirm: "Salvar", onConfirm: save) {
+            if tracker.coords.count > 1 {
+                RouteMap(coords: tracker.coords).frame(height: 220).clipShape(.rect(cornerRadius: 18))
+            }
+            GMCard {
+                HStack {
+                    stat(clock(secs), "tempo")
+                    stat(kmText(tracker.meters), "distância")
+                    stat(paceText(kind: tracker.kind, meters: tracker.meters, seconds: secs), tracker.kind == .bike ? "velocidade" : "ritmo")
+                }
+            }
+            GMSection { GMEffortPicker(value: $effort) }
+            LeaguePostSection(selected: $leagues, photo: $photo)
+        }
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.headline.monospacedDigit())
+            Text(label).font(.caption).foregroundStyle(Theme.dim)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func save() {
+        let secs = tracker.elapsed()
+        let start = tracker.start ?? .now
+        let activity = Activity(kind: tracker.kind, date: start, minutes: max(secs / 60, 1), effort: effort,
+                                note: kmText(tracker.meters) + " · " + paceText(kind: tracker.kind, meters: tracker.meters, seconds: secs))
+        context.insert(activity)
+        let route = RouteRecord(kind: tracker.kind, start: start)
+        route.activityUUID = activity.uuid
+        route.seconds = secs
+        route.meters = tracker.meters
+        route.points = RouteRecord.encode(tracker.coords)
+        context.insert(route)
+        postCheckIns(activity: activity, leagues: leagues, title: "\(tracker.kind.name) · \(kmText(tracker.meters))", note: "", photo: photo, context: context)
+        try? context.save()
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        dismiss()
+        onDone()
+    }
+}
+
+/// Mapa estático de um percurso, enquadrado nele
+struct RouteMap: View {
+    let coords: [CLLocationCoordinate2D]
+
+    var body: some View {
+        Map(initialPosition: .rect(rect)) {
+            MapPolyline(coordinates: coords).stroke(Theme.accent, lineWidth: 5)
+            if let first = coords.first { Annotation("", coordinate: first) { Circle().fill(.white).frame(width: 12, height: 12) } }
+            if let last = coords.last { Annotation("", coordinate: last) { Circle().fill(Theme.accent).frame(width: 14, height: 14) } }
+        }
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        .allowsHitTesting(false)
+    }
+
+    private var rect: MKMapRect {
+        let points = coords.map(MKMapPoint.init)
+        var r = points.reduce(MKMapRect.null) { $0.union(MKMapRect(origin: $1, size: MKMapSize(width: 1, height: 1))) }
+        r = r.insetBy(dx: -r.size.width * 0.2 - 300, dy: -r.size.height * 0.2 - 300)
+        return r
+    }
+}
+
+// MARK: - Escolher a academia no mapa
+
+struct GymPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = GymLocation.shared.gym?.name ?? "Minha academia"
+    @State private var center: CLLocationCoordinate2D? = GymLocation.shared.gym?.coordinate
+    @State private var radius = GymLocation.shared.gym?.radius ?? 100
+    @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
+    @State private var locating = false
+
+    var body: some View {
+        GMModal("Minha academia", confirm: "Salvar", confirmEnabled: center != nil, onConfirm: save) {
+            GMSection("Local", footer: "Toque no mapa para marcar a academia, ou use sua localização atual se estiver lá agora.") {
+                MapReader { proxy in
+                    Map(position: $camera) {
+                        UserAnnotation()
+                        if let center {
+                            MapCircle(center: center, radius: radius).foregroundStyle(Theme.accent.opacity(0.2)).stroke(Theme.accent, lineWidth: 2)
+                            Annotation(name, coordinate: center) {
+                                Image(systemName: "dumbbell.fill").font(.caption.bold()).padding(8).background(Theme.accent, in: .circle).foregroundStyle(.black)
+                            }
+                        }
+                    }
+                    .onTapGesture { point in
+                        if let c = proxy.convert(point, from: .local) { center = c }
+                    }
+                }
+                .frame(height: 280)
+                .clipShape(.rect(cornerRadius: 14))
+                GMButton(locating ? "Buscando…" : "Usar minha localização atual", icon: "location.fill", kind: .secondary, small: true, enabled: !locating) {
+                    Task {
+                        locating = true
+                        if let loc = await GymLocation.shared.currentLocation() {
+                            center = loc.coordinate
+                            camera = .region(MKCoordinateRegion(center: loc.coordinate, latitudinalMeters: 600, longitudinalMeters: 600))
+                        }
+                        locating = false
+                    }
+                }
+            }
+            GMSection("Nome") { GMTextField(placeholder: "Ex.: Smart Fit Paulista", text: $name) }
+            GMSection("Raio", footer: "Uma academia comum cabe em 100 m. Aumente se o GPS da região for impreciso.") {
+                GMChoiceChips(options: [(50.0, "50 m"), (100.0, "100 m"), (150.0, "150 m"), (250.0, "250 m")], selection: $radius)
+            }
+        }
+        .onAppear {
+            if let c = center { camera = .region(MKCoordinateRegion(center: c, latitudinalMeters: 600, longitudinalMeters: 600)) }
+        }
+    }
+
+    private func save() {
+        guard let center else { return }
+        GymLocation.shared.gym = GymLocation.Gym(name: name.trimmingCharacters(in: .whitespaces).isEmpty ? "Minha academia" : name,
+                                                 latitude: center.latitude, longitude: center.longitude, radius: radius)
+        GymLocation.shared.requestAlways()
+        dismiss()
+    }
+}

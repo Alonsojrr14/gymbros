@@ -13,6 +13,8 @@ struct HistoryView: View {
 
     @State private var menu: Activity?
     @State private var editing: Activity?
+    @State private var routeFor: RouteRecord?
+    @Query private var routes: [RouteRecord]
 
     var body: some View {
         NavigationStack {
@@ -38,9 +40,21 @@ struct HistoryView: View {
             .gmActions(isPresented: Binding(get: { menu != nil }, set: { if !$0 { menu = nil } }),
                        title: menu.map { "\($0.kind.name) · \(durationText($0.minutes))" },
                        message: menu.map { $0.date.formatted(date: .complete, time: .shortened) + ($0.note.isEmpty ? "" : "\n\($0.note)") },
-                       actions: [GMAction("Editar", icon: "pencil") { editing = menu },
+                       actions: (menu.flatMap { a in routes.first { $0.activityUUID == a.uuid } }.map { r in
+                           [GMAction("Ver percurso (\(kmText(r.meters)))", icon: "map") { routeFor = r }]
+                       } ?? []) + [GMAction("Editar", icon: "pencil") { editing = menu },
                                  GMAction("Apagar atividade", icon: "trash", destructive: true) { if let a = menu { delete(a) } }])
             .gmModal(item: $editing) { LogActivityView(snapshot: snapshot, editing: $0) }
+            .gmSheet(isPresented: Binding(get: { routeFor != nil }, set: { if !$0 { routeFor = nil } })) { _ in
+                if let r = routeFor {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("\(r.kind.name) · \(kmText(r.meters))").font(.headline)
+                        RouteMap(coords: r.coordinates).frame(height: 280).clipShape(.rect(cornerRadius: 16))
+                        Text("\(clock(r.seconds)) · \(paceText(kind: r.kind, meters: r.meters, seconds: r.seconds))")
+                            .font(.subheadline.monospacedDigit()).foregroundStyle(Theme.dim)
+                    }
+                }
+            }
         }
     }
 
@@ -52,6 +66,8 @@ struct HistoryView: View {
         if let h = a.healthUUID { HealthSync.ignored.insert(h) }
         let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
         posts.forEach(context.delete)
+        let route = (try? context.fetch(FetchDescriptor<RouteRecord>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
+        route.forEach(context.delete)
         context.delete(a)
         try? context.save()
     }

@@ -18,6 +18,7 @@ struct TrainView: View {
     @State private var sessionMenu: WorkoutSession?
     @State private var editing: Routine?
     @State private var plates = false
+    @State private var outdoor: ActivityKind?
 
     var body: some View {
         NavigationStack {
@@ -56,6 +57,23 @@ struct TrainView: View {
                     GMRow(icon: "plus", iconTint: Theme.accent, title: "Nova rotina", action: newRoutine)
                     GMDivider()
                     GMRow(icon: "square.stack", iconTint: Theme.accent, title: "Usar modelo pronto", chevron: true) { templates = true }
+                }
+
+                GMSection("Ao ar livre (GPS)") {
+                    HStack(spacing: 10) {
+                        ForEach([ActivityKind.corrida, .caminhada, .bike]) { k in
+                            Button { outdoor = k } label: {
+                                VStack(spacing: 6) {
+                                    Image(systemName: k.symbol).font(.title2).frame(height: 30)
+                                    Text(k.name).font(.caption.weight(.semibold))
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 72)
+                                .background(Theme.raised, in: .rect(cornerRadius: 14))
+                                .foregroundStyle(.white)
+                            }
+                            .buttonStyle(GMPress())
+                        }
+                    }
                 }
 
                 GMSection("CrossFit") {
@@ -105,9 +123,11 @@ struct TrainView: View {
                 }
             }
             .navigationDestination(item: $editing) { RoutineEditView(routine: $0) }
+            .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.startWorkout)) { _ in startToday() }
             .gmModal(isPresented: $templates) { TemplatesView(startingOrder: routines.count) }
             .gmModal(isPresented: $library) { ExercisePicker() }
             .gmSheet(isPresented: $plates) { _ in PlateCalculatorView(total: 60) }
+            .gmModal(item: $outdoor) { RouteRunView(kind: $0) }
             .gmModal(item: $active) { s in
                 WorkoutView(session: s, history: finished.reversed().map(\.log))
             }
@@ -144,19 +164,13 @@ struct TrainView: View {
     }
 
     private func start(_ routine: Routine?) {
-        let history = finished.reversed().map(\.log)
-        let session = WorkoutSession(title: routine?.name ?? "Treino livre", routineUUID: routine?.uuid)
-        context.insert(session)
-        for (i, item) in (routine?.sortedItems ?? []).enumerated() {
-            let s = Progression.suggest(exerciseID: item.exerciseID, sets: item.sets, reps: item.reps, history: history)
-            for k in 0..<item.sets {
-                session.sets.append(LoggedSet(exerciseID: item.exerciseID, exerciseOrder: i, index: k,
-                                              weight: s.weight, reps: s.reps, rest: item.rest))
-            }
-        }
-        try? context.save()
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
-        active = session
+        active = LiveWorkout.startSession(routine: routine)
+    }
+
+    /// Chegou na academia: abre o treino em andamento ou começa a rotina do dia
+    private func startToday() {
+        if let s = inProgress { active = s; return }
+        start(routines.first { $0.weekdays.contains(today) })
     }
 
     private func newRoutine() {

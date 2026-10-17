@@ -10,7 +10,7 @@ enum AppData {
     static let container: ModelContainer = {
         try! ModelContainer(for: Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
                             CustomExercise.self, League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
-                            WodResult.self)
+                            WodResult.self, RouteRecord.self)
     }()
 }
 
@@ -150,6 +150,49 @@ enum LiveWorkout {
         let mp = m == 0 ? "" : "\(m) minuto\(m == 1 ? "" : "s")"
         let sp = s == 0 ? "" : "\(s) segundos"
         return [mp, sp].filter { !$0.isEmpty }.joined(separator: " e ")
+    }
+
+    /// Encerra e salva o treino sem a tela de conclusão (ex.: ao sair da academia). Devolve o resumo.
+    static func autoFinish(_ s: WorkoutSession, place: String?) async -> String {
+        let ctx = AppData.container.mainContext
+        cancelRest(s)
+        await endAll()
+        HeadphoneControl.shared.stop()
+        let done = s.sets.filter(\.done)
+        guard !done.isEmpty else {
+            ctx.delete(s)
+            try? ctx.save()
+            return "Nenhuma série marcada, então o treino foi descartado."
+        }
+        let minutes = max(Int(Date.now.timeIntervalSince(s.start) / 60), 1)
+        let activity = Activity(kind: .musculacao, date: s.start, minutes: minutes, effort: s.effort, note: s.title + (place.map { " · 📍 \($0)" } ?? ""))
+        ctx.insert(activity)
+        s.end = .now
+        s.activityUUID = activity.uuid
+        try? ctx.save()
+        let xp = Game.xp(kind: .musculacao, minutes: minutes, effort: s.effort)
+        return "\(s.title): \(durationText(minutes)), \(done.count) séries. +\(xp) XP pro seu bro."
+    }
+
+    /// Começa um treino (de rotina ou livre) já com as cargas sugeridas pelo histórico
+    static func startSession(routine: Routine?) -> WorkoutSession {
+        let ctx = AppData.container.mainContext
+        let finished = (try? ctx.fetch(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end != nil },
+                                                                      sortBy: [SortDescriptor(\.start)]))) ?? []
+        let history = finished.map(\.log)
+        let session = WorkoutSession(title: routine?.name ?? "Treino livre", routineUUID: routine?.uuid)
+        ctx.insert(session)
+        for (i, item) in (routine?.sortedItems ?? []).enumerated() {
+            let sug = Progression.suggest(exerciseID: item.exerciseID, sets: item.sets, reps: item.reps, history: history)
+            for k in 0..<item.sets {
+                session.sets.append(LoggedSet(exerciseID: item.exerciseID, exerciseOrder: i, index: k,
+                                              weight: sug.weight, reps: sug.reps, rest: item.rest))
+            }
+        }
+        try? ctx.save()
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        GymLocation.shared.pendingArrival = nil
+        return session
     }
 
     static var hasRunning: Bool { running() != nil }

@@ -76,6 +76,8 @@ final class LeagueCheckIn {
     var note: String = ""
     var date: Date = Date.now
     @Attribute(.externalStorage) var photo: Data?
+    /// Onde foi (ex.: nome da academia), quando postado de lá
+    var place: String?
 
     init(leagueUUID: UUID, activityUUID: UUID, title: String, note: String, date: Date, photo: Data?) {
         self.leagueUUID = leagueUUID
@@ -186,6 +188,7 @@ struct FeedItem: Identifiable {
     let minutes: Int
     let score: Int
     let photo: Data?
+    var place: String? = nil
 }
 
 struct RankRow: Identifiable {
@@ -203,7 +206,8 @@ enum LeagueBoard {
         var items: [FeedItem] = mine.compactMap { c in
             guard let a = activities[c.activityUUID] else { return nil }
             return FeedItem(id: c.uuid.uuidString, memberID: "me", name: me, avatar: myAvatar, isMe: true, date: c.date, title: c.title, note: c.note,
-                            kind: a.kind, minutes: a.minutes, score: s.score(kind: a.kind, minutes: a.minutes, effort: a.effort), photo: c.photo)
+                            kind: a.kind, minutes: a.minutes, score: s.score(kind: a.kind, minutes: a.minutes, effort: a.effort), photo: c.photo,
+                            place: c.place)
         }
         if league.isMock {
             items += MockLeague.checkIns(league: league).map { f in

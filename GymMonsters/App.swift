@@ -11,6 +11,8 @@ struct GymMonstersApp: App {
         WorkoutIntentBridge.completeSet = { await LiveWorkout.completeNextSet() }
         WorkoutIntentBridge.skipRest = { await LiveWorkout.skipRest() }
         GymBrosShortcuts.updateAppShortcutParameters()
+        NotificationRouter.shared.install()
+        GymLocation.shared.startMonitoring()
     }
 
     var body: some Scene {
@@ -64,6 +66,7 @@ struct MainView: View {
     @State private var evolution: EvolutionEvent?
     @State private var banner: Banner?
     @State private var tab = 0
+    @State private var arrivalPrompt = false
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var phase
 
@@ -109,6 +112,10 @@ struct MainView: View {
             guard phase == .active else { return }
             let running = (try? context.fetchCount(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end == nil }))) ?? 0
             if running == 0 { await LiveWorkout.endAll() }
+            // Chegou na academia há pouco e ainda não começou: oferece começar
+            if running == 0, let arrived = GymLocation.shared.pendingArrival, Date.now.timeIntervalSince(arrived) < 3600 {
+                arrivalPrompt = true
+            }
             await syncHealth()
         }
         .task(id: achievements.filter(\.unlocked).map(\.id)) { announce(achievements) }
@@ -128,6 +135,16 @@ struct MainView: View {
                     .onTapGesture { withAnimation { self.banner = nil } }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.startWorkout)) { _ in tab = 1 }
+        .gmActions(isPresented: $arrivalPrompt, title: "Chegou na \(GymLocation.shared.gym?.name ?? "academia") 💪",
+                   message: GymLocation.todayRoutineName().map { "Hoje é dia de \($0)." } ?? "Bora treinar?",
+                   actions: [GMAction("Começar treino", icon: "play.fill") {
+                       GymLocation.shared.pendingArrival = nil
+                       tab = 1
+                       DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                           NotificationCenter.default.post(name: NotificationRouter.startWorkout, object: nil)
+                       }
+                   }])
         .fullScreenCover(item: $evolution) { e in
             EvolutionView(from: e.from, to: e.to) { evolution = nil }
         }

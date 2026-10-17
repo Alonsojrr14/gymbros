@@ -37,6 +37,12 @@ O app não usa controles padrão do iOS: telas, cabeçalhos, barra de abas, bot�
 - ~230 exercícios: 80 embutidos (com fotos no app) + 150 do free-exercise-db (domínio público), com fotos carregadas da internet e guardadas em cache (`GymMonsters/ExerciseExtra.swift`). Instruções em inglês traduzidas no próprio iPhone (iOS 18+). Botão "Ver vídeo" abre a busca no YouTube.
 - CrossFit: 42 movimentos (olímpicos, ginásticos, metcon) e modo WOD (`GymMonsters/Wod.swift`) com benchmarks (Fran, Grace, Cindy, Helen, Murph, DT…), cronômetro For Time / AMRAP / EMOM / Tabata, resultados com RX e recorde por WOD. Cada WOD vira atividade de crossfit.
 
+## Localização
+
+- Minha academia (`GymMonsters/Location.swift`): local e raio no mapa; ao chegar, notificação e oferta de começar o treino do dia; ao sair, o treino em andamento (com mais de 10 min) é encerrado e salvo automaticamente. Usa `CLMonitor`, que acorda o app em segundo plano. Check-ins feitos na academia mostram o local.
+- Corrida, caminhada e bike com GPS (`GymMonsters/Route.swift`): percurso no mapa, distância, tempo e ritmo, com a tela bloqueada; percurso salvo e visível no histórico.
+- Tudo fica só no iPhone.
+
 ## Apple Saúde e backup
 
 - Treinos do iPhone/Apple Watch são importados ao abrir o app (Ajustes → Apple Saúde; na primeira vez, últimos 14 dias). O tipo vira a atividade correspondente e o esforço é estimado pelas calorias ativas em relação ao esperado para a atividade. Treinos que se sobrepõem a algo já registrado (ex.: treino guiado também gravado no Watch) não contam duas vezes. Só leitura.
