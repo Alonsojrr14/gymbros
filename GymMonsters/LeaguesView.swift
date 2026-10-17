@@ -602,45 +602,109 @@ struct LeaguePostSection: View {
     private var everything: Set<UUID> { Set(leagues.filter { !$0.isOver }.map(\.uuid)).union([ProfileFeed.id]) }
 
     var body: some View {
-        GMSection("Postar check-in em", footer: selected.isEmpty ? "Sem destino: a atividade fica só no seu histórico." : nil) {
-            GMFlow {
-                GMChip(title: "Meu perfil", icon: "person.crop.circle", selected: selected.contains(ProfileFeed.id)) { toggle(ProfileFeed.id) }
+        VStack(alignment: .leading, spacing: 18) {
+            GMSection("Postar em", footer: selected.isEmpty ? "Sem destino: a atividade fica só no seu histórico." : nil,
+                      trailing: AnyView(allButton)) {
+                destination(id: ProfileFeed.id, title: "Meu perfil", subtitle: "Aparece no seu perfil público") { Avatar(size: 38) }
                 ForEach(leagues) { l in
-                    GMChip(title: "\(l.emoji) \(l.name)" + (l.isOver ? " (encerrada)" : ""), selected: selected.contains(l.uuid)) { toggle(l.uuid) }
-                }
-            }
-            if !leagues.isEmpty {
-                HStack(spacing: 8) {
-                    GMButton("Todos", kind: .secondary, full: false, small: true) { selected.formUnion(everything) }
-                    GMButton("Nenhum", kind: .ghost, full: false, small: true) { selected.removeAll() }
-                }
-            }
-            GMDivider()
-            PhotosPicker(selection: $pick, matching: .images) {
-                HStack(spacing: 12) {
-                    Image(systemName: "photo")
-                        .font(.body.weight(.semibold))
-                        .frame(width: 34, height: 34)
-                        .background(Theme.raised, in: .rect(cornerRadius: 10))
-                    Text(photo == nil ? "Adicionar foto" : "Trocar foto").font(.subheadline.weight(.semibold))
-                    Spacer()
-                    if let photo, let img = UIImage(data: photo) {
-                        Image(uiImage: img).resizable().scaledToFill().frame(width: 44, height: 44).clipShape(.rect(cornerRadius: 8))
+                    GMDivider()
+                    destination(id: l.uuid, title: l.name, subtitle: leagueSubtitle(l)) {
+                        Text(l.emoji).font(.title3).frame(width: 38, height: 38).background(Theme.raised, in: .circle)
                     }
                 }
-                .foregroundStyle(.white)
             }
-            .buttonStyle(GMPress())
-            .onChange(of: pick) { _, item in
-                Task {
-                    if let data = try? await item?.loadTransferable(type: Data.self) { photo = compressedPhoto(data) }
-                }
-            }
-            if photo != nil {
-                GMButton("Tirar foto", kind: .ghost, full: false, small: true) { photo = nil; pick = nil }
-            }
+            photoSection
         }
         .onAppear { if selectAllByDefault && selected.isEmpty { selected = everything } }
+        .onChange(of: pick) { _, item in
+            Task {
+                if let data = try? await item?.loadTransferable(type: Data.self) { photo = compressedPhoto(data) }
+            }
+        }
+    }
+
+    /// Marca tudo; se já está tudo marcado, desmarca
+    private var allButton: some View {
+        let all = everything.isSubset(of: selected)
+        return Button(all ? "Desmarcar" : "Marcar todos") {
+            if all { selected.removeAll() } else { selected.formUnion(everything) }
+            UISelectionFeedbackGenerator().selectionChanged()
+        }
+        .font(.caption.weight(.bold))
+        .foregroundStyle(Theme.accent)
+    }
+
+    private func leagueSubtitle(_ l: League) -> String {
+        if l.isOver { return "Encerrada" }
+        let days = l.daysLeft.map { $0 == 1 ? "último dia" : "faltam \($0) dias" } ?? "sem fim"
+        return "Liga · \(days)"
+    }
+
+    private func destination<Icon: View>(id: UUID, title: String, subtitle: String, @ViewBuilder icon: () -> Icon) -> some View {
+        let on = selected.contains(id)
+        return Button { toggle(id) } label: {
+            HStack(spacing: 12) {
+                icon()
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(subtitle).font(.caption).foregroundStyle(Theme.dim)
+                }
+                Spacer()
+                Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 24))
+                    .foregroundStyle(on ? Theme.accent : Theme.dim)
+            }
+            .contentShape(Rectangle())
+            .foregroundStyle(.white)
+        }
+        .buttonStyle(GMPress())
+    }
+
+    @ViewBuilder
+    private var photoSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("FOTO").font(.caption.weight(.bold)).foregroundStyle(Theme.dim).tracking(0.6).padding(.horizontal, 4)
+            if let photo, let img = UIImage(data: photo) {
+                PhotosPicker(selection: $pick, matching: .images) {
+                    Color.clear
+                        .frame(height: 200)
+                        .overlay { Image(uiImage: img).resizable().scaledToFill() }
+                        .clipShape(.rect(cornerRadius: Theme.radius))
+                        .overlay(alignment: .bottomLeading) {
+                            Label("Trocar", systemImage: "arrow.triangle.2.circlepath")
+                                .font(.caption.weight(.bold))
+                                .padding(.horizontal, 10).padding(.vertical, 6)
+                                .background(.black.opacity(0.6), in: .capsule)
+                                .foregroundStyle(.white)
+                                .padding(10)
+                        }
+                }
+                .buttonStyle(GMPress())
+                .overlay(alignment: .topTrailing) {
+                    Button { self.photo = nil; pick = nil } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .frame(width: 30, height: 30)
+                            .background(.black.opacity(0.6), in: .circle)
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(GMPress())
+                    .padding(10)
+                }
+            } else {
+                PhotosPicker(selection: $pick, matching: .images) {
+                    VStack(spacing: 6) {
+                        Image(systemName: "camera.fill").font(.title2)
+                        Text("Adicionar foto").font(.subheadline.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 110)
+                    .foregroundStyle(Theme.dim)
+                    .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.radius).strokeBorder(Theme.dim.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])))
+                }
+                .buttonStyle(GMPress())
+            }
+        }
     }
 
     private func toggle(_ id: UUID) {
