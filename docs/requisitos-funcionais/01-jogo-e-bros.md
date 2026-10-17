@@ -127,14 +127,15 @@ O app deve indicar na tela inicial em que forma o bro tende a evoluir.
 ### RF-JOG-12: Espécie definida ao chocar
 O app deve definir a espécie do bro no momento em que o ovo choca, pelos treinos que o chocaram.
 - **Regras de negócio**
-  - 8 espécies: Coelho (padrão, sem afinidade), Urso e Rato (Força), Lobo e Cachorro (Resistência), Esquilo e Gato (Agilidade), Coruja (Técnica).
-  - Treinos equilibrados chocam Coelho: se o atributo dominante dos atributos do choco tem menos de 35% do total (`balancedShare`), ou se não há atributos, nasce Coelho.
-  - Senão, dominante → espécies prontas com essa afinidade; havendo mais de uma, a escolha é determinística por semente do UUID do bro. Sem correspondência, nasce Coelho.
+  - A espécie sai da **atividade** dos treinos do ovo: a família com mais da metade dos minutos treinados até o choco (`Hatch.majority = 0,5`) define o animal. Minutos, não XP.
+  - 8 espécies: Urso e Rato (musculação, crossfit), Lobo (corrida, bike, natação), Cachorro (caminhada, futebol), Esquilo (vôlei), Gato (lutas, dança), Coruja (yoga), Coelho (Outro ou mistura sem atividade principal).
+  - Treinos do Apple Saúde usam o tipo exato do treino (`Activity.healthType`); todas as atividades que o iPhone e o Watch gravam têm animal (`Hatch.species(for: HKWorkoutActivityType)`).
+  - Família com mais de uma espécie (Urso e Rato): escolha determinística por semente do UUID do bro. Sem espécie pronta, nasce Coelho.
   - Só nasce espécie com as 10 artes no app (`isReady`); hoje todas as 8 estão prontas.
   - Após o choco a espécie é gravada no bro (`speciesID`) e não muda com espécies novas. Se o bro volta a ser ovo (atividades apagadas ou editadas), a espécie gravada é apagada e o próximo choco decide de novo.
   - O ovo é igual para todas as espécies.
-- **Critérios de aceitação:** um ovo chocado só com yoga nasce Coruja; um ovo com Força, Resistência, Agilidade e Técnica em 25% cada nasce Coelho; o mesmo bro sempre resolve para a mesma espécie.
-- **Fonte:** `GymMonsters/Game.swift` (`Species.hatch`, `Species.balancedShare`, `Species.all`), `GymMonsters/App.swift` (`check`), `GymMonstersTests/GameTests.swift` (`testBalancedHatchIsStandardSpecies`), `EVOLUCAO.md`
+- **Critérios de aceitação:** um ovo chocado só com yoga nasce Coruja; musculação 60 min + corrida 40 min nasce Urso ou Rato; corrida 30 min + yoga 30 min nasce Coelho; só "Outro" nasce Coelho; o mesmo bro sempre resolve para a mesma espécie.
+- **Fonte:** `GymMonsters/Hatch.swift`, `GymMonsters/Game.swift` (`Species.hatch`, `Species.all`), `GymMonsters/Monsters.swift`, `GymMonstersTests/GameTests.swift` (`testHatchFollowsMainActivity`, `testEveryActivityHasAnimal`), `EVOLUCAO.md`
 
 ---
 
@@ -261,7 +262,7 @@ O app deve registrar como descoberta toda forma alcançada por qualquer bro.
 ### RF-JOG-25: Dex por espécie
 O app deve exibir a árvore de evolução de cada espécie.
 - **Regras de negócio**
-  - Seletor horizontal com todas as espécies: bebê (silhueta se não descoberto), "vistos/total", ícone da afinidade; espécie sem arte mostra "?" e "Em breve" e não é selecionável. O Coelho é descrito como "Nasce de ovos chocados com treinos equilibrados, sem atributo dominante".
+  - Seletor horizontal com todas as espécies: bebê (silhueta se não descoberto), "vistos/total", ícone da primeira atividade da espécie; espécie sem arte mostra "?" e "Em breve" e não é selecionável. A árvore diz de onde a espécie nasce (ex.: "Nasce quando o ovo choca com musculação ou crossfit"); o Coelho, "com \"Outro\" ou com treinos variados, sem atividade principal".
   - Árvore: Ovo → Bebê → Rookie; um galho por atributo (Champion → Ultimate); seção "Formas híbridas" se a espécie tiver alguma arte híbrida, com uma linha por dupla cujo Champion híbrido tenha arte.
   - Forma não descoberta: silhueta e "???"; cada nó mostra estágio e limiar de XP; a forma atual do principal fica destacada.
   - "Revelar todas" mostra tudo sem contar como descoberta (preferência salva).
@@ -274,7 +275,7 @@ O app deve avaliar 28 conquistas e exibi-las em grade.
   - Estágio (do bro mais evoluído): chocar, Rookie, Champion, Ultimate; 2 bros no Ultimate.
   - Melhor sequência: 3, 7, 30 dias.
   - Treino guiado: 10 treinos; 1 e 25 recordes; 10 t e 100 t de volume (peso × reps das séries feitas); todos os músculos do mapa numa janela de 7 dias.
-  - Espécies chocadas: 2, 4 e todas as do catálogo (hoje 8); Dex: 25 formas e todas. Com o Coelho nascendo de treinos equilibrados (RF-JOG-12), todas são alcançáveis.
+  - Espécies chocadas: 2, 4 e todas as do catálogo (hoje 8); Dex: 25 formas e todas. Como toda espécie nasce de alguma atividade e o Coelho nasce de "Outro" ou de treinos variados (RF-JOG-12), todas são alcançáveis.
   - Grade ordenada por desbloqueadas e depois por progresso; bloqueadas com barra de progresso e opacidade 0,7.
   - Ao desbloquear, banner "Conquista: {título}" ou "N conquistas novas!" por 4 s (toque fecha); cada conquista é anunciada uma vez.
 - **Fonte:** `GymMonsters/Companion.swift` (`Achievements`), `GymMonsters/App.swift` (`announce`), `GymMonsters/DexView.swift`
@@ -369,9 +370,7 @@ O app deve expor as ações "Série feita" e "Pular descanso" no app Atalhos, na
 ## 14. Compartilhar nos Stories
 
 ### RF-JOG-39: Arte de treino para Stories
-O app deve gerar uma imagem 1080 × 1920 do treino guiado e abrir a folha de compartilhar.
+O app deve gerar uma imagem 1080 × 1920 da atividade, com o sprite do bro principal, e abrir a folha de compartilhar.
 - **Regras de negócio**
-  - Disponível no detalhe de atividades com treino guiado vinculado: "Compartilhar nos Stories" (usa a foto do check-in, se houver) e "Stories com outra foto".
-  - Conteúdo: marca, data, local, título, sprite do principal (padrão `sprite_baby`), duração, nº de séries, volume arredondado a 10 kg ("–" se zero), melhor série por exercício (até 8 sem foto, 5 com foto, "+N exercícios") e até 2 recordes.
-  - Margens seguras: 56 pt no topo e 64 pt embaixo (em 360 × 640 × 3).
+  - A arte mostra o sprite do principal (padrão `sprite_baby`); conteúdo, molduras, calorias, distância, pace e trajeto estão em RF-SOC-29 (`03-social-e-dados.md`).
 - **Fonte:** `GymMonsters/StoryShare.swift`, `GymMonsters/ActivityDetail.swift`

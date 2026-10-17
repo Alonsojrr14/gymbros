@@ -2,11 +2,11 @@
 
 ## Escopo
 
-Este documento cobre a parte social do GymBros (ligas, check-ins, mural, comentários, amigos e perfil público), a localização (lugares de treino, chegada e saída, rotas GPS e amigos ao vivo no mapa), a integração com o Apple Saúde, o backup e os ajustes. Tudo foi levantado a partir do código atual, sem inventar comportamento. O app não tem conta nem servidor: os dados do usuário ficam no aparelho (SwiftData e `UserDefaults`), e tudo o que viria de outras pessoas passa por dois contratos (`LeagueBackend` e `FriendsBackend`) que hoje são atendidos por implementações simuladas e determinísticas (`MockLeagueBackend`, `MockFriendsBackend`, `FriendsLive.simulated`). Cada requisito traz uma linha **Situação**, que pode ser:
+Este documento cobre a parte social do GymBros (ligas, check-ins, mural, comentários, amigos e perfil público), a localização (lugares de treino, chegada e saída, rotas GPS e amigos ao vivo no mapa), a integração com o Apple Saúde, o backup, os ajustes, o login e o compartilhamento nos Stories. Tudo foi levantado a partir do código atual, sem inventar comportamento. Os dados do usuário ficam no aparelho (SwiftData e `UserDefaults`), e tudo o que envolve servidor passa por três contratos: `AuthBackend` (login), `LeagueBackend` (ligas, check-ins e mural) e `FriendsBackend` (amigos e perfil público). Um interruptor em `Backend.swift` (`Backend.mode`) escolhe quem responde: hoje é `.mock`, com implementações simuladas e determinísticas (`MockAuthBackend`, `MockLeagueBackend`, `MockFriendsBackend`, `FriendsLive.simulated`); em `.cloudKit`, as implementações do CloudKit já escritas (`CloudKitAuthBackend`, `CloudKitLeagueBackend`, `CloudKitFriendsBackend`) assumem, o que exige conta paga do Apple Developer (ver `docs/cloudkit.md`). A liga de exemplo `AMIGOS` continua simulada nos dois modos. Cada requisito traz uma linha **Situação**, que pode ser:
 
 - **Local**: funciona de verdade, só no aparelho.
 - **Simulado**: hoje mostra dados de exemplo gerados no próprio app.
-- **Depende de servidor**: já existe o contrato ou a interface, mas só vai funcionar entre pessoas reais quando houver um backend.
+- **Depende de servidor**: já existe o contrato ou a interface, mas só vai funcionar entre pessoas reais com `Backend.mode = .cloudKit` (ou, onde indicado, quando houver um backend que ainda não existe).
 
 ---
 
@@ -46,15 +46,15 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 - O código é convertido para maiúsculas e sem espaços nas pontas. O botão "Entrar" é liberado com 6 caracteres (o tamanho do código).
 - Código de uma liga em que o usuário já está: mostra "Você já está nessa liga.".
 - Código `AMIGOS`: cria a liga de exemplo (RF-SOC-04).
-- Qualquer outro código: mostra "Liga não encontrada. Convites entre pessoas chegam quando o app tiver servidor.".
+- Qualquer outro código: mostra "Procurando…" e pergunta ao backend (`LeagueRemoteStore.join`). Achando, a liga entra na lista com as regras do dono, o bro representante escolhido e a sua inscrição na caixa de saída (`joined = true`, você não cria a liga no servidor). Sem achar: no modo simulado, "Liga não encontrada. Sem servidor, só a liga de exemplo (AMIGOS) existe."; no CloudKit, "Liga não encontrada. Confira o código.". Erro de rede mostra "Não deu para procurar agora: {erro}".
 - O botão de convite no detalhe da liga compartilha o texto "Entra na minha liga {emoji} {nome} no GymBros! Código: {código}".
 - Uma liga criada com "Participantes de exemplo" (exceto a `AMIGOS`) não oferece convite: o botão explica "Os participantes desta liga são simulados e o código dela só existe neste iPhone…", e a capa mostra "participantes simulados" no lugar do código.
 **Critérios de aceitação:**
 - Digitar `amigos` cria a "Liga dos Bros".
 - Digitar o código de uma liga criada pelo próprio usuário retorna "Você já está nessa liga.".
 - Com 5 caracteres, "Entrar" fica desabilitado.
-**Situação:** Depende de servidor. Hoje só o código `AMIGOS` funciona.
-**Fonte:** `LeaguesView.swift` (`JoinLeagueView`, `inviteText`, `canInvite`)
+**Situação:** Depende de servidor. No modo simulado (atual), só o código `AMIGOS` funciona; no CloudKit, qualquer liga publicada pode ser encontrada pelo código.
+**Fonte:** `LeaguesView.swift` (`JoinLeagueView`, `inviteText`, `canInvite`), `LeagueRemote.swift` (`LeagueBackend.join`, `LeagueRemoteStore.join`)
 
 ### RF-SOC-04 · Liga de exemplo "Liga dos Bros"
 **Descrição:** O app deve oferecer uma liga simulada para o usuário experimentar ranking, times, feed e mural.
@@ -146,12 +146,12 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 - O texto não pode ficar vazio depois de remover espaços e quebras de linha. O recado é salvo no aparelho (`LeagueMessage`) e enviado logo em seguida (`flush`).
 - Enquanto `syncedAt` estiver vazio, o recado mostra um ícone de relógio (caixa de saída). O backend simulado aceita tudo na hora.
 - Os recados são agrupados por dia, até 150 no total. Os do usuário ficam à direita, em destaque.
-- Tocar e segurar um recado próprio permite "Apagar recado". A remoção só acontece no aparelho.
+- Tocar e segurar um recado próprio permite "Apagar recado". A remoção só acontece no aparelho (o contrato não apaga recados no servidor).
 - Recados simulados: por pessoa e por dia, 30% de chance de existir, entre 7h e 22h. Quando a pessoa tem time, 35% de chance de ser uma frase de torcida ("Vamos, {time}! 🔥").
 - Numa liga encerrada, o campo de escrita fica oculto.
 **Critérios de aceitação:**
 - Um recado enviado aparece no topo do dia "Hoje" e perde o relógio depois que o envio é aceito.
-**Situação:** O envio depende de servidor; hoje ele é simulado, e os recados dos outros também são simulados.
+**Situação:** Depende de servidor. No modo simulado (atual) o envio é aceito na hora e os recados dos outros são simulados; no CloudKit, o recado vira um registro `Message` da liga.
 **Fonte:** `LeagueMural.swift`, `LeagueRemote.swift` (`LeagueMessage`, `flush`, `MockLeagueBackend.messages`)
 
 ### RF-SOC-10 · Check-in em várias ligas e no perfil
@@ -167,8 +167,9 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 **Critérios de aceitação:**
 - Postar uma atividade em 2 ligas e no perfil cria 3 check-ins com o mesmo título e a mesma foto.
 - Desmarcar uma liga na edição remove o check-in só daquela liga.
-**Situação:** Local. O envio dos check-ins do usuário para outras pessoas depende de servidor: o contrato `LeagueBackend` ainda não tem esse método.
-**Fonte:** `LeaguesView.swift` (`LeaguePostSection`, `CheckInForm`, `postCheckIns`, `syncCheckIns`), `LogActivityView.swift`, `Route.swift`, `Wod.swift`, `WorkoutView.swift`
+- Caixa de saída: todo check-in novo ou editado fica com `syncedAt` vazio e é publicado no próximo envio (`LeagueRemoteStore.flush`, ao abrir o app e 2 s depois de cada mudança; posts do perfil vão como liga `profile`). Check-ins já publicados e depois apagados ou desmarcados vão para `LeagueOutbox` e são retirados do servidor (`retract`). Sair de uma liga leva junto, no servidor, os check-ins dela. Sem rede, nada se perde: fica pendente e tenta de novo.
+**Situação:** Depende de servidor. O fluxo é local; o envio usa `LeagueBackend.publish` e `retract`, aceitos na hora no modo simulado (atual) e gravados como registros `CheckIn` no CloudKit (a foto como `CKAsset`). As telas ainda mostram o quadro colorido no lugar da foto de outras pessoas.
+**Fonte:** `LeaguesView.swift` (`LeaguePostSection`, `CheckInForm`, `postCheckIns`, `syncCheckIns`), `LeagueRemote.swift` (`flush`, `scheduleFlush`, `LeagueOutbox`), `LogActivityView.swift`, `Route.swift`, `Wod.swift`, `WorkoutView.swift`
 
 ### RF-SOC-11 · Detalhe do check-in, comentários e reações
 **Descrição:** O app deve abrir um check-in em tela cheia, com comentários e reações.
@@ -209,7 +210,7 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 - No backend simulado, a pessoa vira amiga na hora, sem pedido pendente. Os códigos simulados são o id em maiúsculas seguido de "2026", cortado em 6 caracteres (ex.: `ANA202`, `BRUNO2`); a Mari usa `MARI42`.
 **Critérios de aceitação:**
 - Digitar `MARI42` adiciona a Mari e remove o pedido dela da lista.
-**Situação:** Simulado. Hoje o diretório só tem as pessoas simuladas; a busca entre pessoas reais depende de servidor.
+**Situação:** Depende de servidor. No modo simulado (atual), o diretório só tem as pessoas simuladas; no CloudKit, o código é procurado nos registros `Profile` (`friendCode`) e a amizade é um `FriendLink` em cada direção (pedir cria o seu, aceitar cria o de volta, desfazer apaga o seu).
 **Fonte:** `Friends.swift` (`FriendsStore`, `MockFriendsBackend`, `FriendsView`)
 
 ### RF-SOC-14 · Pedidos, lista de amigos e sugestões
@@ -224,7 +225,7 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 **Critérios de aceitação:**
 - Sem ligas, a seção de sugestões mostra "Entre numa liga para ver aqui quem treina com você.".
 - Adicionar uma sugestão faz a pessoa sair das sugestões e entrar na lista de amigos.
-**Situação:** Simulado. Depende de servidor para envolver pessoas reais.
+**Situação:** Simulado no modo atual. Com `Backend.mode = .cloudKit`, pedidos, amigos e sugestões vêm do `CloudKitFriendsBackend`.
 **Fonte:** `Friends.swift` (`FriendsStore.initialState`, `MockFriendsBackend`), `FriendsLive.swift`, `LeagueTests.swift` (`testSimulatedPeopleHaveSameBroEverywhere`)
 
 ### RF-SOC-15 · Perfil do amigo
@@ -236,7 +237,7 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 **Critérios de aceitação:**
 - O perfil da Fê não mostra a linha de números.
 - Tocar num dia com posts abre a lista dos posts daquele dia, e cada post abre o detalhe (RF-SOC-11).
-**Situação:** Simulado. Depende de servidor (`FriendsBackend.profile`).
+**Situação:** Simulado no modo atual. No CloudKit, o perfil vem do registro `Profile` do amigo (`FriendsBackend.profile`), só com as partes que ele deixou visíveis.
 **Fonte:** `PublicProfile.swift` (`FriendProfileView`), `Friends.swift` (`MockFriendsBackend.profile`, `posts`)
 
 ### RF-SOC-16 · Perfil próprio: público e privado
@@ -252,8 +253,9 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 - Desligar "Conquistas" tira as conquistas da prévia pública.
 - Uma atividade não postada aumenta "Atividades" no Privado, mas não "Check-ins" no Público.
 - Sem posts, aparece a dica: marcar "Meu perfil" em "Postar em".
-**Situação:** Local. A prévia é montada no aparelho; o envio do perfil próprio para os amigos depende de servidor, e o contrato atual não tem método para publicá-lo.
-**Fonte:** `ProfileView.swift` (`ProfileView`, `publicStats`, `EditProfileView`, `avatarPhoto`), `PublicProfile.swift` (`PublicProfileCard`)
+- Ao abrir o app, o perfil público é montado (`PublicProfile.mine`, respeitando as chaves de visibilidade) e publicado com o código de amigo (`FriendsStore.publish`) só se mudou desde o último envio: a comparação usa um hash SHA-256 guardado por modo de backend, então trocar de simulado para CloudKit publica de novo.
+**Situação:** Depende de servidor. A prévia é local; a publicação usa `FriendsBackend.publish`, que não faz nada no modo simulado (atual) e grava o registro `Profile` no CloudKit. A foto do perfil não sobe.
+**Fonte:** `ProfileView.swift` (`ProfileView`, `publicStats`, `EditProfileView`, `avatarPhoto`), `PublicProfile.swift` (`PublicProfileCard`, `PublicProfile.stats`, `PublicProfile.mine`), `Friends.swift` (`FriendsStore.publish`), `App.swift`
 
 ### RF-SOC-17 · Calendário de posts e atividades
 **Descrição:** O app deve exibir atividades e posts num calendário mensal.
@@ -397,13 +399,53 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 - Nome do treinador; apelido do bro principal (vazio usa o nome da forma).
 - Lembrete diário (desligado por padrão, às 18:00), só nos dias sem treino, com a opção "Só em dias de rotina". Resumo da semana no domingo às 19h (ligado por padrão), com treinos, tempo, PRs e posição nas ligas. Notificação no fim do descanso (desligada).
 - Aquecimento automático (ligado): 3 séries a 40%, 60% e 80% da carga no primeiro exercício com carga. Não há mais o ajuste "Carga na barra": é automático pelo tipo do treino (RF-TRE-05).
-- Apple Saúde (RF-SOC-24 e RF-SOC-25) e Backup (RF-SOC-26).
+- Apple Saúde (RF-SOC-24 e RF-SOC-25), Backup (RF-SOC-26) e Conta (RF-SOC-28).
 - "Recomeçar jornada" pede confirmação com o mesmo texto do rodapé: apaga as atividades e tudo ligado a elas (treinos guiados concluídos, check-ins no perfil e nas ligas com seus comentários, percursos, WODs), os bros, as conquistas já vistas, a Dex descoberta e os carinhos do widget, e devolve um ovo novo, que passa a representar o usuário nas ligas, com placar zerado. Rotinas, lugares, medidas, ligas e o nome continuam; um treino em andamento continua. As próximas importações do Saúde partem do momento atual.
 **Critérios de aceitação:**
 - Ligar um lembrete pede a permissão de notificações.
 - Depois de "Recomeçar jornada", o app continua na tela principal (sem voltar ao onboarding) com um ovo de 0 XP.
 **Situação:** Local.
 **Fonte:** `SettingsView.swift` (`reset`, `resetText`)
+
+---
+
+## 5. Conta e compartilhamento
+
+### RF-SOC-28 · Login e conta
+**Descrição:** O app deve pedir login antes de qualquer outra tela e permitir sair da conta nos Ajustes.
+**Regras:**
+- Sem conta salva, a primeira tela é o login (antes do onboarding): bro bebê animado, "GymBros", "Seus treinos chocam e evoluem um bro." e o seletor "Entrar" / "Criar conta".
+- "Criar conta" pede nome, e-mail e senha; "Entrar", e-mail e senha. O e-mail perde os espaços e vai para minúsculas. Erros: "Diga seu nome.", "E-mail inválido.", "A senha precisa de pelo menos 8 caracteres." e "Já existe uma conta com esse e-mail. Entre em vez de criar.". O botão só é liberado com e-mail e senha preenchidos.
+- "Continuar com a Apple" (botão branco com o logo) é a outra opção. O rodapé avisa: "Ainda não há servidor: o login é simulado e tudo continua só neste iPhone.".
+- Login simulado (`MockAuthBackend`): qualquer senha válida entra, porque não há como conferi-la; as contas criadas guardam só e-mail e nome no aparelho (a senha nunca é guardada). A Apple simulada devolve um e-mail de retransmissão (`…@privaterelay.appleid.com`).
+- A sessão (`AuthUser`: id, nome, e-mail, provedor e token) fica no aparelho. O nome da conta vira o nome de treinador se ainda não houver um; com nome de treinador, o app pula o onboarding e abre direto a tela principal.
+- Ajustes, seção "Conta": nome (ou "Sua conta"), e-mail, ícone do provedor e "Sair da conta", que pede confirmação ("Seus treinos e bros continuam neste iPhone.") e volta para o login sem apagar nada.
+- No modo CloudKit, a conta é a do iCloud do aparelho; entrar por e-mail responde "Por enquanto, entre com a Apple (usa a sua conta do iCloud)." e exigiria servidor próprio.
+**Critérios de aceitação:**
+- Senha de 7 caracteres mostra "A senha precisa de pelo menos 8 caracteres.".
+- Criar conta duas vezes com o mesmo e-mail mostra o erro de e-mail em uso.
+- Sair da conta e entrar de novo mantém atividades, bros e ligas.
+**Situação:** Simulado. Sign in with Apple e iCloud exigem conta paga do Apple Developer (o Personal Team não tem).
+**Fonte:** `Auth.swift` (`AuthStore`, `MockAuthBackend`, `LoginView`, `AuthError`), `App.swift` (`RootView`), `SettingsView.swift`, `Backend.swift`
+
+### RF-SOC-29 · Compartilhar nos Stories
+**Descrição:** O app deve gerar uma arte 9:16 de qualquer atividade, com escolha de moldura e de foto, e abrir o compartilhar do iPhone.
+**Regras:**
+- Pontos de entrada: no detalhe de uma atividade com treino guiado, "Compartilhar nos Stories" e "Stories com outra foto"; no detalhe de qualquer outra atividade (corrida, caminhada, bike, esportes, importadas do Saúde), a mesma seção "Compartilhar", com o subtítulo "Arte com distância, pace e o trajeto" quando há percurso GPS ou "Arte com a atividade e as calorias" quando não há; e o botão de compartilhar no detalhe de uma sessão de treino guiado (`SessionDetailView`). A foto inicial é a do check-in da atividade, se houver.
+- Antes do compartilhar, a tela "Story" mostra a prévia em 9:16, o botão de adicionar ou trocar foto e as molduras em miniatura: **Completo** (foto inteira com tudo por cima), **Mínimo**, **Polaroid** (foto inclinada com moldura branca) e **Bro** (o bro grande no centro). A moldura escolhida fica salva (`storyFrame`). "Compartilhar" renderiza a arte em 1080 × 1920 (360 × 640 em escala 3).
+- Números (só entra o que existe, nunca "–"):
+  - Treino guiado: duração, séries feitas (sem aquecimento) e kcal; a melhor série de cada exercício e até 2 recordes.
+  - Atividade com percurso de mais de 20 m: distância, pace por km (velocidade na bike) e tempo do percurso, além do trajeto desenhado.
+  - Outras atividades: duração e kcal.
+- Calorias: o número real do Apple Saúde quando a atividade veio de lá; senão, estimativa pelo peso mais recente (medidas ou perfil físico). Sem peso, as calorias somem. O volume em kg não aparece mais.
+- Título: o do check-in; sem ele, o nome do tipo (atividades do Saúde) ou a nota. Local: o do check-in ou o lugar de treino. Sprite: o do bro principal (`sprite_baby` sem widget).
+- Trajeto: as coordenadas do GPS viram uma linha na cor de destaque com brilho, ponto branco no início e ponto de destaque no fim, sem distorcer pela latitude.
+**Critérios de aceitação:**
+- Musculação de 60 min sem peso cadastrado não mostra kcal; com 80 kg cadastrados, mostra mais de 100 kcal.
+- Corrida importada do Saúde com "312 kcal" na nota mostra 312.
+- Corrida de 5 km em 25 min mostra "distância" primeiro, pace 5'00" e o trajeto.
+**Situação:** Local.
+**Fonte:** `StoryShare.swift` (`StoryData`, `StoryComposerView`, `StoryFrame`, `WorkoutStoryCard`, `RouteDrawing`), `ActivityDetail.swift`, `TrainView.swift`, `StoryTests.swift`
 
 ---
 

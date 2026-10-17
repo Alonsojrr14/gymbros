@@ -52,15 +52,18 @@ Fonte: `GymMonsters/Wger.swift` (`WgerLibrary`, `CreditLine`, `CreditsView`), `G
 
 ## 2. Privacidade e dados pessoais
 
-**RNF-07 — Dados só no aparelho, sem conta.** Não há cadastro, login nem servidor; todos os dados ficam no SwiftData
-local e em `UserDefaults`.
-Critério: nenhum uso de `URLSession` no código do app; o app funciona completo após o onboarding sem rede.
-Fonte: `README.md`; `GymMonsters/LiveWorkout.swift` (`AppData.container`); grep por `URLSession` sem resultados.
+**RNF-07 — Dados no aparelho, login simulado e servidor desligado.** O app pede login antes do onboarding, mas no modo
+padrão (`Backend.mode = .mock`) ele é simulado: não há rede, a conta fica só no aparelho (`UserDefaults("authUser")`) e
+nenhuma senha é guardada. Todos os dados ficam no SwiftData local e em `UserDefaults`. Com `Backend.mode = .cloudKit`
+(exige iCloud, ainda não configurado), sobe para o banco público do CloudKit só o que é compartilhado: perfil público,
+ligas, seu lugar nelas, check-ins postados e recados; peso, medidas, perfil físico, recordes, metas e atividades não postadas nunca sobem.
+Critério: com `.mock`, nenhum uso de `URLSession` nem chamada ao CloudKit, e o app funciona completo sem rede depois do login.
+Fonte: `GymMonsters/Backend.swift` (`Backend.mode`, `install`), `GymMonsters/Auth.swift` (`AuthStore`, `MockAuthBackend`), `GymMonsters/LiveWorkout.swift` (`AppData.container`), `docs/cloudkit.md`; grep por `URLSession` sem resultados.
 
 **RNF-08 — Tráfego de rede limitado a conteúdo público.** As únicas saídas de rede são: vídeo de demonstração do wger
 tocado no app (`AVPlayer` com URL de `wger.de`), só quando o usuário toca em "Ver vídeo de demonstração"; links de licença e
 de origem nas linhas de crédito; busca de academias no Mapas da Apple (`MKLocalSearch`); e o link externo de busca no YouTube.
-As imagens de exercícios estão embutidas no app (catálogo `Wger`), sem download. Nenhuma saída envia dados do usuário além da consulta.
+As imagens de exercícios estão embutidas no app (catálogo `Wger`), sem download. Nenhuma saída envia dados do usuário além da consulta. No modo `.cloudKit` (desligado), entra também o CloudKit da Apple (RNF-07).
 Critério: inspeção de tráfego mostra apenas `wger.de` (vídeo e links, por ação explícita), serviços da Apple e abertura do YouTube por ação explícita; nenhum acesso a `cdn.jsdelivr.net`.
 Fonte: `GymMonsters/Wger.swift` (`WgerVideoView`, `CreditLine`), `GymMonsters/Exercises.swift` (`videoURL`), `GymMonsters/Location.swift` (`suggestions`), `GymMonsters/MuscleViews.swift`.
 
@@ -119,14 +122,18 @@ Critério: o widget lê somente o estado resumido (bro, humor, XP, sequência, p
 Fonte: `GymMonsters/GymMonsters.entitlements`, `GymMonstersWidget/GymMonstersWidget.entitlements`, `Shared/WidgetShared.swift` (l. 89–92).
 
 **RNF-17 — Nenhuma credencial no código.** Verificado por busca por `api_key`, `secret`, `token`, `password`, `bearer`,
-`private_key`, `sk-…`, `AKIA…`, `ghp_…` e por arquivos `.env` no repositório (excluindo `build/`): nenhuma ocorrência.
+`private_key`, `sk-…`, `AKIA…`, `ghp_…` e por arquivos `.env` no repositório (excluindo `build/`): nenhuma credencial. `token` e
+`password` só aparecem como nomes de campo e parâmetro do login (`Auth.swift`, `Backend.swift`); o token do mock é um UUID gerado na hora.
 Critério: a mesma busca continua sem resultados a cada PR.
 Fonte: varredura do repositório.
 **Recomendação:** adicionar um verificador de segredos (ex.: gitleaks) no pipeline. Os scripts `tools/artes/chrome.sh` copiam o perfil do Chrome (com cookies) para `~/Library/Caches/gymmonsters-chrome`, fora do repositório; isso deve continuar fora do versionamento.
 
-**RNF-18 — Chamadas futuras ao servidor exigem autenticação.** Hoje os backends são simulados (`MockLeagueBackend`, `MockFriendsBackend`).
-**Recomendação:** toda implementação real de `LeagueBackend`/`FriendsBackend` deve usar HTTPS (ATS padrão, sem exceções no `Info.plist`), token de sessão guardado no Keychain e nunca em `UserDefaults` ou no código.
-Fonte: `GymMonsters/LeagueRemote.swift` (l. 88–101), `GymMonsters/Friends.swift` (l. 39–50).
+**RNF-18 — Chamadas ao servidor exigem autenticação.** O backend ativo é o simulado (`MockAuthBackend`, `MockLeagueBackend`, `MockFriendsBackend`).
+A implementação CloudKit já existente usa a conta do iCloud do aparelho como identidade (`CloudKitAuthBackend`) e o banco público com
+permissões World: Read · Authenticated: Create · Creator: Write (`docs/cloudkit.md`).
+Hoje o `AuthUser`, com o token da sessão, fica em `UserDefaults("authUser")`, embora o comentário de `Auth.swift` fale em Keychain; o token é simulado.
+**Recomendação:** antes de qualquer login real (servidor próprio com e-mail e senha), guardar o token no Keychain e nunca em `UserDefaults` ou no código; implementações HTTP de `AuthBackend`/`LeagueBackend`/`FriendsBackend` devem usar HTTPS (ATS padrão, sem exceções no `Info.plist`). Credenciais de servidor ficam em cofre ou gerenciador de segredos.
+Fonte: `GymMonsters/Auth.swift` (`AuthStore.finish`), `GymMonsters/Backend.swift`, `GymMonsters/LeagueRemote.swift` (`LeagueBackend`), `GymMonsters/Friends.swift` (`FriendsBackend`).
 
 ## 4. Desempenho
 
@@ -234,23 +241,25 @@ Fonte: `pbxproj` (`developmentRegion = "pt-BR"`), `GymMonsters/DesignSystem.swif
 `GymTestCase` salva e restaura as chaves de `UserDefaults` e os recordes manuais e usa banco em memória, para não mexer nos dados reais.
 Fonte: `pbxproj` (l. 487, 499), `GymMonstersTests/TestSupport.swift`.
 
-**RNF-36 — Cobertura atual por arquivo de teste (66 testes, contados por `func test` em `GymMonstersTests/`).**
+**RNF-36 — Cobertura atual por arquivo de teste (76 testes, contados por `func test` em `GymMonstersTests/`).**
 
 | Arquivo | Testes | O que cobre |
 |---|---|---|
-| `GameTests.swift` | 9 | fórmula de XP, teto diário, chocar ovo, galhos de evolução, híbrido, sequência, Coelho em treino equilibrado, destino do XP (`Roster.owners`), cache de snapshot igual ao cálculo direto |
-| `ProgressionTests.swift` | 22 | progressão de carga, deload, reps/segundos, metas, aquecimento, 1RM Epley, recordes, incremento de 5 kg só com barra, formatação de 1,25, calculadora pelo incremento, melhor marca sem misturar 1RM e carga, esforço do encerramento automático, deload em qualquer prescrição, nome do personalizado, ordem da troca |
+| `GameTests.swift` | 10 | fórmula de XP, teto diário, chocar ovo, galhos de evolução, híbrido, espécie pela atividade com mais da metade dos minutos (tipo exato do Saúde, mistura vira Coelho), toda atividade com animal, sequência, destino do XP (`Roster.owners`), cache de snapshot igual ao cálculo direto |
+| `ProgressionTests.swift` | 25 | progressão de carga, deload, reps/segundos, metas, aquecimento, 1RM Epley, recordes, incremento de 5 kg só com barra, formatação de 1,25, calculadora pelo incremento, melhor marca sem misturar 1RM e carga, esforço do encerramento automático, deload em qualquer prescrição, nome do personalizado, ordem da troca, rampa feita à mão fora das séries de trabalho, carga e séries sem subir juntas, pirâmide perto do topo conta como trabalho |
 | `WorkoutTests.swift` | 16 | superset, descanso, aquecimento fora do log e dos totais, deload semanal, ranking por período, textos de início, renovação de temporada, troca em superset (parcial e total), aviso "Dez segundos", CAP do For Time |
-| `LeagueTests.swift` | 17 | pesos por atributo, métricas, janela do mês, desempates, regra de foto, "Vale ½" sem zerar, pontuação de check-in restaurado, ids estáveis e legados de times, ranking com `remote` injetado, mesmo bro em todo lugar, estabilidade do mock, placar do time |
+| `LeagueTests.swift` | 19 | pesos por atributo, métricas, janela do mês, desempates, regra de foto, "Vale ½" sem zerar, pontuação de check-in restaurado, ids estáveis e legados de times, ranking com `remote` injetado, mesmo bro em todo lugar, estabilidade do mock, placar do time, `LeagueDraft` ida e volta, retirada só de check-in já publicado |
 | `NamesAndBarTests.swift` | 2 | nomes únicos de todas as formas (22 por espécie), carga com ou sem barra pelo tipo do treino |
+| `StoryTests.swift` | 4 | card do story: sem peso não há calorias, com peso há estimativa, kcal do Saúde vence a estimativa, corrida com distância, pace e trajeto |
 
-Sem testes: backup/restauração (ida e volta), recuperação do banco, importação/escrita no Saúde, localização, widget, amigos e telas.
+Sem testes: backup/restauração (ida e volta), recuperação do banco, importação/escrita no Saúde, localização, widget, amigos, login (`AuthStore`), envio da caixa de saída (`flush`), backends CloudKit e telas.
 **Recomendação:** testes de ida e volta do backup (inclusive `typedSettings` e `hadPhoto`), da recuperação do banco e da deduplicação com o Saúde; meta mínima de cobertura nas regras de `Game`, `Training`, `Leagues` e `Backup`.
 
-**RNF-37 — Contratos de backend substituíveis.** `LeagueBackend` (`fetch`, `send`) e `FriendsBackend` (`fetch`, `add`,
-`accept`, `decline`, `remove`, `profile`) são protocolos `Sendable` com tipos `Remote*` `Codable`; trocar o mock pelo
-servidor é implementar o protocolo e atribuir `LeagueRemoteStore.shared.backend`.
-Fonte: `GymMonsters/LeagueRemote.swift` (l. 88–101), `GymMonsters/Friends.swift` (l. 39–50).
+**RNF-37 — Contratos de backend substituíveis.** `AuthBackend` (`signInWithApple`, `signIn`, `signUp`, `signOut`),
+`LeagueBackend` (`fetch`, `send`, `create`, `join`, `setMembership`, `publish`, `retract`, `leave`) e `FriendsBackend`
+(`fetch`, `add`, `accept`, `decline`, `remove`, `profile`, `publish`) são protocolos `Sendable` com tipos `Codable`; as telas falam só
+com eles. `Backend.install()` escolhe mock ou CloudKit pelo interruptor `Backend.mode`; outro servidor é mais uma implementação.
+Fonte: `GymMonsters/Backend.swift`, `GymMonsters/Auth.swift`, `GymMonsters/LeagueRemote.swift` (`LeagueBackend`), `GymMonsters/Friends.swift` (`FriendsBackend`).
 
 **RNF-38 — Regras isoladas da interface.** Regras de jogo, progressão e ranking ficam em tipos puros (`Game`, `Training`,
 `LeagueBoard`), testáveis sem UI.
@@ -271,9 +280,9 @@ Fonte: `GymMonsters/Leagues.swift` (`PhotoRule`); `testPhotoRule`, `testHalfPhot
 
 ## 9. Evolução para servidor (requisitos do futuro backend)
 
-Todos os itens desta seção são **Recomendação**: ainda não existe servidor.
+Todos os itens desta seção são **Recomendação**: o servidor não está ligado. Existe uma implementação CloudKit desligada (`docs/cloudkit.md`); estes requisitos valem para ela ao ligar e para qualquer servidor próprio.
 
-**RNF-42 — Autenticação obrigatória.** Nenhum endpoint com acesso anônimo; sessão por token de curta duração com renovação, guardado no Keychain (Sign in with Apple é o caminho natural para app sem conta hoje).
+**RNF-42 — Autenticação obrigatória.** Nenhum endpoint com acesso anônimo; sessão por token de curta duração com renovação, guardado no Keychain (no modo CloudKit a identidade já é a conta do iCloud; Sign in with Apple é o caminho natural para o login da Apple de verdade).
 
 **RNF-43 — Autorização por liga.** Só membros de uma liga leem participantes, check-ins, fotos, times e mural daquela liga;
 só o autor apaga o próprio check-in ou recado; código de convite não dá acesso a dados antes de entrar.
@@ -287,10 +296,11 @@ corporativo aprovado, com criptografia em repouso, URLs de foto assinadas e com 
 e exclusão de conta que apague tudo. Localização de academias e percursos permanece só no aparelho, a menos que haja consentimento explícito.
 Em desenvolvimento, usar dados sintéticos (como os do mock atual).
 
-**RNF-46 — Sincronização da caixa de saída.** Recados ficam locais com `syncedAt = nil` até o servidor aceitar; o envio
-deve ser idempotente pelo `uuid` do recado (reenvio não duplica), com nova tentativa ao voltar a rede. Os check-ins
-ainda não têm envio e devem seguir o mesmo modelo (UUID do cliente, `syncedAt`).
-Fonte do comportamento atual: `GymMonsters/LeagueRemote.swift` (l. 11, 120–140), `GymMonsters/LeagueMural.swift` (l. 5, 57).
+**RNF-46 — Sincronização da caixa de saída.** Ligas, check-ins e recados ficam locais com `syncedAt = nil` até o servidor
+aceitar; check-ins apagados depois de publicados entram em `LeagueOutbox` para serem retirados. `LeagueRemoteStore.flush` roda ao
+abrir o app e 2 s depois de cada mudança (`scheduleFlush`); erro deixa tudo pendente para a próxima vez. O envio deve ser
+idempotente pelo `uuid` gerado no aparelho (reenvio ou edição atualiza, não duplica).
+Fonte do comportamento atual: `GymMonsters/LeagueRemote.swift` (`flush`, `scheduleFlush`, `LeagueOutbox`), `GymMonsters/LeagueMural.swift`; `testOnlyPublishedCheckInsAreRetracted`.
 
 **RNF-47 — Infraestrutura.** Produção na ORKA; se Vercel ou Supabase forem usados, contas corporativas e, no Supabase,
 RLS ligado em todas as tabelas; banco sem porta aberta para a internet.

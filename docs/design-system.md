@@ -161,7 +161,7 @@ Abas (`App.swift`): Treino `dumbbell.fill`, Ligas `trophy.fill`, Mapa `map.fill`
 
 #### `GMScreen`
 Tela padrão: cabeçalho próprio (`GMHeader`) + `ScrollView` com `VStack(spacing: 18)`, fundo `Theme.bg`, botão "OK" do teclado e barra de navegação escondida.
-Parâmetros: `title`, `subtitle`, `back` (mostra `chevron.left` e usa título de 26 pt), `avatar` (bolinha do perfil à esquerda, telas raiz das abas), `close` (X à esquerda, para tela apresentada com `gmModal` que não é formulário, como o perfil), `large`, `bottomInset` (100), `trailing` (botões à direita), `content`.
+Parâmetros: `title`, `subtitle`, `back` (mostra `chevron.left` e usa título de 26 pt abaixo da barra), `avatar` (bolinha do perfil à esquerda, telas raiz das abas), `close` (X à esquerda, para tela apresentada com `gmModal` que não é formulário, como o perfil), `large`, `bottomInset` (100), `trailing` (botões à direita), `content`.
 
 ```swift
 // ActivityDetail.swift
@@ -177,7 +177,7 @@ GMScreen("", close: true, large: false, bottomInset: 110) {
 Não usar: em formulários apresentados como modal (use `GMModal`); dentro de sheet.
 
 #### `GMHeader`
-Cabeçalho usado internamente por `GMScreen` (`leading`, `trailing`, `large`). Não é usado diretamente em nenhuma tela; prefira `GMScreen`.
+Cabeçalho usado internamente por `GMScreen` (`leading`, `trailing`, `large`, `inlineTitle`). O título pequeno da barra fica no centro da tela (num `ZStack` com 100 pt de folga de cada lado), não entre os botões: com a seta só de um lado, ele era empurrado para fora do centro. Com `back` e título grande, o título grande fica embaixo da barra e o pequeno não se repete (`inlineTitle: false`). Não é usado diretamente em nenhuma tela; prefira `GMScreen`.
 
 #### `GMModal` + `gmModal(isPresented:)` / `gmModal(item:)`
 Tela cheia de formulário: `xmark` à esquerda (rótulo "Fechar"), título central, `GMButton` pequeno de confirmação à direita. `gmModal` apresenta com `fullScreenCover`, força tema escuro e tinta de acento.
@@ -312,7 +312,7 @@ GMChip(title: "\(m) min", selected: minutes == m) { minutes = m }
 Não usar: `GMChip` solto quando há uma única seleção entre opções fixas (prefira `GMChoiceChips`, que já vibra).
 
 #### `GMFlow`
-`Layout` que quebra linha (`spacing` 8). Usado por chips e conquistas.
+`Layout` que quebra linha (`spacing` 8). Usado por chips e conquistas. Ocupa toda a largura oferecida e quebra com 1 pt de folga (`slack`) para o arredondamento de pixels; sem isso, a linha mais larga cabia no cálculo da altura, quebrava na hora de posicionar e os chips vazavam do card.
 
 ```swift
 // PublicProfile.swift
@@ -349,12 +349,25 @@ GMCompactStepper(value: weight, step: increment, label: Text(unit), decimals: tr
 ```
 
 #### `GMDecimalField`
-Decimal opcional com − + e digitação (`.decimalPad`); vazio mostra "—". Parâmetros: `title`, `value: Double?`, `step` (0,5), `unit` ("kg"), `start` (70), `clearable`.
+Decimal opcional com − + e digitação (`.decimalPad`); vazio mostra "—". Parâmetros: `title`, `value: Double?`, `step` (0,5), `unit` ("kg"), `start` (70), `clearable`, `grouping` (padrão `true`; `false` tira o separador de milhar, para anos e números que não levam ponto).
 
 ```swift
 // BodyTrackerView.swift
 GMDecimalField(title: "Peso", value: $weight, step: 0.1, start: lastWeight)
+// BodyProfile.swift (ano mostra 1995, não 1.995)
+GMDecimalField(title: "", value: year, step: 1, unit: "", start: 1995, grouping: false)
 ```
+
+#### `GMLockedRow`
+Valor salvo que não fica editável o tempo todo: título à esquerda, valor à direita ("Não informado" em `Theme.dim` quando vazio, `.monospacedDigit()`) e um botão redondo de lápis (34 pt, `Theme.raised`). Tocar no lápis abre o editor embaixo, esconde o valor e troca o ícone por um ✓ em acento (texto preto); tocar no ✓ fecha. Vibração leve e rótulos "Editar {título}" / "Concluir {título}". Parâmetros: `title`, `value: String`, `editor`.
+
+```swift
+// BodyProfile.swift
+GMLockedRow(title: "Altura", value: height > 0 ? "\(Int(height)) cm" : "") { GMDecimalField(title: "", value: ..., step: 1, unit: "cm", start: 170) }
+// ProfileView.swift (metas)
+GMLockedRow(title: "Peso alvo", value: weightGoal > 0 ? "\(Progression.fmt(weightGoal)) kg" : "") { ... }
+```
+Não usar: para valores que mudam a cada uso, como carga e reps no treino (use `GMCompactStepper`); separe as linhas com `GMDivider`.
 
 #### `GMRuler`
 Régua horizontal que encaixa no passo e vibra a cada um; acompanha mudanças externas do valor. Parâmetros: `value`, `range` (0…300), `step` (2,5), `majorEvery` (4).
@@ -568,6 +581,10 @@ Componentes `GM` de seleção já vibram; não duplique a vibração no `action`
 | `ExercisePhotos` / `CreditLine` / `WgerVideoView` / `CreditsView` | `Wger.swift` | Imagens do wger sobre fundo branco alternando com o crédito embaixo; linha "Imagem: autor · licença · wger.de" em `.caption2`/`Theme.dim`; vídeo no app; tela "Créditos e licenças" |
 | `ExerciseThumb` | `RoutineEditView.swift` | Miniatura do exercício: primeira imagem do wger em fundo branco, ou símbolo do grupo; raio `radiusS` |
 | `GMOnlineDot` | `DesignSystem.swift` | Indicador online em listas de amigos (`Friends.swift`) e no perfil do amigo (`PublicProfile.swift`, 10 pt) |
+| `StoryComposerView` | `StoryShare.swift` | Tela cheia (tema escuro) entre "Compartilhar" e a folha do iPhone: `xmark`, título "Story", botão de foto, prévia 9:16 com raio `radiusL` e sombra, faixa horizontal de miniaturas das molduras (contorno de acento 3 pt na escolhida) e `GMButton` "Compartilhar" |
+| `WorkoutStoryCard` | `StoryShare.swift` | Arte 360 × 640 (renderizada em escala 3 = 1080 × 1920) em quatro molduras (`StoryFrame`): **Completo** (foto em tela cheia com marca, data em cápsula, título, sprite, até 4 números, trajeto e exercícios por cima), **Mínimo** (uma linha de números e sprite pequeno), **Polaroid** (foto com borda branca inclinada −3°, trajeto no canto) e **Bro** (sprite grande no centro, trajeto atrás a 55 %). Usa tamanhos fixos (`.system(size:)`) de propósito, porque a arte não acompanha o Dynamic Type |
+| `RouteDrawing(coords:lineWidth:)` | `StoryShare.swift` | Trajeto do GPS desenhado sem mapa: linha em `Theme.accent` com brilho (2,6× a espessura, desfocado), ponto branco no início e de acento no fim, longitude corrigida pela latitude |
+| `LoginView` | `Auth.swift` | Tela de entrada: `LivingMonster` bebê, "GymBros" em acento 34 pt, `GMSegmented` Entrar/Criar conta, `GMTextField`s, erro em `Theme.danger`, `GMButton` e botão "Continuar com a Apple" no visual oficial (fundo branco, texto preto, raio `radiusM`) |
 
 ## 6. Regras de consistência
 
@@ -610,4 +627,5 @@ Resolvidas desde a primeira versão: cores do tema duplicadas no widget (agora `
 | Cards montados à mão | `DexView` (conquistas e seletor de espécie), `WorkoutView` (card do exercício, barra de descanso), `LeaguesView` (resumo, linhas), `MapScreen` (raio `radiusL`) | Já usam `Theme.card` e tokens de raio, mas não `GMCard` (precisam de contorno ou padding variável) |
 | Telas com `ScrollView` à mão | `PublicProfile.swift` (`FriendProfileView`), `CheckInDetail.swift`, `WorkoutView.swift` | Fogem do `GMScreen`; as duas últimas têm layout de tela cheia próprio |
 | Trilhos com literal | `GMSwitch` (`.white.opacity(0.15)`), `XPBar` do widget (`.white.opacity(0.12)`) | Próximos de `Theme.track` (0,1), mas diferentes |
-| Tamanhos fixos | ícones e emojis (`GMEmptyState`, roleta, reações, troféu), `PetWidget` | 30 usos de `.font(.system(size:))`, fora do `gmFont` |
+| Tamanhos fixos | ícones e emojis (`GMEmptyState`, roleta, reações, troféu), `PetWidget` | 30 usos de `.font(.system(size:))`, fora do `gmFont` (a arte do story fica de fora: é imagem, não tela) |
+| Telas cheias fora de `GMScreen`/`GMModal` | `LoginView` (`Auth.swift`), `StoryComposerView` (`StoryShare.swift`) | O login monta o próprio `ScrollView` e recria o fundo do campo de senha (`SecureField` com `Theme.card`, porque `GMTextField` não tem modo seguro); o story abre por `UIHostingController` em tela cheia, com cabeçalho próprio |

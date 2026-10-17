@@ -1,6 +1,6 @@
 # 02 — Treino: musculação guiada, CrossFit, recordes e corpo
 
-Este documento descreve os requisitos funcionais da área de treino do GymBros, extraídos do código atual (SwiftUI + SwiftData, tudo local no aparelho). Cobre rotinas e modelos prontos, o treino guiado (séries, cargas sugeridas, progressão, deload, aquecimento, superséries, troca de exercício), o timer de descanso e os controles fora da tela (Live Activity, Siri/Atalhos e modo fone), a conclusão do treino, recordes e 1RM, a biblioteca de exercícios (inclusive personalizados, com imagens, vídeos e instruções do wger e a tela de créditos), mapa muscular e volume semanal, CrossFit/WOD, peso, medidas e calculadora de anilhas, e as metas e estatísticas do perfil privado. XP, ligas, lugares de treino e Apple Saúde aparecem só onde tocam o treino; o detalhe deles fica em outros documentos. Caminhos de fonte são relativos à raiz do projeto.
+Este documento descreve os requisitos funcionais da área de treino do GymBros, extraídos do código atual (SwiftUI + SwiftData, tudo local no aparelho). Cobre rotinas e modelos prontos, o treino guiado (séries, cargas sugeridas, progressão, deload, aquecimento, superséries, troca de exercício), o timer de descanso e os controles fora da tela (Live Activity, Siri/Atalhos e modo fone), a conclusão do treino, recordes e 1RM, a biblioteca de exercícios (inclusive personalizados, com imagens do wger, do Everkinetic e do Wikimedia Commons, vídeos e instruções e a tela de créditos), mapa muscular e volume semanal, CrossFit/WOD, peso, medidas e calculadora de anilhas, e as metas, o perfil físico com referência nutricional e as estatísticas do perfil privado. XP, ligas, lugares de treino e Apple Saúde aparecem só onde tocam o treino; o detalhe deles fica em outros documentos. Caminhos de fonte são relativos à raiz do projeto.
 
 ## 1. Rotinas
 ### RF-TRE-01 — Tela Treino
@@ -55,7 +55,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Rótulo da carga: "kg total" ou "kg anilhas" em exercícios com barra, decidido automaticamente pelo treino: num treino de CrossFit (algum exercício da biblioteca de CrossFit) a carga é o total com a barra; na musculação, só as anilhas, mesmo em agachamento e terra. Fora de um treino vale a marcação CrossFit do próprio exercício. "kg" nos demais. Não há mais ajuste manual ("Carga na barra" saiu de Ajustes).
 - O cartão mostra "N/M séries", a razão da sugestão, "Última vez: carga×reps[/meta]…" e, se a sugestão supera a maior carga feita da última vez, "Subir para X kg (+Y kg)".
 - Se há sugestão de carga e todas as séries pendentes estão com 0 kg, aparece "Usar X kg nas séries", que preenche todas.
-- "+ Série" copia carga, meta de reps e descanso da última série.
+- "+ Série" copia carga, meta de reps e descanso da última série. Remover e duplicar séries avulsas: RF-TRE-40.
 - Tocar no nome recolhe/expande; ao concluir todas as séries o cartão recolhe sozinho e a tela rola até o próximo exercício pendente.
 - O botão play marca o exercício "fazendo agora" (destacado e enviado ao Live Activity); sem marcação, vale o primeiro com série pendente.
 - A tela mantém o aparelho aceso e mostra o cronômetro desde o início; "minimizar" fecha a tela sem encerrar o treino.
@@ -83,6 +83,16 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 
 **Critério de aceitação:** Treino vazio mostra "Treino vazio — Toque em + Exercício, aqui embaixo, para começar.".  
 **Fonte:** `GymMonsters/WorkoutView.swift`
+### RF-TRE-40 — Remover e duplicar série
+**Descrição:** O app deve permitir remover ou duplicar uma série específica durante o treino.  
+**Regras de negócio:**
+- O número da série (ou "A" no aquecimento) é um botão que abre o menu "<exercício> · série" (ou "· aquecimento") com "Duplicar série" e "Remover série".
+- Arrastar a série para a esquerda revela o botão de lixeira; arrastar até o fim (mais de 220 pt) remove direto. Arrasto vertical continua rolando a tela. Também há a ação de acessibilidade "Remover série".
+- Duplicar insere a cópia logo abaixo, com a mesma carga, meta de reps, descanso e marcação de aquecimento, ainda não feita; as séries seguintes descem uma posição.
+- Remover apaga a série sem confirmação e renumera as que ficam. Se era a última série do exercício, o menu avisa "Remover série (o exercício sai do treino)", e o exercício sai junto, desfazendo o elo de superset.
+
+**Critério de aceitação:** Remover a série 2 de 4 deixa as séries numeradas 1, 2 e 3; duplicar a série 1 cria uma série 2 igual e não marcada.  
+**Fonte:** `GymMonsters/WorkoutView.swift` (`setActions`, `removeSet`, `duplicateSet`, `SetRow`)
 
 ## 3. Progressão, deload e aquecimento
 ### RF-TRE-08 — Histórico usado na progressão
@@ -90,10 +100,11 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 **Regras de negócio:**
 - Séries de aquecimento não entram no log da sessão (progressão, recordes, mapa e volume).
 - Sessões feitas em deload não contam como referência de carga.
-- Uma sessão é "sucesso" quando tem pelo menos o número de séries prescritas e as primeiras N foram feitas com reps ≥ meta.
+- Rampa feita à mão: séries com carga abaixo de 80 % da maior carga do exercício naquele treino (`Progression.rampShare`) não contam como trabalho; só as séries pesadas viram referência (`Progression.workSets`). Ex.: 30, 50, 70, 70 → trabalho são as duas de 70. Pirâmide próxima do topo (60, 65, 70) é toda trabalho.
+- Uma sessão é "sucesso" quando todas as séries de trabalho foram feitas com reps ≥ meta.
 
-**Critério de aceitação:** Treino feito em semana de deload não altera a sugestão do treino seguinte.  
-**Fonte:** `GymMonsters/Training.swift` (`WorkoutSession.log`, `SessionLog`, `Progression.suggest`)
+**Critério de aceitação:** Treino feito em semana de deload não altera a sugestão do treino seguinte; 30×10, 50×10, 70×10, 70×10 conta só as duas séries de 70.  
+**Fonte:** `GymMonsters/Training.swift` (`WorkoutSession.log`, `SessionLog`, `Progression.suggest`, `Progression.workSets`, `Progression.rampShare`), `GymMonstersTests/ProgressionTests.swift` (`testManualRampIsNotWork`, `testPyramidCloseToTopCountsAsWork`)
 ### RF-TRE-09 — Sugestão de carga sem objetivo (reps fixas)
 **Descrição:** O app deve sugerir carga e reps de cada exercício a partir do último treino em que ele apareceu.  
 **Regras de negócio:**
@@ -104,9 +115,11 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Com carga: sucesso → +incremento; falha → mesma carga, com contador "(n/3 antes do deload)"; 3 treinos seguidos sem completar na mesma carga → deload de 10 %: carga × 0,9 arredondada para baixo ao incremento.
 - Peso do corpo sem carga extra: sucesso → +1 rep; senão mesmas reps. Com carga extra, progride por carga como acima.
 - Por tempo: sucesso → +5 s; senão mesmo tempo.
+- Número de séries de trabalho: a rotina conta a rampa feita à mão, então as séries pesadas pedidas são as da rotina menos as da rampa (mínimo 1). Carga e séries não sobem juntas: com carga nova, repete o número de séries pesadas da última vez; com a mesma carga, pode somar uma, até o que a rotina pede (`Suggestion.sets`).
+- A rampa da última vez volta como séries de aquecimento (só as com carga menor que a sugerida) e a razão da sugestão diz "As séries leves (30, 50 kg) contam como aquecimento." O aquecimento automático (RF-TRE-12) substitui a rampa, não soma.
 
-**Critérios de aceitação:** Supino 4×8 com 60 kg feito por completo → próximo treino sugere 62,5 kg × 8; agachamento com barra falhado 3 vezes em 100 kg → sugere 90 kg; cadeira extensora e leg press sobem de 2,5 kg.  
-**Fonte:** `GymMonsters/Training.swift` (`Progression.suggest`), `GymMonsters/PR.swift` (`PRBook.workingWeight`), `GymMonsters/Exercises.swift` (`increment`), `GymMonstersTests/ProgressionTests.swift` (`testFiveKiloStepOnlyForBarbellInHeavyGroups`)
+**Critérios de aceitação:** Agachamento 30, 50, 70, 70 numa rotina de 4 séries → sugere 75 kg em 2 séries pesadas, com 30 e 50 como aquecimento; 70×10, 70×7 numa rotina de 3 séries → 70 kg em 3 séries. Supino 4×8 com 60 kg feito por completo → próximo treino sugere 62,5 kg × 8; agachamento com barra falhado 3 vezes em 100 kg → sugere 90 kg; cadeira extensora e leg press sobem de 2,5 kg.  
+**Fonte:** `GymMonsters/Training.swift` (`Progression.suggest`), `GymMonsters/PR.swift` (`PRBook.workingWeight`), `GymMonsters/Exercises.swift` (`increment`), `GymMonsters/LiveWorkout.swift`, `GymMonstersTests/ProgressionTests.swift` (`testFiveKiloStepOnlyForBarbellInHeavyGroups`, `testManualRampIsNotWork`, `testLoadAndSetsDoNotRiseTogether`)
 ### RF-TRE-10 — Objetivo por exercício (dupla progressão)
 **Descrição:** O app deve permitir escolher, para exercícios com carga, um objetivo que define faixa de reps, regra de progressão e descanso.  
 **Regras de negócio:**
@@ -132,7 +145,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 **Regras de negócio:**
 - Três séries: 40 % × 10, 60 % × 6 e 80 % × 3 da carga de trabalho, arredondadas ao incremento; descanso de 60 s; marcadas "A" em laranja.
 - Em exercício com barra cuja carga inclui a barra, o mínimo é 20 kg; séries com carga ≥ a de trabalho são omitidas.
-- Automático (Ajustes → "Aquecimento automático", ligado por padrão): só no primeiro exercício com carga da rotina cuja sugestão seja ≥ 20 kg.
+- Automático (Ajustes → "Aquecimento automático", ligado por padrão): só no primeiro exercício com carga da rotina cuja sugestão seja ≥ 20 kg. Nesse exercício ele substitui a rampa feita à mão; nos demais, a rampa da última vez volta como aquecimento (RF-TRE-09).
 - Manual pelo menu, em exercício com carga cuja primeira série tenha carga > 0; "Tirar aquecimento" remove e renumera.
 - Aquecimento não conta para progressão, recordes, volume nem mapa muscular, nem nas séries feitas/total da conclusão, de "Treinos recentes" e do Live Activity (`workSets`, `doneWorkSets`, `volume`).
 
@@ -284,22 +297,25 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 **Descrição:** O app deve oferecer uma biblioteca pesquisável de exercícios.  
 **Regras de negócio:**
 - 262 exercícios embutidos: 78 da biblioteca original (instruções em português), 150 extras (dos quais 42 de CrossFit) e 34 que vieram só do wger (`WgerLibrary.newExercises`). Fotos e instruções do free-exercise-db foram removidas (copiavam o bodybuilding.com, sem uso comercial); nomes e músculos continuam.
-- Imagens, vídeos e instruções vêm do wger (`GymMonsters/wger.json`, gerado por `tools/wger/build.py`): 152 exercícios com dados, 128 com imagem embutida no app (funciona sem internet), 33 com vídeo e 146 com instruções (20 em português, 126 em inglês). Licenças CC BY-SA 3.0/4.0 ou CC0, com autor por item; imagens geradas por IA no wger ficam de fora.
-- Miniatura na lista: a primeira imagem do wger sobre fundo branco; sem imagem, o símbolo do grupo (ou de CrossFit).
+- Imagens, vídeos e instruções ficam em `GymMonsters/wger.json`, com autor, licença e link por item, de três origens: 237 exercícios com dados, 227 com imagem embutida no app (funciona sem internet), 33 com vídeo e 180 com instruções (20 em português, 160 em inglês).
+  - wger (`tools/wger/build.py`): 152 exercícios; 128 com imagem, todos os vídeos e 146 das instruções. CC BY-SA 3.0/4.0 ou CC0; imagens marcadas como geradas por IA no wger ficam de fora.
+  - Everkinetic (`tools/wger/everkinetic.py`, CC BY-SA 4.0, de Greg Priday): ilustrações para 55 exercícios que o wger não ilustra, mais as instruções de 34 deles.
+  - Wikimedia Commons (`tools/wger/commons.py`): fotos e ilustrações escolhidas à mão para 44 exercícios que nenhuma das duas cobre, quase todos de CrossFit; domínio público, CC0, CC BY 2.0/3.0 e CC BY-SA 2.0/3.0/4.0.
+- Miniatura na lista: a primeira imagem do exercício sobre fundo branco; sem imagem, o símbolo do grupo (ou de CrossFit).
 - 12 grupos musculares; tipos: carga × reps, peso do corpo (progride em reps, aceita carga extra) e por tempo (segundos).
 - Busca por nome, grupo ou equipamento; filtro Todos/Academia/CrossFit; seções por grupo com contagem; "Meus exercícios" no topo.
 - Exercícios da biblioteca original que são clássicos do CrossFit (ex.: burpee, thruster, agachamento) aparecem também na seção CrossFit.
 
-- O seletor termina com "Imagens e vídeos: wger.de · créditos e licenças", que abre a tela de créditos (RF-TRE-39).
+- O seletor termina com "Imagens: wger, Everkinetic e Commons · créditos", que abre a tela de créditos (RF-TRE-39).
 
 **Critério de aceitação:** Buscar "Polia" lista os exercícios com esse equipamento.  
-**Fonte:** `GymMonsters/Exercises.swift`, `GymMonsters/ExerciseExtra.swift`, `GymMonsters/Wger.swift` (`WgerLibrary`), `GymMonsters/wger.json`, `GymMonsters/RoutineEditView.swift` (`ExercisePicker`, `ExerciseThumb`), `CREDITOS.md`
+**Fonte:** `GymMonsters/Exercises.swift`, `GymMonsters/ExerciseExtra.swift`, `GymMonsters/Wger.swift` (`WgerLibrary`), `GymMonsters/wger.json`, `GymMonsters/RoutineEditView.swift` (`ExercisePicker`, `ExerciseThumb`), `tools/wger/build.py`, `tools/wger/everkinetic.py`, `tools/wger/commons.py`, `CREDITOS.md`
 ### RF-TRE-28 — Detalhe "como fazer"
 **Descrição:** O app deve mostrar como executar cada exercício.  
 **Regras de negócio:**
-- Imagens do wger (fundo branco) alternando a cada 1,2 s quando há mais de uma, com a linha de crédito da imagem atual ("Imagem: <autor> · <licença> · wger.de", com links).
+- Imagens (fundo branco) alternando a cada 1,2 s quando há mais de uma, com a linha de crédito da imagem atual ("Imagem: <autor> · <licença> · <origem>", com links); a origem é "wger.de", "Everkinetic" ou "Commons" conforme o link da imagem (`WgerLibrary.sourceName`).
 - Com vídeo no wger, "Ver vídeo de demonstração" toca o vídeo no próprio app (carregado de wger.de), com o crédito embaixo. "Buscar vídeos no YouTube" abre a busca ("como fazer <nome> exercício|crossfit").
-- Grupo, equipamento e registro; passos: os da biblioteca original em português; senão os do wger, em português ou traduzidos do inglês no aparelho (iOS 18+; antes, em inglês). O rodapé credita o texto ("Texto: <autor> · <licença> · wger.de", com "(traduzido no iPhone)" quando for o caso).
+- Grupo, equipamento e registro; passos: os da biblioteca original em português; senão os do wger, em português ou traduzidos do inglês no aparelho (iOS 18+; antes, em inglês). O rodapé credita o texto ("Texto: <autor> · <licença> · <origem>", com "(traduzido no iPhone)" quando for o caso).
 - Mapa de músculos: principais com intensidade 1,0 e auxiliares 0,45, listados por nome; nota pessoal e descrição do personalizado; botão "Créditos e licenças" nos exercícios com dados do wger.
 
 **Critério de aceitação:** Exercício com instruções do wger em inglês, no iOS 17, exibe o texto em inglês com o crédito; exercício sem imagem não mostra a área de fotos.  
@@ -319,11 +335,11 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 **Descrição:** O app deve creditar o conteúdo de terceiros numa tela própria.  
 **Regras de negócio:**
 - "Créditos e licenças" abre pelo seletor de exercícios e pelo detalhe de exercícios com dados do wger.
-- Seção wger: link para wger.de e lista de autores e licenças distintos, cada um com link da licença e a contagem de itens ("N itens"); o rodapé explica que instruções traduzidas seguem a mesma licença (CC BY-SA).
+- Seção "Exercícios: wger, Everkinetic e Commons": links para wger.de, Everkinetic (github.com/everkinetic/data) e Wikimedia Commons, e a lista de autores e licenças distintos, cada um com link da licença e a contagem de itens ("N itens"); o rodapé cita as três origens e explica que instruções traduzidas seguem a mesma licença (CC BY-SA).
 - Seções MuscleMap (MIT, Copyright (c) 2026 Melih Colpan), vídeos do YouTube (de seus autores) e Bros (artes e textos próprios).
 
 **Critério de aceitação:** Todo autor que aparece numa linha de crédito de imagem, vídeo ou texto aparece também na tela de créditos.  
-**Fonte:** `GymMonsters/Wger.swift` (`CreditsView`, `WgerLibrary.allCredits`), `CREDITOS.md`
+**Fonte:** `GymMonsters/Wger.swift` (`CreditsView`, `WgerLibrary.allCredits`, `WgerLibrary.sourceName`), `CREDITOS.md`
 
 ## 8. Mapa muscular e volume
 ### RF-TRE-30 — Mapa muscular
@@ -407,9 +423,11 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Treinos na semana: meta de 1 a 14 (padrão 4); conta todas as atividades da semana do calendário.
 - Tempo na semana: 30 a 1200 min em passos de 30 (padrão 180). Anéis de progresso com check ao bater a meta.
 - Peso alvo (passo 0,5): mostra "faltam X kg para perder/ganhar" ou "Você chegou no peso alvo! 🎯".
+- Valores salvos ficam travados: a linha mostra o valor ("4 por semana", "3h por semana", "75 kg" ou "Não informado") e um lápis; só o lápis abre o controle de edição, e o check fecha (`GMLockedRow`). Vale para as três metas e para o perfil físico (RF-TRE-41).
+- A tela Metas abre com o perfil físico (RF-TRE-41) antes das metas.
 
-**Critério de aceitação:** 4 atividades na semana com meta 4 mostram o anel completo com check.  
-**Fonte:** `GymMonsters/ProfileView.swift` (`GoalsView`)
+**Critério de aceitação:** 4 atividades na semana com meta 4 mostram o anel completo com check; rolar a tela sem tocar no lápis não altera nenhuma meta.  
+**Fonte:** `GymMonsters/ProfileView.swift` (`GoalsView`), `GymMonsters/DesignSystem.swift` (`GMLockedRow`)
 ### RF-TRE-38 — Estatísticas
 **Descrição:** O app deve mostrar estatísticas de todas as atividades.  
 **Regras de negócio:**
@@ -419,3 +437,16 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 
 **Critério de aceitação:** Dias futuros da semana atual ficam vazios no mapa de calor.  
 **Fonte:** `GymMonsters/ProfileView.swift` (`ProfileStatsView`, `privatePart`)
+### RF-TRE-41 — Perfil físico e referência nutricional
+**Descrição:** O app deve guardar dados opcionais do corpo e, com eles, dar uma referência diária de calorias, proteína e água.  
+**Regras de negócio:**
+- Fica no topo de Metas: "Seu corpo" (altura em cm, ano de nascimento com a idade calculada, sexo e, se há peso, peso com IMC) e "Objetivo e experiência" (Ganhar massa, Ganhar força, Emagrecer, Condicionamento, Saúde; Iniciante, Intermediário, Avançado, com a descrição da faixa no rodapé). Tudo opcional ("Não informar") e editado pelo lápis (`GMLockedRow`); o ano é digitado sem separador de milhar.
+- Só no aparelho, nunca no perfil público; entra no backup junto com as metas (`BodyProfile.keys`).
+- O peso vem de Peso e medidas (RF-TRE-35) e é guardado como o último peso conhecido.
+- "Referência do dia" aparece com altura, ano de nascimento, objetivo e peso: gasto = metabolismo basal (Mifflin-St Jeor: 10 × peso + 6,25 × altura − 5 × idade, +5 homem / −161 mulher) × fator de atividade pelos treinos por semana das últimas 4 semanas (< 1: 1,2; < 3: 1,375; < 5,5: 1,55; senão 1,725).
+- Para o objetivo: +300 kcal em Ganhar massa, −400 kcal em Emagrecer, gasto nos demais; o déficit nunca passa de 20 % do gasto. Proteína em g/kg: 1,6–2,2 (massa, força), 1,8–2,4 (emagrecer), 1,2–1,6 (condicionamento, saúde). Água: 35 ml/kg.
+- O rodapé mostra o fator usado e avisa que é ponto de partida e não substitui nutricionista. Faltando dado, a seção explica o que informar.
+- Calorias estimadas de atividades sem o peso do Apple Saúde usam o último peso do perfil (`BodyProfile.weightForEstimates`) em vez de um peso fixo.
+
+**Critério de aceitação:** 80 kg, 180 cm, 30 anos, homem, 4 treinos por semana e objetivo Ganhar massa → gasto ≈ 2.759 kcal, para o objetivo ≈ 3.059 kcal, proteína 128–176 g e água 2,8 L; sem altura, a seção pede os dados.  
+**Fonte:** `GymMonsters/BodyProfile.swift` (`BodyProfile`, `BodyProfileSection`, `FitnessGoal`, `Experience`), `GymMonsters/ProfileView.swift` (`GoalsView`), `GymMonsters/HealthSync.swift`
