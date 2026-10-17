@@ -61,6 +61,7 @@ struct ProfileView: View {
     @State private var logging = false
     @State private var month = Date.now
     @State private var day: Date?
+    @State private var openedPost: FeedItem?
 
     private var roster: Roster { Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues) }
     private var activeDays: Int { Set(activities.map { Calendar.current.startOfDay(for: $0.date) }).count }
@@ -106,6 +107,7 @@ struct ProfileView: View {
             .gmKeyboardDone()
             .gmModal(isPresented: $settings) { SettingsView() }
             .gmModal(isPresented: $logging) { LogActivityView(snapshot: roster.mainSnapshot) }
+            .gmModal(item: $openedPost) { CheckInDetailView(item: $0) }
             .gmSheet(isPresented: Binding(get: { day != nil }, set: { if !$0 { day = nil } })) { _ in dayDetail }
             .onChange(of: pick) { _, item in
                 Task {
@@ -358,6 +360,8 @@ struct ProfileView: View {
                 }
             }
 
+            postsGrid(avatar: s.form)
+
             GMSection("Perfil público") {
                 GMTextField(placeholder: "Seu nome", text: $name, capitalization: .words)
                 GMTextField(placeholder: "@usuário", text: Binding(
@@ -374,6 +378,46 @@ struct ProfileView: View {
                 GMToggle(title: "Números (check-ins, dias, ligas)", isOn: $showStats)
                 GMDivider()
                 GMToggle(title: "Conquistas", isOn: $showAchievements)
+            }
+        }
+    }
+}
+
+extension ProfileView {
+    /// Check-ins postados no perfil, em grade de fotos
+    @ViewBuilder
+    func postsGrid(avatar: MonsterForm) -> some View {
+        let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+        let posts: [FeedItem] = checkIns.filter { $0.leagueUUID == ProfileFeed.id }.sorted { $0.date > $1.date }.compactMap { c in
+            guard let a = byID[c.activityUUID] else { return nil }
+            return FeedItem(id: c.uuid.uuidString, memberID: "me", name: name, avatar: avatar, isMe: true, date: c.date, title: c.title,
+                            note: c.note, kind: a.kind, minutes: a.minutes, score: Game.xp(kind: a.kind, minutes: a.minutes, effort: a.effort),
+                            photo: c.photo, place: c.place)
+        }
+        GMSection("Posts · \(posts.count)", footer: posts.isEmpty ? "Ao registrar uma atividade, marque \"Meu perfil\" em \"Postar check-in em\"." : nil) {
+            if !posts.isEmpty {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
+                    ForEach(posts) { p in
+                        Button { openedPost = p } label: {
+                            ZStack {
+                                if let d = p.photo, let img = UIImage(data: d) {
+                                    Color.clear.overlay { Image(uiImage: img).resizable().scaledToFill() }
+                                } else {
+                                    Theme.raised
+                                    VStack(spacing: 4) {
+                                        Image(systemName: p.kind.symbol).font(.title2)
+                                        Text(p.title).font(.caption2.weight(.semibold)).lineLimit(2).multilineTextAlignment(.center)
+                                    }
+                                    .padding(6)
+                                    .foregroundStyle(.white)
+                                }
+                            }
+                            .aspectRatio(1, contentMode: .fit)
+                            .clipShape(.rect(cornerRadius: 8))
+                        }
+                        .buttonStyle(GMPress())
+                    }
+                }
             }
         }
     }

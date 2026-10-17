@@ -114,6 +114,11 @@ final class LeagueCheckIn {
     }
 }
 
+/// O perfil funciona como um destino de check-in, igual a uma liga
+enum ProfileFeed {
+    static let id = UUID(uuidString: "00000000-0000-0000-0000-0000000000AA")!
+}
+
 // MARK: - Participantes simulados
 
 struct FakeMember: Identifiable {

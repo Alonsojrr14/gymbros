@@ -556,6 +556,28 @@ func postCheckIns(activity: Activity, leagues: Set<UUID>, title: String, note: S
     }
 }
 
+/// Deixa os check-ins da atividade exatamente nos destinos escolhidos, com o mesmo post em todos
+@MainActor
+func syncCheckIns(activity: Activity, destinations: Set<UUID>, title: String, note: String, photo: Data?, place: String?, context: ModelContext) {
+    let id = activity.uuid
+    let existing = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
+    let t = title.trimmingCharacters(in: .whitespaces).isEmpty ? activity.kind.name : title.trimmingCharacters(in: .whitespaces)
+    for c in existing where !destinations.contains(c.leagueUUID) { context.delete(c) }
+    let kept = Set(existing.filter { destinations.contains($0.leagueUUID) }.map(\.leagueUUID))
+    for c in existing where destinations.contains(c.leagueUUID) {
+        c.title = t
+        c.note = note
+        c.photo = photo
+        c.place = place
+        c.date = activity.date
+    }
+    for d in destinations.subtracting(kept) {
+        let c = LeagueCheckIn(leagueUUID: d, activityUUID: id, title: t, note: note, date: activity.date, photo: photo)
+        c.place = place
+        context.insert(c)
+    }
+}
+
 /// Reduz a foto para algo razoável de guardar
 func compressedPhoto(_ data: Data) -> Data? {
     guard let img = UIImage(data: data) else { return nil }
@@ -566,50 +588,64 @@ func compressedPhoto(_ data: Data) -> Data? {
     return resized.jpegData(compressionQuality: 0.7)
 }
 
-/// Seção reaproveitada no registro de atividade e ao concluir treino: em quais ligas postar
+/// Seção reaproveitada no registro de atividade, no fim do treino e na edição: onde postar o check-in e a foto
 struct LeaguePostSection: View {
     @Binding var selected: Set<UUID>
     @Binding var photo: Data?
-    /// Marca todas as ligas por padrão (registro de atividade e fim de treino)
+    /// Marca perfil e todas as ligas por padrão (registro de atividade e fim de treino)
     var selectAllByDefault = true
     @Query(sort: \League.joinedAt) private var allLeagues: [League]
     @State private var pick: PhotosPickerItem?
 
-    private var leagues: [League] { allLeagues.filter { !$0.isOver } }
+    /// Ligas ativas, mais as encerradas em que já está postado (para poder tirar)
+    private var leagues: [League] { allLeagues.filter { !$0.isOver || selected.contains($0.uuid) } }
+    private var everything: Set<UUID> { Set(leagues.filter { !$0.isOver }.map(\.uuid)).union([ProfileFeed.id]) }
 
     var body: some View {
-        if !leagues.isEmpty {
-            GMSection("Check-in nas ligas") {
+        GMSection("Postar check-in em", footer: selected.isEmpty ? "Sem destino: a atividade fica só no seu histórico." : nil) {
+            GMFlow {
+                GMChip(title: "Meu perfil", icon: "person.crop.circle", selected: selected.contains(ProfileFeed.id)) { toggle(ProfileFeed.id) }
                 ForEach(leagues) { l in
-                    GMToggle(title: "\(l.emoji) \(l.name)", isOn: Binding(
-                        get: { selected.contains(l.uuid) },
-                        set: { if $0 { selected.insert(l.uuid) } else { selected.remove(l.uuid) } }
-                    ))
-                    GMDivider()
-                }
-                PhotosPicker(selection: $pick, matching: .images) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "photo")
-                            .font(.body.weight(.semibold))
-                            .frame(width: 34, height: 34)
-                            .background(Theme.raised, in: .rect(cornerRadius: 10))
-                        Text(photo == nil ? "Adicionar foto" : "Trocar foto").font(.subheadline.weight(.semibold))
-                        Spacer()
-                        if let photo, let img = UIImage(data: photo) {
-                            Image(uiImage: img).resizable().scaledToFill().frame(width: 44, height: 44).clipShape(.rect(cornerRadius: 8))
-                        }
-                    }
-                    .foregroundStyle(.white)
-                }
-                .buttonStyle(GMPress())
-                .onChange(of: pick) { _, item in
-                    Task {
-                        if let data = try? await item?.loadTransferable(type: Data.self) { photo = compressedPhoto(data) }
-                    }
+                    GMChip(title: "\(l.emoji) \(l.name)" + (l.isOver ? " (encerrada)" : ""), selected: selected.contains(l.uuid)) { toggle(l.uuid) }
                 }
             }
-            .onAppear { if selectAllByDefault && selected.isEmpty { selected = Set(leagues.map(\.uuid)) } }
+            if !leagues.isEmpty {
+                HStack(spacing: 8) {
+                    GMButton("Todos", kind: .secondary, full: false, small: true) { selected.formUnion(everything) }
+                    GMButton("Nenhum", kind: .ghost, full: false, small: true) { selected.removeAll() }
+                }
+            }
+            GMDivider()
+            PhotosPicker(selection: $pick, matching: .images) {
+                HStack(spacing: 12) {
+                    Image(systemName: "photo")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 34, height: 34)
+                        .background(Theme.raised, in: .rect(cornerRadius: 10))
+                    Text(photo == nil ? "Adicionar foto" : "Trocar foto").font(.subheadline.weight(.semibold))
+                    Spacer()
+                    if let photo, let img = UIImage(data: photo) {
+                        Image(uiImage: img).resizable().scaledToFill().frame(width: 44, height: 44).clipShape(.rect(cornerRadius: 8))
+                    }
+                }
+                .foregroundStyle(.white)
+            }
+            .buttonStyle(GMPress())
+            .onChange(of: pick) { _, item in
+                Task {
+                    if let data = try? await item?.loadTransferable(type: Data.self) { photo = compressedPhoto(data) }
+                }
+            }
+            if photo != nil {
+                GMButton("Tirar foto", kind: .ghost, full: false, small: true) { photo = nil; pick = nil }
+            }
         }
+        .onAppear { if selectAllByDefault && selected.isEmpty { selected = everything } }
+    }
+
+    private func toggle(_ id: UUID) {
+        if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
+        UISelectionFeedbackGenerator().selectionChanged()
     }
 }
 

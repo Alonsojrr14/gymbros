@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 struct HomeView: View {
@@ -10,6 +11,7 @@ struct HomeView: View {
     @State private var team = false
     @State private var logging = false
     @State private var settings = false
+    @State private var editing: Activity?
 
     var body: some View {
         NavigationStack {
@@ -32,6 +34,7 @@ struct HomeView: View {
                 if !activities.isEmpty { recentCard }
             }
             .gmModal(isPresented: $logging) { LogActivityView(snapshot: snapshot) }
+            .gmModal(item: $editing) { LogActivityView(snapshot: snapshot, editing: $0) }
             .gmModal(isPresented: $settings) { SettingsView() }
             .gmModal(isPresented: $team) { TeamView() }
         }
@@ -142,7 +145,10 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Últimas atividades").font(.headline)
             ForEach(activities.prefix(3)) { a in
-                ActivityRow(activity: a, xp: snapshot.xpByActivity[a.uuid] ?? 0)
+                Button { editing = a } label: {
+                    ActivityRow(activity: a, xp: snapshot.xpByActivity[a.uuid] ?? 0).contentShape(Rectangle())
+                }
+                .buttonStyle(GMPress())
             }
         }
         .padding(18)
@@ -154,6 +160,26 @@ struct HomeView: View {
 struct ActivityRow: View {
     let activity: Activity
     let xp: Int
+    @Query private var posts: [LeagueCheckIn]
+    @Query private var leagues: [League]
+
+    init(activity: Activity, xp: Int) {
+        self.activity = activity
+        self.xp = xp
+        let id = activity.uuid
+        _posts = Query(filter: #Predicate<LeagueCheckIn> { $0.activityUUID == id })
+    }
+
+    /// Onde a atividade foi postada (perfil e ligas)
+    private var destinations: String? {
+        guard !posts.isEmpty else { return nil }
+        let ids = Set(posts.map(\.leagueUUID))
+        var out: [String] = []
+        if ids.contains(ProfileFeed.id) { out.append("👤 Perfil") }
+        out += leagues.filter { ids.contains($0.uuid) }.map { "\($0.emoji) \($0.name)" }
+        let place = posts.compactMap(\.place).first
+        return out.joined(separator: " · ") + (place.map { " · 📍 \($0)" } ?? "")
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -166,6 +192,9 @@ struct ActivityRow: View {
                 Text("\(durationText(activity.minutes)) · \(effortLabel(activity.effort)) · \(activity.date.formatted(.dateTime.day().month(.abbreviated)))")
                     .font(.caption)
                     .foregroundStyle(Theme.dim)
+                if let destinations {
+                    Text(destinations).font(.caption2.weight(.semibold)).foregroundStyle(Theme.accent).lineLimit(1)
+                }
             }
             Spacer()
             if activity.healthUUID != nil {

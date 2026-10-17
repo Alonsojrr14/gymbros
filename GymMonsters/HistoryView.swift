@@ -63,7 +63,7 @@ struct HistoryView: View {
         if let r = routes.first(where: { $0.activityUUID == a.uuid }) {
             list.append(GMAction("Ver percurso (\(kmText(r.meters)))", icon: "map") { routeFor = r })
         }
-        list.append(GMAction("Editar", icon: "pencil") { editing = a })
+        list.append(GMAction("Editar atividade e check-ins", icon: "pencil") { editing = a })
         list.append(GMAction("Apagar atividade", icon: "trash", destructive: true) { delete(a) })
         return list
     }

@@ -19,6 +19,12 @@ struct LogActivityView: View {
     @State private var note = ""
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
+    // Post (na edição)
+    @State private var postTitle = ""
+    @State private var postNote = ""
+    @State private var place: String?
+    @State private var choosingPlace = false
+    @Query(sort: \Gym.createdAt) private var gyms: [Gym]
 
     private var preview: (xp: Int, after: Snapshot) {
         let new = ActivityRecord(id: UUID(), kind: kind, date: date, minutes: minutes, effort: effort)
@@ -55,8 +61,22 @@ struct LogActivityView: View {
 
             if editing == nil {
                 LeaguePostSection(selected: $leagues, photo: $photo)
+            } else {
+                LeaguePostSection(selected: $leagues, photo: $photo, selectAllByDefault: false)
+                if !leagues.isEmpty {
+                    GMSection("Post", footer: "Vale para todos os destinos marcados. Tirar um destino apaga o check-in de lá.") {
+                        GMTextField(placeholder: "Título (ex.: Dia de perna 🦵)", text: $postTitle)
+                        GMTextField(placeholder: "Descrição (opcional)", text: $postNote, axis: .vertical)
+                        GMDivider()
+                        GMRow(icon: "mappin.and.ellipse", iconTint: place == nil ? Theme.dim : Theme.accent,
+                              title: place ?? "Sem local", subtitle: "Onde foi", chevron: true) { choosingPlace = true }
+                    }
+                }
             }
         }
+        .gmActions(isPresented: $choosingPlace, title: "Onde foi?", actions:
+            gyms.map { g in GMAction(g.name, icon: "dumbbell.fill") { place = g.name } }
+            + [GMAction("Sem local", icon: "xmark") { place = nil }])
         .onAppear {
             guard let a = editing else { return }
             kind = a.kind
@@ -64,6 +84,18 @@ struct LogActivityView: View {
             minutes = a.minutes
             effort = a.effort
             note = a.note
+            // Check-ins atuais desta atividade
+            let posts = checkIns.filter { $0.activityUUID == a.uuid }
+            leagues = Set(posts.map(\.leagueUUID))
+            if let first = posts.first {
+                postTitle = first.title
+                postNote = first.note
+                photo = posts.compactMap(\.photo).first
+                place = first.place
+            } else {
+                postTitle = a.note
+                place = GymLocation.shared.gym(a.gymUUID)?.name
+            }
         }
     }
 
@@ -101,6 +133,8 @@ struct LogActivityView: View {
             a.minutes = minutes
             a.effort = effort
             a.note = note
+            if let g = gyms.first(where: { $0.name == place }) { a.gymUUID = g.uuid } else if place == nil { a.gymUUID = nil }
+            syncCheckIns(activity: a, destinations: leagues, title: postTitle, note: postNote, photo: photo, place: place, context: context)
             try? context.save()
             dismiss()
             return
