@@ -30,6 +30,8 @@ struct WorkoutView: View {
     @State private var swapping: IDBox?
     /// Exercício a remover, esperando confirmação
     @State private var confirmRemove: String?
+    /// Série com o menu aberto (toque no número)
+    @State private var setMenu: LoggedSet?
     @Query(filter: #Predicate<WorkoutSession> { $0.end != nil }, sort: \WorkoutSession.start, order: .reverse) private var doneSessions: [WorkoutSession]
     @State private var headphones = HeadphoneControl.shared.isOn
     @State private var headphoneInfo = false
@@ -110,6 +112,8 @@ struct WorkoutView: View {
         ])
         .gmActions(isPresented: Binding(get: { exerciseMenu != nil }, set: { if !$0 { exerciseMenu = nil } }),
                    title: exerciseMenu.map(Exercise.name), actions: exerciseActions)
+        .gmActions(isPresented: Binding(get: { setMenu != nil }, set: { if !$0 { setMenu = nil } }),
+                   title: setMenu.map { "\(Exercise.name($0.exerciseID)) · \($0.warmup ? "aquecimento" : "série")" }, actions: setActions)
         .gmActions(isPresented: Binding(get: { confirmRemove != nil }, set: { if !$0 { confirmRemove = nil } }),
                    title: confirmRemove.map { "Remover \(Exercise.name($0))?" }, message: "As séries dele neste treino, feitas ou não, saem do treino.",
                    actions: confirmRemove.map { id in [GMAction("Remover", icon: "trash", destructive: true) { removeExercise(id) }] } ?? [])
@@ -317,6 +321,39 @@ struct WorkoutView: View {
         try? context.save()
     }
 
+    /// Tira uma série e renumera as que ficam (a última série leva o exercício junto)
+    private func removeSet(_ s: LoggedSet) {
+        let id = s.exerciseID
+        let rest = session.orderedSets.filter { $0.exerciseID == id && $0 !== s }
+        // Só apaga: mexer na lista da relação junto com o delete trava o SwiftData
+        withAnimation(.snappy) {
+            context.delete(s)
+            for (k, other) in rest.enumerated() { other.index = k }
+        }
+        if rest.isEmpty { session.setLinkedNext(id, false) }
+        try? context.save()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    private func duplicateSet(_ s: LoggedSet) {
+        let sets = session.orderedSets.filter { $0.exerciseID == s.exerciseID }
+        guard let pos = sets.firstIndex(where: { $0 === s }) else { return }
+        for other in sets[(pos + 1)...] { other.index += 1 }
+        let copy = LoggedSet(exerciseID: s.exerciseID, exerciseOrder: s.exerciseOrder, index: s.index + 1, weight: s.weight, reps: s.targetReps, rest: s.rest)
+        copy.warmup = s.warmup
+        session.sets.append(copy)
+        try? context.save()
+    }
+
+    private var setActions: [GMAction] {
+        guard let s = setMenu else { return [] }
+        let last = !session.sets.contains { $0.exerciseID == s.exerciseID && $0 !== s }
+        return [
+            GMAction("Duplicar série", icon: "plus.square.on.square") { duplicateSet(s) },
+            GMAction(last ? "Remover série (o exercício sai do treino)" : "Remover série", icon: "trash", destructive: true) { removeSet(s) },
+        ]
+    }
+
     private func removeWarmup(_ id: String) {
         let sets = session.orderedSets.filter { $0.exerciseID == id }
         sets.filter(\.warmup).forEach(context.delete)
@@ -504,7 +541,8 @@ struct WorkoutView: View {
 
             ForEach(sets) { s in
                 SetRow(set: s, label: s.warmup ? "A" : "\(s.index - warmups + 1)",
-                       type: ex?.type ?? .weighted, increment: ex?.increment ?? 2.5, unit: ex?.weightUnit(in: session) ?? "kg") { done in
+                       type: ex?.type ?? .weighted, increment: ex?.increment ?? 2.5, unit: ex?.weightUnit(in: session) ?? "kg",
+                       onMenu: { setMenu = s }, onRemove: { removeSet(s) }) { done in
                     if done {
                         // Superset: vai para o próximo do bloco sem descanso
                         if session.advance(after: id) { startRest(s.rest) } else { cancelRest() }
@@ -610,13 +648,59 @@ private struct SetRow: View {
     let type: ExerciseType
     let increment: Double
     var unit = "kg"
+    /// Toque no número: menu da série (remover, duplicar)
+    var onMenu: () -> Void = {}
+    var onRemove: () -> Void = {}
     let onToggle: (Bool) -> Void
+    /// Arrasto para a esquerda: revela o remover; até o fim, remove
+    @State private var offset: CGFloat = 0
+    private let reveal: CGFloat = 76
+
     var body: some View {
+        ZStack(alignment: .trailing) {
+            if offset < 0 {
+                Button(action: onRemove) {
+                    Image(systemName: "trash.fill")
+                        .font(.body.bold())
+                        .frame(width: max(-offset - 8, 0), height: 44)
+                        .background(Theme.danger, in: .rect(cornerRadius: Theme.radiusM))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remover série")
+            }
+            row
+                .background(Theme.card)
+                .offset(x: offset)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 18)
+                        .onChanged { v in
+                            // Só arrasto de lado; o de cima para baixo continua rolando a tela
+                            guard abs(v.translation.width) > abs(v.translation.height) else { return }
+                            offset = min(0, v.translation.width + (offset <= -reveal ? -reveal : 0))
+                        }
+                        .onEnded { v in
+                            withAnimation(.snappy) {
+                                if offset < -220 { offset = 0; onRemove() }
+                                else { offset = offset < -reveal / 2 ? -reveal : 0 }
+                            }
+                        }
+                )
+        }
+        .accessibilityAction(named: "Remover série", onRemove)
+    }
+
+    private var row: some View {
         HStack(spacing: 10) {
-            Text(label)
-                .font(.subheadline.bold().monospacedDigit())
-                .foregroundStyle(set.warmup ? Theme.streak : Theme.dim)
-                .frame(width: 18)
+            Button(action: onMenu) {
+                Text(label)
+                    .font(.subheadline.bold().monospacedDigit())
+                    .foregroundStyle(set.warmup ? Theme.streak : Theme.dim)
+                    .frame(width: 26, height: 26)
+                    .background(Theme.raised, in: .circle)
+            }
+            .buttonStyle(GMPress())
+            .accessibilityLabel("Opções da série \(label)")
 
             // Peso do corpo e isometria aceitam carga extra (cinto, colete, halteres)
             GMCompactStepper(value: Binding(get: { set.weight }, set: { set.weight = max($0, 0) }),
