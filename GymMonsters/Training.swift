@@ -155,10 +155,8 @@ final class WorkoutSession {
         let allMoved = !sets.contains { $0.exerciseID == old && $0.done }
         let linked = linkedNext(old)
         // Aquecimento do antigo não serve para o novo
-        for w in pending where w.warmup {
-            sets.removeAll { $0 === w }
-            modelContext?.delete(w)
-        }
+        // Só apaga: mexer na lista da relação (sets.removeAll) junto com o delete trava o SwiftData
+        for w in pending where w.warmup { modelContext?.delete(w) }
         // Se já fez séries do antigo, o novo entra logo depois dele (abre espaço na ordem)
         if !allMoved, let order = work.first?.exerciseOrder {
             sets.filter { $0.exerciseOrder > order }.forEach { $0.exerciseOrder += 1 }

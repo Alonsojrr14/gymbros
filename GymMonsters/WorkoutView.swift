@@ -311,9 +311,8 @@ struct WorkoutView: View {
     }
 
     private func removeExercise(_ id: String) {
-        let gone = session.orderedSets.filter { $0.exerciseID == id }
-        session.sets.removeAll { s in gone.contains { $0 === s } }
-        gone.forEach(context.delete)
+        // Só apaga: mexer na lista da relação (sets.removeAll) junto com o delete trava o SwiftData
+        session.orderedSets.filter { $0.exerciseID == id }.forEach(context.delete)
         session.setLinkedNext(id, false)
         try? context.save()
     }
