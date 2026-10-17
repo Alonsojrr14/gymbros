@@ -107,7 +107,7 @@ struct Backup: Codable {
         var uuid: UUID, name: String, group: String, equipment: String, type: String, notes: String
     }
 
-    static let settingKeys = ["trainerName", "monsterNick", "lastFormID", "discovered", "bodyGender", "mainMonster", "profileUsername", "profileBio"]
+    static let settingKeys = ["trainerName", "monsterNick", "lastFormID", "discovered", "bodyGender", "mainMonster", "profileUsername", "profileBio", "exerciseGoals"]
 
     @MainActor
     static func make(context: ModelContext) throws -> Backup {

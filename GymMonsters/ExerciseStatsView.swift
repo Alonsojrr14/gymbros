@@ -58,6 +58,8 @@ struct ExerciseDetailView: View {
     @Query(sort: \PersonalRecord.date) private var allPRs: [PersonalRecord]
 
     private var prs: [PersonalRecord] { allPRs.filter { $0.exerciseID == exerciseID } }
+    @State private var goal: TrainingGoal?
+    @State private var goalLoaded = false
 
     private struct Point: Identifiable {
         let date: Date
@@ -86,6 +88,14 @@ struct ExerciseDetailView: View {
     var body: some View {
         let pts = points
         GMScreen(Exercise.name(exerciseID), back: true) {
+            if Exercise.byID(exerciseID)?.type == .weighted {
+                GMSection("Objetivo", footer: goal.map { "Faixa de \($0.range.lowerBound)–\($0.range.upperBound) reps: +1 rep por treino até o topo, depois sobe a carga e volta ao início. Descanso sugerido de \(clock($0.rest))." }
+                          ?? "Sem objetivo: reps fixas da rotina, carga sobe quando completa todas.") {
+                    GMChoiceChips(options: [(nil as TrainingGoal?, "Nenhum")] + TrainingGoal.allCases.map { ($0 as TrainingGoal?, $0.name) },
+                                  selection: Binding(get: { goal }, set: { goal = $0; TrainingGoal.set($0, for: exerciseID) }))
+                }
+                .onAppear { if !goalLoaded { goalLoaded = true; goal = TrainingGoal.of(exerciseID) } }
+            }
             GMSection(weighted ? "1RM estimado (kg)" : (Exercise.byID(exerciseID)?.type == .time ? "Melhor tempo (s)" : "Mais reps")) {
                 let manual = weighted ? prs : []
                 if pts.count + manual.count >= 2 {

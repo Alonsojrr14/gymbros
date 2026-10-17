@@ -170,6 +170,7 @@ struct GymMonstersWidgets: WidgetBundle {
     var body: some Widget {
         PetWidget()
         GymMonstersWidget()
+        TodayWorkoutWidget()
         WorkoutLiveActivity()
         WodLiveActivity()
         if #available(iOS 18.0, *) {

@@ -78,6 +78,11 @@ struct TrainView: View {
                     }
                     .buttonStyle(GMPress())
                     GMDivider()
+                    NavigationLink { WeeklyVolumeView() } label: {
+                        GMRow(icon: "chart.bar.fill", title: "Volume semanal por músculo", subtitle: "Séries por grupo vs. faixa de 10–20", chevron: true)
+                    }
+                    .buttonStyle(GMPress())
+                    GMDivider()
                     NavigationLink { MuscleMapView(sessions: finished) } label: {
                         GMRow(icon: "figure.stand", title: "Mapa muscular", chevron: true)
                     }

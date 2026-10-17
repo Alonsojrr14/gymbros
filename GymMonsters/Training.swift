@@ -176,6 +176,56 @@ struct SessionLog {
     let sets: [SetLog]
 }
 
+/// Objetivo do exercício: define a faixa de reps da dupla progressão e o descanso
+enum TrainingGoal: String, CaseIterable, Identifiable {
+    case forca, hipertrofia, resistencia
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .forca: "Força"
+        case .hipertrofia: "Hipertrofia"
+        case .resistencia: "Resistência"
+        }
+    }
+
+    var range: ClosedRange<Int> {
+        switch self {
+        case .forca: 3...6
+        case .hipertrofia: 8...12
+        case .resistencia: 15...20
+        }
+    }
+
+    var rest: Int {
+        switch self {
+        case .forca: 180
+        case .hipertrofia: 90
+        case .resistencia: 60
+        }
+    }
+
+    var label: String { "\(name) · \(range.lowerBound)–\(range.upperBound) reps" }
+
+    /// Objetivos por exercício (guardados em Ajustes, entram no backup)
+    private static let key = "exerciseGoals"
+
+    private static var all: [String: String] {
+        guard let s = UserDefaults.standard.string(forKey: key), let d = s.data(using: .utf8),
+              let m = try? JSONDecoder().decode([String: String].self, from: d) else { return [:] }
+        return m
+    }
+
+    static func of(_ exerciseID: String) -> TrainingGoal? { all[exerciseID].flatMap(TrainingGoal.init(rawValue:)) }
+
+    static func set(_ goal: TrainingGoal?, for exerciseID: String) {
+        var m = all
+        m[exerciseID] = goal?.rawValue
+        if let d = try? JSONEncoder().encode(m) { UserDefaults.standard.set(String(data: d, encoding: .utf8), forKey: key) }
+    }
+}
+
 struct Suggestion {
     let weight: Double
     let reps: Int
@@ -194,6 +244,8 @@ enum Progression {
             let mine = s.sets.filter { $0.exerciseID == exerciseID }
             return mine.isEmpty ? nil : mine
         }
+        let goal = (ex?.type ?? .weighted) == .weighted ? TrainingGoal.of(exerciseID) : nil
+        let reps = goal?.range.lowerBound ?? reps
         guard let last = past.last else {
             if ex?.type ?? .weighted == .weighted,
                let w = PRBook.workingWeight(exerciseID: exerciseID, reps: reps, increment: ex?.increment ?? 2.5) {
@@ -207,6 +259,28 @@ enum Progression {
 
         let lastWeight = last.filter(\.done).map(\.weight).max() ?? last.map(\.weight).max() ?? 0
         let lastTarget = last.map(\.target).max() ?? reps
+
+        // Dupla progressão dentro da faixa do objetivo: +1 rep até o topo, depois sobe carga e volta ao início
+        if let goal {
+            let r = goal.range
+            let target = min(max(lastTarget, r.lowerBound), r.upperBound)
+            let work = Array(last.prefix(max(sets, 1)))
+            let allDone = last.count >= sets && work.allSatisfy(\.done)
+            let minReps = work.map(\.reps).min() ?? 0
+            let inc = ex?.increment ?? 2.5
+            if allDone && minReps >= r.upperBound {
+                return Suggestion(weight: lastWeight + inc, reps: r.lowerBound,
+                                  reason: "\(goal.name): bateu \(r.upperBound) reps em todas. +\(fmt(inc)) kg e volta para \(r.lowerBound).")
+            }
+            if allDone && minReps >= target {
+                let next = min(target + 1, r.upperBound)
+                return Suggestion(weight: lastWeight, reps: next,
+                                  reason: "\(goal.name): mesma carga, \(next) reps (faixa \(r.lowerBound)–\(r.upperBound)).")
+            }
+            return Suggestion(weight: lastWeight, reps: target,
+                              reason: "\(goal.name): mesma carga até completar \(target) reps em todas as séries.")
+        }
+
         let target = max(reps, 1)
         if lastTarget < target {
             return Suggestion(weight: lastWeight, reps: target, reason: "Nova meta de \(target) reps: mantenha a carga até completar.")

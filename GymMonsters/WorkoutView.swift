@@ -24,6 +24,8 @@ struct WorkoutView: View {
     @State private var restDraft = 90
     @State private var historyFor: String?
     @State private var choosingPlace = false
+    /// Exercício cujo objetivo está sendo escolhido
+    @State private var goalFor: String?
     @Query(filter: #Predicate<WorkoutSession> { $0.end != nil }, sort: \WorkoutSession.start, order: .reverse) private var doneSessions: [WorkoutSession]
     @State private var headphones = HeadphoneControl.shared.isOn
     @State private var headphoneInfo = false
@@ -101,6 +103,12 @@ struct WorkoutView: View {
         ])
         .gmActions(isPresented: Binding(get: { exerciseMenu != nil }, set: { if !$0 { exerciseMenu = nil } }),
                    title: exerciseMenu.map(Exercise.name), actions: exerciseActions)
+        .gmActions(isPresented: Binding(get: { goalFor != nil }, set: { if !$0 { goalFor = nil } }),
+                   title: "Objetivo", message: "Define a faixa de reps e como a carga sobe: +1 rep por treino até o topo da faixa, depois +carga e volta ao início.",
+                   actions: goalFor.map { id in
+                       TrainingGoal.allCases.map { g in GMAction(g.label, icon: "target") { setGoal(g, id) } }
+                       + [GMAction("Sem objetivo (reps fixas)", icon: "xmark") { setGoal(nil, id) }]
+                   } ?? [])
         .gmSheet(isPresented: Binding(get: { platesFor != nil }, set: { if !$0 { platesFor = nil } })) { _ in
             PlateCalculatorView(total: platesFor ?? 60)
         }
@@ -250,6 +258,20 @@ struct WorkoutView: View {
         }
     }
 
+    /// Muda o objetivo e já ajusta as séries que faltam neste treino
+    private func setGoal(_ g: TrainingGoal?, _ id: String) {
+        TrainingGoal.set(g, for: id)
+        let pending = session.orderedSets.filter { $0.exerciseID == id && !$0.warmup && !$0.done }
+        let s = Progression.suggest(exerciseID: id, sets: pending.count, reps: pending.first?.targetReps ?? 10, history: history)
+        for set in pending {
+            set.reps = s.reps
+            set.targetReps = s.reps
+            if let g { set.rest = g.rest }
+            if s.weight > 0 && set.weight == 0 { set.weight = s.weight }
+        }
+        try? context.save()
+    }
+
     /// Três séries leves antes da carga de trabalho
     private func addWarmup(_ ex: Exercise) {
         let sets = session.orderedSets.filter { $0.exerciseID == ex.id }
@@ -312,6 +334,10 @@ struct WorkoutView: View {
             list.append(GMAction("Tirar aquecimento", icon: "flame") { removeWarmup(id) })
         } else if let ex = Exercise.byID(id), ex.type == .weighted, (sets.first?.weight ?? 0) > 0 {
             list.append(GMAction("Adicionar aquecimento", icon: "flame") { addWarmup(ex) })
+        }
+        if Exercise.byID(id)?.type == .weighted {
+            let g = TrainingGoal.of(id)
+            list.append(GMAction("Objetivo: \(g?.label ?? "nenhum")", icon: "target") { goalFor = id })
         }
         list.append(GMAction("Histórico de cargas", icon: "chart.line.uptrend.xyaxis") { historyFor = id })
         let current = notes.first { $0.exerciseID == id }?.text ?? ""
@@ -625,6 +651,8 @@ struct FinishWorkoutView: View {
     @Query private var checkIns: [LeagueCheckIn]
     @Query private var allLeagues: [League]
     @State private var effort = 7
+    @Query private var routines: [Routine]
+    @State private var updateRoutine = false
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
 
@@ -681,6 +709,13 @@ struct FinishWorkoutView: View {
                     ForEach(records, id: \.self) { Text($0).font(.subheadline) }
                 }
             }
+            if let r = routine, !routineChanges(r).isEmpty {
+                GMSection("Rotina \(r.name)", footer: "Liga para a próxima vez já começar assim. Cargas não entram: elas vêm do histórico.") {
+                    ForEach(routineChanges(r), id: \.self) { Text("• " + $0).font(.subheadline) }
+                    GMDivider()
+                    GMToggle(title: "Salvar essas mudanças na rotina", isOn: $updateRoutine)
+                }
+            }
             GMSection { GMEffortPicker(value: $effort) }
             LeaguePostSection(selected: $leagues, photo: $photo)
             GMSection(footer: done.isEmpty ? "Marque ao menos uma série feita para salvar." : nil) {
@@ -702,6 +737,55 @@ struct FinishWorkoutView: View {
     }
 
     private var records: [String] { Progression.records(in: session.log, history: history) }
+
+    private var routine: Routine? { session.routineUUID.flatMap { id in routines.first { $0.uuid == id } } }
+
+    /// Como o treino ficou: exercício, séries, reps alvo, descanso e superset
+    private struct Plan: Equatable { let id: String; let sets: Int; let reps: Int; let rest: Int; let superset: Bool }
+
+    private var plan: [Plan] {
+        let ids = session.exerciseIDs
+        return ids.enumerated().compactMap { i, id in
+            let work = session.orderedSets.filter { $0.exerciseID == id && !$0.warmup }
+            guard let first = work.first else { return nil }
+            // Com objetivo, as reps mudam a cada treino pela dupla progressão: não são mudança da rotina
+            let reps = TrainingGoal.of(id) != nil ? (routine?.items.first { $0.exerciseID == id }?.reps ?? first.targetReps) : first.targetReps
+            return Plan(id: id, sets: work.count, reps: reps, rest: first.rest,
+                        superset: session.linkedNext(id) && i < ids.count - 1)
+        }
+    }
+
+    /// Diferenças entre o treino feito e a rotina, em frases
+    private func routineChanges(_ r: Routine) -> [String] {
+        let items = r.sortedItems
+        let old = items.map { Plan(id: $0.exerciseID, sets: $0.sets, reps: $0.reps, rest: $0.rest, superset: $0.supersetNext) }
+        let new = plan
+        guard old != new else { return [] }
+        var out: [String] = []
+        let oldIDs = old.map(\.id), newIDs = new.map(\.id)
+        for p in new where !oldIDs.contains(p.id) { out.append("Entra \(Exercise.name(p.id)) (\(p.sets)×\(p.reps))") }
+        for p in old where !newIDs.contains(p.id) { out.append("Sai \(Exercise.name(p.id))") }
+        if oldIDs.filter(newIDs.contains) != newIDs.filter(oldIDs.contains) { out.append("Nova ordem dos exercícios") }
+        for p in new {
+            guard let o = old.first(where: { $0.id == p.id }) else { continue }
+            let name = Exercise.name(p.id)
+            if o.sets != p.sets { out.append("\(name): \(o.sets) → \(p.sets) séries") }
+            if o.reps != p.reps { out.append("\(name): \(o.reps) → \(p.reps) reps") }
+            if o.rest != p.rest { out.append("\(name): descanso \(clock(o.rest)) → \(clock(p.rest))") }
+            if o.superset != p.superset { out.append("\(name): \(p.superset ? "superset com o próximo" : "sai do superset")") }
+        }
+        return out.isEmpty ? ["Ajustes na estrutura do treino"] : out
+    }
+
+    private func applyToRoutine(_ r: Routine) {
+        r.items.forEach(context.delete)
+        r.items = []
+        for (i, p) in plan.enumerated() {
+            let item = RoutineItem(exerciseID: p.id, sets: p.sets, reps: p.reps, rest: p.rest, order: i)
+            item.supersetNext = p.superset
+            r.items.append(item)
+        }
+    }
 
     /// (exercício, reps feitas por série, meta) dos exercícios com alguma série abaixo do planejado
     private var missRows: [(String, String, Int)] {
@@ -733,6 +817,7 @@ struct FinishWorkoutView: View {
         context.insert(activity)
         let summary = records.isEmpty ? "" : "🏆 " + records.joined(separator: " · ")
         postCheckIns(activity: activity, leagues: leagues, title: session.title, note: summary, photo: photo, context: context)
+        if updateRoutine, let r = routine, !routineChanges(r).isEmpty { applyToRoutine(r) }
         session.end = .now
         session.effort = effort
         session.activityUUID = activity.uuid

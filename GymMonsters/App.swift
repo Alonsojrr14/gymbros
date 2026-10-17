@@ -141,6 +141,14 @@ struct MainView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.startWorkout)) { _ in tab = 1 }
+        // Widget "Treino do dia": gymbros://start abre o treino em andamento ou começa a rotina de hoje
+        .onOpenURL { url in
+            guard url.scheme == "gymbros", url.host == "start" else { return }
+            tab = 1
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                NotificationCenter.default.post(name: NotificationRouter.startWorkout, object: nil)
+            }
+        }
         .gmActions(isPresented: $arrivalPrompt, title: "Chegou na \(GymLocation.shared.insideGym?.name ?? "academia") 💪",
                    message: GymLocation.todayRoutineName().map { "Hoje é dia de \($0)." } ?? "Bora treinar?",
                    actions: [GMAction("Começar treino", icon: "play.fill") {
