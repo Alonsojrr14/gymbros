@@ -27,6 +27,11 @@ struct Backup: Codable {
     }
     var checkIns: [CheckInDTO]? = nil
     var routes: [RouteDTO]? = nil
+    var visits: [VisitDTO]? = nil
+
+    struct VisitDTO: Codable {
+        var uuid: UUID, gymName: String, start: Date, end: Date?
+    }
     var wods: [WodDTO]? = nil
 
     struct RouteDTO: Codable {
@@ -125,6 +130,7 @@ struct Backup: Codable {
                 RouteDTO(uuid: $0.uuid, activityUUID: $0.activityUUID, kind: $0.kindRaw, start: $0.start, seconds: $0.seconds,
                          meters: $0.meters, points: $0.points)
             },
+            visits: try context.fetch(FetchDescriptor<GymVisit>()).map { VisitDTO(uuid: $0.uuid, gymName: $0.gymName, start: $0.start, end: $0.end) },
             wods: try context.fetch(FetchDescriptor<WodResult>()).map {
                 WodDTO(uuid: $0.uuid, wodID: $0.wodID, wodName: $0.wodName, formatName: $0.formatName, date: $0.date,
                        seconds: $0.seconds, rounds: $0.rounds, reps: $0.reps, rx: $0.rx, note: $0.note, activityUUID: $0.activityUUID)
@@ -148,6 +154,7 @@ struct Backup: Codable {
         try context.delete(model: ExerciseNote.self)
         try context.delete(model: WodResult.self)
         try context.delete(model: RouteRecord.self)
+        try context.delete(model: GymVisit.self)
 
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
@@ -216,6 +223,11 @@ struct Backup: Codable {
             let route = RouteRecord(kind: ActivityKind(rawValue: r.kind) ?? .corrida, start: r.start)
             route.uuid = r.uuid; route.activityUUID = r.activityUUID; route.seconds = r.seconds; route.meters = r.meters; route.points = r.points
             context.insert(route)
+        }
+        for v in visits ?? [] {
+            let visit = GymVisit(gymName: v.gymName)
+            visit.uuid = v.uuid; visit.start = v.start; visit.end = v.end
+            context.insert(visit)
         }
         for w in wods ?? [] {
             let r = WodResult(wodID: w.wodID, wodName: w.wodName, formatName: w.formatName)

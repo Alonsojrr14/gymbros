@@ -10,7 +10,7 @@ enum AppData {
     static let container: ModelContainer = {
         try! ModelContainer(for: Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
                             CustomExercise.self, League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
-                            WodResult.self, RouteRecord.self)
+                            WodResult.self, RouteRecord.self, GymVisit.self)
     }()
 }
 

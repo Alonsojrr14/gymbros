@@ -123,6 +123,9 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
     private func arrived() async {
         guard !inside else { return }
         inside = true
+        let ctx = AppData.container.mainContext
+        ctx.insert(GymVisit(gymName: gym?.name ?? "Academia"))
+        try? ctx.save()
         guard notifyArrival, LiveWorkout.runningSession == nil else { return }
         pendingArrival = .now
         let routine = Self.todayRoutineName()
@@ -135,6 +138,12 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         guard inside else { return }
         inside = false
         pendingArrival = nil
+        let ctx = AppData.container.mainContext
+        if let open = try? ctx.fetch(FetchDescriptor<GymVisit>(predicate: #Predicate { $0.end == nil },
+                                                               sortBy: [SortDescriptor(\.start, order: .reverse)])).first {
+            open.end = .now
+            try? ctx.save()
+        }
         guard autoFinish, let s = LiveWorkout.runningSession,
               Date.now.timeIntervalSince(s.start) >= Self.minWorkoutMinutes * 60 else { return }
         let summary = await LiveWorkout.autoFinish(s, place: gym?.name)
@@ -178,4 +187,19 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound]
     }
+}
+
+/// Uma ida à academia: da entrada à saída do raio
+@Model
+final class GymVisit {
+    var uuid: UUID = UUID()
+    var gymName: String = ""
+    var start: Date = Date.now
+    var end: Date?
+
+    init(gymName: String) {
+        self.gymName = gymName
+    }
+
+    var minutes: Int? { end.map { max(Int($0.timeIntervalSince(start) / 60), 0) } }
 }

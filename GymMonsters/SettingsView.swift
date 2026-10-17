@@ -15,9 +15,6 @@ struct SettingsView: View {
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
     @AppStorage("restNotification") private var restNotification = false
     @AppStorage("barCountsBar") private var barCountsBar = false
-    @State private var pickingGym = false
-    @State private var gymArrival = GymLocation.shared.notifyArrival
-    @State private var gymAutoFinish = GymLocation.shared.autoFinish
     @State private var healthOn = HealthSync.enabled
     @State private var healthStatus: String?
     @State private var syncing = false
@@ -55,20 +52,6 @@ struct SettingsView: View {
                 GMDivider()
                 GMToggle(title: "Notificação no fim do descanso",
                          subtitle: "O Live Activity já mostra o descanso; ligue só se quiser o alerta também", isOn: $restNotification)
-            }
-            GMSection("Minha academia", footer: gymFooter) {
-                GMRow(icon: "mappin.and.ellipse", iconTint: Theme.accent,
-                      title: GymLocation.shared.gym?.name ?? "Marcar minha academia",
-                      subtitle: GymLocation.shared.gym.map { "Raio de \(Int($0.radius)) m" } ?? "Avisos ao chegar e fim automático ao sair",
-                      chevron: true) { pickingGym = true }
-                if GymLocation.shared.gym != nil {
-                    GMDivider()
-                    GMToggle(title: "Avisar ao chegar", subtitle: "Sugere começar o treino do dia", isOn: $gymArrival)
-                        .onChange(of: gymArrival) { _, v in GymLocation.shared.notifyArrival = v }
-                    GMDivider()
-                    GMToggle(title: "Encerrar treino ao sair", subtitle: "Salva o treino em andamento quando você sai do raio", isOn: $gymAutoFinish)
-                        .onChange(of: gymAutoFinish) { _, v in GymLocation.shared.autoFinish = v }
-                }
             }
             GMSection("Carga na barra", footer: "Na musculação é comum anotar só as anilhas. Exercícios de CrossFit sempre contam o total com a barra; polia e máquina não têm barra.") {
                 GMSegmented(options: [(false, "Só anilhas"), (true, "Total com barra")], selection: $barCountsBar)
@@ -121,7 +104,6 @@ struct SettingsView: View {
                        }
                        pendingRestore = nil
                    }])
-        .gmModal(isPresented: $pickingGym) { GymPickerView() }
         .fileExporter(isPresented: $exporting, document: exportDoc, contentType: .json,
                       defaultFilename: "GymBros-\(Date.now.formatted(.iso8601.year().month().day()))") { result in
             if case .success = result { backupMessage = "Backup salvo." }
@@ -136,13 +118,6 @@ struct SettingsView: View {
                 backupMessage = "Não consegui ler o arquivo: \(error.localizedDescription)"
             }
         }
-    }
-
-    private var gymFooter: String {
-        guard GymLocation.shared.gym != nil else { return "A localização fica só no seu iPhone." }
-        return GymLocation.shared.authorization == .authorizedAlways
-            ? "Funciona com o app fechado. A localização fica só no seu iPhone."
-            : "Para funcionar com o app fechado, permita a localização \"Sempre\" em Ajustes do iPhone → GymBros → Localização."
     }
 
     private var restoreTitle: String {

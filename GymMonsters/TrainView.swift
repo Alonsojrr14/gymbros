@@ -59,23 +59,6 @@ struct TrainView: View {
                     GMRow(icon: "square.stack", iconTint: Theme.accent, title: "Usar modelo pronto", chevron: true) { templates = true }
                 }
 
-                GMSection("Ao ar livre (GPS)") {
-                    HStack(spacing: 10) {
-                        ForEach([ActivityKind.corrida, .caminhada, .bike]) { k in
-                            Button { outdoor = k } label: {
-                                VStack(spacing: 6) {
-                                    Image(systemName: k.symbol).font(.title2).frame(height: 30)
-                                    Text(k.name).font(.caption.weight(.semibold))
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 72)
-                                .background(Theme.raised, in: .rect(cornerRadius: 14))
-                                .foregroundStyle(.white)
-                            }
-                            .buttonStyle(GMPress())
-                        }
-                    }
-                }
-
                 GMSection("CrossFit") {
                     NavigationLink { WodListView() } label: {
                         GMRow(icon: "flame.fill", iconTint: .orange, title: "WODs e cronômetro",

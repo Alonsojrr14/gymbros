@@ -39,6 +39,7 @@ O app não usa controles padrão do iOS: telas, cabeçalhos, barra de abas, bot�
 
 ## Localização
 
+- Aba Mapa (`GymMonsters/MapScreen.swift`): mapa com academia e percursos, status (na academia ou a que distância), automações, frequência (visitas no mês e tempo médio) e atividades ao ar livre.
 - Minha academia (`GymMonsters/Location.swift`): local e raio no mapa; ao chegar, notificação e oferta de começar o treino do dia; ao sair, o treino em andamento (com mais de 10 min) é encerrado e salvo automaticamente. Usa `CLMonitor`, que acorda o app em segundo plano. Check-ins feitos na academia mostram o local.
 - Corrida, caminhada e bike com GPS (`GymMonsters/Route.swift`): percurso no mapa, distância, tempo e ritmo, com a tela bloqueada; percurso salvo e visível no histórico.
 - Tudo fica só no iPhone.

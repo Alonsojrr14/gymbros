@@ -91,16 +91,19 @@ struct MainView: View {
                 .tag(1).toolbar(.hidden, for: .tabBar)
             LeaguesView()
                 .tag(2).toolbar(.hidden, for: .tabBar)
-            HistoryView(snapshot: history, activities: activities)
+            MapScreen()
                 .tag(3).toolbar(.hidden, for: .tabBar)
-            DexView(snapshot: s, discovered: Set(discovered.split(separator: ",").map(String.init)), achievements: achievements)
+            HistoryView(snapshot: history, activities: activities)
                 .tag(4).toolbar(.hidden, for: .tabBar)
+            DexView(snapshot: s, discovered: Set(discovered.split(separator: ",").map(String.init)), achievements: achievements)
+                .tag(5).toolbar(.hidden, for: .tabBar)
         }
         .overlay(alignment: .bottom) {
             GMTabBar(items: [
                 GMTabItem(icon: "pawprint.fill", title: "Bro"),
                 GMTabItem(icon: "dumbbell.fill", title: "Treino"),
                 GMTabItem(icon: "trophy.fill", title: "Ligas"),
+                GMTabItem(icon: "map.fill", title: "Mapa"),
                 GMTabItem(icon: "list.bullet", title: "Histórico"),
                 GMTabItem(icon: "square.grid.3x3.fill", title: "Dex"),
             ], selection: $tab)
