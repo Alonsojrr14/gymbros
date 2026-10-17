@@ -78,13 +78,14 @@ struct ActivityDetailView: View {
             }
 
             GMSection("Publicado em", footer: posts.isEmpty ? "Ainda não foi postada. Toque no lápis para postar no perfil ou numa liga." : "Toque para abrir o post.") {
-                ForEach(posts.sorted { order($0) < order($1) }) { c in
+                let sorted = posts.sorted { order($0) < order($1) }
+                if sorted.isEmpty {
+                    Text("Nenhum destino").font(.subheadline).foregroundStyle(Theme.dim)
+                }
+                ForEach(sorted) { c in
                     Button { opened = item(c) } label: { destinationRow(c) }
                         .buttonStyle(GMPress())
-                    GMDivider()
-                }
-                GMRow(icon: "square.and.pencil", iconTint: Theme.accent, title: posts.isEmpty ? "Postar" : "Editar destinos e post", chevron: true) {
-                    editing = true
+                    if c.id != sorted.last?.id { GMDivider() }
                 }
             }
 
