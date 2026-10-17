@@ -4,6 +4,8 @@ import SwiftUI
 struct GMRangeCalendar: View {
     @Binding var start: Date
     @Binding var end: Date?
+    /// Dias antes deste ficam bloqueados
+    var minDate: Date? = nil
     @State private var month = Date.now
 
     private var cal: Calendar {
@@ -44,6 +46,7 @@ struct GMRangeCalendar: View {
         let e = end.map { cal.startOfDay(for: $0) }
         let isStart = d == s, isEnd = d == e
         let inside = e.map { d > s && d < $0 } ?? false
+        let blocked = minDate.map { d < cal.startOfDay(for: $0) } ?? false
         return Button { tap(d) } label: {
             Text("\(cal.component(.day, from: day))")
                 .font(.subheadline.weight(isStart || isEnd ? .bold : .medium).monospacedDigit())
@@ -59,9 +62,10 @@ struct GMRangeCalendar: View {
                 }
                 .background((isStart || isEnd) ? Theme.accent : .clear, in: .circle)
                 .overlay(Circle().stroke(cal.isDateInToday(day) && !(isStart || isEnd) ? Theme.accent : .clear, lineWidth: 1.5))
-                .foregroundStyle(isStart || isEnd ? .black : .white)
+                .foregroundStyle(isStart || isEnd ? .black : blocked ? Theme.dim.opacity(0.35) : .white)
         }
         .buttonStyle(GMPress())
+        .disabled(blocked)
     }
 
     private func tap(_ d: Date) {
@@ -85,6 +89,8 @@ struct LeaguePeriodField: View {
     @Binding var start: Date
     @Binding var end: Date
     @Binding var hasEnd: Bool
+    /// Primeiro dia permitido: hoje (ou o início original, ao editar uma liga que já começou)
+    var minDate: Date = Calendar.current.startOfDay(for: .now)
     @State private var open = false
     @State private var draftStart = Date.now
     @State private var draftEnd: Date?
@@ -126,7 +132,7 @@ struct LeaguePeriodField: View {
                 GMSegmented(options: [(true, "Com fim"), (false, "Sem fim")], selection: $draftHasEnd).frame(width: 180)
             }
             if draftHasEnd {
-                GMRangeCalendar(start: $draftStart, end: $draftEnd)
+                GMRangeCalendar(start: $draftStart, end: $draftEnd, minDate: minDate)
                 // Atalhos discretos, numa linha só
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
@@ -138,11 +144,11 @@ struct LeaguePeriodField: View {
                         }
                     }
                 }
-                Text(draftEnd == nil ? "Toque no último dia (ou use um atalho)." : Self.range(draftStart, draftEnd) + " · " + Self.detail(draftStart, draftEnd))
+                Text(draftEnd == nil ? "Agora toque no último dia, ou use um atalho." : Self.range(draftStart, draftEnd) + " · " + Self.detail(draftStart, draftEnd))
                     .font(.caption).foregroundStyle(Theme.dim)
             } else {
-                GMCalendar(selection: $draftStart)
-                Text("Começa em \(draftStart.formatted(.dateTime.day().month(.wide))) e segue sem data de fim.").font(.caption).foregroundStyle(Theme.dim)
+                GMCalendar(selection: $draftStart, minDate: minDate)
+                Text("Começa em \(draftStart.formatted(.dateTime.day().month(.wide))) e não tem data de fim.").font(.caption).foregroundStyle(Theme.dim)
             }
             GMButton("Confirmar", enabled: !draftHasEnd || draftEnd != nil) {
                 start = cal.startOfDay(for: draftStart)
@@ -171,9 +177,9 @@ struct LeaguePeriodField: View {
 
     static func detail(_ s: Date, _ e: Date?) -> String {
         let cal = Calendar.current
-        let begins = cal.isDateInToday(s) ? "começa hoje" : s > .now ? "começa em \(cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: s)).day ?? 0) dias" : "já começou"
-        guard let e else { return "Sem data de fim · \(begins)" }
+        let begins = League.startsText(s)
+        guard let e else { return "sem data de fim · \(begins)".capitalizedFirst }
         let n = (cal.dateComponents([.day], from: cal.startOfDay(for: s), to: cal.startOfDay(for: e)).day ?? 0) + 1
-        return "\(n) dia\(n == 1 ? "" : "s") · \(begins)"
+        return n == 1 ? "1 dia · \(begins)" : "\(n) dias · \(begins)"
     }
 }

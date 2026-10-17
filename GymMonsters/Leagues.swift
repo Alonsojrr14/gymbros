@@ -82,6 +82,18 @@ final class League {
         return max(0, cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: start)).day ?? 0)
     }
 
+    /// "começa hoje", "começa amanhã", "começa em 3 dias" (minúsculo, para ir no meio da frase)
+    static func startsText(_ start: Date) -> String {
+        let cal = Calendar.current
+        let n = cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: start)).day ?? 0
+        switch n {
+        case ..<0: return "já começou"
+        case 0: return "começa hoje"
+        case 1: return "começa amanhã"
+        default: return "começa em \(n) dias"
+        }
+    }
+
     /// Período escolhido no calendário: do começo do dia de início ao fim do dia final (nil = sem fim)
     func setPeriod(start s: Date, end e: Date?) {
         let cal = Calendar.current

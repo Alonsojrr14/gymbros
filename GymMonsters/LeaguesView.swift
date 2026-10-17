@@ -242,19 +242,33 @@ struct LeagueDetailView: View {
             }
             Rectangle().fill(Theme.stroke).frame(width: 1, height: 96)
             VStack(spacing: 4) {
-                Text(league.isOver ? "Fim" : league.hasStarted ? "Faltam" : "Começa em").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
+                let big = Font.system(size: 40, weight: .heavy, design: .rounded).monospacedDigit()
                 if !league.hasStarted {
-                    Text("\(league.daysToStart)").font(.system(size: 40, weight: .heavy, design: .rounded).monospacedDigit()).frame(height: 50)
-                    Text(league.daysToStart == 1 ? "dia" : "dias").font(.caption2).foregroundStyle(Theme.dim)
+                    Text(league.daysToStart == 1 ? "Começa" : "Começa em").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
+                    if league.daysToStart == 1 {
+                        Text("amanhã").font(.system(size: 24, weight: .heavy, design: .rounded)).frame(height: 50)
+                        Text(" ").font(.caption2)
+                    } else {
+                        Text("\(league.daysToStart)").font(big).frame(height: 50)
+                        Text("dias").font(.caption2).foregroundStyle(Theme.dim)
+                    }
                 } else if league.isOver {
+                    Text("Fim").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
                     Text("🏁").font(.system(size: 38)).frame(height: 50)
                     Text("liga encerrada").font(.caption2).foregroundStyle(Theme.dim)
                 } else if let d = league.daysLeft {
-                    Text("\(d)").font(.system(size: 40, weight: .heavy, design: .rounded).monospacedDigit()).frame(height: 50)
-                        .foregroundStyle(d <= 3 ? Theme.accent : .white)
-                    Text(d == 1 ? "último dia" : "dias").font(.caption2).foregroundStyle(Theme.dim)
+                    if d == 1 {
+                        Text("Termina").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
+                        Text("hoje").font(.system(size: 28, weight: .heavy, design: .rounded)).frame(height: 50).foregroundStyle(Theme.accent)
+                        Text("último dia").font(.caption2).foregroundStyle(Theme.dim)
+                    } else {
+                        Text("Faltam").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
+                        Text("\(d)").font(big).frame(height: 50).foregroundStyle(d <= 3 ? Theme.accent : .white)
+                        Text("dias").font(.caption2).foregroundStyle(Theme.dim)
+                    }
                 } else {
-                    Text("∞").font(.system(size: 40, weight: .heavy, design: .rounded)).frame(height: 50)
+                    Text("Duração").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
+                    Text("∞").font(big).frame(height: 50)
                     Text("sem data de fim").font(.caption2).foregroundStyle(Theme.dim)
                 }
             }
@@ -464,7 +478,9 @@ struct CreateLeagueView: View {
                 }
             }
             GMSection("Período", footer: "Ganha quem estiver na frente no último dia. Check-ins fora do período não contam.") {
-                LeaguePeriodField(start: $start, end: $end, hasEnd: $hasEnd)
+                // Não deixa começar no passado; ao editar, mantém o início que a liga já tinha
+                LeaguePeriodField(start: $start, end: $end, hasEnd: $hasEnd,
+                                  minDate: min(cal.startOfDay(for: .now), league.map { cal.startOfDay(for: $0.start) } ?? .distantFuture))
             }
             GMSection("Pontuação", footer: scoring.detail) {
                 GMSegmented(options: LeagueScoring.allCases.map { ($0, $0.name) }, selection: $scoring)
@@ -636,7 +652,7 @@ struct LeaguePostSection: View {
 
     private func leagueSubtitle(_ l: League) -> String {
         if l.isOver { return "Encerrada" }
-        if !l.hasStarted { return "Liga · começa em \(l.daysToStart) dia\(l.daysToStart == 1 ? "" : "s")" }
+        if !l.hasStarted { return "Liga · \(League.startsText(l.start))" }
         let days = l.daysLeft.map { $0 == 1 ? "último dia" : "faltam \($0) dias" } ?? "sem fim"
         return "Liga · \(days)"
     }

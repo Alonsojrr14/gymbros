@@ -133,4 +133,14 @@ final class WorkoutTests: GymTestCase {
         l.setPeriod(start: day(0), end: nil)
         XCTAssertNil(l.end)
     }
+
+    func testStartTextsUseSingularAndRelativeDays() {
+        XCTAssertEqual(League.startsText(day(0)), "começa hoje")
+        XCTAssertEqual(League.startsText(day(1)), "começa amanhã")
+        XCTAssertEqual(League.startsText(day(5)), "começa em 5 dias")
+        XCTAssertEqual(League.startsText(day(-2)), "já começou")
+        XCTAssertEqual(LeaguePeriodField.detail(day(0), day(0)), "1 dia · começa hoje")
+        XCTAssertEqual(LeaguePeriodField.detail(day(1), day(30)), "30 dias · começa amanhã")
+        XCTAssertEqual(LeaguePeriodField.detail(day(0), nil), "Sem data de fim · começa hoje")
+    }
 }

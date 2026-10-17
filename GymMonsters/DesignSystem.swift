@@ -604,6 +604,7 @@ private func fieldRow(icon: String, title: String, value: String, action: @escap
 struct GMCalendar: View {
     @Binding var selection: Date
     var maxDate: Date?
+    var minDate: Date? = nil
     @State private var month = Date.now
 
     private var cal: Calendar {
@@ -649,7 +650,8 @@ struct GMCalendar: View {
     private func dayCell(_ day: Date) -> some View {
         let selected = cal.isDate(day, inSameDayAs: selection)
         let today = cal.isDateInToday(day)
-        let disabled = maxDate.map { cal.startOfDay(for: day) > cal.startOfDay(for: $0) } ?? false
+        let disabled = (maxDate.map { cal.startOfDay(for: day) > cal.startOfDay(for: $0) } ?? false)
+            || (minDate.map { cal.startOfDay(for: day) < cal.startOfDay(for: $0) } ?? false)
         return Button {
             UISelectionFeedbackGenerator().selectionChanged()
             selection = day
