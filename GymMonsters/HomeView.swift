@@ -7,6 +7,7 @@ struct HomeView: View {
     let mood: Mood
     let line: String
     let monsterName: String
+    var onDex: () -> Void = {}
     @AppStorage("trainerName") private var trainerName = ""
     @State private var team = false
     @State private var logging = false
@@ -23,6 +24,7 @@ struct HomeView: View {
                             .padding(.horizontal, 12).padding(.vertical, 9)
                             .background(Theme.raised, in: .capsule)
                     }
+                    GMIconButton(icon: "square.grid.3x3.fill") { onDex() }
                     GMIconButton(icon: "square.stack.3d.up") { team = true }
                     GMIconButton(icon: "gearshape") { settings = true }
                 }

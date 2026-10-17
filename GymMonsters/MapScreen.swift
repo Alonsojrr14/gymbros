@@ -17,6 +17,12 @@ struct MapScreen: View {
     @State private var arrival = GymLocation.shared.notifyArrival
     @State private var autoFinish = GymLocation.shared.autoFinish
     @State private var settings = false
+    // Prévia "Strava": amigos treinando agora
+    @State private var showFriends = true
+    @State private var friend: LiveFriend?
+    @State private var cheered: Set<String> = []
+    @State private var tick = Date.now
+    @AppStorage("shareLive") private var shareLive = false
 
     var body: some View {
         NavigationStack {
@@ -25,6 +31,7 @@ struct MapScreen: View {
             } content: {
                 bigMap
                 if needsAlways { permissionBanner }
+                friendsSection
                 monthStats
                 outdoorSection
                 gymSection
@@ -36,9 +43,21 @@ struct MapScreen: View {
             .gmSheet(isPresented: Binding(get: { route != nil }, set: { if !$0 { route = nil } })) { _ in
                 if let r = route { routeDetail(r) }
             }
+            .gmSheet(isPresented: Binding(get: { friend != nil }, set: { if !$0 { friend = nil } })) { close in
+                if let f = friend {
+                    LiveFriendCard(friend: f, cheered: $cheered) { close(); focus(f) }
+                }
+            }
             .task {
                 here = await GymLocation.shared.currentLocation()
                 focusPlaces()
+            }
+            // Amigos em movimento (corrida) andam no mapa
+            .task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(2))
+                    tick = .now
+                }
             }
         }
     }
@@ -57,13 +76,25 @@ struct MapScreen: View {
             ForEach(routes.prefix(10)) { r in
                 MapPolyline(coordinates: r.coordinates).stroke(color(r.kind).opacity(0.85), lineWidth: 4)
             }
+            if showFriends, let b = friendsBase {
+                ForEach(FriendsLive.all.filter { $0.moves && $0.isLive }) { f in
+                    MapPolyline(coordinates: f.trail(base: b, at: tick)).stroke(f.color, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                }
+                ForEach(FriendsLive.all) { f in
+                    Annotation(f.name, coordinate: f.coordinate(base: b, at: tick)) {
+                        FriendPin(friend: f, date: tick).onTapGesture { friend = f }
+                    }
+                    .annotationTitles(.hidden)
+                }
+            }
         }
         .mapStyle(.standard(pointsOfInterest: .excludingAll))
         .frame(height: 340)
         .clipShape(.rect(cornerRadius: Theme.radius))
         .overlay(alignment: .topTrailing) {
-            if !gyms.isEmpty { GMIconButton(icon: "scope", size: 36) { focusPlaces() }.padding(10) }
+            GMIconButton(icon: "scope", size: 36) { Task { await focusMe() } }.padding(10)
         }
+        .overlay(alignment: .topLeading) { friendsToggle.padding(10) }
         .overlay(alignment: .bottom) { statusPill.padding(10) }
     }
 
@@ -139,6 +170,47 @@ struct MapScreen: View {
         .background(Theme.card, in: .rect(cornerRadius: 16))
     }
 
+    // MARK: Amigos ao vivo (prévia)
+
+    /// Os amigos simulados ficam em volta de onde você treina (ou de onde você está)
+    private var friendsBase: CLLocationCoordinate2D? {
+        (here.flatMap { h in gyms.min { $0.location.distance(from: h) < $1.location.distance(from: h) } } ?? gyms.first)?.coordinate
+            ?? here?.coordinate
+    }
+
+    private var friendsToggle: some View {
+        Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            withAnimation(.snappy) { showFriends.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "person.2.fill").font(.caption.bold())
+                Text(showFriends ? "\(FriendsLive.liveCount) ao vivo" : "Amigos").font(.caption.bold())
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .background(showFriends ? Theme.accent : Theme.bg.opacity(0.85), in: .capsule)
+            .foregroundStyle(showFriends ? .black : .white)
+        }
+        .buttonStyle(GMPress())
+    }
+
+    private var friendsSection: some View {
+        let list = FriendsLive.all.sorted { ($0.isLive ? 0 : 1, $0.start ?? .distantFuture) < ($1.isLive ? 0 : 1, $1.start ?? .distantFuture) }
+        return GMSection("Amigos agora", footer: "Prévia com amigos simulados. Quando as ligas tiverem servidor, aparecem seus amigos de verdade: só quem ligar \"Compartilhar treino ao vivo\".") {
+            ForEach(list) { f in
+                Button { focus(f); friend = f } label: { LiveFriendRow(friend: f, date: tick).foregroundStyle(.white) }
+                    .buttonStyle(GMPress())
+                if f.id != list.last?.id { GMDivider() }
+            }
+        }
+    }
+
+    private func focus(_ f: LiveFriend) {
+        guard let b = friendsBase else { return }
+        showFriends = true
+        withAnimation { camera = .region(MKCoordinateRegion(center: f.coordinate(base: b, at: .now), latitudinalMeters: 700, longitudinalMeters: 700)) }
+    }
+
     /// Ajustes de localização, fora da lista de lugares
     private var settingsSheet: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -148,6 +220,8 @@ struct MapScreen: View {
             GMDivider()
             GMToggle(title: "Encerrar treino ao sair", subtitle: "Salva o treino em andamento (mais de 10 min) quando você sai do lugar", isOn: $autoFinish)
                 .onChange(of: autoFinish) { _, v in GymLocation.shared.autoFinish = v }
+            GMDivider()
+            GMToggle(title: "Compartilhar treino ao vivo", subtitle: "Prévia: amigos das suas ligas veriam onde você treina e o exercício atual, só durante o treino", isOn: $shareLive)
             GMDivider()
             Text("Ao começar musculação ou CrossFit, o app reconhece o lugar ou pergunta onde você está. A localização fica só no seu iPhone.")
                 .font(.caption).foregroundStyle(Theme.dim)
@@ -159,6 +233,15 @@ struct MapScreen: View {
         let target = here.flatMap { h in gyms.min { $0.location.distance(from: h) < $1.location.distance(from: h) } } ?? gyms.first
         guard let g = target else { return }
         withAnimation { camera = .region(MKCoordinateRegion(center: g.coordinate, latitudinalMeters: 1500, longitudinalMeters: 1500)) }
+    }
+
+    /// Botão do mapa: centraliza onde você está agora (lê a posição de novo, você pode ter andado)
+    private func focusMe() async {
+        if let h = await GymLocation.shared.currentLocation() { here = h }
+        withAnimation {
+            camera = here.map { .region(MKCoordinateRegion(center: $0.coordinate, latitudinalMeters: 1500, longitudinalMeters: 1500)) }
+                ?? .userLocation(fallback: .automatic)
+        }
     }
 
     private func color(_ k: ActivityKind) -> Color {

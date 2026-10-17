@@ -4,6 +4,8 @@ struct DexView: View {
     let snapshot: Snapshot
     let discovered: Set<String>
     let achievements: [Achievement]
+    /// Aberta pela tela do bro: voltar em vez da bolinha do perfil
+    var modal = false
     @State private var tab = 0
 
     var body: some View {
@@ -11,7 +13,7 @@ struct DexView: View {
             GMScreen(tab == 0 ? "Dex" : "Conquistas",
                      subtitle: tab == 0 ? "\(discovered.count) de \(DexView.allForms.count) formas descobertas"
                                         : "\(achievements.filter(\.unlocked).count) de \(achievements.count) desbloqueadas",
-                     avatar: true) {
+                     back: modal, avatar: !modal) {
                 GMSegmented(options: [(0, "Bros"), (1, "Conquistas")], selection: $tab)
                 if tab == 0 { monsters } else { trophies }
             }

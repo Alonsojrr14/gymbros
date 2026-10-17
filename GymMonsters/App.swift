@@ -70,6 +70,8 @@ struct MainView: View {
     @State private var tab = 0
     @State private var visited: Set<Int> = [0]
     @State private var arrivalPrompt = false
+    /// A Dex abre pela tela do bro (saiu da barra para o bro ficar no centro)
+    @State private var dex = false
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var phase
 
@@ -90,24 +92,25 @@ struct MainView: View {
         // Abas próprias: o TabView do iOS joga da 5ª aba em diante num menu "Mais" com seta de voltar.
         // Cada aba é criada na primeira visita e fica viva (guarda rolagem e navegação).
         ZStack {
-            page(0) { HomeView(snapshot: s, activities: activities, mood: companion.mood, line: Companion.line(companion), monsterName: mainName) }
+            page(0) { HomeView(snapshot: s, activities: activities, mood: companion.mood, line: Companion.line(companion), monsterName: mainName) { dex = true } }
             page(1) { TrainView() }
             page(2) { LeaguesView() }
             page(3) { MapScreen() }
             page(4) { HistoryView(snapshot: history, activities: activities) }
-            page(5) { DexView(snapshot: s, discovered: Set(discovered.split(separator: ",").map(String.init)), achievements: achievements) }
         }
         .onChange(of: tab, initial: true) { _, t in visited.insert(t) }
         .overlay(alignment: .bottom) {
-            GMTabBar(items: [
-                GMTabItem(icon: "pawprint.fill", title: "Bro"),
-                GMTabItem(icon: "dumbbell.fill", title: "Treino"),
-                GMTabItem(icon: "trophy.fill", title: "Ligas"),
-                GMTabItem(icon: "map.fill", title: "Mapa"),
-                GMTabItem(icon: "list.bullet", title: "Histórico"),
-                GMTabItem(icon: "square.grid.3x3.fill", title: "Dex"),
-            ], selection: $tab)
+            GMTabBar(left: [GMTabItem(icon: "dumbbell.fill", title: "Treino", tag: 1),
+                            GMTabItem(icon: "trophy.fill", title: "Ligas", tag: 2)],
+                     right: [GMTabItem(icon: "map.fill", title: "Mapa", tag: 3, badge: FriendsLive.liveCount),
+                             GMTabItem(icon: "list.bullet", title: "Histórico", tag: 4)],
+                     centerTag: 0, selection: $tab) {
+                MonsterSprite(form: s.form)
+            }
             .ignoresSafeArea(.keyboard)
+        }
+        .gmModal(isPresented: $dex) {
+            DexView(snapshot: s, discovered: Set(discovered.split(separator: ",").map(String.init)), achievements: achievements, modal: true)
         }
         .task { Roster.ensureStarter(context: context) }
         .task(id: monsters.map { roster.snapshot($0.uuid).form.id + $0.uuid.uuidString }.joined()) { check(roster) }
