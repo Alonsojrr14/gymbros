@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -15,6 +16,7 @@ struct ActivityDetailView: View {
     @State private var confirmDelete = false
     @State private var opened: FeedItem?
     @State private var showRoute = false
+    @State private var storyPick: PhotosPickerItem?
     @Query private var sessions: [WorkoutSession]
 
     init(activity: Activity, snapshot: Snapshot) {
@@ -98,8 +100,22 @@ struct ActivityDetailView: View {
                     }
                     .buttonStyle(GMPress())
                     GMDivider()
-                    GMRow(icon: "square.and.arrow.up", iconTint: Theme.accent, title: "Compartilhar nos Stories", subtitle: "Imagem com o treino, o bro e os recordes") {
+                    GMRow(icon: "square.and.arrow.up", iconTint: Theme.accent, title: "Compartilhar nos Stories",
+                          subtitle: photo == nil ? "Arte com o treino, o bro e os recordes" : "Arte com a foto do check-in") {
                         shareWorkoutStory(s, context: context)
+                    }
+                    GMDivider()
+                    PhotosPicker(selection: $storyPick, matching: .images) {
+                        GMRow(icon: "photo.on.rectangle", title: "Stories com outra foto", chevron: true)
+                    }
+                    .buttonStyle(GMPress())
+                    .onChange(of: storyPick) { _, item in
+                        Task {
+                            if let data = try? await item?.loadTransferable(type: Data.self), let img = UIImage(data: data) {
+                                shareWorkoutStory(s, context: context, photo: img)
+                            }
+                            storyPick = nil
+                        }
                     }
                 }
             }
