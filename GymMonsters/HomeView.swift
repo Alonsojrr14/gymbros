@@ -11,7 +11,6 @@ struct HomeView: View {
     @State private var team = false
     @State private var logging = false
     @State private var settings = false
-    @State private var editing: Activity?
 
     var body: some View {
         NavigationStack {
@@ -34,7 +33,6 @@ struct HomeView: View {
                 if !activities.isEmpty { recentCard }
             }
             .gmModal(isPresented: $logging) { LogActivityView(snapshot: snapshot) }
-            .gmModal(item: $editing) { LogActivityView(snapshot: snapshot, editing: $0) }
             .gmModal(isPresented: $settings) { SettingsView() }
             .gmModal(isPresented: $team) { TeamView() }
         }
@@ -145,7 +143,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Últimas atividades").font(.headline)
             ForEach(activities.prefix(3)) { a in
-                Button { editing = a } label: {
+                NavigationLink { ActivityDetailView(activity: a, snapshot: snapshot) } label: {
                     ActivityRow(activity: a, xp: snapshot.xpByActivity[a.uuid] ?? 0).contentShape(Rectangle())
                 }
                 .buttonStyle(GMPress())
