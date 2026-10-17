@@ -4,7 +4,8 @@
 Uso (na raiz do repo, depois do build.py):
   git clone --depth 1 https://github.com/everkinetic/data.git "$TMPDIR/ek"
   python3 -I tools/wger/everkinetic.py "$TMPDIR/ek"
-Só usa dist/png (desenhos originais); a pasta images-ai do repo fica de fora.
+Usa dist/png e, para alguns exercícios, src/images-png-unknown (mesmos desenhos, sem cadastro).
+"images-ai" no repo é o formato do Adobe Illustrator, não imagem gerada por IA.
 """
 import json, os, subprocess, sys
 
@@ -41,6 +42,43 @@ MAP = {
 }
 
 
+# Ilustrações do repositório sem exercício cadastrado (src/images-png-unknown), identificadas uma a uma
+UNKNOWN = {
+    "cf-turkish": ["417a", "417c"], "rolo-punho": ["651a", "651b"], "cf-toes-to-bar": ["690a", "690b"],
+    "cf-knees-to-elbows": ["690a", "690b"], "cf-kipping-pull-up": ["751a", "751b"], "barra-com-peso": ["751a", "751b"],
+    "cf-push-jerk": ["767a", "767b"], "lenhador": ["949a", "949b"], "thruster": ["344b", "344c"],
+}
+
+
+def add_unknown(ek, out):
+    added = 0
+    for ours, frames in UNKNOWN.items():
+        entry = out["exercises"].get(ours)
+        if entry and entry["images"]:
+            continue
+        images = []
+        for f in frames:
+            src = os.path.join(ek, "src", "images-png-unknown", f + ".svg.png")
+            if not os.path.exists(src): continue
+            asset = f"ek_u{f}"
+            folder = os.path.join(ASSETS, asset + ".imageset")
+            os.makedirs(folder, exist_ok=True)
+            dst = os.path.join(folder, asset + ".png")
+            if not os.path.exists(dst):
+                subprocess.run(["sips", "-Z", "480", src, "--out", dst], check=True, capture_output=True)
+            json.dump({"images": [{"idiom": "universal", "filename": asset + ".png"}], "info": {"author": "xcode", "version": 1}},
+                      open(os.path.join(folder, "Contents.json"), "w"))
+            images.append({"asset": asset, "source": SOURCE, **LICENSE})
+        if not images: continue
+        if entry:
+            entry["images"] = images
+        else:
+            out["exercises"][ours] = {"wger": 0, "url": SOURCE, "language": "en", "steps": [], "text": LICENSE,
+                                      "images": images, "videos": []}
+        added += 1
+    return added
+
+
 def main(ek):
     data = {x["name"]: x for x in json.load(open(os.path.join(ek, "exercises.json")))}
     out = json.load(open(JSON))
@@ -70,6 +108,7 @@ def main(ek):
             out["exercises"][ours] = {"wger": 0, "url": SOURCE, "language": "en", "steps": x.get("steps", []),
                                       "text": LICENSE, "images": images, "videos": []}
         added += 1
+    added += add_unknown(ek, out)
     json.dump(out, open(JSON, "w"), ensure_ascii=False, indent=1)
     print(f"{added} exercícios ganharam ilustração do Everkinetic")
 

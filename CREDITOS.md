@@ -11,8 +11,9 @@ e aparecem no app junto do conteúdo e na tela "Créditos e licenças". Gerado p
 
 ## Ilustrações: Everkinetic
 Ilustrações do [Everkinetic](https://github.com/everkinetic/data) (projeto de Greg Priday), licença CC BY-SA 4.0,
-para os exercícios que o wger não ilustra. Só os desenhos originais (`dist/png`); a pasta de imagens geradas por IA
-do repositório fica de fora. Gerado por `tools/wger/everkinetic.py`.
+para os exercícios que o wger não ilustra: os desenhos de `dist/png` e alguns de `src/images-png-unknown` (mesmos
+desenhos, sem exercício cadastrado, identificados à mão). A pasta `images-ai` do repositório é o formato do Adobe
+Illustrator, não imagem gerada por IA. Gerado por `tools/wger/everkinetic.py`.
 
 ## Mapa muscular: MuscleMap
 [MuscleMap](https://github.com/melihcolpan/MuscleMap), Copyright (c) 2026 Melih Colpan, licença MIT.
