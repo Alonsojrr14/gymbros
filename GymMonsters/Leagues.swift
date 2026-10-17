@@ -49,6 +49,10 @@ final class League {
     var joinedAt: Date = Date.now
     /// Monstro que representa o jogador nesta liga (recebe o XP dos check-ins dela)
     var monsterUUID: UUID?
+    /// Último dia da liga (fim do dia); nil = sem fim
+    var end: Date?
+    /// Capa da liga
+    @Attribute(.externalStorage) var cover: Data?
 
     init(name: String, emoji: String, scoring: LeagueScoring, start: Date = .now, isMock: Bool = false) {
         self.name = name
@@ -60,6 +64,27 @@ final class League {
     }
 
     var scoring: LeagueScoring { LeagueScoring(rawValue: scoringRaw) ?? .pontos }
+
+    var isOver: Bool { end.map { $0 < .now } ?? false }
+
+    /// Dias que faltam, contando hoje (nil = sem fim)
+    var daysLeft: Int? {
+        guard let end else { return nil }
+        let cal = Calendar.current
+        return max(0, (cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: end)).day ?? 0) + 1)
+    }
+
+    /// Define a duração em dias a partir do início (0 = sem fim)
+    func setDuration(days: Int) {
+        let cal = Calendar.current
+        end = days > 0 ? cal.date(byAdding: .second, value: -1, to: cal.date(byAdding: .day, value: days, to: cal.startOfDay(for: start))!) : nil
+    }
+
+    var durationDays: Int {
+        guard let end else { return 0 }
+        let cal = Calendar.current
+        return (cal.dateComponents([.day], from: cal.startOfDay(for: start), to: cal.startOfDay(for: end)).day ?? 0) + 1
+    }
 
     static func newCode() -> String {
         let chars = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
@@ -139,6 +164,7 @@ enum MockLeague {
         let cal = Calendar.current
         var out: [FakeCheckIn] = []
         var day = cal.startOfDay(for: league.start)
+        let now = min(now, league.end ?? now)
         while day <= now {
             for m in FakeMember.all {
                 var rng = SeededRandom(seed: "\(league.uuid)-\(m.id)-\(Int(day.timeIntervalSince1970))")
@@ -225,7 +251,7 @@ enum LeagueBoard {
         if league.isMock {
             for m in FakeMember.all { rows[m.id] = RankRow(id: m.id, name: m.name, avatar: m.form, isMe: false, score: 0, checkIns: 0) }
         }
-        for f in feed where since.map({ f.date >= $0 }) ?? true {
+        for f in feed where (since.map { f.date >= $0 } ?? true) && f.date >= league.start && f.date <= (league.end ?? .distantFuture) {
             let r = rows[f.memberID] ?? RankRow(id: f.memberID, name: f.name, avatar: f.avatar, isMe: f.isMe, score: 0, checkIns: 0)
             rows[f.memberID] = RankRow(id: r.id, name: r.name, avatar: r.avatar, isMe: r.isMe, score: r.score + f.score, checkIns: r.checkIns + 1)
         }
