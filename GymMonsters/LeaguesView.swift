@@ -422,12 +422,7 @@ struct CreateLeagueView: View {
     @State private var loaded = false
 
     private let emojis = ["🏆", "🔥", "💪", "🏃", "⚡️", "🦁", "🐉", "⭐️", "🏐", "🧘"]
-    private let durations = [(7, "1 semana"), (14, "2 semanas"), (30, "30 dias"), (60, "60 dias"), (90, "90 dias")]
-
     private var cal: Calendar { .current }
-
-    /// Dias do período, contando início e fim
-    private var periodDays: Int { (cal.dateComponents([.day], from: cal.startOfDay(for: start), to: cal.startOfDay(for: end)).day ?? 0) + 1 }
 
     var body: some View {
         GMModal(league == nil ? "Nova liga" : "Editar liga", confirm: league == nil ? "Criar" : "Salvar",
@@ -468,33 +463,8 @@ struct CreateLeagueView: View {
                     GMButton("Tirar capa", kind: .secondary, small: true) { cover = nil; coverPick = nil }
                 }
             }
-            GMSection("Período", footer: endText) {
-                GMDateField(date: Binding(get: { start }, set: { new in
-                    // Mover o início leva o fim junto, mantendo a duração
-                    let len = periodDays
-                    start = cal.startOfDay(for: new)
-                    end = cal.date(byAdding: .day, value: max(len, 1) - 1, to: start)!
-                }), limitToNow: false, title: "Início")
-                GMDivider()
-                GMToggle(title: "Tem data de fim", isOn: $hasEnd)
-                if hasEnd {
-                    GMDateField(date: Binding(get: { end }, set: { end = max(cal.startOfDay(for: $0), start) }), limitToNow: false, title: "Fim")
-                    GMDivider()
-                    Text("Atalhos").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
-                    GMFlow {
-                        ForEach(durations, id: \.0) { n, label in
-                            GMChip(title: label, selected: periodDays == n) {
-                                UISelectionFeedbackGenerator().selectionChanged()
-                                end = cal.date(byAdding: .day, value: n - 1, to: start)!
-                            }
-                        }
-                        let monthEnd = cal.date(byAdding: .day, value: -1, to: cal.dateInterval(of: .month, for: start)!.end)!
-                        GMChip(title: "Até o fim do mês", selected: cal.isDate(end, inSameDayAs: monthEnd)) {
-                            UISelectionFeedbackGenerator().selectionChanged()
-                            end = monthEnd
-                        }
-                    }
-                }
+            GMSection("Período", footer: "Ganha quem estiver na frente no último dia. Check-ins fora do período não contam.") {
+                LeaguePeriodField(start: $start, end: $end, hasEnd: $hasEnd)
             }
             GMSection("Pontuação", footer: scoring.detail) {
                 GMSegmented(options: LeagueScoring.allCases.map { ($0, $0.name) }, selection: $scoring)
@@ -517,13 +487,6 @@ struct CreateLeagueView: View {
             if let e = l.end { end = cal.startOfDay(for: e) }
             cover = l.cover
         }
-    }
-
-    private var endText: String {
-        let f = Date.FormatStyle.dateTime.day().month(.abbreviated)
-        let begins = cal.isDateInToday(start) ? "Começa hoje" : start > .now ? "Começa em \(start.formatted(f))" : "Começou em \(start.formatted(f))"
-        guard hasEnd else { return "\(begins) e segue sem data de fim." }
-        return "\(begins) e termina em \(end.formatted(f.year())): \(periodDays) dia\(periodDays == 1 ? "" : "s"). Ganha quem estiver na frente no último dia. Check-ins fora do período não contam."
     }
 
     private func save() {
