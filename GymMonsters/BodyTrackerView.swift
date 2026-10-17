@@ -82,12 +82,13 @@ struct BodyTrackerView: View {
         .gmModal(isPresented: $adding) { BodyEntryForm(entry: nil) }
         .gmModal(item: $editing) { BodyEntryForm(entry: $0) }
         .gmActions(isPresented: Binding(get: { menu != nil }, set: { if !$0 { menu = nil } }),
-                   title: menu.map { $0.date.formatted(date: .long, time: .omitted) }, actions: [
-            GMAction("Editar", icon: "pencil") { editing = menu },
+                   title: menu.map { $0.date.formatted(date: .long, time: .omitted) }, actions: menu.map { e in [
+            GMAction("Editar", icon: "pencil") { editing = e },
             GMAction("Apagar", icon: "trash", destructive: true) {
-                if let e = menu { context.delete(e); try? context.save() }
+                context.delete(e)
+                try? context.save()
             },
-        ])
+        ] } ?? [])
         .gmSheet(isPresented: Binding(get: { measure != nil }, set: { if !$0 { measure = nil } })) { _ in
             if let m = measure {
                 let series = entries.compactMap { e in m.value(e).map { (date: e.date, v: $0) } }.reversed()

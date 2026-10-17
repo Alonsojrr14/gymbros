@@ -94,8 +94,7 @@ struct SettingsView: View {
                    actions: [GMAction("Recomeçar", icon: "arrow.counterclockwise", destructive: true, action: reset)])
         .gmActions(isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
                    title: "Restaurar backup?", message: restoreTitle,
-                   actions: [GMAction("Substituir tudo", icon: "square.and.arrow.down", destructive: true) {
-                       guard let b = pendingRestore else { return }
+                   actions: pendingRestore.map { b in [GMAction("Substituir tudo", icon: "square.and.arrow.down", destructive: true) {
                        do {
                            try b.restore(into: context)
                            backupMessage = "Backup restaurado: \(b.activities.count) atividades."
@@ -103,7 +102,7 @@ struct SettingsView: View {
                            backupMessage = "Falha ao restaurar: \(error.localizedDescription)"
                        }
                        pendingRestore = nil
-                   }])
+                   }] } ?? [])
         .fileExporter(isPresented: $exporting, document: exportDoc, contentType: .json,
                       defaultFilename: "GymBros-\(Date.now.formatted(.iso8601.year().month().day()))") { result in
             if case .success = result { backupMessage = "Backup salvo." }

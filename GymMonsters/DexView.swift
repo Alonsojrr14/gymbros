@@ -43,7 +43,7 @@ struct DexView: View {
 
     /// Todas as formas de todas as espécies com arte (o ovo conta uma vez)
     static var allForms: [MonsterForm] {
-        [.egg] + Species.catalog.flatMap { MonsterForm.all(species: $0.id).filter { $0.stage != .egg } }
+        [.egg] + Species.catalog.flatMap { MonsterForm.all(species: $0.id).filter { $0.stage != .egg } + MonsterForm.hybrids(species: $0.id).filter(\.hasArt) }
     }
 
     @State private var speciesID = Species.standard.id
@@ -64,7 +64,9 @@ struct DexView: View {
 
     // MARK: Espécies
 
-    private func forms(_ sp: Species) -> [MonsterForm] { MonsterForm.all(species: sp.id).filter { $0.stage != .egg } }
+    private func forms(_ sp: Species) -> [MonsterForm] {
+        MonsterForm.all(species: sp.id).filter { $0.stage != .egg } + MonsterForm.hybrids(species: sp.id).filter(\.hasArt)
+    }
     private func found(_ sp: Species) -> [MonsterForm] { forms(sp).filter { isKnown($0) } }
 
     private var speciesPicker: some View {
@@ -154,6 +156,35 @@ struct DexView: View {
                         node(MonsterForm(stage: .champion, attribute: a, species: sp.id), size: 76)
                         arrow
                         node(MonsterForm(stage: .ultimate, attribute: a, species: sp.id), size: 76)
+                    }
+                }
+            }
+
+            // Híbridos: dois atributos quase empatados na fase (aparecem quando houver arte)
+            if sp.hasHybrids {
+                Text("Formas híbridas").font(.headline).padding(.top, 6)
+                Text("Quando os dois atributos mais treinados ficam quase empatados (diferença de até 10%)")
+                    .font(.caption).foregroundStyle(Theme.dim)
+                ForEach(Array(Attribute.pairs.enumerated()), id: \.offset) { _, pair in
+                    let (a, b) = pair
+                    let champ = MonsterForm(stage: .champion, attribute: a, attribute2: b, species: sp.id)
+                    if champ.hasArt {
+                        GMCard {
+                            HStack(spacing: 6) {
+                                VStack(spacing: 2) {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: a.symbol).foregroundStyle(a.color)
+                                        Image(systemName: b.symbol).foregroundStyle(b.color)
+                                    }
+                                    .font(.subheadline)
+                                    Text("\(a.name) + \(b.name)").font(.system(size: 9, weight: .bold)).multilineTextAlignment(.center)
+                                }
+                                .frame(width: 62)
+                                node(champ, size: 76)
+                                arrow
+                                node(MonsterForm(stage: .ultimate, attribute: a, attribute2: b, species: sp.id), size: 76)
+                            }
+                        }
                     }
                 }
             }

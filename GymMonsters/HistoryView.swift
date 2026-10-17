@@ -40,10 +40,7 @@ struct HistoryView: View {
             .gmActions(isPresented: Binding(get: { menu != nil }, set: { if !$0 { menu = nil } }),
                        title: menu.map { "\($0.kind.name) · \(durationText($0.minutes))" },
                        message: menu.map { $0.date.formatted(date: .complete, time: .shortened) + ($0.note.isEmpty ? "" : "\n\($0.note)") },
-                       actions: (menu.flatMap { a in routes.first { $0.activityUUID == a.uuid } }.map { r in
-                           [GMAction("Ver percurso (\(kmText(r.meters)))", icon: "map") { routeFor = r }]
-                       } ?? []) + [GMAction("Editar", icon: "pencil") { editing = menu },
-                                 GMAction("Apagar atividade", icon: "trash", destructive: true) { if let a = menu { delete(a) } }])
+                       actions: menuActions)
             .gmModal(item: $editing) { LogActivityView(snapshot: snapshot, editing: $0) }
             .gmSheet(isPresented: Binding(get: { routeFor != nil }, set: { if !$0 { routeFor = nil } })) { _ in
                 if let r = routeFor {
@@ -56,6 +53,19 @@ struct HistoryView: View {
                 }
             }
         }
+    }
+
+    /// Ações da atividade tocada. O item é guardado aqui, antes de a bottom sheet fechar
+    /// (ao fechar, `menu` volta a nil e a ação ficaria sem saber qual atividade era).
+    private var menuActions: [GMAction] {
+        guard let a = menu else { return [] }
+        var list: [GMAction] = []
+        if let r = routes.first(where: { $0.activityUUID == a.uuid }) {
+            list.append(GMAction("Ver percurso (\(kmText(r.meters)))", icon: "map") { routeFor = r })
+        }
+        list.append(GMAction("Editar", icon: "pencil") { editing = a })
+        list.append(GMAction("Apagar atividade", icon: "trash", destructive: true) { delete(a) })
+        return list
     }
 
     private func delete(_ a: Activity) {

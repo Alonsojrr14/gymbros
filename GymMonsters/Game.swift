@@ -9,6 +9,10 @@ import UIKit
 enum Attribute: String, CaseIterable, Codable, Identifiable {
     case forca, resistencia, agilidade, tecnica
 
+    /// As 6 duplas possíveis das formas híbridas
+    static let pairs: [(Attribute, Attribute)] = [(.forca, .resistencia), (.forca, .agilidade), (.forca, .tecnica),
+                                                  (.resistencia, .agilidade), (.resistencia, .tecnica), (.agilidade, .tecnica)]
+
     var id: String { rawValue }
 
     var name: String {
@@ -141,16 +145,32 @@ enum Stage: Int, CaseIterable, Comparable {
 struct MonsterForm: Hashable, Identifiable {
     let stage: Stage
     let attribute: Attribute?
+    /// Segundo atributo das formas híbridas (dois atributos empatados na fase)
+    var attribute2: Attribute?
     var species: String = Species.standard.id
 
-    init(stage: Stage, attribute: Attribute?, species: String = Species.standard.id) {
+    init(stage: Stage, attribute: Attribute?, attribute2: Attribute? = nil, species: String = Species.standard.id) {
         self.stage = stage
-        self.attribute = attribute
+        // Dupla sempre na mesma ordem (força, resistência, agilidade, técnica)
+        if let a = attribute, let b = attribute2, a != b {
+            let order = Attribute.allCases
+            let swap = order.firstIndex(of: a)! > order.firstIndex(of: b)!
+            self.attribute = swap ? b : a
+            self.attribute2 = swap ? a : b
+        } else {
+            self.attribute = attribute
+            self.attribute2 = nil
+        }
         self.species = stage == .egg ? Species.standard.id : species
     }
 
-    /// Chave da forma dentro da espécie (ex.: "champion_forca")
-    var key: String { attribute.map { "\(stage)_\($0.rawValue)" } ?? "\(stage)" }
+    var isHybrid: Bool { attribute2 != nil }
+
+    /// Chave da forma dentro da espécie (ex.: "champion_forca", "champion_forca_resistencia")
+    var key: String {
+        guard let a = attribute else { return "\(stage)" }
+        return attribute2.map { "\(stage)_\(a.rawValue)_\($0.rawValue)" } ?? "\(stage)_\(a.rawValue)"
+    }
 
     /// A espécie padrão mantém os ids antigos, para não perder descobertas da Dex
     var id: String { species == Species.standard.id ? key : "\(species)/\(key)" }
@@ -166,16 +186,43 @@ struct MonsterForm: Hashable, Identifiable {
 
     static var all: [MonsterForm] { all() }
 
+    /// As 12 formas híbridas de uma espécie (6 duplas × Champion e Ultimate)
+    static func hybrids(species: String = Species.standard.id) -> [MonsterForm] {
+        [Stage.champion, .ultimate].flatMap { st in
+            Attribute.pairs.map { MonsterForm(stage: st, attribute: $0.0, attribute2: $0.1, species: species) }
+        }
+    }
+
     static func byID(_ id: String) -> MonsterForm? {
         let parts = id.split(separator: "/").map(String.init)
         let species = parts.count == 2 ? parts[0] : Species.standard.id
-        return all(species: species).first { $0.id == id }
+        return (all(species: species) + hybrids(species: species)).first { $0.id == id }
     }
 
-    func with(species: String) -> MonsterForm { MonsterForm(stage: stage, attribute: attribute, species: species) }
+    func with(species: String) -> MonsterForm { MonsterForm(stage: stage, attribute: attribute, attribute2: attribute2, species: species) }
+
+    /// Sem o segundo atributo (forma normal do dominante)
+    var single: MonsterForm { MonsterForm(stage: stage, attribute: attribute, species: species) }
+
+    /// Tem arte no app (híbridos chegam aos poucos; sem arte, o bro usa a forma normal)
+    var hasArt: Bool {
+        guard isHybrid else { return true }
+        #if canImport(UIKit)
+        return UIImage(named: sprite) != nil
+        #else
+        return false
+        #endif
+    }
 
     var speciesInfo: Species { Species.byID(species) ?? .standard }
-    var name: String { stage == .egg ? "Ovo" : speciesInfo.names[key] ?? key }
+    var name: String {
+        if stage == .egg { return "Ovo" }
+        if let a = attribute, let b = attribute2 {
+            let theme = Species.hybridNames[stage]?[a.rawValue + "_" + b.rawValue] ?? "Híbrido"
+            return species == Species.standard.id ? theme : "\(theme) \(speciesInfo.name)"
+        }
+        return speciesInfo.names[key] ?? key
+    }
     var sprite: String { stage == .egg ? "sprite_egg" : speciesInfo.sprite(key) }
 
     /// Mantido para quem ainda usa (widget); todas as formas têm arte própria agora
@@ -247,6 +294,17 @@ struct Species: Identifiable {
 
     static func byID(_ id: String) -> Species? { all.first { $0.id == id } }
 
+    /// Nomes das formas híbridas por dupla (nas outras espécies levam o nome da espécie junto)
+    static let hybridNames: [Stage: [String: String]] = [
+        .champion: ["forca_resistencia": "Crossbro", "forca_agilidade": "Golpebro", "forca_tecnica": "Arrancobro",
+                    "resistencia_agilidade": "Trilhabro", "resistencia_tecnica": "Nadobro", "agilidade_tecnica": "Gingabro"],
+        .ultimate: ["forca_resistencia": "Hércubro", "forca_agilidade": "Titãbro", "forca_tecnica": "Olimpibro",
+                    "resistencia_agilidade": "Ventobro", "resistencia_tecnica": "Marébro", "agilidade_tecnica": "Acrobro"],
+    ]
+
+    /// Tem pelo menos uma arte híbrida no app (a Dex só mostra a seção nesse caso)
+    var hasHybrids: Bool { MonsterForm.hybrids(species: id).contains(where: \.hasArt) }
+
     /// Espécie de um ovo que acabou de chocar, pelos treinos que o chocaram.
     /// Entre várias espécies com a mesma afinidade, escolhe de forma estável pelo id do monstro.
     static func hatch(attributes: [Attribute: Double], seed: UUID) -> Species {
@@ -302,7 +360,10 @@ struct Snapshot {
     /// Forma que viria se evoluísse agora
     var nextForm: MonsterForm? {
         guard let next = stage.next else { return nil }
-        return MonsterForm(stage: next, attribute: next.branches ? Game.dominant(stageAttributes) : nil)
+        guard next.branches else { return MonsterForm(stage: next, attribute: nil, species: form.species) }
+        let (a, b) = Game.branch(stageAttributes)
+        let f = MonsterForm(stage: next, attribute: a, attribute2: b, species: form.species)
+        return f.hasArt ? f : f.single
     }
 }
 
@@ -319,6 +380,19 @@ enum Game {
     }
 
     static func level(for xp: Int) -> Int { Int((Double(xp) / 5).squareRoot()) + 1 }
+
+    /// O 2º atributo precisa ter pelo menos 90% do 1º para virar híbrido
+    static let hybridRatio = 0.9
+
+    /// Galho da evolução: o dominante e, se o segundo estiver quase empatado, ele também
+    static func branch(_ attrs: [Attribute: Double]) -> (Attribute, Attribute?) {
+        let a = dominant(attrs)
+        let top = attrs[a] ?? 0
+        let rest = Attribute.allCases.filter { $0 != a }
+        guard top > 0, let b = rest.max(by: { (attrs[$0] ?? 0) < (attrs[$1] ?? 0) }),
+              (attrs[b] ?? 0) >= top * hybridRatio else { return (a, nil) }
+        return (a, b)
+    }
 
     static func dominant(_ attrs: [Attribute: Double]) -> Attribute {
         Attribute.allCases.max { (attrs[$0] ?? 0) < (attrs[$1] ?? 0) } ?? .forca
@@ -348,7 +422,12 @@ enum Game {
 
             while let next = s.stage.next, s.totalXP >= next.threshold {
                 if s.stage == .egg { s.hatchAttributes = s.stageAttributes }
-                s.form = MonsterForm(stage: next, attribute: next.branches ? dominant(s.stageAttributes) : nil)
+                if next.branches {
+                    let (a, b) = branch(s.stageAttributes)
+                    s.form = MonsterForm(stage: next, attribute: a, attribute2: b)
+                } else {
+                    s.form = MonsterForm(stage: next, attribute: nil)
+                }
                 s.evolutions.append(Evolution(date: r.date, form: s.form))
                 s.stageAttributes = [:]
             }

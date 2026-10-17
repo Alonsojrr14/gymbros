@@ -117,9 +117,8 @@ struct TrainView: View {
             .gmActions(isPresented: Binding(get: { routineMenu != nil }, set: { if !$0 { routineMenu = nil } }),
                        title: routineMenu?.name, actions: routineActions)
             .gmActions(isPresented: Binding(get: { sessionMenu != nil }, set: { if !$0 { sessionMenu = nil } }),
-                       title: sessionMenu?.title, message: "O XP desse treino também sai do bro.", actions: [
-                GMAction("Apagar treino", icon: "trash", destructive: true) { if let s = sessionMenu { deleteSession(s) } }
-            ])
+                       title: sessionMenu?.title, message: "O XP desse treino também sai do bro.",
+                       actions: sessionMenu.map { s in [GMAction("Apagar treino", icon: "trash", destructive: true) { deleteSession(s) }] } ?? [])
         }
     }
 

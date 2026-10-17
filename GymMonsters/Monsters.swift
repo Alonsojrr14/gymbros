@@ -84,8 +84,10 @@ struct Roster {
             // Espécie gravada no monstro; se acabou de chocar e ainda não foi gravada, calcula pelos treinos do ovo
             if s.stage > .egg {
                 let species = m.speciesID ?? Species.hatch(attributes: s.hatchAttributes, seed: m.uuid).id
-                s.form = s.form.with(species: species)
-                s.evolutions = s.evolutions.map { Evolution(date: $0.date, form: $0.form.with(species: species)) }
+                // Híbrido sem arte ainda: segue a forma normal do atributo dominante
+                func resolve(_ f: MonsterForm) -> MonsterForm { let g = f.with(species: species); return g.hasArt ? g : g.single }
+                s.form = resolve(s.form)
+                s.evolutions = s.evolutions.map { Evolution(date: $0.date, form: resolve($0.form)) }
             }
             return (m.uuid, s)
         })
