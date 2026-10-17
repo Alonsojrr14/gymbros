@@ -105,7 +105,6 @@ struct LeagueDetailView: View {
     @Query(sort: \Monster.createdAt) private var monsters: [Monster]
     @Query private var leagues: [League]
     @AppStorage("trainerName") private var trainerName = ""
-    @AppStorage("likes") private var likes = ""
     @State private var tab = 0
     @State private var weekOnly = false
     @State private var checkingIn = false
@@ -171,9 +170,7 @@ struct LeagueDetailView: View {
         }
         .gmModal(isPresented: $checkingIn) { CheckInForm(preselected: [league.uuid]) }
         .gmModal(isPresented: $editing) { CreateLeagueView(league: league) }
-        .gmSheet(isPresented: Binding(get: { opened != nil }, set: { if !$0 { opened = nil } })) { _ in
-            if let p = opened { post(p) }
-        }
+        .gmModal(item: $opened) { CheckInDetailView(item: $0) }
         .gmActions(isPresented: $menu, title: "\(league.emoji) \(league.name)", actions: [
             GMAction("Editar liga", icon: "pencil") { editing = true },
             GMAction("Sair da liga", icon: "rectangle.portrait.and.arrow.right", destructive: true) { leaving = true },
@@ -399,48 +396,6 @@ struct LeagueDetailView: View {
             Text("\(r.score)").font(.headline.monospacedDigit()).foregroundStyle(r.isMe ? Theme.accent : .white)
         }
         .padding(.vertical, 2)
-    }
-
-    // MARK: Post aberto
-
-    private func post(_ item: FeedItem) -> some View {
-        let liked = likes.split(separator: ",").contains { $0 == item.id }
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                MonsterSprite(form: item.avatar).frame(width: 38, height: 38)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(item.isMe ? "Você" : item.name).font(.subheadline.bold())
-                    Text(item.date.formatted(.dateTime.weekday().day().month(.abbreviated).hour().minute()) + (item.place.map { " · 📍 \($0)" } ?? ""))
-                        .font(.caption2).foregroundStyle(Theme.dim)
-                }
-                Spacer()
-                Text("+\(item.score)").font(.headline.monospacedDigit()).foregroundStyle(Theme.accent)
-            }
-            Text(item.title).font(.title3.bold())
-            if !item.note.isEmpty { Text(item.note).font(.subheadline).foregroundStyle(Theme.dim) }
-            if let data = item.photo, let img = UIImage(data: data) {
-                Image(uiImage: img).resizable().scaledToFit()
-                    .frame(maxHeight: 380).clipShape(.rect(cornerRadius: 14))
-            }
-            HStack {
-                Label("\(item.kind.name) · \(durationText(item.minutes))", systemImage: item.kind.symbol)
-                    .font(.caption)
-                    .foregroundStyle(Theme.dim)
-                Spacer()
-                if !item.isMe {
-                    Button {
-                        var set = Set(likes.split(separator: ",").map(String.init))
-                        if liked { set.remove(item.id) } else { set.insert(item.id) }
-                        likes = set.sorted().joined(separator: ",")
-                    } label: {
-                        Text(liked ? "💪 1" : "💪").font(.subheadline)
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .background(liked ? Theme.accent.opacity(0.25) : Theme.raised, in: .capsule)
-                    }
-                    .buttonStyle(GMPress())
-                }
-            }
-        }
     }
 }
 
