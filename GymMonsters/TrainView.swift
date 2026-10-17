@@ -202,29 +202,78 @@ struct SessionRow: View {
 struct SessionDetailView: View {
     let session: WorkoutSession
     @Environment(\.modelContext) private var context
+    /// Série tocada para corrigir
+    @State private var editing: LoggedSet?
+    @State private var weight: Double?
+    @State private var reps: Double?
 
     var body: some View {
         GMScreen(session.title, subtitle: session.start.formatted(date: .complete, time: .shortened), back: true) {
             GMIconButton(icon: "square.and.arrow.up") { shareWorkoutStory(session, context: context) }
         } content: {
+            Text("Toque numa série para corrigir carga ou reps.").font(.caption).foregroundStyle(Theme.dim)
             ForEach(Array(session.exerciseIDs.enumerated()), id: \.offset) { _, id in
                 GMSection(Exercise.name(id)) {
                     ForEach(session.orderedSets.filter { $0.exerciseID == id }) { s in
-                        HStack {
-                            Text(s.warmup ? "A" : "\(s.index - session.orderedSets.filter { $0.exerciseID == id && $0.warmup }.count + 1)")
-                                .foregroundStyle(s.warmup ? .orange : Theme.dim).frame(width: 24, alignment: .leading)
-                            Text(setText(s))
-                            Spacer()
-                            if s.done && s.reps < s.targetReps {
-                                Text("meta \(s.targetReps)").font(.caption.bold()).foregroundStyle(.orange)
-                            }
-                            Image(systemName: s.done ? "checkmark.circle.fill" : "xmark.circle")
-                                .foregroundStyle(s.done ? Theme.accent : Theme.dim)
-                        }
+                        Button { open(s) } label: { row(s, id: id) }
+                            .buttonStyle(GMPress())
                     }
                 }
             }
         }
+        .gmSheet(isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) { close in
+            if let s = editing { editor(s, close: close) }
+        }
+    }
+
+    private func row(_ s: LoggedSet, id: String) -> some View {
+        HStack {
+            Text(s.warmup ? "A" : "\(s.index - session.orderedSets.filter { $0.exerciseID == id && $0.warmup }.count + 1)")
+                .foregroundStyle(s.warmup ? .orange : Theme.dim).frame(width: 24, alignment: .leading)
+            Text(setText(s))
+            Spacer()
+            if s.done && !s.warmup && s.reps < s.targetReps {
+                Text("meta \(s.targetReps)").font(.caption.bold()).foregroundStyle(.orange)
+            }
+            Image(systemName: s.done ? "checkmark.circle.fill" : "xmark.circle")
+                .foregroundStyle(s.done ? Theme.accent : Theme.dim)
+        }
+        .contentShape(Rectangle())
+        .foregroundStyle(.white)
+    }
+
+    private func open(_ s: LoggedSet) {
+        weight = s.weight
+        reps = Double(s.reps)
+        editing = s
+    }
+
+    private func editor(_ s: LoggedSet, close: @escaping () -> Void) -> some View {
+        let ex = Exercise.byID(s.exerciseID)
+        let others = session.orderedSets.filter { $0.exerciseID == s.exerciseID && $0.warmup == s.warmup }
+        return VStack(alignment: .leading, spacing: 14) {
+            Text("\(Exercise.name(s.exerciseID)) · \(s.warmup ? "aquecimento" : "série \((others.firstIndex { $0 === s } ?? 0) + 1)")").font(.headline)
+            GMDecimalField(title: "Carga", value: $weight, step: ex?.increment ?? 2.5, unit: ex?.weightUnit ?? "kg", start: 10, clearable: false)
+            GMDivider()
+            GMDecimalField(title: "Reps", value: Binding(get: { reps }, set: { reps = $0.map { max(0, $0.rounded()) } }),
+                           step: ex?.type == .time ? 5 : 1, unit: ex?.type == .time ? "s" : "reps", start: 10, clearable: false)
+            GMToggle(title: "Feita", isOn: Binding(get: { s.done }, set: { s.done = $0 }))
+            if others.count > 1 {
+                GMButton("Aplicar carga em todas as \(others.count) séries", kind: .secondary) {
+                    others.forEach { $0.weight = weight ?? 0 }
+                    save(s, close)
+                }
+            }
+            GMButton("Salvar") { save(s, close) }
+        }
+    }
+
+    private func save(_ s: LoggedSet, _ close: () -> Void) {
+        s.weight = max(weight ?? 0, 0)
+        s.reps = Int(reps ?? Double(s.reps))
+        try? context.save()
+        PRBook.reload()
+        close()
     }
 }
 
