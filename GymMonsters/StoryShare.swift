@@ -100,15 +100,15 @@ struct WorkoutStoryCard: View {
                     }
                 }
                 .padding(12)
-                .background(.black.opacity(0.5), in: .rect(cornerRadius: 16))
+                .background(.black.opacity(0.5), in: .rect(cornerRadius: Theme.radiusL))
                 if !records.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("RECORDES 🏆").font(.caption2.weight(.black)).foregroundStyle(.yellow)
+                        Text("RECORDES 🏆").font(.caption2.weight(.black)).foregroundStyle(Theme.trophy)
                         ForEach(records.prefix(2), id: \.self) { Text($0).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7) }
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.black.opacity(0.5), in: .rect(cornerRadius: 16))
+                    .background(.black.opacity(0.5), in: .rect(cornerRadius: Theme.radiusL))
                 }
             }
             .padding(.horizontal, 20)
@@ -148,6 +148,6 @@ struct WorkoutStoryCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 9)
-        .background(.black.opacity(0.5), in: .rect(cornerRadius: 14))
+        .background(.black.opacity(0.5), in: .rect(cornerRadius: Theme.radiusM))
     }
 }

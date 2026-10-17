@@ -23,7 +23,7 @@ struct RoutineEditView: View {
                             Text(label)
                                 .font(.caption.bold())
                                 .frame(maxWidth: .infinity, minHeight: 38)
-                                .background(on ? Theme.accent : Theme.raised, in: .rect(cornerRadius: 10))
+                                .background(on ? Theme.accent : Theme.raised, in: .rect(cornerRadius: Theme.radiusS))
                                 .foregroundStyle(on ? .black : .white)
                         }
                         .buttonStyle(GMPress())
@@ -45,7 +45,7 @@ struct RoutineEditView: View {
                     if item.supersetNext && item.id != items.last?.id {
                         Label("Superset: sem descanso até o próximo", systemImage: "link")
                             .font(.caption.bold())
-                            .foregroundStyle(.cyan)
+                            .foregroundStyle(Theme.info)
                     } else {
                         GMDivider()
                     }
@@ -112,8 +112,8 @@ private struct ItemEditor: View {
                 GMIconButton(icon: "ellipsis", size: 30, action: onMenu)
             }
             HStack(spacing: 8) {
-                MiniStepper(label: "séries", value: $item.sets, range: 1...10, step: 1)
-                MiniStepper(label: ex?.type == .time ? "seg" : "reps", value: $item.reps, range: 1...300, step: ex?.type == .time ? 5 : 1)
+                GMCompactStepper(value: $item.sets, range: 1...10, step: 1, label: "séries")
+                GMCompactStepper(value: $item.reps, range: 1...300, step: ex?.type == .time ? 5 : 1, label: ex?.type == .time ? "seg" : "reps")
                 // Descanso: toque para escolher o tempo exato na roleta
                 Button {
                     draft = item.rest
@@ -126,7 +126,7 @@ private struct ItemEditor: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 4)
                     .frame(minHeight: 42)
-                    .background(Theme.raised, in: .rect(cornerRadius: 12))
+                    .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
                     .foregroundStyle(.white)
                 }
                 .buttonStyle(GMPress())
@@ -142,40 +142,6 @@ private struct ItemEditor: View {
                 }
             }
         }
-    }
-}
-
-/// Stepper compacto em coluna (valor + rótulo), para grades de ajustes
-struct MiniStepper: View {
-    let label: String
-    @Binding var value: Int
-    let range: ClosedRange<Int>
-    let step: Int
-    var format: (Int) -> String = { "\($0)" }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            button("minus") { value = max(value - step, range.lowerBound) }
-            VStack(spacing: 0) {
-                Text(format(value)).font(.subheadline.bold().monospacedDigit())
-                Text(label).font(.caption2).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity)
-            button("plus") { value = min(value + step, range.upperBound) }
-        }
-        .padding(.vertical, 4)
-        .background(Theme.raised, in: .rect(cornerRadius: 12))
-    }
-
-    private func button(_ icon: String, _ action: @escaping () -> Void) -> some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            action()
-        } label: {
-            Image(systemName: icon).font(.caption.bold()).frame(width: 30, height: 34).contentShape(Rectangle())
-        }
-        .buttonStyle(GMPress())
-        .foregroundStyle(.white)
     }
 }
 
@@ -196,7 +162,7 @@ struct ExercisePicker: View {
     }
 
     var body: some View {
-        GMModal("Exercícios", cancel: onPick == nil ? "Fechar" : "Cancelar") {
+        GMModal("Exercícios") {
             GMSearchField(placeholder: "Buscar exercício", text: $search)
             GMButton("Criar exercício", icon: "plus", kind: .secondary) { creating = true }
             let mine = customs.map(\.exercise).filter(matches).sorted { $0.name < $1.name }
@@ -246,7 +212,7 @@ struct ExercisePicker: View {
             }
             Spacer()
             if onPick != nil {
-                GMIconButton(icon: "info", size: 30) { info = e }
+                GMIconButton(icon: "info", size: 30, label: "Como fazer") { info = e }
             } else {
                 Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
             }
@@ -280,6 +246,6 @@ struct ExerciseThumb: View {
         }
         .frame(width: size, height: size)
         .background(Theme.raised)
-        .clipShape(.rect(cornerRadius: 10))
+        .clipShape(.rect(cornerRadius: Theme.radiusS))
     }
 }

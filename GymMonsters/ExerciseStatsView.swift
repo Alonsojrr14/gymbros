@@ -68,21 +68,46 @@ struct ExerciseDetailView: View {
         var id: Date { date }
     }
 
+    /// Gráfico em kg só para exercício de carga (peso do corpo e tempo seguem em reps/segundos, mesmo com carga extra
+    /// em algum treino, para não virar escala de 1RM com zeros). Personalizado sem tipo conhecido: pelo que já teve carga.
     private var weighted: Bool {
-        !prs.isEmpty || sessions.contains { $0.sets.contains { $0.exerciseID == exerciseID && $0.weight > 0 } }
+        if let type = Exercise.byID(exerciseID)?.type { return type == .weighted }
+        return !prs.isEmpty || sessions.contains { $0.sets.contains { $0.exerciseID == exerciseID && $0.weight > 0 } }
     }
 
-    private func prValue(_ p: PersonalRecord) -> Double { Progression.oneRM(weight: p.weight, reps: p.reps) ?? p.weight }
+    /// Séries feitas por treino (no de carga, só as com carga: série sem carga anotada não vira ponto zero)
+    private var sessionSets: [(date: Date, sets: [SetLog])] {
+        let w = weighted
+        return sessions.reversed().compactMap { s in
+            let sets = s.log.sets.filter { $0.exerciseID == exerciseID && $0.done && (!w || $0.weight > 0) }
+            return sets.isEmpty ? nil : (s.start, sets)
+        }
+    }
+
+    /// Escala do gráfico de carga: 1RM estimado quando todo ponto tem 1RM; se algum não tem (só séries acima de 12 reps
+    /// ou sem carga), todos usam a maior carga. Nunca mistura as duas no mesmo gráfico.
+    private var usesOneRM: Bool {
+        sessionSets.allSatisfy { Progression.bestOneRM($0.sets) != nil }
+            && prs.allSatisfy { Progression.oneRM(weight: $0.weight, reps: $0.reps) != nil }
+    }
+
+    private func prValue(_ p: PersonalRecord) -> Double {
+        usesOneRM ? (Progression.oneRM(weight: p.weight, reps: p.reps) ?? p.weight) : p.weight
+    }
 
     private var points: [Point] {
-        sessions.reversed().compactMap { s in
-            let sets = s.log.sets.filter { $0.exerciseID == exerciseID && $0.done }
-            guard !sets.isEmpty else { return nil }
+        let orm = usesOneRM
+        return sessionSets.map { d, sets in
             let v = weighted
-                ? (Progression.bestOneRM(sets) ?? sets.map(\.weight).max() ?? 0)
+                ? (orm ? (Progression.bestOneRM(sets) ?? 0) : (sets.map(\.weight).max() ?? 0))
                 : Double(sets.map(\.reps).max() ?? 0)
-            return Point(date: s.start, value: v, sets: sets)
+            return Point(date: d, value: v, sets: sets)
         }
+    }
+
+    /// Melhor 1RM estimado de verdade (só séries de até 12 reps, treinos e PRs)
+    private var bestOneRM: Double? {
+        (sessionSets.compactMap { Progression.bestOneRM($0.sets) } + prs.compactMap { Progression.oneRM(weight: $0.weight, reps: $0.reps) }).max()
     }
 
     var body: some View {
@@ -96,7 +121,7 @@ struct ExerciseDetailView: View {
                 }
                 .onAppear { if !goalLoaded { goalLoaded = true; goal = TrainingGoal.of(exerciseID) } }
             }
-            GMSection(weighted ? "1RM estimado (kg)" : (Exercise.byID(exerciseID)?.type == .time ? "Melhor tempo (s)" : "Mais reps")) {
+            GMSection(weighted ? (usesOneRM ? "1RM estimado (kg)" : "Maior carga (kg)") : (Exercise.byID(exerciseID)?.type == .time ? "Melhor tempo (s)" : "Mais reps")) {
                 let manual = weighted ? prs : []
                 if pts.count + manual.count >= 2 {
                     Chart {
@@ -112,23 +137,24 @@ struct ExerciseDetailView: View {
                             PointMark(x: .value("Data", p.date), y: .value("Valor", prValue(p)))
                                 .symbol(.diamond)
                                 .symbolSize(90)
-                                .foregroundStyle(.yellow)
+                                .foregroundStyle(Theme.trophy)
                         }
                     }
                     .chartYScale(domain: .automatic(includesZero: false))
                     .frame(height: 200)
                     if !manual.isEmpty {
-                        Label("PR registrado na sessão de PR", systemImage: "diamond.fill").font(.caption).foregroundStyle(.yellow)
+                        Label("PR registrado na sessão de PR", systemImage: "diamond.fill").font(.caption).foregroundStyle(Theme.trophy)
                     }
                 } else {
                     Text("O gráfico aparece a partir do segundo treino.").foregroundStyle(Theme.dim)
                 }
-                if weighted, let best = (pts.map(\.value) + manual.map(prValue)).max() {
+                if weighted, let best = bestOneRM {
                     GMDivider()
                     GMValueRow(label: "Melhor 1RM estimado", value: "\(Progression.fmt((best * 10).rounded() / 10)) kg")
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Calculadora (reps × carga)").font(.subheadline).foregroundStyle(Theme.dim)
-                        Text([12, 10, 8, 5, 3].map { r in "\(r)×\(Progression.fmt(((best / (1 + Double(r) / 30)) / 2.5).rounded() * 2.5))" }
+                        Text(Progression.repTable(oneRM: best, increment: Exercise.byID(exerciseID)?.increment ?? 2.5)
+                            .map { "\($0.reps)×\(Progression.fmt($0.weight))" }
                             .joined(separator: "   "))
                             .font(.subheadline.monospacedDigit().weight(.semibold))
                     }

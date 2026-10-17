@@ -15,6 +15,10 @@ struct TrainView: View {
     private var today: Int { Calendar.current.component(.weekday, from: .now) }
 
     @State private var routineMenu: Routine?
+    /// Rotina a apagar, esperando confirmação
+    @State private var confirmDeleteRoutine: Routine?
+    /// Treino encerrado sozinho que mudou a rotina (oferta de atualizar pendente)
+    @AppStorage(PendingRoutineUpdate.key) private var pendingRaw = ""
     @State private var sessionMenu: WorkoutSession?
     @State private var editing: Routine?
     @State private var plates = false
@@ -26,6 +30,7 @@ struct TrainView: View {
         NavigationStack {
             GMScreen("Treino", avatar: true) {
                 deloadCard
+                pendingRoutineCard
                 if let s = inProgress {
                     GMCard {
                         card(title: s.title, subtitle: "Em andamento desde \(s.start.formatted(date: .omitted, time: .shortened))",
@@ -64,7 +69,7 @@ struct TrainView: View {
 
                 GMSection("CrossFit") {
                     NavigationLink { WodListView() } label: {
-                        GMRow(icon: "flame.fill", iconTint: .orange, title: "WODs e cronômetro",
+                        GMRow(icon: "flame.fill", iconTint: Theme.streak, title: "WODs e cronômetro",
                               subtitle: "Fran, Cindy, Murph… · For Time, AMRAP, EMOM, Tabata", chevron: true)
                     }
                     .buttonStyle(GMPress())
@@ -72,7 +77,7 @@ struct TrainView: View {
 
                 GMSection("Evolução") {
                     NavigationLink { PRBookView() } label: {
-                        GMRow(icon: "trophy.fill", iconTint: .yellow, title: "Meus PRs", subtitle: "Sessão de PR: carga e reps de cada exercício", chevron: true)
+                        GMRow(icon: "trophy.fill", iconTint: Theme.trophy, title: "Meus PRs", subtitle: "Sessão de PR: carga e reps de cada exercício", chevron: true)
                     }
                     .buttonStyle(GMPress())
                     GMDivider()
@@ -129,6 +134,12 @@ struct TrainView: View {
             }
             .gmActions(isPresented: Binding(get: { routineMenu != nil }, set: { if !$0 { routineMenu = nil } }),
                        title: routineMenu?.name, actions: routineActions)
+            .gmActions(isPresented: Binding(get: { confirmDeleteRoutine != nil }, set: { if !$0 { confirmDeleteRoutine = nil } }),
+                       title: confirmDeleteRoutine.map { "Apagar \($0.name)?" }, message: "Os treinos já feitos com ela continuam no histórico.",
+                       actions: confirmDeleteRoutine.map { r in [GMAction("Apagar rotina", icon: "trash", destructive: true) {
+                           context.delete(r)
+                           try? context.save()
+                       }] } ?? [])
             .gmActions(isPresented: Binding(get: { sessionMenu != nil }, set: { if !$0 { sessionMenu = nil } }),
                        title: sessionMenu?.title, message: "O XP desse treino também sai do bro.",
                        actions: sessionMenu.map { s in [GMAction("Apagar treino", icon: "trash", destructive: true) { deleteSession(s) }] } ?? [])
@@ -140,10 +151,7 @@ struct TrainView: View {
         var list: [GMAction] = []
         if inProgress == nil { list.append(GMAction("Começar agora", icon: "play.fill") { start(r) }) }
         list.append(GMAction("Editar", icon: "pencil") { editing = r })
-        list.append(GMAction("Apagar rotina", icon: "trash", destructive: true) {
-            context.delete(r)
-            try? context.save()
-        })
+        list.append(GMAction("Apagar rotina", icon: "trash", destructive: true) { confirmDeleteRoutine = r })
         return list
     }
 
@@ -197,6 +205,35 @@ struct TrainView: View {
         }
     }
 
+    /// Treino encerrado ao sair da academia e a rotina dele mudou: oferece atualizar aqui (lá não dava para perguntar)
+    @ViewBuilder
+    private var pendingRoutineCard: some View {
+        if let id = UUID(uuidString: pendingRaw), let s = sessions.first(where: { $0.uuid == id && $0.end != nil }),
+           let r = routines.first(where: { $0.uuid == s.routineUUID }) {
+            let changes = s.routineChanges(r)
+            if !changes.isEmpty {
+                GMCard {
+                    Text("Atualizar a rotina \(r.name)?").font(.headline)
+                    Text("O treino de \(s.start.formatted(.dateTime.weekday(.wide))) foi encerrado ao sair da academia e ficou diferente da rotina:")
+                        .font(.caption).foregroundStyle(Theme.dim)
+                    ForEach(changes, id: \.self) { Text("• " + $0).font(.subheadline) }
+                    HStack(spacing: 8) {
+                        GMButton("Salvar na rotina", icon: "checkmark", small: true) {
+                            s.apply(to: r, context: context)
+                            try? context.save()
+                            clearPendingUpdate()
+                        }
+                        GMButton("Manter como está", kind: .ghost, full: false, small: true) { clearPendingUpdate() }
+                    }
+                }
+            }
+        }
+    }
+
+    private func clearPendingUpdate() {
+        pendingRaw = ""
+    }
+
     private func start(_ routine: Routine?) {
         active = LiveWorkout.startSession(routine: routine)
     }
@@ -230,8 +267,9 @@ struct SessionRow: View {
     let session: WorkoutSession
 
     var body: some View {
-        let done = session.sets.filter(\.done)
-        let volume = done.reduce(0) { $0 + $1.weight * Double($1.reps) }
+        // Aquecimento fica fora das séries e do volume, como na conclusão
+        let done = session.doneWorkSets
+        let volume = session.volume
         VStack(alignment: .leading, spacing: 4) {
             Text(session.title).font(.subheadline.weight(.semibold))
             Text([
@@ -256,7 +294,7 @@ struct SessionDetailView: View {
 
     var body: some View {
         GMScreen(session.title, subtitle: session.start.formatted(date: .complete, time: .shortened), back: true) {
-            GMIconButton(icon: "square.and.arrow.up") { shareWorkoutStory(session, context: context) }
+            GMIconButton(icon: "square.and.arrow.up", label: "Compartilhar treino") { shareWorkoutStory(session, context: context) }
         } content: {
             Text("Toque numa série para corrigir carga ou reps.").font(.caption).foregroundStyle(Theme.dim)
             ForEach(Array(session.exerciseIDs.enumerated()), id: \.offset) { _, id in
@@ -276,11 +314,11 @@ struct SessionDetailView: View {
     private func row(_ s: LoggedSet, id: String) -> some View {
         HStack {
             Text(s.warmup ? "A" : "\(s.index - session.orderedSets.filter { $0.exerciseID == id && $0.warmup }.count + 1)")
-                .foregroundStyle(s.warmup ? .orange : Theme.dim).frame(width: 24, alignment: .leading)
+                .foregroundStyle(s.warmup ? Theme.streak : Theme.dim).frame(width: 24, alignment: .leading)
             Text(setText(s))
             Spacer()
             if s.done && !s.warmup && s.reps < s.targetReps {
-                Text("meta \(s.targetReps)").font(.caption.bold()).foregroundStyle(.orange)
+                Text("meta \(s.targetReps)").font(.caption.bold()).foregroundStyle(Theme.warning)
             }
             Image(systemName: s.done ? "checkmark.circle.fill" : "xmark.circle")
                 .foregroundStyle(s.done ? Theme.accent : Theme.dim)
@@ -300,7 +338,7 @@ struct SessionDetailView: View {
         let others = session.orderedSets.filter { $0.exerciseID == s.exerciseID && $0.warmup == s.warmup }
         return VStack(alignment: .leading, spacing: 14) {
             Text("\(Exercise.name(s.exerciseID)) · \(s.warmup ? "aquecimento" : "série \((others.firstIndex { $0 === s } ?? 0) + 1)")").font(.headline)
-            GMDecimalField(title: "Carga", value: $weight, step: ex?.increment ?? 2.5, unit: ex?.weightUnit ?? "kg", start: 10, clearable: false)
+            GMDecimalField(title: "Carga", value: $weight, step: ex?.increment ?? 2.5, unit: ex?.weightUnit(in: session) ?? "kg", start: 10, clearable: false)
             GMDivider()
             GMDecimalField(title: "Reps", value: Binding(get: { reps }, set: { reps = $0.map { max(0, $0.rounded()) } }),
                            step: ex?.type == .time ? 5 : 1, unit: ex?.type == .time ? "s" : "reps", start: 10, clearable: false)

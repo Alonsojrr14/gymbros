@@ -9,6 +9,8 @@ struct BodyTrackerView: View {
     @State private var adding = false
     @State private var editing: BodyEntry?
     @State private var menu: BodyEntry?
+    /// Registro a apagar, esperando confirmação
+    @State private var confirmDelete: BodyEntry?
     @State private var measure: Measure?
     @State private var importing = false
     @State private var message: String?
@@ -17,12 +19,12 @@ struct BodyTrackerView: View {
     var body: some View {
         let weights = entries.filter { $0.weight != nil }.reversed()
         GMScreen("Peso e medidas", back: true) {
-            GMIconButton(icon: "plus") { adding = true }
+            GMIconButton(icon: "plus", label: "Novo registro") { adding = true }
         } content: {
             GMSection("Peso (kg)") {
                 if let last = weights.last?.weight {
                     HStack(alignment: .firstTextBaseline) {
-                        Text(Progression.fmt(last)).font(.system(size: 40, weight: .heavy, design: .rounded))
+                        Text(Progression.fmt(last)).gmFont(40, weight: .heavy, design: .rounded, relativeTo: .largeTitle).lineLimit(1).minimumScaleFactor(0.5)
                         Text("kg").foregroundStyle(Theme.dim)
                         Spacer()
                         if let first = weights.first?.weight, weights.count > 1 {
@@ -80,7 +82,7 @@ struct BodyTrackerView: View {
                                         if let d = e.photoFront ?? e.photoSide, let img = UIImage(data: d) {
                                             Color.clear.frame(width: 84, height: 112)
                                                 .overlay { Image(uiImage: img).resizable().scaledToFill() }
-                                                .clipShape(.rect(cornerRadius: 10))
+                                                .clipShape(.rect(cornerRadius: Theme.radiusS))
                                         }
                                         Text(e.date.formatted(.dateTime.day().month(.abbreviated))).font(.caption2).foregroundStyle(Theme.dim)
                                     }
@@ -101,7 +103,7 @@ struct BodyTrackerView: View {
                         GMRow(title: e.date.formatted(.dateTime.day().month(.abbreviated).year()),
                               subtitle: summary(e), action: { menu = e }) {
                             if e.photoFront != nil || e.photoSide != nil { Image(systemName: "camera.fill").font(.caption2).foregroundStyle(Theme.dim) }
-                            if e.healthUUID != nil { Image(systemName: "heart.fill").font(.caption2).foregroundStyle(.pink) }
+                            if e.healthUUID != nil { Image(systemName: "heart.fill").font(.caption2).foregroundStyle(Theme.health) }
                         }
                         if e.id != entries.last?.id { GMDivider() }
                     }
@@ -114,11 +116,15 @@ struct BodyTrackerView: View {
         .gmActions(isPresented: Binding(get: { menu != nil }, set: { if !$0 { menu = nil } }),
                    title: menu.map { $0.date.formatted(date: .long, time: .omitted) }, actions: menu.map { e in [
             GMAction("Editar", icon: "pencil") { editing = e },
-            GMAction("Apagar", icon: "trash", destructive: true) {
-                context.delete(e)
-                try? context.save()
-            },
+            GMAction("Apagar", icon: "trash", destructive: true) { confirmDelete = e },
         ] } ?? [])
+        .gmActions(isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
+                   title: confirmDelete.map { "Apagar o registro de \($0.date.formatted(date: .long, time: .omitted))?" },
+                   message: "Peso, medidas e fotos desse dia saem do app.",
+                   actions: confirmDelete.map { e in [GMAction("Apagar", icon: "trash", destructive: true) {
+                       context.delete(e)
+                       try? context.save()
+                   }] } ?? [])
         .gmSheet(isPresented: Binding(get: { measure != nil }, set: { if !$0 { measure = nil } })) { _ in
             if let m = measure {
                 let series = entries.compactMap { e in m.value(e).map { (date: e.date, v: $0) } }.reversed()
@@ -224,7 +230,7 @@ struct BodyEntryForm: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 170)
-            .clipShape(.rect(cornerRadius: 14))
+            .clipShape(.rect(cornerRadius: Theme.radiusM))
             .overlay(alignment: .bottomLeading) {
                 if data.wrappedValue != nil {
                     Text(title).font(.caption2.bold()).padding(.horizontal, 8).padding(.vertical, 4)
@@ -277,7 +283,7 @@ struct ProgressCompareView: View {
     var body: some View {
         let before = entries.first { $0.uuid == beforeID } ?? entries.first
         let after = entries.first { $0.uuid == afterID } ?? entries.last
-        GMModal("Antes e depois", cancel: "Fechar") {
+        GMModal("Antes e depois") {
             GMSegmented(options: [(false, "Frente"), (true, "Lado")], selection: $side)
             if let before, let after, before.uuid != after.uuid,
                let a = image(before), let b = image(after) {
@@ -336,8 +342,8 @@ struct ProgressCompareView: View {
                             if let img = image(e) {
                                 Color.clear.frame(width: 60, height: 80)
                                     .overlay { Image(uiImage: img).resizable().scaledToFill() }
-                                    .clipShape(.rect(cornerRadius: 8))
-                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(current?.uuid == e.uuid ? Theme.accent : .clear, lineWidth: 3))
+                                    .clipShape(.rect(cornerRadius: Theme.radiusS))
+                                    .overlay(RoundedRectangle(cornerRadius: Theme.radiusS).stroke(current?.uuid == e.uuid ? Theme.accent : .clear, lineWidth: 3))
                             }
                             Text(e.date.formatted(.dateTime.day().month(.abbreviated))).font(.caption2).foregroundStyle(Theme.dim)
                         }
@@ -402,10 +408,10 @@ struct PlateCalculatorView: View {
 
     private func plate(_ p: Double) -> some View {
         VStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: 3)
+            RoundedRectangle(cornerRadius: Theme.radiusXS)
                 .fill(color(p))
                 .frame(width: 14, height: 30 + CGFloat(p) * 3)
-            Text(Progression.fmt(p)).font(.system(size: 9, weight: .bold).monospacedDigit()).foregroundStyle(Theme.dim)
+            Text(Progression.fmt(p)).gmFont(9, weight: .bold, mono: true, relativeTo: .caption2).fixedSize().foregroundStyle(Theme.dim)
         }
     }
 

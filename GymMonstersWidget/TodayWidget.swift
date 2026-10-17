@@ -1,9 +1,6 @@
 import SwiftUI
 import WidgetKit
 
-private let accent = Color(red: 0.64, green: 0.90, blue: 0.21)
-private let bg = Color(red: 0.05, green: 0.06, blue: 0.08)
-
 /// Treino do dia com botão de começar (abre o app já no treino)
 struct TodayWorkoutWidget: Widget {
     var body: some WidgetConfiguration {
@@ -26,7 +23,7 @@ private struct TodayView: View {
             if family == .systemSmall {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(entry.trainedToday ? "FEITO ✅" : "HOJE").font(.caption2.weight(.black)).foregroundStyle(accent)
+                        Text(entry.trainedToday ? "FEITO ✅" : "HOJE").font(.caption2.weight(.black)).foregroundStyle(Theme.accent)
                         Spacer()
                         Image(entry.data.sprite).resizable().interpolation(.none).scaledToFit().frame(width: 34, height: 34)
                     }
@@ -38,7 +35,7 @@ private struct TodayView: View {
                 HStack(spacing: 14) {
                     Image(entry.data.sprite).resizable().interpolation(.none).scaledToFit().frame(width: 84, height: 84)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(entry.trainedToday ? "TREINO FEITO HOJE ✅" : "TREINO DE HOJE").font(.caption2.weight(.black)).foregroundStyle(accent)
+                        Text(entry.trainedToday ? "TREINO FEITO HOJE ✅" : "TREINO DE HOJE").font(.caption2.weight(.black)).foregroundStyle(Theme.accent)
                         Text(routine ?? "Treino livre").font(.title3.bold()).lineLimit(2).minimumScaleFactor(0.7)
                         if entry.streak > 0 {
                             Text("🔥 \(entry.streak) dia\(entry.streak == 1 ? "" : "s") seguidos").font(.caption).foregroundStyle(.white.opacity(0.7))
@@ -50,7 +47,7 @@ private struct TodayView: View {
             }
         }
         .foregroundStyle(.white)
-        .containerBackground(bg, for: .widget)
+        .containerBackground(Theme.bg, for: .widget)
         .widgetURL(start)
     }
 
@@ -60,7 +57,7 @@ private struct TodayView: View {
                 .font(.subheadline.bold())
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-                .background(accent, in: .capsule)
+                .background(Theme.accent, in: .capsule)
                 .foregroundStyle(.black)
         }
     }

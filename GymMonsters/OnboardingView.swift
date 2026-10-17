@@ -13,7 +13,7 @@ struct OnboardingView: View {
             VStack(spacing: 28) {
                 Spacer()
                 Text(received ? "Este ovo é seu!" : "GymBros")
-                    .font(.system(size: 34, weight: .heavy, design: .rounded))
+                    .gmFont(34, weight: .heavy, design: .rounded, relativeTo: .largeTitle).lineLimit(1).minimumScaleFactor(0.6)
                     .contentTransition(.numericText())
 
                 LivingMonster(form: .egg, progress: received ? 0.4 : 0.1)
@@ -33,7 +33,7 @@ struct OnboardingView: View {
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
                         .padding()
-                        .background(Theme.card, in: .rect(cornerRadius: 14))
+                        .background(Theme.card, in: .rect(cornerRadius: Theme.radiusM))
                         .padding(.horizontal, 32)
                         // O ✓ do teclado só fecha o teclado; avançar é pelo botão
                         .onSubmit { focused = false }
@@ -45,7 +45,7 @@ struct OnboardingView: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Theme.accent, in: .rect(cornerRadius: 16))
+                        .background(Theme.accent, in: .rect(cornerRadius: Theme.radiusL))
                         .foregroundStyle(.black)
                 }
                 .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)

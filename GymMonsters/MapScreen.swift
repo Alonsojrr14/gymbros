@@ -14,6 +14,8 @@ struct MapScreen: View {
     @State private var outdoor: ActivityKind?
     @State private var route: RouteRecord?
     @State private var here: CLLocation?
+    /// Lendo a posição pelo cartão de status
+    @State private var locating = false
     @State private var arrival = GymLocation.shared.notifyArrival
     @State private var autoFinish = GymLocation.shared.autoFinish
     @State private var settings = false
@@ -92,19 +94,25 @@ struct MapScreen: View {
         .frame(height: 340)
         .clipShape(.rect(cornerRadius: Theme.radius))
         .overlay(alignment: .topTrailing) {
-            GMIconButton(icon: "scope", size: 36) { Task { await focusMe() } }.padding(10)
+            GMIconButton(icon: "scope", size: 36, label: "Minha localização") { Task { await focusMe() } }.padding(10)
         }
         .overlay(alignment: .topLeading) { friendsToggle.padding(10) }
         .overlay(alignment: .bottom) { statusPill.padding(10) }
     }
 
-    /// Onde você está agora, por cima do mapa
+    /// Onde você está agora, por cima do mapa. Tocar atualiza a posição e leva o mapa à academia mais próxima
     private var statusPill: some View {
         let inside = GymLocation.shared.insideGym
         let nearest = here.flatMap { h in gyms.map { ($0, $0.location.distance(from: h)) }.min { $0.1 < $1.1 } }
-        return HStack(spacing: 10) {
-            Image(systemName: inside != nil ? "figure.strengthtraining.traditional" : "location.fill")
-                .font(.subheadline.bold())
+        return Button { Task { await goNearest() } } label: { HStack(spacing: 10) {
+            ZStack {
+                if locating {
+                    ProgressView().tint(.white)
+                } else {
+                    Image(systemName: inside != nil ? "figure.strengthtraining.traditional" : "location.fill")
+                        .font(.subheadline.bold())
+                }
+            }
                 .frame(width: 34, height: 34)
                 .background(inside != nil ? Theme.accent : Theme.raised, in: .circle)
                 .foregroundStyle(inside != nil ? .black : .white)
@@ -122,10 +130,32 @@ struct MapScreen: View {
                 }
             }
             Spacer(minLength: 0)
+            if !gyms.isEmpty || here == nil {
+                Image(systemName: "arrow.clockwise").font(.caption.bold()).foregroundStyle(Theme.dim)
+            }
         }
         .padding(10)
-        .background(Theme.bg.opacity(0.92), in: .rect(cornerRadius: 16))
+        .background(Theme.bg.opacity(0.92), in: .rect(cornerRadius: Theme.radiusL))
         .foregroundStyle(.white)
+        .contentShape(Rectangle())
+        }
+        .buttonStyle(GMPress())
+        .disabled(locating)
+    }
+
+    /// Lê a posição de novo e enquadra a academia mais próxima (sem academia salva, centraliza em você)
+    private func goNearest() async {
+        locating = true
+        if let h = await GymLocation.shared.currentLocation() { here = h }
+        locating = false
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if let h = here, let g = gyms.min(by: { $0.location.distance(from: h) < $1.location.distance(from: h) }) {
+            withAnimation { camera = .region(MKCoordinateRegion(center: g.coordinate, latitudinalMeters: 800, longitudinalMeters: 800)) }
+        } else if !gyms.isEmpty {
+            focusPlaces()
+        } else {
+            await focusMe()
+        }
     }
 
     private var needsAlways: Bool { !gyms.isEmpty && GymLocation.shared.authorization != .authorizedAlways }
@@ -135,14 +165,14 @@ struct MapScreen: View {
             if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.warning)
                 Text("Permita a localização \"Sempre\" para avisar ao chegar e encerrar o treino ao sair com o app fechado.")
                     .font(.caption).multilineTextAlignment(.leading)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
             }
             .padding(12)
-            .background(Color.yellow.opacity(0.1), in: .rect(cornerRadius: 14))
+            .background(Theme.warning.opacity(0.1), in: .rect(cornerRadius: Theme.radiusM))
             .foregroundStyle(.white)
         }
         .buttonStyle(GMPress())
@@ -167,7 +197,7 @@ struct MapScreen: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
-        .background(Theme.card, in: .rect(cornerRadius: 16))
+        .background(Theme.card, in: .rect(cornerRadius: Theme.radiusL))
     }
 
     // MARK: Amigos ao vivo (prévia)
@@ -221,7 +251,7 @@ struct MapScreen: View {
             GMToggle(title: "Encerrar treino ao sair", subtitle: "Salva o treino em andamento (mais de 10 min) quando você sai do lugar", isOn: $autoFinish)
                 .onChange(of: autoFinish) { _, v in GymLocation.shared.autoFinish = v }
             GMDivider()
-            GMToggle(title: "Compartilhar treino ao vivo", subtitle: "Prévia: amigos das suas ligas veriam onde você treina e o exercício atual, só durante o treino", isOn: $shareLive)
+            GMToggle(title: "Compartilhar treino ao vivo", subtitle: "Ainda não envia nada: chega quando o app tiver servidor. Aí amigos veriam onde você treina e o exercício atual, só durante o treino", isOn: $shareLive)
             GMDivider()
             Text("Ao começar musculação ou CrossFit, o app reconhece o lugar ou pergunta onde você está. A localização fica só no seu iPhone.")
                 .font(.caption).foregroundStyle(Theme.dim)
@@ -258,8 +288,7 @@ struct MapScreen: View {
         // Mais visitados primeiro; conta visitas detectadas e treinos registrados no lugar
         let sorted = gyms.sorted { count($0) > count($1) }
         return GMSection("Lugares de treino", trailing: AnyView(
-            Button { editing = GymEdit(gym: nil) } label: { Label("Adicionar", systemImage: "plus").font(.caption.bold()) }
-                .foregroundStyle(Theme.accent)
+            GMTextButton(title: "Adicionar", icon: "plus", small: true) { editing = GymEdit(gym: nil) }
         )) {
             if sorted.isEmpty {
                 Text("Nenhum lugar ainda. Toque em Adicionar ou comece um treino na academia.").font(.subheadline).foregroundStyle(Theme.dim)
@@ -335,7 +364,7 @@ struct MapScreen: View {
                                 .font(.caption2.monospacedDigit()).foregroundStyle(Theme.dim)
                         }
                         .frame(maxWidth: .infinity, minHeight: 88)
-                        .background(Theme.raised, in: .rect(cornerRadius: 14))
+                        .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
                         .foregroundStyle(.white)
                     }
                     .buttonStyle(GMPress())
@@ -349,7 +378,7 @@ struct MapScreen: View {
             ForEach(routes.prefix(20)) { r in
                 Button { route = r } label: {
                     HStack(spacing: 12) {
-                        RouteMap(coords: r.coordinates).frame(width: 64, height: 64).clipShape(.rect(cornerRadius: 12))
+                        RouteMap(coords: r.coordinates).frame(width: 64, height: 64).clipShape(.rect(cornerRadius: Theme.radiusM))
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\(r.kind.name) · \(kmText(r.meters))").font(.subheadline.weight(.semibold))
                             Text("\(r.start.formatted(.dateTime.day().month(.abbreviated).hour().minute())) · \(clock(r.seconds)) · \(paceText(kind: r.kind, meters: r.meters, seconds: r.seconds))")
@@ -369,7 +398,7 @@ struct MapScreen: View {
     private func routeDetail(_ r: RouteRecord) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("\(r.kind.name) · \(kmText(r.meters))").font(.headline)
-            RouteMap(coords: r.coordinates).frame(height: 300).clipShape(.rect(cornerRadius: 16))
+            RouteMap(coords: r.coordinates).frame(height: 300).clipShape(.rect(cornerRadius: Theme.radiusL))
             HStack {
                 stat(clock(r.seconds), "tempo")
                 stat(kmText(r.meters), "distância")

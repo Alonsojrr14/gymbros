@@ -118,4 +118,88 @@ final class ProgressionTests: GymTestCase {
         let same = session("supino-reto", weight: 60, reps: [10, 10], target: 10, daysAgo: 0)
         XCTAssertTrue(Progression.records(in: same, history: before).isEmpty)
     }
+
+    // MARK: Correções do domínio de treino
+
+    func testFiveKiloStepOnlyForBarbellInHeavyGroups() {
+        XCTAssertEqual(Exercise.byID("agachamento")?.increment, 5)
+        XCTAssertEqual(Exercise.byID("levantamento-terra")?.increment, 5)
+        // Máquina, polia e halteres de grupo pesado sobem de 2,5
+        XCTAssertEqual(Exercise.byID("cadeira-extensora")?.increment, 2.5)
+        XCTAssertEqual(Exercise.byID("leg-press")?.increment, 2.5)
+        XCTAssertEqual(Exercise.byID("remada-baixa")?.increment, 2.5)
+        XCTAssertEqual(Exercise.byID("remada-unilateral")?.increment, 2.5)
+        XCTAssertEqual(Exercise.byID("supino-reto")?.increment, 2.5)
+    }
+
+    func testFormatKeepsQuarterKiloPlates() {
+        XCTAssertEqual(Progression.fmt(1.25), "1,25")
+        XCTAssertEqual(Progression.fmt(2.5), "2,5")
+        XCTAssertEqual(Progression.fmt(82.5), "82,5")
+        XCTAssertEqual(Progression.fmt(20), "20")
+        XCTAssertEqual(Progression.fmt(116.6667), "116,7")
+    }
+
+    func testRepCalculatorRoundsToExerciseIncrement() {
+        // 1RM 100: 5 reps = 85,7 → 85 nos dois; 12 reps = 71,4 → 72,5 (passo 2,5) ou 70 (passo 5)
+        let fine = Dictionary(uniqueKeysWithValues: Progression.repTable(oneRM: 100, increment: 2.5).map { ($0.reps, $0.weight) })
+        let coarse = Dictionary(uniqueKeysWithValues: Progression.repTable(oneRM: 100, increment: 5).map { ($0.reps, $0.weight) })
+        XCTAssertEqual(fine[5], 85)
+        XCTAssertEqual(coarse[5], 85)
+        XCTAssertEqual(fine[12], 72.5)
+        XCTAssertEqual(coarse[12], 70)
+    }
+
+    func testBestMarkDoesNotMixOneRMWithRawLoad() {
+        // 60 × 15 não tem 1RM; antes valia a carga bruta (60) contra o 1RM de 70 × 5 (81,7). Agora conta como 60 × 12 (84).
+        let high = SetLog(exerciseID: "supino-reto", weight: 60, reps: 15, target: 15, done: true)
+        let low = SetLog(exerciseID: "supino-reto", weight: 70, reps: 5, target: 5, done: true)
+        XCTAssertEqual(PRBook.best([low, high])?.reps, 15)
+        XCTAssertTrue(PRBook.beats(high, low))
+        XCTAssertFalse(PRBook.beats(low, high))
+        // Mesma marca não é PR novo
+        XCTAssertFalse(PRBook.beats(low, low))
+    }
+
+    func testAutoFinishEffortIsAverageOfRecentWorkouts() {
+        XCTAssertEqual(Progression.estimatedEffort(recent: []), 7)
+        XCTAssertEqual(Progression.estimatedEffort(recent: [8, 6, 7]), 7)
+        XCTAssertEqual(Progression.estimatedEffort(recent: [10, 10, 9]), 10)
+        // Só os 10 últimos
+        XCTAssertEqual(Progression.estimatedEffort(recent: Array(repeating: 2, count: 5) + Array(repeating: 9, count: 10)), 9)
+    }
+
+    func testDeloadAppliesToAnyPrescription() {
+        let d = Deload.apply(Suggestion(weight: 100, reps: 10, reason: ""), sets: 3, exerciseID: "supino-reto")
+        XCTAssertEqual(d.suggestion.weight, 70)
+        XCTAssertEqual(d.suggestion.reps, 10)
+        XCTAssertEqual(d.sets, 2)
+        // Incremento de 5: 70 % de 105 = 73,5 → 75
+        XCTAssertEqual(Deload.apply(Suggestion(weight: 105, reps: 5, reason: ""), sets: 1, exerciseID: "agachamento").suggestion.weight, 75)
+    }
+
+    func testCustomExerciseNameResolves() {
+        let saved = Exercise.custom
+        defer { Exercise.custom = saved }
+        let id = "custom-TESTE"
+        Exercise.custom[id] = Exercise(id: id, name: "Remada no cabo da academia", group: .costas, equipment: "Polia")
+        XCTAssertEqual(Exercise.name(id), "Remada no cabo da academia")
+        XCTAssertEqual(Exercise.name("custom-APAGADO"), "Exercício personalizado")
+        XCTAssertEqual(Exercise.name("supino-reto"), "Supino reto")
+    }
+
+    func testSwapAlternativesPutSameEquipmentFirst() {
+        let base = Exercise.byID("supino-reto")!
+        let list = SwapExerciseView.ranked(base: base, candidates: Exercise.builtIn, exclude: [], history: [])
+        XCTAssertFalse(list.isEmpty)
+        XCTAssertFalse(list.contains { $0.id == base.id })
+        XCTAssertTrue(list.allSatisfy { $0.group == .peito })
+        // Sem histórico: todas as de barra antes das outras
+        let firstOther = list.firstIndex { $0.equipment != "Barra" } ?? list.count
+        XCTAssertTrue(list[..<firstOther].allSatisfy { $0.equipment == "Barra" })
+        XCTAssertFalse(list[firstOther...].contains { $0.equipment == "Barra" })
+        // Já feito vem antes de tudo
+        let done = [session("crucifixo", weight: 14, reps: [12], target: 12)]
+        XCTAssertEqual(SwapExerciseView.ranked(base: base, candidates: Exercise.builtIn, exclude: [], history: done).first?.id, "crucifixo")
+    }
 }

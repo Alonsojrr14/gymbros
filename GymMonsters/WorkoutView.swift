@@ -28,6 +28,8 @@ struct WorkoutView: View {
     @State private var goalFor: String?
     /// Exercício sendo trocado (aparelho ocupado)
     @State private var swapping: IDBox?
+    /// Exercício a remover, esperando confirmação
+    @State private var confirmRemove: String?
     @Query(filter: #Predicate<WorkoutSession> { $0.end != nil }, sort: \WorkoutSession.start, order: .reverse) private var doneSessions: [WorkoutSession]
     @State private var headphones = HeadphoneControl.shared.isOn
     @State private var headphoneInfo = false
@@ -52,8 +54,8 @@ struct WorkoutView: View {
                                 Image(systemName: "link")
                                     .font(.caption.bold())
                                     .frame(width: 28, height: 28)
-                                    .background(Color.cyan.opacity(0.2), in: .circle)
-                                    .foregroundStyle(.cyan)
+                                    .background(Theme.info.opacity(0.2), in: .circle)
+                                    .foregroundStyle(Theme.info)
                                     .padding(.vertical, -10)
                             }
                         }
@@ -108,6 +110,9 @@ struct WorkoutView: View {
         ])
         .gmActions(isPresented: Binding(get: { exerciseMenu != nil }, set: { if !$0 { exerciseMenu = nil } }),
                    title: exerciseMenu.map(Exercise.name), actions: exerciseActions)
+        .gmActions(isPresented: Binding(get: { confirmRemove != nil }, set: { if !$0 { confirmRemove = nil } }),
+                   title: confirmRemove.map { "Remover \(Exercise.name($0))?" }, message: "As séries dele neste treino, feitas ou não, saem do treino.",
+                   actions: confirmRemove.map { id in [GMAction("Remover", icon: "trash", destructive: true) { removeExercise(id) }] } ?? [])
         .gmActions(isPresented: Binding(get: { goalFor != nil }, set: { if !$0 { goalFor = nil } }),
                    title: "Objetivo", message: "Define a faixa de reps e como a carga sobe: +1 rep por treino até o topo da faixa, depois +carga e volta ao início.",
                    actions: goalFor.map { id in
@@ -168,7 +173,7 @@ struct WorkoutView: View {
     /// Minimizar à esquerda (o treino continua salvo), título e cronômetro, concluir à direita
     private var header: some View {
         HStack(spacing: 12) {
-            GMIconButton(icon: "chevron.down") { dismiss() }
+            GMIconButton(icon: "chevron.down", label: "Minimizar treino") { dismiss() }
             VStack(alignment: .leading, spacing: 1) {
                 Text(session.title).font(.headline).lineLimit(1)
                 Text(timerInterval: session.start...Date.distantFuture, countsDown: false)
@@ -177,7 +182,7 @@ struct WorkoutView: View {
             }
             Spacer()
             // Modo fone: play/pause do fone marca a série
-            GMIconButton(icon: headphones ? "airpods.gen3" : "headphones", tint: headphones ? Theme.accent : .white) {
+            GMIconButton(icon: headphones ? "airpods.gen3" : "headphones", tint: headphones ? Theme.accent : .white, label: headphones ? "Desligar modo fone" : "Ligar modo fone") {
                 if headphones { toggleHeadphones() } else if headphoneInfoSeen { toggleHeadphones() } else { headphoneInfo = true }
             }
             GMButton("Concluir", icon: "checkmark", full: false, small: true) { finishing = true }
@@ -191,10 +196,11 @@ struct WorkoutView: View {
         let allCollapsed = !session.exerciseIDs.isEmpty && session.exerciseIDs.allSatisfy(collapsed.contains)
         return HStack(spacing: 10) {
             GMButton("Exercício", icon: "plus", kind: .secondary) { picking = true }
-            GMIconButton(icon: allCollapsed ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left", size: 48) {
+            GMIconButton(icon: allCollapsed ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left", size: 48,
+                         label: allCollapsed ? "Expandir exercícios" : "Recolher exercícios") {
                 withAnimation(.snappy) { collapsed = allCollapsed ? [] : Set(session.exerciseIDs) }
             }
-            GMIconButton(icon: "trash", size: 48, tint: Theme.danger) { confirmDiscard = true }
+            GMIconButton(icon: "trash", size: 48, tint: Theme.danger, label: "Descartar treino") { confirmDiscard = true }
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
@@ -265,30 +271,11 @@ struct WorkoutView: View {
 
     /// Troca as séries que faltam de um exercício por outro do mesmo músculo, com a carga sugerida para ele
     private func swap(_ old: String, to new: Exercise) {
-        let pending = session.orderedSets.filter { $0.exerciseID == old && !$0.done }
-        let work = pending.filter { !$0.warmup }
-        let s = Progression.suggest(exerciseID: new.id, sets: work.count, reps: work.first?.targetReps ?? 10, history: history)
-        let allMoved = !session.orderedSets.contains { $0.exerciseID == old && $0.done }
-        // Superset: o novo herda o elo com o próximo
-        // Aquecimento do antigo não serve para o novo
-        pending.filter(\.warmup).forEach(context.delete)
-        // Se já fez séries do antigo, o novo entra logo depois dele (abre espaço na ordem)
-        if !allMoved, let order = work.first?.exerciseOrder {
-            session.sets.filter { $0.exerciseOrder > order }.forEach { $0.exerciseOrder += 1 }
-            work.forEach { $0.exerciseOrder = order + 1 }
-        }
-        for (k, set) in work.enumerated() {
-            set.exerciseID = new.id
-            set.index = k
-            set.weight = s.weight
-            set.reps = s.reps
-            set.targetReps = s.reps
-        }
-        if allMoved && session.linkedNext(old) {
-            session.setLinkedNext(old, false)
-            session.setLinkedNext(new.id, true)
-        }
-        session.currentExerciseID = new.id
+        let work = session.orderedSets.filter { $0.exerciseID == old && !$0.done && !$0.warmup }
+        var s = Progression.suggest(exerciseID: new.id, sets: work.count, reps: work.first?.targetReps ?? 10, history: history)
+        // Treino de deload: o novo também vai a 70 % (as séries já são as reduzidas do antigo)
+        if session.isDeload { s = Deload.apply(s, sets: work.count, exerciseID: new.id).suggestion }
+        session.swapPending(old, to: new.id, suggestion: s)
         collapsed.remove(new.id)
         try? context.save()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { scrollTarget = new.id }
@@ -312,7 +299,7 @@ struct WorkoutView: View {
     private func addWarmup(_ ex: Exercise) {
         let sets = session.orderedSets.filter { $0.exerciseID == ex.id }
         guard let first = sets.first, first.weight > 0 else { return }
-        let warm = Progression.warmup(work: first.weight, increment: ex.increment, minimum: ex.usesBar && ex.weightIncludesBar ? 20 : 0)
+        let warm = Progression.warmup(work: first.weight, increment: ex.increment, minimum: ex.usesBar && ex.weightIncludesBar(in: session) ? 20 : 0)
         sets.forEach { $0.index += warm.count }
         for (k, w) in warm.enumerated() {
             let s = LoggedSet(exerciseID: ex.id, exerciseOrder: first.exerciseOrder, index: k, weight: w.weight, reps: w.reps, rest: 60)
@@ -320,6 +307,14 @@ struct WorkoutView: View {
             session.sets.append(s)
         }
         collapsed.remove(ex.id)
+        try? context.save()
+    }
+
+    private func removeExercise(_ id: String) {
+        let gone = session.orderedSets.filter { $0.exerciseID == id }
+        session.sets.removeAll { s in gone.contains { $0 === s } }
+        gone.forEach(context.delete)
+        session.setLinkedNext(id, false)
         try? context.save()
     }
 
@@ -347,8 +342,9 @@ struct WorkoutView: View {
             list.append(GMAction("Ver como fazer", icon: "info.circle") { info = ex })
             if ex.type == .weighted {
                 let w = session.orderedSets.last { $0.exerciseID == id }?.weight ?? 60
-                let bar = UserDefaults.standard.object(forKey: "barWeight") as? Double ?? 20
-                list.append(GMAction("Calcular anilhas", icon: "circle.grid.2x1") { platesFor = ex.weightIncludesBar ? w : w + bar })
+                // `double` também lê o valor que a restauração do backup grava como texto
+                let bar = UserDefaults.standard.object(forKey: "barWeight") == nil ? 20 : UserDefaults.standard.double(forKey: "barWeight")
+                list.append(GMAction("Calcular anilhas", icon: "circle.grid.2x1") { platesFor = ex.weightIncludesBar(in: session) ? w : w + bar })
             }
         }
         let rest = session.orderedSets.first { $0.exerciseID == id && !$0.done }?.rest
@@ -384,10 +380,7 @@ struct WorkoutView: View {
             noteText = current
             noteFor = id
         })
-        list.append(GMAction("Remover exercício", icon: "trash", destructive: true) {
-            session.orderedSets.filter { $0.exerciseID == id }.forEach(context.delete)
-            try? context.save()
-        })
+        list.append(GMAction("Remover exercício", icon: "trash", destructive: true) { confirmRemove = id })
         return list
     }
 
@@ -460,13 +453,13 @@ struct WorkoutView: View {
                 Label("Superset \((group.firstIndex(of: id) ?? 0) + 1)/\(group.count) · descanso depois de \(Exercise.name(group.last ?? id))",
                       systemImage: "link")
                     .font(.caption.bold())
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(Theme.info)
             }
             if let note = notes.first(where: { $0.exerciseID == id }), !note.text.isEmpty {
                 Button { noteText = note.text; noteFor = id } label: {
                     Label(note.text, systemImage: "note.text")
                         .font(.caption)
-                        .foregroundStyle(.yellow.opacity(0.9))
+                        .foregroundStyle(Theme.note.opacity(0.9))
                         .multilineTextAlignment(.leading)
                 }
                 .buttonStyle(GMPress())
@@ -512,7 +505,7 @@ struct WorkoutView: View {
 
             ForEach(sets) { s in
                 SetRow(set: s, label: s.warmup ? "A" : "\(s.index - warmups + 1)",
-                       type: ex?.type ?? .weighted, increment: ex?.increment ?? 2.5, unit: ex?.weightUnit ?? "kg") { done in
+                       type: ex?.type ?? .weighted, increment: ex?.increment ?? 2.5, unit: ex?.weightUnit(in: session) ?? "kg") { done in
                     if done {
                         // Superset: vai para o próximo do bloco sem descanso
                         if session.advance(after: id) { startRest(s.rest) } else { cancelRest() }
@@ -530,16 +523,19 @@ struct WorkoutView: View {
             }
         }
         .padding(isCollapsed ? 12 : 16)
-        .background(Theme.card, in: .rect(cornerRadius: 20))
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(currentID == id ? Theme.accent : complete ? Theme.accent.opacity(0.35) : .clear,
+        .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(currentID == id ? Theme.accent : complete ? Theme.accent.opacity(0.35) : .clear,
                                                            lineWidth: currentID == id ? 2 : 1))
     }
 
     private func add(_ ex: Exercise) {
         let order = (session.sets.map(\.exerciseOrder).max() ?? -1) + 1
         let reps = ex.type == .time ? 30 : 10
-        let s = Progression.suggest(exerciseID: ex.id, sets: 3, reps: reps, history: history)
-        for k in 0..<3 {
+        var s = Progression.suggest(exerciseID: ex.id, sets: 3, reps: reps, history: history)
+        var count = 3
+        // Treino de deload: o exercício adicionado segue a mesma regra dos da rotina (70 % e menos séries)
+        if session.isDeload { (s, count) = Deload.apply(s, sets: 3, exerciseID: ex.id) }
+        for k in 0..<count {
             session.sets.append(LoggedSet(exerciseID: ex.id, exerciseOrder: order, index: k, weight: s.weight, reps: s.reps, rest: 90))
         }
         collapsed.remove(ex.id)
@@ -575,16 +571,16 @@ struct WorkoutView: View {
                 }
                 .buttonStyle(GMPress())
                 Spacer()
-                GMIconButton(icon: "minus", size: 38) {
+                GMIconButton(icon: "minus", size: 38, label: "Menos 15 segundos") {
                     let l = Int(left.rounded(.up)) - 15
                     if l <= 0 { cancelRest() } else { startRest(l, keepTotal: true) }
                 }
-                GMIconButton(icon: "plus", size: 38) { startRest(Int(left.rounded(.up)) + 15, keepTotal: true) }
+                GMIconButton(icon: "plus", size: 38, label: "Mais 15 segundos") { startRest(Int(left.rounded(.up)) + 15, keepTotal: true) }
                 GMButton("Pular", full: false, small: true) { cancelRest() }
             }
             .padding(14)
-            .background(Theme.card, in: .rect(cornerRadius: 22))
-            .overlay(RoundedRectangle(cornerRadius: 22).stroke(Theme.stroke))
+            .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Theme.stroke))
             .padding(.horizontal, 12)
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -620,16 +616,16 @@ private struct SetRow: View {
         HStack(spacing: 10) {
             Text(label)
                 .font(.subheadline.bold().monospacedDigit())
-                .foregroundStyle(set.warmup ? .orange : Theme.dim)
+                .foregroundStyle(set.warmup ? Theme.streak : Theme.dim)
                 .frame(width: 18)
 
             // Peso do corpo e isometria aceitam carga extra (cinto, colete, halteres)
-            field(value: Binding(get: { set.weight }, set: { set.weight = max($0, 0) }),
-                  step: type == .weighted ? increment : 2.5, label: Text(type == .weighted ? unit : "+kg"), decimals: true)
+            GMCompactStepper(value: Binding(get: { set.weight }, set: { set.weight = max($0, 0) }),
+                             step: type == .weighted ? increment : 2.5, label: Text(type == .weighted ? unit : "+kg"), decimals: true, editable: true)
             // Planejado × feito: abaixe as reps se não completou; a etiqueta mostra a meta
-            field(value: Binding(get: { Double(set.reps) }, set: { set.reps = max(Int($0), 0) }),
-                  step: type == .time ? 5 : 1, label: repsLabel, decimals: false)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(missed ? Color.orange.opacity(0.7) : .clear, lineWidth: 1.5))
+            GMCompactStepper(value: Binding(get: { Double(set.reps) }, set: { set.reps = max(Int($0), 0) }),
+                             step: type == .time ? 5 : 1, label: repsLabel, editable: true)
+                .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(missed ? Theme.warning.opacity(0.7) : .clear, lineWidth: 1.5))
 
             Spacer(minLength: 0)
 
@@ -640,9 +636,10 @@ private struct SetRow: View {
             } label: {
                 Image(systemName: set.done ? (missed ? "checkmark.circle" : "checkmark.circle.fill") : "circle")
                     .font(.system(size: 30))
-                    .foregroundStyle(set.done ? (missed ? .orange : Theme.accent) : Theme.dim)
+                    .foregroundStyle(set.done ? (missed ? Theme.warning : Theme.accent) : Theme.dim)
             }
             .buttonStyle(GMPress())
+            .accessibilityLabel(set.done ? "Série feita" : "Marcar série como feita")
         }
         .padding(.vertical, 2)
         .opacity(set.done ? 0.75 : 1)
@@ -654,25 +651,7 @@ private struct SetRow: View {
     private var repsLabel: Text {
         let unit = type == .time ? "s" : "reps"
         guard self.set.targetReps > 0, set.reps != set.targetReps else { return Text(unit) }
-        return Text("de \(set.targetReps)").foregroundStyle(missed ? Color.orange : Theme.accent).bold()
-    }
-
-    private func field(value: Binding<Double>, step: Double, label: Text, decimals: Bool) -> some View {
-        HStack(spacing: 2) {
-            Button { value.wrappedValue -= step } label: { Image(systemName: "minus").frame(width: 28, height: 34).contentShape(Rectangle()) }
-            VStack(spacing: -2) {
-                TextField("0", value: value, format: .number.precision(.fractionLength(0...(decimals ? 1 : 0))))
-                    .keyboardType(decimals ? .decimalPad : .numberPad)
-                    .multilineTextAlignment(.center)
-                    .font(.body.bold().monospacedDigit())
-                    .frame(width: 52)
-                label.font(.caption2).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.7)
-            }
-            Button { value.wrappedValue += step } label: { Image(systemName: "plus").frame(width: 28, height: 34).contentShape(Rectangle()) }
-        }
-        .buttonStyle(GMPress())
-        .padding(.horizontal, 4)
-        .background(.white.opacity(0.06), in: .rect(cornerRadius: 10))
+        return Text("de \(set.targetReps)").foregroundStyle(missed ? Theme.warning : Theme.accent).bold()
     }
 }
 
@@ -698,18 +677,17 @@ struct FinishWorkoutView: View {
     private var minutes: Int { max(Int(Date.now.timeIntervalSince(session.start) / 60), 1) }
 
     var body: some View {
-        let done = session.sets.filter { $0.done && !$0.warmup }
-        let volume = done.reduce(0) { $0 + $1.weight * Double($1.reps) }
+        let done = session.doneWorkSets
+        let volume = session.volume
         let records = Progression.records(in: session.log, history: history)
-        let new = ActivityRecord(id: UUID(), kind: .musculacao, date: session.start, minutes: minutes, effort: effort)
-        let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
-        let xp = Game.snapshot((roster.mainID.flatMap { roster.records[$0] } ?? []) + [new]).xpByActivity[new.id] ?? 0
+        let p = preview
+        let xp = p.xp
 
         GMModal("Concluir treino", confirm: "Salvar", confirmEnabled: !done.isEmpty, onConfirm: save) {
             GMCard {
                 HStack {
                     stat(durationText(minutes), "duração")
-                    stat("\(done.count)/\(session.sets.filter { !$0.warmup }.count)", "séries")
+                    stat("\(done.count)/\(session.workSets.count)", "séries")
                     stat(volume > 0 ? "\(Progression.fmt(volume.rounded())) kg" : "–", "volume")
                 }
             }
@@ -738,7 +716,7 @@ struct FinishWorkoutView: View {
                             Text(name).font(.subheadline.weight(.semibold))
                             Spacer()
                             Text(done).font(.subheadline.monospacedDigit())
-                            Text("de \(target)").font(.caption.bold()).foregroundStyle(.orange)
+                            Text("de \(target)").font(.caption.bold()).foregroundStyle(Theme.warning)
                         }
                     }
                 }
@@ -748,9 +726,9 @@ struct FinishWorkoutView: View {
                     ForEach(records, id: \.self) { Text($0).font(.subheadline) }
                 }
             }
-            if let r = routine, !routineChanges(r).isEmpty {
+            if let r = routine, !session.routineChanges(r).isEmpty {
                 GMSection("Rotina \(r.name)", footer: "Liga para a próxima vez já começar assim. Cargas não entram: elas vêm do histórico.") {
-                    ForEach(routineChanges(r), id: \.self) { Text("• " + $0).font(.subheadline) }
+                    ForEach(session.routineChanges(r), id: \.self) { Text("• " + $0).font(.subheadline) }
                     GMDivider()
                     GMToggle(title: "Salvar essas mudanças na rotina", isOn: $updateRoutine)
                 }
@@ -763,8 +741,29 @@ struct FinishWorkoutView: View {
                     Spacer()
                     Label("Força", systemImage: Attribute.forca.symbol).foregroundStyle(Attribute.forca.color)
                 }
+                if !p.grows.isEmpty {
+                    let eggs = p.grows.allSatisfy { $0 == .egg }, many = p.grows.count > 1
+                    Text(eggs ? (many ? "Isso vai fazer os ovos chocarem! 🥚" : "Isso vai fazer o ovo chocar! 🥚")
+                              : (many ? "Isso vai fazer seus bros evoluírem! ✨" : "Isso vai fazer seu bro evoluir! ✨"))
+                        .font(.subheadline.bold())
+                }
             }
         }
+    }
+
+    /// XP do treino e o estágio de antes de cada bro que vai evoluir. O XP vai para os bros das ligas marcadas
+    /// (regra do Roster, como no registro de atividade); sem liga, o principal. Vários donos: mostra o maior.
+    private var preview: (xp: Int, grows: [Stage]) {
+        let new = ActivityRecord(id: UUID(), kind: .musculacao, date: session.start, minutes: minutes, effort: effort)
+        let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
+        var xp = 0, grows: [Stage] = []
+        for o in roster.owners(leagueIDs: leagues, owner: roster.mainID) {
+            let current = roster.records[o] ?? []
+            let before = Game.cachedSnapshot(current), after = Game.snapshot(current + [new])
+            xp = max(xp, after.xpByActivity[new.id] ?? 0)
+            if after.stage > before.stage { grows.append(before.stage) }
+        }
+        return (xp, grows)
     }
 
     private func stat(_ value: String, _ label: String) -> some View {
@@ -778,53 +777,6 @@ struct FinishWorkoutView: View {
     private var records: [String] { Progression.records(in: session.log, history: history) }
 
     private var routine: Routine? { session.routineUUID.flatMap { id in routines.first { $0.uuid == id } } }
-
-    /// Como o treino ficou: exercício, séries, reps alvo, descanso e superset
-    private struct Plan: Equatable { let id: String; let sets: Int; let reps: Int; let rest: Int; let superset: Bool }
-
-    private var plan: [Plan] {
-        let ids = session.exerciseIDs
-        return ids.enumerated().compactMap { i, id in
-            let work = session.orderedSets.filter { $0.exerciseID == id && !$0.warmup }
-            guard let first = work.first else { return nil }
-            // Com objetivo, as reps mudam a cada treino pela dupla progressão: não são mudança da rotina
-            let reps = TrainingGoal.of(id) != nil ? (routine?.items.first { $0.exerciseID == id }?.reps ?? first.targetReps) : first.targetReps
-            return Plan(id: id, sets: work.count, reps: reps, rest: first.rest,
-                        superset: session.linkedNext(id) && i < ids.count - 1)
-        }
-    }
-
-    /// Diferenças entre o treino feito e a rotina, em frases
-    private func routineChanges(_ r: Routine) -> [String] {
-        let items = r.sortedItems
-        let old = items.map { Plan(id: $0.exerciseID, sets: $0.sets, reps: $0.reps, rest: $0.rest, superset: $0.supersetNext) }
-        let new = plan
-        guard old != new else { return [] }
-        var out: [String] = []
-        let oldIDs = old.map(\.id), newIDs = new.map(\.id)
-        for p in new where !oldIDs.contains(p.id) { out.append("Entra \(Exercise.name(p.id)) (\(p.sets)×\(p.reps))") }
-        for p in old where !newIDs.contains(p.id) { out.append("Sai \(Exercise.name(p.id))") }
-        if oldIDs.filter(newIDs.contains) != newIDs.filter(oldIDs.contains) { out.append("Nova ordem dos exercícios") }
-        for p in new {
-            guard let o = old.first(where: { $0.id == p.id }) else { continue }
-            let name = Exercise.name(p.id)
-            if o.sets != p.sets { out.append("\(name): \(o.sets) → \(p.sets) séries") }
-            if o.reps != p.reps { out.append("\(name): \(o.reps) → \(p.reps) reps") }
-            if o.rest != p.rest { out.append("\(name): descanso \(clock(o.rest)) → \(clock(p.rest))") }
-            if o.superset != p.superset { out.append("\(name): \(p.superset ? "superset com o próximo" : "sai do superset")") }
-        }
-        return out.isEmpty ? ["Ajustes na estrutura do treino"] : out
-    }
-
-    private func applyToRoutine(_ r: Routine) {
-        r.items.forEach(context.delete)
-        r.items = []
-        for (i, p) in plan.enumerated() {
-            let item = RoutineItem(exerciseID: p.id, sets: p.sets, reps: p.reps, rest: p.rest, order: i)
-            item.supersetNext = p.superset
-            r.items.append(item)
-        }
-    }
 
     /// (exercício, reps feitas por série, meta) dos exercícios com alguma série abaixo do planejado
     private var missRows: [(String, String, Int)] {
@@ -856,7 +808,7 @@ struct FinishWorkoutView: View {
         context.insert(activity)
         let summary = records.isEmpty ? "" : "🏆 " + records.joined(separator: " · ")
         postCheckIns(activity: activity, leagues: leagues, title: session.title, note: summary, photo: photo, context: context)
-        if updateRoutine, let r = routine, !routineChanges(r).isEmpty { applyToRoutine(r) }
+        if updateRoutine, let r = routine, !session.routineChanges(r).isEmpty { session.apply(to: r, context: context) }
         session.end = .now
         session.effort = effort
         session.activityUUID = activity.uuid

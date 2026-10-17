@@ -94,27 +94,33 @@ enum FriendsLive {
     /// Os treinos simulados começam um pouco antes de abrir o app, e o tempo corre de verdade a partir daí
     private static let opened = Date.now
 
-    static let all: [LiveFriend] = [
-        LiveFriend(id: "bruno", name: "Bruno", form: MonsterForm(stage: .champion, attribute: .forca, species: "urso"),
+    /// Mesmo bro que a pessoa tem nas ligas (FakeMember)
+    private static func form(_ id: String) -> MonsterForm { FakeMember.byID(id)?.form ?? .egg }
+
+    /// Todos os simulados; `all` são só os que ainda são seus amigos (FriendsStore)
+    static let simulated: [LiveFriend] = [
+        LiveFriend(id: "bruno", name: "Bruno", form: form("bruno"),
                    kind: .musculacao, start: opened.addingTimeInterval(-38 * 60), place: "Smart Fit", offset: (520, 380),
                    now: "Supino reto · série 3 de 4 · 80 kg",
                    done: ["Supino inclinado · 4×10 · 26 kg", "Crucifixo · 3×12 · 14 kg", "Tríceps corda · 3×15"]),
-        LiveFriend(id: "ana", name: "Ana", form: MonsterForm(stage: .champion, attribute: .resistencia, species: "lobo"),
+        LiveFriend(id: "ana", name: "Ana", form: form("ana"),
                    kind: .corrida, start: opened.addingTimeInterval(-24 * 60), place: "Parque", offset: (-420, -160),
                    path: [(0, 0), (140, 60), (260, 40), (380, 130), (420, 260), (360, 400), (210, 450), (90, 520),
                           (-60, 470), (-150, 340), (-120, 200), (-170, 90), (-90, -20)],
                    speed: 3.1, now: "Longão leve · 5:20/km"),
-        LiveFriend(id: "diego", name: "Diego", form: MonsterForm(stage: .ultimate, attribute: .forca, attribute2: .agilidade, species: "gato"),
+        LiveFriend(id: "diego", name: "Diego", form: form("diego"),
                    kind: .futebol, start: opened.addingTimeInterval(-51 * 60), place: "Quadra do bairro", offset: (180, -650),
                    now: "Pelada · 2º tempo, 3 a 2 pro time dele"),
-        LiveFriend(id: "fe", name: "Fê", form: MonsterForm(stage: .rookie, attribute: nil, species: "coruja"),
+        LiveFriend(id: "fe", name: "Fê", form: form("fe"),
                    kind: .natacao, start: opened.addingTimeInterval(-17 * 60), place: "Clube", offset: (-650, 520),
                    now: "Crawl · tiros de 100 m"),
-        LiveFriend(id: "carla", name: "Carla", form: MonsterForm(stage: .champion, attribute: .tecnica, species: "esquilo"),
+        LiveFriend(id: "carla", name: "Carla", form: form("carla"),
                    kind: .yoga, start: nil, place: "Studio", offset: (300, 90), lastSeen: "Yoga há 3 h"),
     ]
 
-    static var liveCount: Int { all.filter(\.isLive).count }
+    @MainActor static var all: [LiveFriend] { simulated.filter { FriendsStore.shared.friendIDs.contains($0.id) } }
+
+    @MainActor static var liveCount: Int { all.filter(\.isLive).count }
 }
 
 extension CLLocationCoordinate2D {
@@ -151,12 +157,18 @@ struct FriendPin: View {
                     .foregroundStyle(.black)
                     .offset(x: 17, y: 16)
             }
-            Text(friend.isLive ? "\(friend.name) · \(friend.elapsed(at: date) / 60) min" : friend.name)
-                .font(.system(size: 10, weight: .bold))
+            HStack(spacing: 3) {
+                if friend.isLive { GMOnlineDot(size: 6) }
+                Text(friend.isLive ? "\(friend.name) · \(friend.elapsed(at: date) / 60) min" : friend.name)
+            }
+                .gmFont(10, weight: .bold, relativeTo: .caption2)
+                .lineLimit(1)
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(Theme.bg.opacity(0.85), in: .capsule)
                 .foregroundStyle(.white)
         }
+        // Pino no mapa: o texto cresce só até um limite
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)
         .onAppear {
             guard friend.isLive else { return }
             withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { pulse = true }
@@ -186,7 +198,7 @@ struct LiveFriendCard: View {
                         Text(friend.form.name).font(.caption).foregroundStyle(Theme.dim)
                         if friend.isLive {
                             HStack(spacing: 5) {
-                                Circle().fill(.red).frame(width: 7, height: 7)
+                                GMOnlineDot(size: 7)
                                 Text("AO VIVO · \(friend.kind.name) · \(friend.place)").font(.caption.bold()).foregroundStyle(friend.color)
                             }
                         } else {
@@ -204,7 +216,7 @@ struct LiveFriendCard: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
-                            .background(Theme.raised, in: .rect(cornerRadius: 12))
+                            .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
                         }
                     }
                     VStack(alignment: .leading, spacing: 6) {
@@ -217,16 +229,19 @@ struct LiveFriendCard: View {
                 }
                 HStack(spacing: 10) {
                     let on = cheered.contains(friend.id)
-                    GMButton(on ? "Força enviada" : "Mandar força 💪", icon: on ? "checkmark" : nil, kind: on ? .secondary : .primary) {
+                    GMButton(on ? "Força enviada (prévia)" : "Mandar força 💪", icon: on ? "checkmark" : nil, kind: on ? .secondary : .primary) {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         withAnimation(.snappy) {
                             if on { cheered.remove(friend.id) } else { cheered.insert(friend.id) }
                         }
                     }
-                    GMIconButton(icon: "location.fill", size: 48) { onShow() }
+                    GMIconButton(icon: "location.fill", size: 48, label: "Ver no mapa") { onShow() }
                 }
                 if friend.isLive { togetherButton }
-                Text("Prévia com amigos simulados.").font(.caption2).foregroundStyle(Theme.dim)
+                Text(cheered.contains(friend.id) || together
+                     ? "Prévia com amigos simulados: nada foi enviado. Força e convites chegam a \(friend.name) quando o app tiver servidor."
+                     : "Prévia com amigos simulados: força e convites ainda não são enviados.")
+                    .font(.caption2).foregroundStyle(Theme.dim)
             }
         }
     }
@@ -248,10 +263,10 @@ struct LiveFriendCard: View {
                 }
                 .frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(together ? "Convite enviado" : "Treinar junto com \(friend.name)")
+                    Text(together ? "Convite simulado" : "Treinar junto com \(friend.name)")
                         .font(.subheadline.bold())
-                    Text(together ? "\(friend.name) vai ver no app e pode te chamar no \(friend.place)"
-                                  : "Chama pra somar XP em dupla no \(friend.place)")
+                    Text(together ? "Na prévia o convite não sai do seu iPhone. Com o servidor, \(friend.name) recebe no app."
+                                  : "Chama pra treinar junto no \(friend.place)")
                         .font(.caption).foregroundStyle(Theme.dim).lineLimit(2)
                 }
                 Spacer(minLength: 0)
@@ -260,8 +275,8 @@ struct LiveFriendCard: View {
                 }
             }
             .padding(12)
-            .background(friend.color.opacity(together ? 0.16 : 0.08), in: .rect(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(friend.color.opacity(together ? 0.9 : 0.45), lineWidth: 1.5))
+            .background(friend.color.opacity(together ? 0.16 : 0.08), in: .rect(cornerRadius: Theme.radiusL))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusL).stroke(friend.color.opacity(together ? 0.9 : 0.45), lineWidth: 1.5))
             .foregroundStyle(.white)
         }
         .buttonStyle(GMPress())
@@ -290,7 +305,7 @@ struct LiveFriendRow: View {
             Spacer()
             if friend.isLive {
                 HStack(spacing: 5) {
-                    Circle().fill(.red).frame(width: 6, height: 6)
+                    GMOnlineDot(size: 6)
                     Text(clock(friend.elapsed(at: date))).font(.caption.monospacedDigit().bold())
                 }
                 .foregroundStyle(friend.color)

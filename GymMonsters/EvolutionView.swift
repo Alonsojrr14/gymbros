@@ -22,7 +22,9 @@ struct EvolutionView: View {
 
             VStack(spacing: 30) {
                 Text(revealed ? (hatching ? "O ovo chocou!" : "Evoluiu!") : (hatching ? "O ovo está chocando…" : "\(from.name) está evoluindo…"))
-                    .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .gmFont(26, weight: .heavy, design: .rounded, relativeTo: .title)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.6)
                     .contentTransition(.opacity)
 
                 ZStack {
@@ -34,7 +36,7 @@ struct EvolutionView: View {
 
                 if revealed {
                     VStack(spacing: 6) {
-                        Text(to.name).font(.system(size: 34, weight: .heavy, design: .rounded))
+                        Text(to.name).gmFont(34, weight: .heavy, design: .rounded, relativeTo: .largeTitle).lineLimit(1).minimumScaleFactor(0.5)
                         HStack {
                             Text(to.stage.name)
                             if let a = to.attribute {

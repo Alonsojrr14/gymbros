@@ -33,7 +33,8 @@ final class Monster {
 }
 
 enum MainMonster {
-    private static let key = "mainMonster"
+    /// Chave no UserDefaults (telas observam com @AppStorage para trocar o principal na hora)
+    static let key = "mainMonster"
 
     static var id: UUID? {
         get { UserDefaults.standard.string(forKey: key).flatMap(UUID.init) }
@@ -47,6 +48,10 @@ struct Roster {
     /// Atividades de cada monstro
     let records: [UUID: [ActivityRecord]]
     let snapshots: [UUID: Snapshot]
+    /// Para a regra do destino do XP (`owners`)
+    private let known: Set<UUID>
+    private let leagueMonster: [UUID: UUID?]
+    private let starterID: UUID?
 
     var main: Monster? { monsters.first { $0.uuid == mainID } ?? monsters.first { $0.isStarter } ?? monsters.first }
     var mainSnapshot: Snapshot { main.flatMap { snapshots[$0.uuid] } ?? Snapshot() }
@@ -59,6 +64,18 @@ struct Roster {
         snapshots.values.reduce(into: [:]) { acc, s in acc.merge(s.xpByActivity) { max($0, $1) } }
     }
 
+    /// Quem recebe o XP: representantes das ligas marcadas (cada um uma vez); sem liga, o dono gravado ou o inicial
+    static func owners(leagueIDs: Set<UUID>, owner: UUID?, known: Set<UUID>, leagueMonster: [UUID: UUID?], starter: UUID?) -> Set<UUID> {
+        let reps = Set(leagueIDs.compactMap { leagueMonster[$0] ?? nil }.filter(known.contains))
+        if !reps.isEmpty { return reps }
+        return Set([owner.flatMap { known.contains($0) ? $0 : nil } ?? starter].compactMap { $0 })
+    }
+
+    /// Mesma regra, para uma atividade ainda não salva (prévia do XP)
+    func owners(leagueIDs: Set<UUID>, owner: UUID?) -> Set<UUID> {
+        Roster.owners(leagueIDs: leagueIDs, owner: owner, known: known, leagueMonster: leagueMonster, starter: starterID)
+    }
+
     init(monsters: [Monster], activities: [Activity], checkIns: [LeagueCheckIn], leagues: [League]) {
         self.monsters = monsters
         let starter = monsters.first { $0.isStarter } ?? monsters.first
@@ -67,20 +84,21 @@ struct Roster {
 
         let known = Set(monsters.map(\.uuid))
         let leagueMonster = Dictionary(leagues.map { ($0.uuid, $0.monsterUUID) }, uniquingKeysWith: { a, _ in a })
+        self.known = known
+        self.leagueMonster = leagueMonster
+        starterID = starter?.uuid
         var posted: [UUID: Set<UUID>] = [:]
-        for c in checkIns {
-            if let m = leagueMonster[c.leagueUUID] ?? nil, known.contains(m) { posted[c.activityUUID, default: []].insert(m) }
-        }
+        for c in checkIns { posted[c.activityUUID, default: []].insert(c.leagueUUID) }
 
         var recs: [UUID: [ActivityRecord]] = [:]
         for a in activities {
-            let fallback = a.monsterUUID.flatMap { known.contains($0) ? $0 : nil } ?? starter?.uuid
-            let owners = posted[a.uuid].map(Array.init) ?? [fallback].compactMap { $0 }
+            let owners = Roster.owners(leagueIDs: posted[a.uuid] ?? [], owner: a.monsterUUID, known: known,
+                                       leagueMonster: leagueMonster, starter: starter?.uuid)
             for o in owners { recs[o, default: []].append(a.record) }
         }
         records = recs
         snapshots = Dictionary(uniqueKeysWithValues: monsters.map { m in
-            var s = Game.snapshot(recs[m.uuid] ?? [])
+            var s = Game.cachedSnapshot(recs[m.uuid] ?? [])
             // Espécie gravada no monstro; se acabou de chocar e ainda não foi gravada, calcula pelos treinos do ovo
             if s.stage > .egg {
                 let species = m.speciesID ?? Species.hatch(attributes: s.hatchAttributes, seed: m.uuid).id
@@ -121,7 +139,8 @@ struct Roster {
 // MARK: - Telas
 
 /// Coleção: quem é o principal, quem representa cada liga, apelidos
-struct TeamView: View {
+/// Coleção de bros: escolher o principal e dar apelido. Fica na aba "Meus bros" da tela de bros.
+struct MyBrosList: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Monster.createdAt) private var monsters: [Monster]
     @Query private var activities: [Activity]
@@ -135,7 +154,7 @@ struct TeamView: View {
 
     var body: some View {
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues)
-        GMModal("Meus bros", cancel: "Fechar") {
+        VStack(alignment: .leading, spacing: 18) {
             ForEach(monsters) { m in
                 let s = roster.snapshot(m.uuid)
                 let reps = leagues.filter { $0.monsterUUID == m.uuid }

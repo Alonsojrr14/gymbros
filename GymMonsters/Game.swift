@@ -217,11 +217,7 @@ struct MonsterForm: Hashable, Identifiable {
     var speciesInfo: Species { Species.byID(species) ?? .standard }
     var name: String {
         if stage == .egg { return "Ovo" }
-        if let a = attribute, let b = attribute2 {
-            let theme = Species.hybridNames[stage]?[a.rawValue + "_" + b.rawValue] ?? "Híbrido"
-            return species == Species.standard.id ? theme : "\(theme) \(speciesInfo.name)"
-        }
-        return speciesInfo.names[key] ?? key
+        return speciesInfo.names[key] ?? (isHybrid ? "Híbrido" : key)
     }
     var sprite: String { stage == .egg ? "sprite_egg" : speciesInfo.sprite(key) }
 
@@ -248,35 +244,56 @@ struct Species: Identifiable {
                 "champion_forca": "Halterobro", "champion_resistencia": "Maratobro",
                 "champion_agilidade": "Saltabro", "champion_tecnica": "Zenbro",
                 "ultimate_forca": "Trebobro", "ultimate_resistencia": "Fôlegobro",
-                "ultimate_agilidade": "Relampabro", "ultimate_tecnica": "Mestrebro"],
+                "ultimate_agilidade": "Relampabro", "ultimate_tecnica": "Mestrebro"]
+            .merging(zip(hybridKeys, ["Crossbro", "Golpebro", "Arrancobro", "Chuteirabro", "Nadobro", "Gingabro",
+                                      "Hércubro", "Titãbro", "Olimpibro", "Tufãobro", "Marébro", "Piruetabro"])) { a, _ in a },
         spritePrefix: ""
     )
 
-    /// Para incluir uma espécie: nomes das 10 formas + artes "sprite_<id>_<chave>" no app e no widget.
+    /// Para incluir uma espécie: nomes das 10 formas, nomes dos 12 híbridos (únicos: nenhum repete outra forma)
+    /// e artes "sprite_<id>_<chave>" no app e no widget.
     /// Uma espécie só nasce e aparece na Dex quando as artes dela estão no app (`isReady`).
     static let all: [Species] = [standard] + [
         make("urso", "Urso", .forca, ["Pelucibro", "Ursabro", "Supinobro", "Trilhabro", "Rolabro", "Sumobro",
-                                      "Grizzlibro", "Montanhabro", "Avalanchebro", "Kodiabro"]),
+                                      "Grizzlibro", "Montanhabro", "Avalanchebro", "Kodiabro"],
+             ["Burpeebro", "Patadabro", "Arremessobro", "Mateirobro", "Salmãobro", "Meialuabro",
+              "Colossobro", "Brutobro", "Gigantebro", "Nevascabro", "Polarbro", "Aurorabro"]),
         make("rato", "Rato", .forca, ["Queijibro", "Ratibro", "Marombabro", "Rodibro", "Fuxibro", "Labiribro",
-                                      "Ratazanabro", "Esteirabro", "Sombrabro", "Engenhobro"]),
+                                      "Ratazanabro", "Esteirabro", "Sombrabro", "Engenhobro"],
+             ["Bigodefitbro", "Mordidabro", "Gorgonzolabro", "Bueirobro", "Esgotobro", "Arraiabro",
+              "Metrôbro", "Presabro", "Parmesãobro", "Ventaniabro", "Correntezabro", "Piãobro"]),
         make("lobo", "Lobo", .resistencia, ["Uivibro", "Lobinbro", "Alfabro", "Trotebro", "Caçabro", "Matilhabro",
-                                             "Fenribro", "Luabro", "Ventobro", "Ancestrabro"]),
+                                             "Fenribro", "Luabro", "Ventobro", "Ancestrabro"],
+             ["Caninobro", "Investidabro", "Cumebro", "Rastrobro", "Riachobro", "Crepúsculobro",
+              "Lobisombro", "Ragnarbro", "Cordilheirabro", "Vendavalbro", "Fiordebro", "Eclipsebro"]),
         make("cachorro", "Cachorro", .resistencia, ["Filhotibro", "Caramelbro", "Pitbulbro", "Galgobro", "Frisbeebro", "Pastorbro",
-                                                     "Mastibro", "Huskybro", "Agilitybro", "Guiabro"]),
+                                                     "Mastibro", "Huskybro", "Agilitybro", "Guiabro"],
+             ["Viralatabro", "Boxerbro", "Bulldogbro", "Gandulabro", "Labradorbro", "Poodlebro",
+              "Cérberobro", "Dobermanbro", "Sãobernardobro", "Salukibro", "Terranovabro", "Borderbro"]),
         make("esquilo", "Esquilo", .agilidade, ["Nozibro", "Esquilbro", "Quebranozbro", "Galhobro", "Pulabro", "Acrobabro",
-                                                 "Carvalhobro", "Florestabro", "Voadorbro", "Parkourbro"]),
+                                                 "Carvalhobro", "Florestabro", "Voadorbro", "Parkourbro"],
+             ["Bolotabro", "Ouriçobro", "Torabro", "Copabro", "Cachoeirabro", "Cipóbro",
+              "Sequoiabro", "Espinheirobro", "Jequitibro", "Redemoinhobro", "Cascatabro", "Trapezistabro"]),
         make("gato", "Gato", .agilidade, ["Novelbro", "Bichanobro", "Garrabro", "Rondabro", "Telhadobro", "Ronrobro",
-                                          "Jubabro", "Panterabro", "Linxbro", "Esfingebro"]),
+                                          "Jubabro", "Panterabro", "Linxbro", "Esfingebro"],
+             ["Miaufitbro", "Unhadabro", "Pumabro", "Gatunobro", "Molhadobro", "Muretabro",
+              "Tigrebro", "Smilodonbro", "Leãobro", "Guepardobro", "Onçabro", "Bastetbro"]),
         make("coruja", "Coruja", .tecnica, ["Penugbro", "Corujabro", "Rapinabro", "Noturnbro", "Planabro", "Sabiobro",
-                                             "Harpiabro", "Luarbro", "Rasantebro", "Oraculobro"]),
+                                             "Harpiabro", "Luarbro", "Rasantebro", "Oraculobro"],
+             ["Madrugabro", "Bicadabro", "Mochobro", "Revoadabro", "Martimbro", "Plumabro",
+              "Grifobro", "Falcãobro", "Atenabro", "Ciclonebro", "Albatrozbro", "Fênixbro"]),
     ]
+
+    /// Ordem dos híbridos nas listas de nomes: Champions e depois Ultimates, na ordem de `Attribute.pairs`
+    static let hybridKeys = [Stage.champion, .ultimate].flatMap { st in Attribute.pairs.map { "\(st)_\($0.0.rawValue)_\($0.1.rawValue)" } }
 
     /// Ordem das formas nas listas de nomes acima
     static let keys = ["baby", "rookie", "champion_forca", "champion_resistencia", "champion_agilidade", "champion_tecnica",
                        "ultimate_forca", "ultimate_resistencia", "ultimate_agilidade", "ultimate_tecnica"]
 
-    private static func make(_ id: String, _ name: String, _ affinity: Attribute, _ names: [String]) -> Species {
-        Species(id: id, name: name, affinity: affinity, names: Dictionary(uniqueKeysWithValues: zip(keys, names)), spritePrefix: "\(id)_")
+    private static func make(_ id: String, _ name: String, _ affinity: Attribute, _ names: [String], _ hybrids: [String]) -> Species {
+        Species(id: id, name: name, affinity: affinity, names: Dictionary(uniqueKeysWithValues: zip(keys + hybridKeys, names + hybrids)),
+                spritePrefix: "\(id)_")
     }
 
     /// Espécies com arte pronta
@@ -294,22 +311,20 @@ struct Species: Identifiable {
 
     static func byID(_ id: String) -> Species? { all.first { $0.id == id } }
 
-    /// Nomes das formas híbridas por dupla (nas outras espécies levam o nome da espécie junto)
-    static let hybridNames: [Stage: [String: String]] = [
-        .champion: ["forca_resistencia": "Crossbro", "forca_agilidade": "Golpebro", "forca_tecnica": "Arrancobro",
-                    "resistencia_agilidade": "Trilhabro", "resistencia_tecnica": "Nadobro", "agilidade_tecnica": "Gingabro"],
-        .ultimate: ["forca_resistencia": "Hércubro", "forca_agilidade": "Titãbro", "forca_tecnica": "Olimpibro",
-                    "resistencia_agilidade": "Ventobro", "resistencia_tecnica": "Marébro", "agilidade_tecnica": "Acrobro"],
-    ]
-
     /// Tem pelo menos uma arte híbrida no app (a Dex só mostra a seção nesse caso)
     var hasHybrids: Bool { MonsterForm.hybrids(species: id).contains(where: \.hasArt) }
 
+    /// Abaixo dessa fatia do total, o atributo dominante não define afinidade (treinos equilibrados → Coelho)
+    static let balancedShare = 0.35
+
     /// Espécie de um ovo que acabou de chocar, pelos treinos que o chocaram.
+    /// Treinos equilibrados (dominante < 35% do total) chocam a espécie padrão.
     /// Entre várias espécies com a mesma afinidade, escolhe de forma estável pelo id do monstro.
     static func hatch(attributes: [Attribute: Double], seed: UUID) -> Species {
-        guard !attributes.isEmpty else { return standard }
+        let total = attributes.values.reduce(0, +)
+        guard total > 0 else { return standard }
         let dominant = Game.dominant(attributes)
+        guard (attributes[dominant] ?? 0) / total >= balancedShare else { return standard }
         let matches = catalog.filter { $0.affinity == dominant }
         guard !matches.isEmpty else { return standard }
         var rng = SeededRandom(seed: seed.uuidString)
@@ -317,7 +332,7 @@ struct Species: Identifiable {
     }
 }
 
-struct ActivityRecord: Identifiable {
+struct ActivityRecord: Identifiable, Hashable {
     let id: UUID
     let kind: ActivityKind
     let date: Date
@@ -398,6 +413,14 @@ enum Game {
         Attribute.allCases.max { (attrs[$0] ?? 0) < (attrs[$1] ?? 0) } ?? .forca
     }
 
+    /// Igual a `snapshot`, mas guarda o resultado: as telas recalculam a cada render com os mesmos registros.
+    /// A chave é o conteúdo inteiro (na mesma ordem), o dia de hoje (sequência e XP do dia) e o calendário.
+    static func cachedSnapshot(_ records: [ActivityRecord], now: Date = .now, calendar: Calendar = .current) -> Snapshot {
+        SnapshotCache.shared.value(for: .init(records: records, day: calendar.startOfDay(for: now), calendar: calendar)) {
+            snapshot(records, now: now, calendar: calendar)
+        }
+    }
+
     static func snapshot(_ records: [ActivityRecord], now: Date = .now, calendar: Calendar = .current) -> Snapshot {
         var s = Snapshot()
         var dayTotals: [Date: Int] = [:]
@@ -420,15 +443,19 @@ enum Game {
                 s.lifetimeAttributes[attr, default: 0] += Double(gained) * w
             }
 
+            // Vários estágios numa atividade só: a fase nova ainda está vazia, então o galho usa a anterior
+            var carried: [Attribute: Double] = [:]
             while let next = s.stage.next, s.totalXP >= next.threshold {
-                if s.stage == .egg { s.hatchAttributes = s.stageAttributes }
+                let attrs = s.stageAttributes.isEmpty ? carried : s.stageAttributes
+                if s.stage == .egg { s.hatchAttributes = attrs }
                 if next.branches {
-                    let (a, b) = branch(s.stageAttributes)
+                    let (a, b) = branch(attrs)
                     s.form = MonsterForm(stage: next, attribute: a, attribute2: b)
                 } else {
                     s.form = MonsterForm(stage: next, attribute: nil)
                 }
                 s.evolutions.append(Evolution(date: r.date, form: s.form))
+                carried = attrs
                 s.stageAttributes = [:]
             }
         }
@@ -466,5 +493,46 @@ enum Game {
             day = calendar.date(byAdding: .day, value: -1, to: day)!
         }
         return count
+    }
+}
+
+/// Memória dos últimos snapshots calculados (poucos: um por bro, mais o do jogador)
+final class SnapshotCache: @unchecked Sendable {
+    static let shared = SnapshotCache()
+
+    struct Key: Hashable {
+        let records: [ActivityRecord]
+        let day: Date
+        let calendar: Calendar
+    }
+
+    private let limit = 24
+    private var store: [Key: Snapshot] = [:]
+    private var order: [Key] = []
+    private let lock = NSLock()
+
+    func value(for key: Key, compute: () -> Snapshot) -> Snapshot {
+        lock.lock()
+        if let hit = store[key] {
+            lock.unlock()
+            return hit
+        }
+        lock.unlock()
+        let s = compute()
+        lock.lock()
+        defer { lock.unlock() }
+        if store[key] == nil {
+            store[key] = s
+            order.append(key)
+            if order.count > limit { store[order.removeFirst()] = nil }
+        }
+        return s
+    }
+
+    func removeAll() {
+        lock.lock()
+        defer { lock.unlock() }
+        store = [:]
+        order = []
     }
 }

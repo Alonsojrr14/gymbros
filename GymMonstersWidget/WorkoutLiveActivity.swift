@@ -2,15 +2,12 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-private let accent = Color(red: 0.64, green: 0.90, blue: 0.21)
-private let dim = Color.white.opacity(0.6)
-
 struct WorkoutLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkoutAttributes.self) { context in
             LockScreenWorkout(context: context)
-                .activityBackgroundTint(Color(red: 0.05, green: 0.06, blue: 0.08))
-                .activitySystemActionForegroundColor(accent)
+                .activityBackgroundTint(Theme.bg)
+                .activitySystemActionForegroundColor(Theme.accent)
         } dynamicIsland: { context in
             let s = context.state
             return DynamicIsland {
@@ -21,10 +18,10 @@ struct WorkoutLiveActivity: Widget {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(timerInterval: context.attributes.start...Date.distantFuture, countsDown: false)
                             .font(.subheadline.monospacedDigit().bold())
-                            .foregroundStyle(accent)
+                            .foregroundStyle(Theme.accent)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 70)
-                        Text("\(s.doneSets)/\(s.totalSets) séries").font(.caption2).foregroundStyle(dim)
+                        Text("\(s.doneSets)/\(s.totalSets) séries").font(.caption2).foregroundStyle(Theme.dim)
                     }
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -33,22 +30,22 @@ struct WorkoutLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 6) {
                         SetLine(state: s, stale: context.isStale)
-                        ProgressView(value: s.progress).tint(accent)
+                        ProgressView(value: s.progress).tint(Theme.accent)
                     }
                 }
             } compactLeading: {
-                Image(systemName: "dumbbell.fill").foregroundStyle(accent)
+                Image(systemName: "dumbbell.fill").foregroundStyle(Theme.accent)
             } compactTrailing: {
                 if let end = s.restEnd, end > .now, !context.isStale {
                     Text(timerInterval: Date.now...end, countsDown: true)
                         .monospacedDigit()
                         .frame(width: 42)
-                        .foregroundStyle(accent)
+                        .foregroundStyle(Theme.accent)
                 } else {
-                    Text("\(min(s.setNumber, s.setCount))/\(s.setCount)").monospacedDigit().foregroundStyle(accent)
+                    Text("\(min(s.setNumber, s.setCount))/\(s.setCount)").monospacedDigit().foregroundStyle(Theme.accent)
                 }
             } minimal: {
-                Image(systemName: "dumbbell.fill").foregroundStyle(accent)
+                Image(systemName: "dumbbell.fill").foregroundStyle(Theme.accent)
             }
         }
     }
@@ -64,25 +61,25 @@ private struct SetLine: View {
         HStack(spacing: 10) {
             if let end = state.restEnd, stale || end <= .now {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Descanso acabou").font(.caption).foregroundStyle(dim)
+                    Text("Descanso acabou").font(.caption).foregroundStyle(Theme.dim)
                     Text(state.exerciseDone ? "Exercício concluído" : "Série \(state.setNumber) de \(state.setCount) · \(state.setText)")
-                        .font(.subheadline.bold()).foregroundStyle(accent)
+                        .font(.subheadline.bold()).foregroundStyle(Theme.accent)
                 }
                 Spacer()
                 Button(intent: SkipRestIntent()) {
                     Label("Próxima série", systemImage: "arrow.right")
                         .font(.subheadline.bold())
                         .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(accent, in: .capsule)
+                        .background(Theme.accent, in: .capsule)
                         .foregroundStyle(.black)
                 }
                 .buttonStyle(.plain)
             } else if let end = state.restEnd, end > .now {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Descanso").font(.caption).foregroundStyle(dim)
+                    Text("Descanso").font(.caption).foregroundStyle(Theme.dim)
                     Text(timerInterval: Date.now...end, countsDown: true)
                         .font(.title3.monospacedDigit().bold())
-                        .foregroundStyle(accent)
+                        .foregroundStyle(Theme.accent)
                 }
                 Spacer()
                 Button(intent: SkipRestIntent()) {
@@ -94,19 +91,19 @@ private struct SetLine: View {
                 }
                 .buttonStyle(.plain)
             } else if state.exerciseDone {
-                Label("Exercício concluído", systemImage: "checkmark.circle.fill").font(.subheadline.bold()).foregroundStyle(accent)
+                Label("Exercício concluído", systemImage: "checkmark.circle.fill").font(.subheadline.bold()).foregroundStyle(Theme.accent)
                 Spacer()
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Série \(state.setNumber) de \(state.setCount)").font(.caption).foregroundStyle(dim)
-                    Text(state.setText).font(.headline.monospacedDigit()).foregroundStyle(accent)
+                    Text("Série \(state.setNumber) de \(state.setCount)").font(.caption).foregroundStyle(Theme.dim)
+                    Text(state.setText).font(.headline.monospacedDigit()).foregroundStyle(Theme.accent)
                 }
                 Spacer()
                 Button(intent: CompleteSetIntent()) {
                     Label("Série feita", systemImage: "checkmark")
                         .font(.subheadline.bold())
                         .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(accent, in: .capsule)
+                        .background(Theme.accent, in: .capsule)
                         .foregroundStyle(.black)
                 }
                 .buttonStyle(.plain)
@@ -124,17 +121,17 @@ private struct LockScreenWorkout: View {
             Image(s.sprite + "_live").resizable().interpolation(.none).scaledToFit().frame(width: 62, height: 62)
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(context.attributes.title).font(.caption.bold()).foregroundStyle(dim).lineLimit(1)
+                    Text(context.attributes.title).font(.caption.bold()).foregroundStyle(Theme.dim).lineLimit(1)
                     Spacer()
                     Text(timerInterval: context.attributes.start...Date.distantFuture, countsDown: false)
                         .font(.caption.monospacedDigit().bold())
-                        .foregroundStyle(accent)
+                        .foregroundStyle(Theme.accent)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 64)
                 }
                 Text(s.exercise).font(.headline).foregroundStyle(.white).lineLimit(1)
                 SetLine(state: s, stale: context.isStale).foregroundStyle(.white)
-                ProgressView(value: s.progress).tint(accent)
+                ProgressView(value: s.progress).tint(Theme.accent)
             }
         }
         .padding(16)

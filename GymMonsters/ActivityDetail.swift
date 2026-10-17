@@ -34,7 +34,7 @@ struct ActivityDetailView: View {
 
     var body: some View {
         GMScreen(activity.kind.name, back: true) {
-            GMIconButton(icon: "pencil") { editing = true }
+            GMIconButton(icon: "pencil", label: "Editar atividade") { editing = true }
         } content: {
             if let data = photo, let img = UIImage(data: data) {
                 Color.clear
@@ -47,7 +47,7 @@ struct ActivityDetailView: View {
                     Image(systemName: activity.kind.symbol)
                         .font(.title2)
                         .frame(width: 48, height: 48)
-                        .background(Theme.raised, in: .rect(cornerRadius: 12))
+                        .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(title).font(.headline)
                         Text(activity.date.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute()))
@@ -65,7 +65,7 @@ struct ActivityDetailView: View {
                     GMDivider()
                     Button { showRoute = true } label: {
                         HStack {
-                            RouteMap(coords: r.coordinates).frame(width: 56, height: 56).clipShape(.rect(cornerRadius: 10))
+                            RouteMap(coords: r.coordinates).frame(width: 56, height: 56).clipShape(.rect(cornerRadius: Theme.radiusS))
                             Text("Ver percurso · \(kmText(r.meters))").font(.subheadline.weight(.semibold))
                             Spacer()
                             Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
@@ -127,7 +127,7 @@ struct ActivityDetailView: View {
             if let r = routes.first {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("\(r.kind.name) · \(kmText(r.meters))").font(.headline)
-                    RouteMap(coords: r.coordinates).frame(height: 280).clipShape(.rect(cornerRadius: 16))
+                    RouteMap(coords: r.coordinates).frame(height: 280).clipShape(.rect(cornerRadius: Theme.radiusL))
                     Text("\(clock(r.seconds)) · \(paceText(kind: r.kind, meters: r.meters, seconds: r.seconds))")
                         .font(.subheadline.monospacedDigit()).foregroundStyle(Theme.dim)
                 }
@@ -161,7 +161,7 @@ struct ActivityDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(isProfile ? "Meu perfil" : league?.name ?? "Liga removida").font(.subheadline.weight(.semibold))
                 Text(isProfile ? "Visível no seu perfil público" : league.map { l in
-                    l.isOver ? "Liga encerrada" : "+\(l.scoring.score(kind: activity.kind, minutes: activity.minutes, effort: activity.effort)) \(l.scoring == .pontos ? "pts" : l.scoring.name.lowercased())"
+                    l.isOver ? "Liga encerrada" : "+" + l.scoring.format(l.score(activity.scoreInput, hasPhoto: c.hasPhoto))
                 } ?? "")
                     .font(.caption).foregroundStyle(Theme.dim)
             }
@@ -175,14 +175,15 @@ struct ActivityDetailView: View {
 
     private func item(_ c: LeagueCheckIn) -> FeedItem {
         let league = leagues.first { $0.uuid == c.leagueUUID }
-        let score = league?.scoring.score(kind: activity.kind, minutes: activity.minutes, effort: activity.effort)
+        let score = league?.score(activity.scoreInput, hasPhoto: c.hasPhoto)
             ?? Game.xp(kind: activity.kind, minutes: activity.minutes, effort: activity.effort)
         return FeedItem(id: c.uuid.uuidString, memberID: "me", name: trainerName, avatar: snapshot.form, isMe: true, date: c.date,
-                        title: c.title, note: c.note, kind: activity.kind, minutes: activity.minutes, score: score, photo: c.photo, place: c.place)
+                        title: c.title, note: c.note, kind: activity.kind, minutes: activity.minutes, score: score, photo: c.photo, place: c.place,
+                        hasPhoto: c.hasPhoto, effort: activity.effort, scoring: league?.scoring)
     }
 }
 
-/// Apaga a atividade e tudo ligado a ela (treino guiado, check-ins, percurso)
+/// Apaga a atividade e tudo ligado a ela (treino guiado, check-ins e seus comentários, percurso, resultado de WOD)
 @MainActor
 func deleteActivity(_ a: Activity, context: ModelContext) {
     let id = a.uuid
@@ -191,7 +192,13 @@ func deleteActivity(_ a: Activity, context: ModelContext) {
     if let h = a.healthUUID { HealthSync.ignored.insert(h) }
     HealthSync.deleteWritten(a.healthWrittenUUID)
     let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
+    let postIDs = Set(posts.map(\.uuid.uuidString))
+    if !postIDs.isEmpty {
+        ((try? context.fetch(FetchDescriptor<CheckInComment>())) ?? []).filter { postIDs.contains($0.itemID) }.forEach(context.delete)
+    }
     posts.forEach(context.delete)
+    let wods = (try? context.fetch(FetchDescriptor<WodResult>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
+    wods.forEach(context.delete)
     let route = (try? context.fetch(FetchDescriptor<RouteRecord>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
     route.forEach(context.delete)
     context.delete(a)

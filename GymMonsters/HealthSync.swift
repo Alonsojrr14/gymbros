@@ -81,7 +81,7 @@ enum HealthSync {
     }
 
     /// Calorias ativas estimadas: MET da atividade ajustado pelo esforço, sem o metabolismo basal
-    static func activeKcal(kind: ActivityKind, minutes: Int, effort: Int, weight: Double) -> Double {
+    nonisolated static func activeKcal(kind: ActivityKind, minutes: Int, effort: Int, weight: Double) -> Double {
         let met = kind.met * (0.6 + 0.08 * Double(effort))
         return max(met - 1, 0) * 3.5 * weight / 200 * Double(minutes)
     }
@@ -174,6 +174,8 @@ enum HealthSync {
                                     effort: effort(kind: kind, minutes: minutes, kcal: kcal, weight: weight),
                                     note: kcal.map { "\(Int($0)) kcal" } ?? "")
             activity.healthUUID = id
+            activity.kcal = kcal
+            activity.meters = distance(w)
             activity.source = w.sourceRevision.source.name
             context.insert(activity)
             ranges.append((start, end))
@@ -182,6 +184,13 @@ enum HealthSync {
         try context.save()
         lastSync = .now
         return result
+    }
+
+    /// Distância do treino, quando o tipo tem (corrida, caminhada, bike, natação)
+    private static func distance(_ w: HKWorkout) -> Double? {
+        let types: [HKQuantityTypeIdentifier] = [.distanceWalkingRunning, .distanceCycling, .distanceSwimming]
+        let m = types.compactMap { w.statistics(for: HKQuantityType($0))?.sumQuantity()?.doubleValue(for: .meter()) }.max()
+        return m.flatMap { $0 > 0 ? $0 : nil }
     }
 
     /// Esforço 1–10 a partir do gasto real comparado ao esperado para a atividade em ritmo moderado

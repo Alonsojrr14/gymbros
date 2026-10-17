@@ -9,6 +9,8 @@ struct Backup: Codable {
     var version = 1
     var exportedAt = Date.now
     var settings: [String: String]
+    /// Mesmos ajustes com o tipo (Bool, número ou texto); backups antigos só têm `settings`
+    var typedSettings: [String: Setting]? = nil
     var activities: [ActivityDTO]
     var routines: [RoutineDTO]
     var sessions: [SessionDTO]
@@ -42,9 +44,13 @@ struct Backup: Codable {
     var wods: [WodDTO]? = nil
     var prs: [PRDTO]? = nil
     var comments: [CommentDTO]? = nil
+    var messages: [MessageDTO]? = nil
+    /// Foto do perfil (já é pequena: 512 px)
+    var profilePhoto: Data? = nil
 
     struct CommentDTO: Codable {
         var uuid: UUID, itemID: String, text: String, date: Date
+        var authorID: String? = nil, authorName: String? = nil
     }
 
     struct PRDTO: Codable {
@@ -58,6 +64,7 @@ struct Backup: Codable {
     struct WodDTO: Codable {
         var uuid: UUID, wodID: String, wodName: String, formatName: String, date: Date
         var seconds: Int?, rounds: Int?, reps: Int?, rx: Bool, note: String, activityUUID: UUID?
+        var capped: Bool? = nil
     }
 
     struct LeagueDTO: Codable {
@@ -65,17 +72,27 @@ struct Backup: Codable {
         var monsterUUID: UUID?
         var end: Date? = nil
         var autoRenew: Bool? = nil, season: Int? = nil, seriesID: UUID? = nil, nextUUID: UUID? = nil
+        var weights: String? = nil, tieBreak: String? = nil
+        var photoRule: String? = nil, teams: String? = nil, myTeamID: String? = nil
+        /// Capa reduzida, só na temporada atual de cada liga (as passadas usam a mesma ao restaurar)
+        var cover: Data? = nil
     }
 
-    /// Fotos ficam de fora para o arquivo não ficar enorme
+    struct MessageDTO: Codable {
+        var uuid: UUID, leagueUUID: UUID, text: String, date: Date, syncedAt: Date?
+    }
+
+    /// Fotos ficam de fora para o arquivo não ficar enorme; `hadPhoto` guarda que tinha, para a pontuação das ligas não mudar
     struct CheckInDTO: Codable {
         var uuid: UUID, leagueUUID: UUID, activityUUID: UUID, title: String, note: String, date: Date
+        var hadPhoto: Bool? = nil, place: String? = nil
     }
 
     struct ActivityDTO: Codable {
         var uuid: UUID, kind: String, date: Date, minutes: Int, effort: Int, note: String
         var healthUUID: String?, source: String?, monsterUUID: UUID?
         var gymUUID: UUID?
+        var meters: Double? = nil, kcal: Double? = nil
     }
 
     struct MonsterDTO: Codable {
@@ -109,16 +126,40 @@ struct Backup: Codable {
         var uuid: UUID, name: String, group: String, equipment: String, type: String, notes: String
     }
 
-    static let settingKeys = ["trainerName", "monsterNick", "lastFormID", "discovered", "bodyGender", "mainMonster", "profileUsername", "profileBio", "exerciseGoals"]
+    static let settingKeys = ["trainerName", "monsterNick", "lastFormID", "discovered", "bodyGender", "mainMonster", "profileUsername", "profileBio", "exerciseGoals", "autoWarmup", "restNotification", "barWeight"]
+
+    enum Setting: Codable {
+        case bool(Bool), number(Double), text(String)
+
+        init?(_ value: Any?) {
+            switch value {
+            // NSNumber de Bool vem como CFBoolean
+            case let n as NSNumber where CFGetTypeID(n) == CFBooleanGetTypeID(): self = .bool(n.boolValue)
+            case let n as NSNumber: self = .number(n.doubleValue)
+            case let s as String: self = .text(s)
+            default: return nil
+            }
+        }
+
+        var value: Any {
+            switch self {
+            case .bool(let b): b
+            case .number(let n): n
+            case .text(let s): s
+            }
+        }
+    }
 
     @MainActor
     static func make(context: ModelContext) throws -> Backup {
         let d = UserDefaults.standard
         return Backup(
             settings: Dictionary(uniqueKeysWithValues: settingKeys.compactMap { k in d.string(forKey: k).map { (k, $0) } }),
+            typedSettings: Dictionary(uniqueKeysWithValues: settingKeys.compactMap { k in Setting(d.object(forKey: k)).map { (k, $0) } }),
             activities: try context.fetch(FetchDescriptor<Activity>()).map {
                 ActivityDTO(uuid: $0.uuid, kind: $0.kindRaw, date: $0.date, minutes: $0.minutes, effort: $0.effort,
-                            note: $0.note, healthUUID: $0.healthUUID, source: $0.source, monsterUUID: $0.monsterUUID, gymUUID: $0.gymUUID)
+                            note: $0.note, healthUUID: $0.healthUUID, source: $0.source, monsterUUID: $0.monsterUUID, gymUUID: $0.gymUUID,
+                            meters: $0.meters, kcal: $0.kcal)
             },
             routines: try context.fetch(FetchDescriptor<Routine>()).map { r in
                 RoutineDTO(uuid: r.uuid, name: r.name, weekdays: r.weekdaysRaw, order: r.order, items: r.sortedItems.map {
@@ -137,7 +178,9 @@ struct Backup: Codable {
             },
             leagues: try context.fetch(FetchDescriptor<League>()).map {
                 LeagueDTO(uuid: $0.uuid, name: $0.name, emoji: $0.emoji, scoring: $0.scoringRaw, start: $0.start, code: $0.code,
-                          isMock: $0.isMock, joinedAt: $0.joinedAt, monsterUUID: $0.monsterUUID, end: $0.end, autoRenew: $0.autoRenew, season: $0.season, seriesID: $0.seriesID, nextUUID: $0.nextUUID)
+                          isMock: $0.isMock, joinedAt: $0.joinedAt, monsterUUID: $0.monsterUUID, end: $0.end, autoRenew: $0.autoRenew, season: $0.season, seriesID: $0.seriesID, nextUUID: $0.nextUUID,
+                          weights: $0.weightsRaw, tieBreak: $0.tieBreakRaw, photoRule: $0.photoRuleRaw, teams: $0.teamsRaw, myTeamID: $0.myTeamID,
+                          cover: $0.isPastSeason ? nil : $0.cover.flatMap { smallCover($0) })
             },
             monsters: try context.fetch(FetchDescriptor<Monster>()).map {
                 MonsterDTO(uuid: $0.uuid, name: $0.name, createdAt: $0.createdAt, isStarter: $0.isStarter, lastFormID: $0.lastFormID, speciesID: $0.speciesID)
@@ -148,7 +191,8 @@ struct Backup: Codable {
             },
             notes: try context.fetch(FetchDescriptor<ExerciseNote>()).map { NoteDTO(exerciseID: $0.exerciseID, text: $0.text) },
             checkIns: try context.fetch(FetchDescriptor<LeagueCheckIn>()).map {
-                CheckInDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, activityUUID: $0.activityUUID, title: $0.title, note: $0.note, date: $0.date)
+                CheckInDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, activityUUID: $0.activityUUID, title: $0.title, note: $0.note, date: $0.date,
+                           hadPhoto: $0.hasPhoto, place: $0.place)
             },
             routes: try context.fetch(FetchDescriptor<RouteRecord>()).map {
                 RouteDTO(uuid: $0.uuid, activityUUID: $0.activityUUID, kind: $0.kindRaw, start: $0.start, seconds: $0.seconds,
@@ -162,15 +206,28 @@ struct Backup: Codable {
             },
             wods: try context.fetch(FetchDescriptor<WodResult>()).map {
                 WodDTO(uuid: $0.uuid, wodID: $0.wodID, wodName: $0.wodName, formatName: $0.formatName, date: $0.date,
-                       seconds: $0.seconds, rounds: $0.rounds, reps: $0.reps, rx: $0.rx, note: $0.note, activityUUID: $0.activityUUID)
+                       seconds: $0.seconds, rounds: $0.rounds, reps: $0.reps, rx: $0.rx, note: $0.note, activityUUID: $0.activityUUID,
+                       capped: $0.capped)
             },
             prs: try context.fetch(FetchDescriptor<PersonalRecord>()).map {
                 PRDTO(uuid: $0.uuid, exerciseID: $0.exerciseID, weight: $0.weight, reps: $0.reps, date: $0.date)
             },
             comments: try context.fetch(FetchDescriptor<CheckInComment>()).map {
-                CommentDTO(uuid: $0.uuid, itemID: $0.itemID, text: $0.text, date: $0.date)
-            }
+                CommentDTO(uuid: $0.uuid, itemID: $0.itemID, text: $0.text, date: $0.date, authorID: $0.authorID, authorName: $0.authorName)
+            },
+            messages: try context.fetch(FetchDescriptor<LeagueMessage>()).map {
+                MessageDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, text: $0.text, date: $0.date, syncedAt: $0.syncedAt)
+            },
+            profilePhoto: d.data(forKey: "profilePhoto")
         )
+    }
+
+    /// Capa em tamanho de miniatura, para o backup continuar pequeno
+    private static func smallCover(_ data: Data) -> Data? {
+        guard let img = UIImage(data: data) else { return nil }
+        let scale = min(1, 640 / max(img.size.width, img.size.height))
+        let size = CGSize(width: img.size.width * scale, height: img.size.height * scale)
+        return UIGraphicsImageRenderer(size: size).image { _ in img.draw(in: CGRect(origin: .zero, size: size)) }.jpegData(compressionQuality: 0.6)
     }
 
     /// Substitui todos os dados atuais pelos do backup
@@ -183,6 +240,7 @@ struct Backup: Codable {
         try context.delete(model: Activity.self)
         try context.delete(model: CustomExercise.self)
         try context.delete(model: LeagueCheckIn.self)
+        try context.delete(model: LeagueMessage.self)
         try context.delete(model: League.self)
         try context.delete(model: Monster.self)
         try context.delete(model: BodyEntry.self)
@@ -201,6 +259,8 @@ struct Backup: Codable {
             act.source = a.source
             act.monsterUUID = a.monsterUUID
             act.gymUUID = a.gymUUID
+            act.meters = a.meters
+            act.kcal = a.kcal
             context.insert(act)
         }
         for r in routines {
@@ -239,6 +299,7 @@ struct Backup: Codable {
             e.uuid = c.uuid
             context.insert(e)
         }
+        var restoredLeagues: [League] = []
         for l in leagues ?? [] {
             let league = League(name: l.name, emoji: l.emoji, scoring: LeagueScoring(rawValue: l.scoring) ?? .pontos, start: l.start, isMock: l.isMock)
             league.uuid = l.uuid
@@ -250,8 +311,18 @@ struct Backup: Codable {
             league.season = l.season ?? 1
             league.seriesID = l.seriesID
             league.nextUUID = l.nextUUID
+            league.weightsRaw = l.weights ?? ""
+            league.tieBreakRaw = l.tieBreak ?? LeagueTieBreak.primeiro.rawValue
+            league.photoRuleRaw = l.photoRule ?? PhotoRule.livre.rawValue
+            league.teamsRaw = l.teams ?? ""
+            league.myTeamID = l.myTeamID
+            league.cover = l.cover
             context.insert(league)
+            restoredLeagues.append(league)
         }
+        // Temporadas passadas ficam com a capa da temporada atual da mesma liga
+        let covers = Dictionary(restoredLeagues.compactMap { l in l.cover.map { (l.seriesKey, $0) } }, uniquingKeysWith: { a, _ in a })
+        for l in restoredLeagues where l.cover == nil { l.cover = covers[l.seriesKey] }
         for b in body ?? [] {
             let e = BodyEntry(date: b.date, weight: b.weight)
             e.uuid = b.uuid
@@ -282,17 +353,25 @@ struct Backup: Codable {
             restoredGyms[g.uuid] = gym
         }
         for v in visits ?? [] {
-            // Visitas de backups antigos (sem lugar) ficam no primeiro lugar com o mesmo nome, ou num novo
+            // Visitas de backups antigos (sem lugar) ficam no lugar com o mesmo nome. Sem lugar correspondente, a visita
+            // fica sem lugar (conta nas idas do mês, com o nome guardado) em vez de apontar para um lugar que não existe.
             let gym = v.gymUUID.flatMap { restoredGyms[$0] } ?? restoredGyms.values.first { $0.name == v.gymName }
-                ?? Gym(name: v.gymName, coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0))
-            let visit = GymVisit(gym: gym)
+            let visit = GymVisit(gym: gym ?? Gym(name: v.gymName, coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0)))
+            if gym == nil { visit.gymUUID = nil }
             visit.uuid = v.uuid; visit.start = v.start; visit.end = v.end
             context.insert(visit)
         }
         for c in comments ?? [] {
-            let x = CheckInComment(itemID: c.itemID, text: c.text)
+            let x = CheckInComment(itemID: c.itemID, text: c.text, authorID: c.authorID ?? "me", authorName: c.authorName ?? "")
             x.uuid = c.uuid
             x.date = c.date
+            context.insert(x)
+        }
+        for m in messages ?? [] {
+            let x = LeagueMessage(leagueUUID: m.leagueUUID, text: m.text)
+            x.uuid = m.uuid
+            x.date = m.date
+            x.syncedAt = m.syncedAt
             context.insert(x)
         }
         for p in prs ?? [] {
@@ -304,18 +383,22 @@ struct Backup: Codable {
         for w in wods ?? [] {
             let r = WodResult(wodID: w.wodID, wodName: w.wodName, formatName: w.formatName)
             r.uuid = w.uuid; r.date = w.date; r.seconds = w.seconds; r.rounds = w.rounds; r.reps = w.reps
-            r.rx = w.rx; r.note = w.note; r.activityUUID = w.activityUUID
+            r.rx = w.rx; r.note = w.note; r.activityUUID = w.activityUUID; r.capped = w.capped ?? false
             context.insert(r)
         }
         for c in checkIns ?? [] {
             let ci = LeagueCheckIn(leagueUUID: c.leagueUUID, activityUUID: c.activityUUID, title: c.title, note: c.note, date: c.date, photo: nil)
             ci.uuid = c.uuid
+            ci.hadPhoto = c.hadPhoto ?? false
+            ci.place = c.place
             context.insert(ci)
         }
         try context.save()
 
         let d = UserDefaults.standard
-        for k in Backup.settingKeys { d.set(settings[k], forKey: k) }
+        for k in Backup.settingKeys { d.set(typedSettings?[k]?.value ?? settings[k], forKey: k) }
+        // Backup sem foto do perfil (antigo) mantém a atual
+        if let profilePhoto { d.set(profilePhoto, forKey: "profilePhoto") }
         // Backups antigos não têm a coleção de monstros
         Roster.ensureStarter(context: context)
     }

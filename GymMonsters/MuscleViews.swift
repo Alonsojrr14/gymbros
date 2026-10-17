@@ -129,7 +129,7 @@ struct ExerciseInfoView: View {
 
     var body: some View {
         let m = exercise.muscles
-        GMModal(exercise.name, cancel: "Fechar") {
+        GMModal(exercise.name) {
             if !exercise.photoAssets.isEmpty {
                 ExercisePhotos(exercise: exercise)
             }
@@ -139,7 +139,7 @@ struct ExerciseInfoView: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Theme.accent, in: .rect(cornerRadius: 16))
+                        .background(Theme.accent, in: .rect(cornerRadius: Theme.radiusL))
                         .foregroundStyle(.black)
                 }
                 .buttonStyle(GMPress())
@@ -150,7 +150,7 @@ struct ExerciseInfoView: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color(red: 0.9, green: 0.2, blue: 0.2), in: .rect(cornerRadius: 16))
+                        .background(Theme.video, in: .rect(cornerRadius: Theme.radiusL))
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(GMPress())

@@ -20,6 +20,10 @@ final class Activity {
     var gymUUID: UUID?
     /// Treino que o GymBros gravou no app Saúde para esta atividade
     var healthWrittenUUID: String?
+    /// Distância em metros (GPS do app ou Apple Saúde)
+    var meters: Double?
+    /// Calorias ativas vindas do Apple Saúde
+    var kcal: Double?
 
     init(kind: ActivityKind, date: Date, minutes: Int, effort: Int, note: String = "") {
         self.kindRaw = kind.rawValue
@@ -38,13 +42,6 @@ final class Activity {
 }
 
 // MARK: - Tema
-
-enum Theme {
-    static let bg = Color(red: 0.05, green: 0.06, blue: 0.08)
-    static let card = Color(red: 0.10, green: 0.11, blue: 0.14)
-    static let accent = Color(red: 0.64, green: 0.90, blue: 0.21)
-    static let dim = Color.white.opacity(0.55)
-}
 
 extension Attribute {
     var color: Color {

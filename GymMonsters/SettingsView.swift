@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 import UserNotifications
+import WidgetKit
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
@@ -16,7 +17,6 @@ struct SettingsView: View {
     @AppStorage("restNotification") private var restNotification = false
     @AppStorage("weeklySummary") private var weeklySummary = true
     @AppStorage("autoWarmup") private var autoWarmup = true
-    @AppStorage("barCountsBar") private var barCountsBar = false
     @State private var healthOn = HealthSync.enabled
     @State private var healthWrite = HealthSync.writeEnabled
     @State private var healthStatus: String?
@@ -28,7 +28,7 @@ struct SettingsView: View {
     @State private var backupMessage: String?
 
     var body: some View {
-        GMModal("Ajustes", cancel: "Fechar") {
+        GMModal("Ajustes") {
             GMSection("Treinador") {
                 GMTextField(placeholder: "Seu nome", text: $trainerName, capitalization: .words)
             }
@@ -64,9 +64,6 @@ struct SettingsView: View {
             GMSection("Aquecimento", footer: "Ao começar uma rotina, o primeiro exercício com carga ganha 3 séries leves (40 %, 60 % e 80 % da carga). Elas não contam para recordes, progressão nem volume. No menu ⋯ de cada exercício dá para adicionar ou tirar.") {
                 GMToggle(title: "Aquecimento automático", isOn: $autoWarmup)
             }
-            GMSection("Carga na barra", footer: "Na musculação é comum anotar só as anilhas. Exercícios de CrossFit sempre contam o total com a barra; polia e máquina não têm barra.") {
-                GMSegmented(options: [(false, "Só anilhas"), (true, "Total com barra")], selection: $barCountsBar)
-            }
 
             if HealthSync.available {
                 GMSection("Apple Saúde", footer: "Corridas, caminhadas, vôlei e outros treinos do iPhone ou Apple Watch viram atividades automaticamente ao abrir o app (na primeira vez, os últimos \(HealthSync.firstImportDays) dias). Treinos que coincidem com algo já registrado aqui não contam duas vezes. Gravando, o que você registra aqui (musculação, WOD, corrida…) vai para o Saúde com calorias estimadas e conta nos anéis do Fitness.") {
@@ -94,7 +91,7 @@ struct SettingsView: View {
                 }
             }
 
-            GMSection(footer: "Apaga todas as atividades e bros e devolve um ovo novo. Ligas e rotinas continuam.") {
+            GMSection(footer: Self.resetText + " Rotinas, lugares, medidas e seu nome continuam.") {
                 GMRow(icon: "arrow.counterclockwise", iconTint: Theme.danger, title: "Recomeçar jornada") { confirmReset = true }
             }
             GMSection("Como funciona") {
@@ -104,7 +101,7 @@ struct SettingsView: View {
             }
         }
         .gmActions(isPresented: $confirmReset, title: "Recomeçar a jornada?",
-                   message: "Apaga atividades e bros e devolve um ovo novo.",
+                   message: Self.resetText + " Não dá para desfazer.",
                    actions: [GMAction("Recomeçar", icon: "arrow.counterclockwise", destructive: true, action: reset)])
         .gmActions(isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
                    title: "Restaurar backup?", message: restoreTitle,
@@ -112,6 +109,9 @@ struct SettingsView: View {
                        do {
                            try b.restore(into: context)
                            backupMessage = "Backup restaurado: \(b.activities.count) atividades."
+                           // Os lugares mudaram: volta a monitorar os restaurados
+                           if GymLocation.shared.insideGym == nil { GymLocation.shared.insideID = nil }
+                           GymLocation.shared.startMonitoring()
                        } catch {
                            backupMessage = "Falha ao restaurar: \(error.localizedDescription)"
                        }
@@ -196,19 +196,34 @@ struct SettingsView: View {
         monsters.first { $0.uuid == MainMonster.id } ?? monsters.first { $0.isStarter }
     }
 
+    /// O que "Recomeçar jornada" faz (mesmo texto no rodapé e na confirmação)
+    static let resetText = "Apaga as atividades e tudo ligado a elas (treinos guiados, check-ins no perfil e nas ligas, percursos, WODs), os bros, as conquistas já vistas e os carinhos do widget, e devolve um ovo novo. Você continua nas ligas, agora representado pelo ovo novo e com placar zerado."
+
     private func reset() {
+        // Tudo que depende das atividades sai junto, para nada ficar apontando para atividade apagada
+        let ids = Set(((try? context.fetch(FetchDescriptor<Activity>())) ?? []).map(\.uuid))
+        let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>())) ?? []
+        let postIDs = Set(posts.map(\.uuid.uuidString))
+        ((try? context.fetch(FetchDescriptor<CheckInComment>())) ?? []).filter { postIDs.contains($0.itemID) }.forEach(context.delete)
+        posts.forEach(context.delete)
+        ((try? context.fetch(FetchDescriptor<RouteRecord>())) ?? []).filter { $0.activityUUID.map(ids.contains) ?? true }.forEach(context.delete)
+        ((try? context.fetch(FetchDescriptor<WodResult>())) ?? []).filter { $0.activityUUID.map(ids.contains) ?? false }.forEach(context.delete)
+        // O treino em andamento (ainda sem atividade) continua
+        ((try? context.fetch(FetchDescriptor<WorkoutSession>())) ?? []).filter { $0.activityUUID.map(ids.contains) ?? false }.forEach(context.delete)
         try? context.delete(model: Activity.self)
         try? context.save()
         // Só treinos do Saúde feitos daqui para frente alimentam o ovo novo
         HealthSync.lastSync = .now
-        // Volta a ter um monstro só: o novo ovo inicial é criado ao reabrir
+        // Volta a ter um monstro só: o ovo inicial novo, que passa a representar você nas ligas
         try? context.delete(model: Monster.self)
         try? context.save()
         MainMonster.id = nil
-        UserDefaults.standard.removeObject(forKey: "monsterNick")
-        discovered = ""
-        lastFormID = ""
-        trainerName = ""
+        let d = UserDefaults.standard
+        for k in ["monsterNick", "lastFormID", "discovered", "achievementsSeen"] { d.removeObject(forKey: k) }
+        WidgetData.defaults?.removeObject(forKey: "pets")
+        WidgetCenter.shared.reloadAllTimelines()
+        Roster.ensureStarter(context: context)
+        PRBook.reload()
         dismiss()
     }
 }

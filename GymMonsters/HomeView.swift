@@ -9,7 +9,7 @@ struct HomeView: View {
     let monsterName: String
     var onDex: () -> Void = {}
     @AppStorage("trainerName") private var trainerName = ""
-    @State private var team = false
+    @State private var friends = false
     @State private var logging = false
     @State private var settings = false
 
@@ -20,13 +20,14 @@ struct HomeView: View {
                     if snapshot.streak > 0 {
                         Label("\(snapshot.streak)", systemImage: "flame.fill")
                             .font(.subheadline.bold())
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Theme.streak)
                             .padding(.horizontal, 12).padding(.vertical, 9)
                             .background(Theme.raised, in: .capsule)
+                            .accessibilityLabel("\(snapshot.streak) dias seguidos")
                     }
-                    GMIconButton(icon: "square.grid.3x3.fill") { onDex() }
-                    GMIconButton(icon: "square.stack.3d.up") { team = true }
-                    GMIconButton(icon: "gearshape") { settings = true }
+                    GMIconButton(icon: "person.2.fill", label: "Amigos") { friends = true }
+                    GMIconButton(icon: "square.stack.3d.up", label: "Bros") { onDex() }
+                    GMIconButton(icon: "gearshape", label: "Ajustes") { settings = true }
                 }
             } content: {
                 monsterCard
@@ -36,12 +37,12 @@ struct HomeView: View {
             }
             .gmModal(isPresented: $logging) { LogActivityView(snapshot: snapshot) }
             .gmModal(isPresented: $settings) { SettingsView() }
-            .gmModal(isPresented: $team) { TeamView() }
+            .gmModal(isPresented: $friends) { FriendsView() }
         }
     }
 
     private var monsterCard: some View {
-        VStack(spacing: 14) {
+        GMCard(padding: 18) { VStack(spacing: 14) {
             SpeechBubble(text: line, emoji: mood.emoji)
             LivingMonster(form: snapshot.form, progress: snapshot.progress)
                 // Triste ou entediado, o monstro perde a cor
@@ -50,7 +51,8 @@ struct HomeView: View {
 
             VStack(spacing: 4) {
                 Text(monsterName)
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
+                    .gmFont(28, weight: .heavy, design: .rounded, relativeTo: .title)
+                    .lineLimit(1).minimumScaleFactor(0.6)
                 HStack(spacing: 8) {
                     Text(snapshot.stage.name)
                     if let a = snapshot.form.attribute {
@@ -92,15 +94,13 @@ struct HomeView: View {
                     .foregroundStyle(Theme.dim)
             }
         }
-        .padding(18)
-        .frame(maxWidth: .infinity)
-        .background(Theme.card, in: .rect(cornerRadius: 22))
+        .frame(maxWidth: .infinity) }
     }
 
     private var attributesCard: some View {
         let attrs = snapshot.stageAttributes
         let maxValue = max(attrs.values.max() ?? 0, 1)
-        return VStack(alignment: .leading, spacing: 12) {
+        return GMCard(padding: 18) {
             HStack {
                 Text("Treinos desta fase").font(.headline)
                 Spacer()
@@ -116,15 +116,8 @@ struct HomeView: View {
             ForEach(Attribute.allCases) { a in
                 HStack(spacing: 10) {
                     Image(systemName: a.symbol).foregroundStyle(a.color).frame(width: 20)
-                    Text(a.name).font(.subheadline).frame(width: 96, alignment: .leading)
-                    GeometryReader { g in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(.white.opacity(0.08))
-                            Capsule().fill(a.color)
-                                .frame(width: g.size.width * (attrs[a] ?? 0) / maxValue)
-                        }
-                    }
-                    .frame(height: 8)
+                    Text(a.name).font(.subheadline).lineLimit(1).minimumScaleFactor(0.7).frame(width: 96, alignment: .leading)
+                    GMProgressBar(value: (attrs[a] ?? 0) / maxValue, tint: a.color)
                     Text("\(Int(attrs[a] ?? 0))")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(Theme.dim)
@@ -137,12 +130,10 @@ struct HomeView: View {
                 .font(.caption)
                 .foregroundStyle(Theme.dim)
         }
-        .padding(18)
-        .background(Theme.card, in: .rect(cornerRadius: 22))
     }
 
     private var recentCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        GMCard(padding: 18) {
             Text("Últimas atividades").font(.headline)
             ForEach(activities.prefix(3)) { a in
                 NavigationLink { ActivityDetailView(activity: a, snapshot: snapshot) } label: {
@@ -151,9 +142,6 @@ struct HomeView: View {
                 .buttonStyle(GMPress())
             }
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: .rect(cornerRadius: 22))
     }
 }
 
@@ -186,7 +174,7 @@ struct ActivityRow: View {
             Image(systemName: activity.kind.symbol)
                 .font(.title3)
                 .frame(width: 40, height: 40)
-                .background(.white.opacity(0.07), in: .rect(cornerRadius: 10))
+                .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusS))
             VStack(alignment: .leading, spacing: 2) {
                 Text(activity.kind.name).font(.subheadline.weight(.semibold))
                 Text("\(durationText(activity.minutes)) · \(effortLabel(activity.effort)) · \(activity.date.formatted(.dateTime.day().month(.abbreviated)))")
@@ -198,7 +186,8 @@ struct ActivityRow: View {
             }
             Spacer()
             if activity.healthUUID != nil {
-                Image(systemName: "heart.fill").font(.caption2).foregroundStyle(.pink)
+                Image(systemName: "heart.fill").font(.caption2).foregroundStyle(Theme.health)
+                    .accessibilityLabel("Do app Saúde")
             }
             Text("+\(xp) XP")
                 .font(.subheadline.weight(.bold).monospacedDigit())
@@ -220,10 +209,10 @@ struct SpeechBubble: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(.white.opacity(0.07), in: .rect(cornerRadius: 14))
+        .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
         .overlay(alignment: .bottom) {
             // Pontinha do balão apontando para o monstro
-            Triangle().fill(.white.opacity(0.07)).frame(width: 16, height: 8).offset(y: 8)
+            Triangle().fill(Theme.raised).frame(width: 16, height: 8).offset(y: 8)
         }
         .padding(.bottom, 4)
         .contentTransition(.opacity)

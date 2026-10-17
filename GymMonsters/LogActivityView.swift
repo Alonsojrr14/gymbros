@@ -28,18 +28,23 @@ struct LogActivityView: View {
 
     @State private var loaded = false
 
-    /// XP desta atividade e o bro antes/depois. Na edição, a versão antiga sai da conta
+    /// XP desta atividade e o estágio de antes de cada bro que vai evoluir com ela. Os donos seguem a
+    /// regra do Roster com os destinos marcados agora; na edição, a versão antiga sai da conta
     /// (senão somaria o treino duas vezes e avisaria de uma evolução que não vai acontecer).
-    private var preview: (xp: Int, before: Snapshot, after: Snapshot) {
+    private var preview: (xp: Int, grows: [Stage]) {
         let id = editing?.uuid ?? UUID()
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
-        // Bro que recebe o XP desta atividade (na edição, o que já recebia)
-        let owner = editing.flatMap { e in roster.records.first { $0.value.contains { $0.id == e.uuid } }?.key } ?? roster.mainID
-        let current = owner.flatMap { roster.records[$0] } ?? []
-        let others = current.filter { $0.id != id }
+        let owners = roster.owners(leagueIDs: leagues, owner: editing == nil ? roster.mainID : editing?.monsterUUID)
         let new = ActivityRecord(id: id, kind: kind, date: date, minutes: minutes, effort: effort)
-        let after = Game.snapshot(others + [new])
-        return (after.xpByActivity[id] ?? 0, Game.snapshot(current), after)
+        var xp = 0, grows: [Stage] = []
+        for o in owners {
+            let current = roster.records[o] ?? []
+            let before = Game.cachedSnapshot(current), after = Game.snapshot(current.filter { $0.id != id } + [new])
+            // Vários donos: mostra o maior, como nas listas
+            xp = max(xp, after.xpByActivity[id] ?? 0)
+            if after.stage > before.stage { grows.append(before.stage) }
+        }
+        return (xp, grows)
     }
 
     var body: some View {
@@ -126,8 +131,10 @@ struct LogActivityView: View {
                     }
                 }
             }
-            if p.after.stage > p.before.stage {
-                Text(p.before.stage == .egg ? "Isso vai fazer o ovo chocar! 🥚" : "Isso vai fazer seu bro evoluir! ✨")
+            if !p.grows.isEmpty {
+                let eggs = p.grows.allSatisfy { $0 == .egg }, many = p.grows.count > 1
+                Text(eggs ? (many ? "Isso vai fazer os ovos chocarem! 🥚" : "Isso vai fazer o ovo chocar! 🥚")
+                          : (many ? "Isso vai fazer seus bros evoluírem! ✨" : "Isso vai fazer seu bro evoluir! ✨"))
                     .font(.subheadline.bold())
             } else if p.xp < Game.xp(kind: kind, minutes: minutes, effort: effort) {
                 Text("Você já treinou bastante nesse dia, então rende menos XP. Descanso também faz parte.")
@@ -181,8 +188,8 @@ struct ActivityKindGrid: View {
                         Text(k.name).font(.caption2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
                     }
                     .frame(maxWidth: .infinity, minHeight: 66)
-                    .background(on ? Theme.accent.opacity(0.2) : Theme.raised, in: .rect(cornerRadius: 14))
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(on ? Theme.accent : .clear, lineWidth: 1.5))
+                    .background(on ? Theme.accent.opacity(0.2) : Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(on ? Theme.accent : .clear, lineWidth: 1.5))
                     .foregroundStyle(on ? Theme.accent : .white)
                 }
                 .buttonStyle(GMPress())

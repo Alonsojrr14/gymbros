@@ -10,13 +10,22 @@ struct DexView: View {
 
     var body: some View {
         NavigationStack {
-            GMScreen(tab == 0 ? "Dex" : "Conquistas",
-                     subtitle: tab == 0 ? "\(discovered.count) de \(DexView.allForms.count) formas descobertas"
-                                        : "\(achievements.filter(\.unlocked).count) de \(achievements.count) desbloqueadas",
-                     back: modal, avatar: !modal) {
-                GMSegmented(options: [(0, "Bros"), (1, "Conquistas")], selection: $tab)
-                if tab == 0 { monsters } else { trophies }
+            GMScreen(["Meus bros", "Dex", "Conquistas"][tab], subtitle: subtitle, back: modal, avatar: !modal) {
+                GMSegmented(options: [(0, "Meus bros"), (1, "Dex"), (2, "Conquistas")], selection: $tab)
+                switch tab {
+                case 0: MyBrosList()
+                case 1: monsters
+                default: trophies
+                }
             }
+        }
+    }
+
+    private var subtitle: String {
+        switch tab {
+        case 0: "Seu principal e os que te representam nas ligas"
+        case 1: "\(discovered.count) de \(DexView.allForms.count) formas descobertas"
+        default: "\(achievements.filter(\.unlocked).count) de \(achievements.count) desbloqueadas"
         }
     }
 
@@ -26,7 +35,7 @@ struct DexView: View {
                 VStack(spacing: 8) {
                     Image(systemName: a.symbol)
                         .font(.system(size: 30))
-                        .foregroundStyle(a.unlocked ? Color.yellow : Theme.dim)
+                        .foregroundStyle(a.unlocked ? Theme.trophy : Theme.dim)
                         .frame(height: 38)
                     Text(a.title).font(.subheadline.bold()).multilineTextAlignment(.center)
                     Text(a.detail).font(.caption).foregroundStyle(Theme.dim).multilineTextAlignment(.center)
@@ -36,7 +45,7 @@ struct DexView: View {
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, minHeight: 150)
-                .background(Theme.card, in: .rect(cornerRadius: 18))
+                .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
                 .opacity(a.unlocked ? 1 : 0.7)
             }
         }
@@ -112,8 +121,8 @@ struct DexView: View {
             }
             .frame(width: 92)
             .padding(.vertical, 12)
-            .background(Theme.card, in: .rect(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(selected ? Theme.accent : .clear, lineWidth: 2))
+            .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(selected ? Theme.accent : .clear, lineWidth: 2))
             .opacity(ready ? 1 : 0.45)
         }
         .buttonStyle(GMPress())
@@ -126,7 +135,7 @@ struct DexView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(sp.name).font(.title2.weight(.heavy))
-                    Text(sp.affinity.map { "Nasce de ovos chocados com treinos de \($0.name)" } ?? "Nasce quando nenhuma outra espécie combina")
+                    Text(sp.affinity.map { "Nasce de ovos chocados com treinos de \($0.name)" } ?? "Nasce de ovos chocados com treinos equilibrados, sem atributo dominante")
                         .font(.caption).foregroundStyle(Theme.dim)
                 }
                 Spacer()
@@ -179,7 +188,8 @@ struct DexView: View {
                                         Image(systemName: b.symbol).foregroundStyle(b.color)
                                     }
                                     .font(.subheadline)
-                                    Text("\(a.name) + \(b.name)").font(.system(size: 9, weight: .bold)).multilineTextAlignment(.center)
+                                    Text("\(a.name) + \(b.name)").gmFont(9, weight: .bold, relativeTo: .caption2).multilineTextAlignment(.center)
+                                        .minimumScaleFactor(0.6)
                                 }
                                 .frame(width: 62)
                                 node(champ, size: 76)
@@ -204,11 +214,11 @@ struct DexView: View {
             MonsterSprite(form: f, hidden: !known).frame(width: size, height: size)
             Text(known ? f.name : "???").font(.caption.bold()).lineLimit(1).minimumScaleFactor(0.7)
             Text(f.stage == .egg ? "início" : "\(f.stage.name) · \(f.stage.threshold) XP")
-                .font(.system(size: 9).monospacedDigit()).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.7)
+                .gmFont(9, mono: true, relativeTo: .caption2).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.5)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
-        .background(current ? Theme.accent.opacity(0.12) : .clear, in: .rect(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(current ? Theme.accent : .clear, lineWidth: 1.5))
+        .background(current ? Theme.accent.opacity(0.12) : .clear, in: .rect(cornerRadius: Theme.radiusM))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(current ? Theme.accent : .clear, lineWidth: 1.5))
     }
 }

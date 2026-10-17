@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Alternativas para o mesmo músculo: as que você já fez primeiro, depois por equipamento diferente
+/// Alternativas para o mesmo músculo: as que você já fez primeiro, depois o mesmo tipo de carga (equipamento) do atual
 struct SwapExerciseView: View {
     let current: String
     /// Exercícios que já estão no treino
@@ -14,17 +14,23 @@ struct SwapExerciseView: View {
 
     private var options: [Exercise] {
         guard let base else { return [] }
+        return Self.ranked(base: base, candidates: Exercise.all, exclude: exclude, history: history)
+    }
+
+    /// Mesmo grupo, sem o atual e os que já estão no treino; ordem: já feitos (mais vezes primeiro),
+    /// mesmo tipo de carga (barra por barra, máquina por máquina…), nome
+    static func ranked(base: Exercise, candidates: [Exercise], exclude: Set<String>, history: [SessionLog]) -> [Exercise] {
         var count: [String: Int] = [:]
         for s in history { for id in Set(s.sets.map(\.exerciseID)) { count[id, default: 0] += 1 } }
-        return Exercise.all
-            .filter { $0.group == base.group && $0.id != current && !exclude.contains($0.id) }
+        return candidates
+            .filter { $0.group == base.group && $0.id != base.id && !exclude.contains($0.id) }
             .sorted { a, b in
                 let ca = count[a.id] ?? 0, cb = count[b.id] ?? 0
                 if ca != cb { return ca > cb }
-                // Mesmo tipo de carga primeiro (barra por barra, máquina por máquina…)
+                // Mesmo tipo de carga primeiro
                 let ea = a.equipment == base.equipment, eb = b.equipment == base.equipment
-                if ea != eb { return !ea }
-                return a.name < b.name
+                if ea != eb { return ea }
+                return a.name.localizedStandardCompare(b.name) == .orderedAscending
             }
     }
 

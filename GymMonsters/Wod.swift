@@ -106,6 +106,8 @@ final class WodResult {
     var rx: Bool = true
     var note: String = ""
     var activityUUID: UUID?
+    /// For Time que estourou o limite (time cap): não terminou; `seconds` é o limite e `reps` o que deu para fazer
+    var capped: Bool = false
 
     init(wodID: String, wodName: String, formatName: String) {
         self.wodID = wodID
@@ -114,6 +116,7 @@ final class WodResult {
     }
 
     var text: String {
+        if capped { return "CAP" + ((reps ?? 0) > 0 ? " · \(reps!) reps" : "") }
         if let seconds { return clock(seconds) }
         if let rounds { return "\(rounds) rodadas" + ((reps ?? 0) > 0 ? " + \(reps!)" : "") }
         return "Concluído"
@@ -121,6 +124,8 @@ final class WodResult {
 
     /// Para comparar resultados (maior = melhor)
     var score: Double {
+        // Estourar o limite fica abaixo de qualquer tempo terminado; entre os CAPs, mais reps é melhor
+        if capped { return -10_000_000 + Double(reps ?? 0) }
         if let seconds { return -Double(seconds) }
         return Double(rounds ?? 0) * 1000 + Double(reps ?? 0)
     }
@@ -145,7 +150,7 @@ struct WodListView: View {
                     let list = Wod.benchmarks.filter { $0.category == cat }
                     ForEach(list) { w in
                         NavigationLink { WodDetailView(wod: w) } label: {
-                            GMRow(icon: "flame.fill", iconTint: .orange, title: w.name, subtitle: w.format.name, chevron: true) {
+                            GMRow(icon: "flame.fill", iconTint: Theme.streak, title: w.name, subtitle: w.format.name, chevron: true) {
                                 if let best = best(w) { Text(best.text).font(.subheadline.bold().monospacedDigit()).foregroundStyle(Theme.accent) }
                             }
                         }
@@ -252,7 +257,7 @@ struct WodTimerView: View {
     @State private var pausedTotal: TimeInterval = 0
     @State private var countdownEnd: Date?
     @State private var counter = WodCounter()
-    @State private var finished: Int?
+    @State private var finished: FinishedWod?
     @State private var lastTick = -1
     @State private var confirmQuit = false
     @State private var gymID: UUID?
@@ -293,7 +298,8 @@ struct WodTimerView: View {
                 Spacer()
                 if let end = countdownEnd, end > now {
                     Text("\(Int(end.timeIntervalSince(now).rounded(.up)))")
-                        .font(.system(size: 120, weight: .heavy, design: .rounded))
+                        .gmFont(120, weight: .heavy, design: .rounded, relativeTo: .largeTitle)
+                        .lineLimit(1).minimumScaleFactor(0.4)
                         .foregroundStyle(Theme.accent)
                     Text("Prepare-se").font(.title3.bold())
                 } else {
@@ -341,13 +347,17 @@ struct WodTimerView: View {
         .gmActions(isPresented: $confirmQuit, title: "Sair do WOD?", message: "O tempo não será salvo.", actions: [
             GMAction("Sair sem salvar", icon: "xmark", destructive: true) { dismiss() }
         ])
-        .gmModal(item: Binding(get: { finished.map { FinishedWod(seconds: $0) } }, set: { if $0 == nil { finished = nil } })) { f in
-            WodResultForm(wod: wod, seconds: f.seconds, rounds: counter.rounds, gymID: gymID) { dismiss() }
+        .gmModal(item: $finished) { f in
+            WodResultForm(wod: wod, seconds: f.seconds, rounds: counter.rounds, gymID: gymID, capped: f.capped, startedAt: f.startedAt) { dismiss() }
         }
     }
 
     struct FinishedWod: Identifiable {
         let seconds: Int
+        /// For Time encerrado pelo limite
+        var capped = false
+        /// Início real (o tempo de pausa não está em `seconds`)
+        var startedAt: Date?
         var id: Int { seconds }
     }
 
@@ -373,15 +383,15 @@ struct WodTimerView: View {
             let round = min(s / 30 + 1, r)
             let work = s % 30 < 20
             big(clock(work ? 20 - s % 30 : 30 - s % 30))
-                .foregroundStyle(work ? Theme.accent : .orange)
-            Text(work ? "ESFORÇO" : "DESCANSO").font(.title2.weight(.heavy)).foregroundStyle(work ? Theme.accent : .orange)
+                .foregroundStyle(work ? Theme.accent : Theme.warning)
+            Text(work ? "ESFORÇO" : "DESCANSO").font(.title2.weight(.heavy)).foregroundStyle(work ? Theme.accent : Theme.warning)
             Text("Rodada \(round) de \(r)").foregroundStyle(Theme.dim)
         }
     }
 
     private func big(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 92, weight: .heavy, design: .rounded).monospacedDigit())
+            .gmFont(92, weight: .heavy, design: .rounded, mono: true, relativeTo: .largeTitle)
             .minimumScaleFactor(0.5)
             .lineLimit(1)
             .contentTransition(.numericText())
@@ -389,7 +399,7 @@ struct WodTimerView: View {
 
     private var roundCounter: some View {
         HStack(spacing: 14) {
-            GMIconButton(icon: "minus", size: 44) { counter.rounds = max(counter.rounds - 1, 0) }
+            GMIconButton(icon: "minus", size: 44, label: "Tirar rodada") { counter.rounds = max(counter.rounds - 1, 0) }
             VStack(spacing: 0) {
                 Text("\(counter.rounds)").font(.largeTitle.bold().monospacedDigit())
                 Text("rodadas").font(.caption).foregroundStyle(Theme.dim)
@@ -494,7 +504,10 @@ struct WodTimerView: View {
         Task { await LiveWod.end() }
         beep(long: true)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        finished = max(Int(e), 1)
+        // For Time que chegou no limite: é CAP, não "terminou no tempo-limite"
+        var capped = false
+        if case .forTime(let cap?) = wod.format, Int(e) >= cap * 60 { capped = true }
+        finished = FinishedWod(seconds: max(Int(e), 1), capped: capped, startedAt: startedAt)
     }
 
     private func beep(long: Bool) {
@@ -510,6 +523,10 @@ struct WodResultForm: View {
     let seconds: Int
     let rounds: Int
     var gymID: UUID? = nil
+    /// For Time encerrado pelo limite
+    var capped = false
+    /// Início real do WOD (com pausas, `seconds` sozinho não diz quando começou)
+    var startedAt: Date? = nil
     let onDone: () -> Void
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -526,8 +543,12 @@ struct WodResultForm: View {
             GMCard {
                 Text(wod.name).font(.title2.weight(.heavy))
                 switch wod.format {
+                case .forTime where capped:
+                    Text("CAP").gmFont(48, weight: .heavy, design: .rounded, relativeTo: .largeTitle).foregroundStyle(Theme.warning)
+                    Text("Tempo esgotado no limite de \(clock(seconds)): não conta como terminado.").font(.caption).foregroundStyle(Theme.dim)
+                    GMStepper(title: "Repetições feitas", value: $extraReps, range: 0...2000)
                 case .forTime:
-                    Text(clock(seconds)).font(.system(size: 48, weight: .heavy, design: .rounded).monospacedDigit()).foregroundStyle(Theme.accent)
+                    Text(clock(seconds)).gmFont(48, weight: .heavy, design: .rounded, mono: true, relativeTo: .largeTitle).lineLimit(1).minimumScaleFactor(0.5).foregroundStyle(Theme.accent)
                 case .amrap:
                     GMStepper(title: "Rodadas", value: $roundsDone, range: 0...200)
                     GMStepper(title: "Repetições extras", value: $extraReps, range: 0...500)
@@ -548,13 +569,16 @@ struct WodResultForm: View {
     private func save() {
         let r = WodResult(wodID: wod.id, wodName: wod.name, formatName: wod.format.name)
         switch wod.format {
-        case .forTime: r.seconds = seconds
+        case .forTime:
+            r.seconds = seconds
+            if capped { r.capped = true; r.reps = extraReps }
         case .amrap: r.rounds = roundsDone; r.reps = extraReps
         default: break
         }
         r.rx = rx
         r.note = note
-        let activity = Activity(kind: .crossfit, date: Date.now.addingTimeInterval(-TimeInterval(seconds)),
+        // Data = início real; `seconds` é só o tempo ativo (sem as pausas)
+        let activity = Activity(kind: .crossfit, date: startedAt ?? Date.now.addingTimeInterval(-TimeInterval(seconds)),
                                 minutes: max(seconds / 60, 1), effort: effort, note: "\(wod.name) · \(r.text)")
         activity.gymUUID = gymID
         context.insert(activity)

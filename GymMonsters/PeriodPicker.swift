@@ -22,11 +22,11 @@ struct GMRangeCalendar: View {
         let cells: [Date?] = Array(repeating: nil, count: lead) + (0..<days).map { cal.date(byAdding: .day, value: $0, to: first) }
         VStack(spacing: 12) {
             HStack {
-                GMIconButton(icon: "chevron.left", size: 36) { shift(-1) }
+                GMIconButton(icon: "chevron.left", size: 36, label: "Anterior") { shift(-1) }
                 Spacer()
                 Text(first.formatted(.dateTime.month(.wide).year()).capitalizedFirst).font(.headline)
                 Spacer()
-                GMIconButton(icon: "chevron.right", size: 36) { shift(1) }
+                GMIconButton(icon: "chevron.right", size: 36, label: "Próximo") { shift(1) }
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 4) {
                 ForEach(Array(["D", "S", "T", "Q", "Q", "S", "S"].enumerated()), id: \.offset) { _, d in
@@ -109,7 +109,7 @@ struct LeaguePeriodField: View {
                 Image(systemName: "calendar")
                     .font(.body.weight(.semibold))
                     .frame(width: 40, height: 40)
-                    .background(Theme.raised, in: .rect(cornerRadius: 12))
+                    .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(Self.range(start, hasEnd ? end : nil)).font(.subheadline.weight(.bold))
                     Text(Self.detail(start, hasEnd ? end : nil)).font(.caption).foregroundStyle(Theme.dim)

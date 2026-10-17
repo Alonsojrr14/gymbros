@@ -1,4 +1,3 @@
-import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -10,11 +9,19 @@ final class CheckInComment {
     var itemID: String = ""
     var text: String = ""
     var date: Date = Date.now
+    /// Quem escreveu: "me" (você) ou o `memberID` de outra pessoa. Comentários antigos não tinham autor: são seus.
+    var authorID: String = "me"
+    /// Nome de quem escreveu quando não é você (o seu vem sempre do nome atual)
+    var authorName: String = ""
 
-    init(itemID: String, text: String) {
+    init(itemID: String, text: String, authorID: String = "me", authorName: String = "") {
         self.itemID = itemID
         self.text = text
+        self.authorID = authorID
+        self.authorName = authorName
     }
+
+    var isMine: Bool { authorID == "me" }
 }
 
 /// Tela cheia de um check-in: foto em destaque, autor, título, detalhes e comentários
@@ -48,7 +55,7 @@ struct CheckInDetailView: View {
                     hero
                     VStack(alignment: .leading, spacing: 14) {
                         author
-                        Text(title).font(.system(size: 26, weight: .heavy, design: .rounded))
+                        Text(title).gmFont(26, weight: .heavy, design: .rounded, relativeTo: .title)
                         if !note.isEmpty { Text(note).font(.body).foregroundStyle(.white.opacity(0.85)) }
                         chips
                         if !comments.isEmpty { commentList }
@@ -143,7 +150,7 @@ struct CheckInDetailView: View {
         GMFlow {
             chip(icon: "stopwatch", text: durationText(item.minutes))
             chip(icon: item.kind.symbol, text: item.kind.name)
-            chip(icon: "bolt.fill", text: "+\(item.score)", tint: Theme.accent)
+            chip(icon: "bolt.fill", text: "+" + (item.scoring.map { $0.format(item.score) } ?? "\(item.score) XP"), tint: Theme.accent)
             if let place = item.place { chip(icon: "mappin.and.ellipse", text: place) }
         }
     }
@@ -173,10 +180,10 @@ struct CheckInDetailView: View {
             GMDivider()
             ForEach(comments) { c in
                 HStack(alignment: .top, spacing: 10) {
-                    Avatar(size: 32)
+                    if c.isMine { Avatar(size: 32) } else { PersonAvatar(name: c.authorName, size: 32) }
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(trainerName.isEmpty ? "Você" : trainerName).font(.caption.bold())
+                            Text(c.isMine ? (trainerName.isEmpty ? "Você" : trainerName) : c.authorName).font(.caption.bold())
                             Text(c.date.formatted(.relative(presentation: .named))).font(.caption2).foregroundStyle(Theme.dim)
                         }
                         Text(c.text).font(isEmojiOnly(c.text) ? .title : .subheadline)
@@ -184,7 +191,8 @@ struct CheckInDetailView: View {
                     Spacer()
                 }
                 .contentShape(Rectangle())
-                .onLongPressGesture { commentMenu = c }
+                // Só dá para apagar o que é seu
+                .onLongPressGesture { if c.isMine { commentMenu = c } }
             }
         }
     }
@@ -260,64 +268,5 @@ struct CheckInDetailView: View {
         var items: [Any] = ["\(title) · \(item.kind.name), \(durationText(item.minutes)) no GymBros 💪"]
         if let data = photo, let img = UIImage(data: data) { items.insert(img, at: 0) }
         presentShare(items)
-    }
-}
-
-/// Editar título, descrição e foto de um check-in seu
-struct CheckInEditView: View {
-    let checkIn: LeagueCheckIn
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
-    @State private var note = ""
-    @State private var photo: Data?
-    @State private var pick: PhotosPickerItem?
-    @State private var loaded = false
-
-    var body: some View {
-        GMModal("Editar check-in", confirm: "Salvar", confirmEnabled: true, onConfirm: save) {
-            GMSection("Post") {
-                GMTextField(placeholder: "Título", text: $title)
-                GMTextField(placeholder: "Descrição (opcional)", text: $note, axis: .vertical)
-            }
-            GMSection("Foto") {
-                PhotosPicker(selection: $pick, matching: .images) {
-                    ZStack {
-                        if let photo, let img = UIImage(data: photo) {
-                            Color.clear.overlay { Image(uiImage: img).resizable().scaledToFill() }
-                        } else {
-                            Theme.raised
-                            Label("Escolher foto", systemImage: "photo").font(.subheadline.weight(.semibold))
-                        }
-                    }
-                    .frame(height: 200)
-                    .frame(maxWidth: .infinity)
-                    .clipShape(.rect(cornerRadius: 14))
-                    .foregroundStyle(.white)
-                }
-                .buttonStyle(GMPress())
-                .onChange(of: pick) { _, item in
-                    Task { if let data = try? await item?.loadTransferable(type: Data.self) { photo = compressedPhoto(data) } }
-                }
-                if photo != nil {
-                    GMButton("Tirar foto", kind: .secondary, small: true) { photo = nil; pick = nil }
-                }
-            }
-        }
-        .onAppear {
-            guard !loaded else { return }
-            loaded = true
-            title = checkIn.title
-            note = checkIn.note
-            photo = checkIn.photo
-        }
-    }
-
-    private func save() {
-        checkIn.title = title.trimmingCharacters(in: .whitespaces).isEmpty ? checkIn.title : title.trimmingCharacters(in: .whitespaces)
-        checkIn.note = note
-        checkIn.photo = photo
-        try? context.save()
-        dismiss()
     }
 }

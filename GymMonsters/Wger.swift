@@ -90,7 +90,7 @@ struct ExercisePhotos: View {
                 }
             }
             .frame(height: 240)
-            .clipShape(.rect(cornerRadius: 14))
+            .clipShape(.rect(cornerRadius: Theme.radiusM))
             if let img = exercise.wger?.images[safe: frame] {
                 CreditLine(prefix: "Imagem", credit: img.credit, source: img.source)
             }
@@ -134,11 +134,11 @@ struct WgerVideoView: View {
     let video: WgerMedia
 
     var body: some View {
-        GMModal(exercise.name, cancel: "Fechar") {
+        GMModal(exercise.name) {
             if let s = video.url, let url = URL(string: s) {
                 VideoPlayer(player: AVPlayer(url: url))
                     .frame(height: 420)
-                    .clipShape(.rect(cornerRadius: 14))
+                    .clipShape(.rect(cornerRadius: Theme.radiusM))
             }
             CreditLine(prefix: "Vídeo", credit: video.credit, source: exercise.wger?.url)
         }
@@ -148,7 +148,7 @@ struct WgerVideoView: View {
 /// Créditos e licenças de tudo o que não foi feito por nós
 struct CreditsView: View {
     var body: some View {
-        GMModal("Créditos e licenças", cancel: "Fechar") {
+        GMModal("Créditos e licenças") {
             GMSection("Exercícios: wger", footer: "Imagens, vídeos e instruções de exercícios do projeto wger (wger.de), sob Creative Commons. Cada imagem mostra o autor e a licença. Instruções em inglês são traduzidas no próprio iPhone; as adaptações seguem a mesma licença (CC BY-SA).") {
                 if let url = URL(string: "https://wger.de") {
                     Link(destination: url) { Label("wger.de", systemImage: "link").font(.subheadline.weight(.semibold)) }

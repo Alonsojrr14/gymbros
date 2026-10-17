@@ -40,9 +40,10 @@ struct RootView: View {
 }
 
 struct EvolutionEvent: Identifiable {
+    let monster: UUID
     let from: MonsterForm
     let to: MonsterForm
-    var id: String { from.id + to.id }
+    var id: String { monster.uuidString + from.id + to.id }
 }
 
 struct Banner: Equatable {
@@ -65,11 +66,15 @@ struct MainView: View {
     @AppStorage("reminderMinute") private var reminderMinute = 18 * 60
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
     @AppStorage("weeklySummary") private var weeklySummary = true
-    @State private var evolution: EvolutionEvent?
+    /// Observado só para redesenhar quando "Tornar principal" muda o principal
+    @AppStorage(MainMonster.key) private var mainMonster = ""
+    /// Fila de cenas: dois bros evoluindo juntos aparecem um depois do outro
+    @State private var evolutions: [EvolutionEvent] = []
     @State private var banner: Banner?
     @State private var tab = 0
     @State private var visited: Set<Int> = [0]
     @State private var arrivalPrompt = false
+    @State private var recovered = AppData.recoveredCopy != nil
     /// A Dex abre pela tela do bro (saiu da barra para o bro ficar no centro)
     @State private var dex = false
     @Environment(\.modelContext) private var context
@@ -152,6 +157,9 @@ struct MainView: View {
                 NotificationCenter.default.post(name: NotificationRouter.startWorkout, object: nil)
             }
         }
+        .gmActions(isPresented: $recovered, title: "Não deu para abrir seus dados",
+                   message: "O app começou do zero para não travar. O arquivo antigo foi guardado (\(AppData.recoveredCopy?.lastPathComponent ?? "")) e dá para voltar com um backup em Ajustes → Backup.",
+                   actions: [GMAction("Entendi", icon: "checkmark") {}])
         .gmActions(isPresented: $arrivalPrompt, title: "Chegou na \(GymLocation.shared.insideGym?.name ?? "academia") 💪",
                    message: GymLocation.todayRoutineName().map { "Hoje é dia de \($0)." } ?? "Bora treinar?",
                    actions: [GMAction("Começar treino", icon: "play.fill") {
@@ -161,8 +169,10 @@ struct MainView: View {
                            NotificationCenter.default.post(name: NotificationRouter.startWorkout, object: nil)
                        }
                    }])
-        .fullScreenCover(item: $evolution) { e in
-            EvolutionView(from: e.from, to: e.to) { evolution = nil }
+        // Só o "Continuar" tira da fila; trocar o item fecha a cena e abre a próxima
+        .gmModal(item: Binding(get: { evolutions.first }, set: { _ in })) { e in
+            EvolutionView(from: e.from, to: e.to) { if !evolutions.isEmpty { evolutions.removeFirst() } }
+                .id(e.id)
         }
     }
 
@@ -179,6 +189,7 @@ struct MainView: View {
     private struct Derived {
         let roster: Roster
         /// Monstro principal, com sequência e humor do jogador (que contam todas as atividades)
+        /// e o XP de cada atividade como no histórico (inclui o que foi para bros de liga)
         let main: Snapshot
         /// Para conquistas: estágio do monstro mais evoluído
         let best: Snapshot
@@ -188,13 +199,15 @@ struct MainView: View {
     }
 
     private func derive() -> Derived {
+        _ = mainMonster
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues)
-        let player = Game.snapshot(activities.map(\.record))
+        let player = Game.cachedSnapshot(activities.map(\.record))
         var main = roster.mainSnapshot
         main.streak = player.streak
         main.bestStreak = player.bestStreak
         main.lastActivity = player.lastActivity
         main.todayXP = player.todayXP
+        main.xpByActivity = roster.xpByActivity
         var best = player
         best.form = roster.snapshots.values.map(\.form).max { $0.stage < $1.stage } ?? .egg
         var history = player
@@ -265,8 +278,12 @@ struct MainView: View {
         await HealthSync.exportPending(context: context)
         guard HealthSync.enabled else { return }
         guard let r = try? await HealthSync.sync(context: context), !r.imported.isEmpty else { return }
-        let snap = Game.snapshot(activities.map(\.record))
-        let xp = r.imported.reduce(0) { $0 + (snap.xpByActivity[$1.uuid] ?? 0) }
+        // @Query ainda não tem as importadas: busca de novo e usa a mesma regra do histórico
+        let fresh = Roster(monsters: (try? context.fetch(FetchDescriptor<Monster>())) ?? monsters,
+                           activities: (try? context.fetch(FetchDescriptor<Activity>())) ?? activities,
+                           checkIns: (try? context.fetch(FetchDescriptor<LeagueCheckIn>())) ?? checkIns,
+                           leagues: (try? context.fetch(FetchDescriptor<League>())) ?? leagues).xpByActivity
+        let xp = r.imported.reduce(0) { $0 + (fresh[$1.uuid] ?? 0) }
         let n = r.imported.count
         show(Banner(symbol: "heart.fill", text: "\(n) treino\(n == 1 ? "" : "s") do Saúde · +\(xp) XP"))
     }
@@ -282,12 +299,15 @@ struct MainView: View {
         for m in monsters {
             let form = roster.snapshot(m.uuid).form
             let old = MonsterForm.byID(m.lastFormID) ?? .egg
-            if old != form, form.stage > old.stage, evolution == nil {
-                evolution = EvolutionEvent(from: old, to: form)
+            if old != form, form.stage > old.stage {
+                let e = EvolutionEvent(monster: m.uuid, from: old, to: form)
+                if !evolutions.contains(where: { $0.id == e.id }) { evolutions.append(e) }
             }
             m.lastFormID = form.id
             // Fixa a espécie na chocagem: espécies novas no futuro não mudam quem já nasceu
             if m.speciesID == nil, form.stage > .egg { m.speciesID = form.species }
+            // Voltou a ser ovo (atividades apagadas): o próximo choco decide a espécie de novo
+            if m.speciesID != nil, form.stage == .egg { m.speciesID = nil }
         }
         try? context.save()
     }

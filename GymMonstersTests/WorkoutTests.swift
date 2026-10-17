@@ -186,4 +186,80 @@ final class WorkoutTests: GymTestCase {
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<League>()).count, 1)
         XCTAssertFalse(old.autoRenew, "Vem desligada")
     }
+
+    // MARK: Aquecimento, troca em superset, modo fone e WOD
+
+    func testWarmupStaysOutOfTotalsEverywhere() throws {
+        let ctx = try memoryContext()
+        let s = makeSession(ctx, [("agachamento", 2)])
+        let w = LoggedSet(exerciseID: "agachamento", exerciseOrder: 0, index: 0, weight: 40, reps: 10, rest: 60)
+        w.warmup = true
+        w.done = true
+        s.sets.append(w)
+        markDone(s, "agachamento")
+        XCTAssertEqual(s.workSets.count, 2)
+        XCTAssertEqual(s.doneWorkSets.count, 1)
+        XCTAssertEqual(s.volume, 200, "Só 20 × 10 da série de trabalho")
+        let st = LiveWorkout.state(for: s)
+        XCTAssertEqual(st.doneSets, 1)
+        XCTAssertEqual(st.totalSets, 2)
+    }
+
+    func testPartialSwapInSupersetDoesNotLinkOldToNew() throws {
+        let ctx = try memoryContext()
+        let s = makeSession(ctx, [("supino-reto", 3), ("barra-fixa", 3)])
+        s.setLinkedNext("supino-reto", true)
+        s.orderedSets.first { $0.exerciseID == "supino-reto" }?.done = true
+        s.swapPending("supino-reto", to: "supino-maquina", suggestion: Suggestion(weight: 50, reps: 10, reason: ""))
+        XCTAssertEqual(s.exerciseIDs, ["supino-reto", "supino-maquina", "barra-fixa"])
+        XCTAssertFalse(s.linkedNext("supino-reto"), "O antigo (já feito) sai do superset")
+        XCTAssertEqual(s.group(of: "supino-maquina"), ["supino-maquina", "barra-fixa"], "O novo segue no superset com o próximo")
+        XCTAssertEqual(s.orderedSets.filter { $0.exerciseID == "supino-maquina" }.map(\.weight), [50, 50])
+        XCTAssertEqual(s.currentExerciseID, "supino-maquina")
+    }
+
+    func testFullSwapTakesThePlaceAndTheLink() throws {
+        let ctx = try memoryContext()
+        let s = makeSession(ctx, [("supino-reto", 2), ("barra-fixa", 2)])
+        s.setLinkedNext("supino-reto", true)
+        s.swapPending("supino-reto", to: "supino-maquina", suggestion: Suggestion(weight: 40, reps: 8, reason: ""))
+        XCTAssertEqual(s.exerciseIDs, ["supino-maquina", "barra-fixa"])
+        XCTAssertEqual(s.group(of: "barra-fixa"), ["supino-maquina", "barra-fixa"])
+    }
+
+    func testTenSecondCueSpeaksOncePerRest() {
+        var cue = TenSecondCue()
+        let t0 = Date.now
+        let end = t0.addingTimeInterval(90)
+        XCTAssertFalse(cue.check(end: end, now: t0))
+        // O laço pode pular o segundo 10 exato (10,9 → 9,1): avisa mesmo assim, uma vez só
+        XCTAssertFalse(cue.check(end: end, now: end.addingTimeInterval(-10.9)))
+        XCTAssertTrue(cue.check(end: end, now: end.addingTimeInterval(-9.1)))
+        XCTAssertFalse(cue.check(end: end, now: end.addingTimeInterval(-8.6)))
+        XCTAssertFalse(cue.check(end: end, now: end.addingTimeInterval(-9.5)))
+        // Descanso que já começa com menos de 10 s não avisa
+        let short = t0.addingTimeInterval(200)
+        XCTAssertFalse(cue.check(end: short, now: short.addingTimeInterval(-8)))
+        XCTAssertFalse(cue.check(end: nil, now: t0))
+        // +15 s: descanso novo, novo aviso
+        let longer = end.addingTimeInterval(15)
+        XCTAssertFalse(cue.check(end: longer, now: end.addingTimeInterval(-9)))
+        XCTAssertTrue(cue.check(end: longer, now: longer.addingTimeInterval(-9.8)))
+    }
+
+    func testForTimeCapIsNotAFinishTime() {
+        let finished = WodResult(wodID: "fran", wodName: "Fran", formatName: "For Time")
+        finished.seconds = 9 * 60 + 50
+        let cap = WodResult(wodID: "fran", wodName: "Fran", formatName: "For Time")
+        cap.seconds = 600
+        cap.capped = true
+        cap.reps = 80
+        XCTAssertEqual(cap.text, "CAP · 80 reps")
+        XCTAssertGreaterThan(finished.score, cap.score, "Qualquer tempo terminado vale mais que estourar o limite")
+        let worseCap = WodResult(wodID: "fran", wodName: "Fran", formatName: "For Time")
+        worseCap.seconds = 600
+        worseCap.capped = true
+        worseCap.reps = 60
+        XCTAssertGreaterThan(cap.score, worseCap.score)
+    }
 }

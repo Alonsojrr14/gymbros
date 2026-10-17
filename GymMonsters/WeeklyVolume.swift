@@ -31,14 +31,14 @@ struct WeeklyVolumeView: View {
         let inRange = groups.filter { (Self.low...Self.high).contains(c[$0] ?? 0) }.count
         GMScreen("Volume semanal", back: true) {
             HStack {
-                GMIconButton(icon: "chevron.left", size: 34) { offset -= 1 }
+                GMIconButton(icon: "chevron.left", size: 34, label: "Semana anterior") { offset -= 1 }
                 Spacer()
                 VStack(spacing: 2) {
                     Text(offset == 0 ? "Esta semana" : offset == -1 ? "Semana passada" : weekTitle).font(.headline)
                     Text("\(c.values.reduce(0, +)) séries · \(inRange) de \(groups.count) grupos na faixa").font(.caption).foregroundStyle(Theme.dim)
                 }
                 Spacer()
-                GMIconButton(icon: "chevron.right", size: 34, tint: offset == 0 ? Theme.dim : .white) { if offset < 0 { offset += 1 } }
+                GMIconButton(icon: "chevron.right", size: 34, tint: offset == 0 ? Theme.dim : .white, label: "Próxima semana") { if offset < 0 { offset += 1 } }
             }
             GMSection(footer: "Conta as séries feitas de cada exercício no músculo principal dele (aquecimento fica de fora). Entre \(Self.low) e \(Self.high) séries por semana é a faixa que a maioria dos estudos associa a ganho de massa; abaixo disso o músculo cresce menos, acima a recuperação pesa.") {
                 ForEach(groups.sorted { (c[$0] ?? 0) > (c[$1] ?? 0) }) { g in
@@ -56,7 +56,7 @@ struct WeeklyVolumeView: View {
 
     private func bar(_ g: MuscleGroup, _ n: Int) -> some View {
         let maxN = 26.0
-        let color: Color = n < Self.low ? .orange : n <= Self.high ? Theme.accent : .cyan
+        let color: Color = n < Self.low ? Theme.warning : n <= Self.high ? Theme.accent : Theme.info
         return VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Text(g.name).font(.subheadline.weight(.semibold))

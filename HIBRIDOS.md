@@ -14,17 +14,33 @@ Se o gerador bloquear, troque o nome do animal por uma descrição.
 
 ## Nomes
 
-| Dupla | Champion | Ultimate |
-|---|---|---|
-| Força + Resistência | Crossbro | Hércubro |
-| Força + Agilidade | Golpebro | Titãbro |
-| Força + Técnica | Arrancobro | Olimpibro |
-| Resistência + Agilidade | Trilhabro | Ventobro |
-| Resistência + Técnica | Nadobro | Marébro |
-| Agilidade + Técnica | Gingabro | Acrobro |
+Cada híbrido tem nome próprio, sem repetir nenhuma outra forma do jogo.
 
-No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie junto (ex.: **Crossbro Urso**).
+**Champions**
 
+| Espécie | Força + Resistência | Força + Agilidade | Força + Técnica | Resistência + Agilidade | Resistência + Técnica | Agilidade + Técnica |
+|---|---|---|---|---|---|---|
+| Coelho | Crossbro | Golpebro | Arrancobro | Chuteirabro | Nadobro | Gingabro |
+| Urso | Burpeebro | Patadabro | Arremessobro | Mateirobro | Salmãobro | Meialuabro |
+| Rato | Bigodefitbro | Mordidabro | Gorgonzolabro | Bueirobro | Esgotobro | Arraiabro |
+| Lobo | Caninobro | Investidabro | Cumebro | Rastrobro | Riachobro | Crepúsculobro |
+| Cachorro | Viralatabro | Boxerbro | Bulldogbro | Gandulabro | Labradorbro | Poodlebro |
+| Esquilo | Bolotabro | Ouriçobro | Torabro | Copabro | Cachoeirabro | Cipóbro |
+| Gato | Miaufitbro | Unhadabro | Pumabro | Gatunobro | Molhadobro | Muretabro |
+| Coruja | Madrugabro | Bicadabro | Mochobro | Revoadabro | Martimbro | Plumabro |
+
+**Ultimates**
+
+| Espécie | Força + Resistência | Força + Agilidade | Força + Técnica | Resistência + Agilidade | Resistência + Técnica | Agilidade + Técnica |
+|---|---|---|---|---|---|---|
+| Coelho | Hércubro | Titãbro | Olimpibro | Tufãobro | Marébro | Piruetabro |
+| Urso | Colossobro | Brutobro | Gigantebro | Nevascabro | Polarbro | Aurorabro |
+| Rato | Metrôbro | Presabro | Parmesãobro | Ventaniabro | Correntezabro | Piãobro |
+| Lobo | Lobisombro | Ragnarbro | Cordilheirabro | Vendavalbro | Fiordebro | Eclipsebro |
+| Cachorro | Cérberobro | Dobermanbro | Sãobernardobro | Salukibro | Terranovabro | Borderbro |
+| Esquilo | Sequoiabro | Espinheirobro | Jequitibro | Redemoinhobro | Cascatabro | Trapezistabro |
+| Gato | Tigrebro | Smilodonbro | Leãobro | Guepardobro | Onçabro | Bastetbro |
+| Coruja | Grifobro | Falcãobro | Atenabro | Ciclonebro | Albatrozbro | Fênixbro |
 
 ---
 
@@ -45,7 +61,7 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 
 > Hybrid evolution of the young bunny (cream-white fur, long upright ears, round blush cheeks), mixing two training styles. It is an olympic weightlifter: coral-red AND lavender singlet, lifting belt, wrist wraps, holding a barbell in the front rack position, focused calm expression. Keep the bunny features clearly visible.
 
-### Champion Resistência + Agilidade: Trilhabro
+### Champion Resistência + Agilidade: Chuteirabro
 `champion_resistencia_agilidade.png` · referências: Champion de Resistência + Champion de Agilidade do coelho
 
 > Hybrid evolution of the young bunny (cream-white fur, long upright ears, round blush cheeks), mixing two training styles. It is a trail runner and soccer player: light-blue AND lime-green outfit, hydration vest, trail shoes, soccer socks, mid-leap running pose. Keep the bunny features clearly visible.
@@ -75,8 +91,8 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 
 > Hybrid final evolution of the olympic weightlifter: legendary lifter, deep crimson AND deep purple with gold accents, golden singlet details, barbell locked overhead in a perfect snatch, small floating energy orbs. The character is a bunny (cream-white fur, long upright ears, round blush cheeks); keep the bunny features clearly visible.
 
-### Ultimate Resistência + Agilidade: Ventobro
-`ultimate_resistencia_agilidade.png` · referências: Champion híbrido Trilhabro + Ultimates de Resistência e Agilidade do coelho
+### Ultimate Resistência + Agilidade: Tufãobro
+`ultimate_resistencia_agilidade.png` · referências: Champion híbrido Chuteirabro + Ultimates de Resistência e Agilidade do coelho
 
 > Hybrid final evolution of the trail runner: wind spirit athlete, deep blue AND electric green, long scarf and wind trails around the body, sprinting mid-air pose. The character is a bunny (cream-white fur, long upright ears, round blush cheeks); keep the bunny features clearly visible.
 
@@ -85,7 +101,7 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 
 > Hybrid final evolution of the swimmer: ocean master, deep blue AND deep purple with gold accents, cape like a wave, swirling water around, serene powerful stance. The character is a bunny (cream-white fur, long upright ears, round blush cheeks); keep the bunny features clearly visible.
 
-### Ultimate Agilidade + Técnica: Acrobro
+### Ultimate Agilidade + Técnica: Piruetabro
 `ultimate_agilidade_tecnica.png` · referências: Champion híbrido Gingabro + Ultimates de Agilidade e Técnica do coelho
 
 > Hybrid final evolution of the gymnast/capoeira dancer: acrobat master, electric green AND deep purple with gold accents, flowing ribbons, floating mid-flip pose. The character is a bunny (cream-white fur, long upright ears, round blush cheeks); keep the bunny features clearly visible.
@@ -95,63 +111,63 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 
 # Urso
 
-### Champion Força + Resistência: Crossbro Urso
+### Champion Força + Resistência: Burpeebro
 `urso_champion_forca_resistencia.png` · referências: Champion de Força + Champion de Resistência do urso
 
 > Hybrid evolution of the young bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur), mixing two training styles. It is a CrossFit athlete: muscular but lean, coral-red AND light-blue outfit (black tank top with a small dumbbell icon, running shorts, running shoes), a kettlebell in one hand and a jump rope over the shoulder, energetic grin. Keep the bear features clearly visible.
 
-### Champion Força + Agilidade: Golpebro Urso
+### Champion Força + Agilidade: Patadabro
 `urso_champion_forca_agilidade.png` · referências: Champion de Força + Champion de Agilidade do urso
 
 > Hybrid evolution of the young bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur), mixing two training styles. It is a fighter (boxing and MMA): coral-red AND lime-green outfit, boxing gloves, fight shorts, kneepads, red-and-green headband, dynamic punching stance. Keep the bear features clearly visible.
 
-### Champion Força + Técnica: Arrancobro Urso
+### Champion Força + Técnica: Arremessobro
 `urso_champion_forca_tecnica.png` · referências: Champion de Força + Champion de Técnica do urso
 
 > Hybrid evolution of the young bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur), mixing two training styles. It is an olympic weightlifter: coral-red AND lavender singlet, lifting belt, wrist wraps, holding a barbell in the front rack position, focused calm expression. Keep the bear features clearly visible.
 
-### Champion Resistência + Agilidade: Trilhabro Urso
+### Champion Resistência + Agilidade: Mateirobro
 `urso_champion_resistencia_agilidade.png` · referências: Champion de Resistência + Champion de Agilidade do urso
 
 > Hybrid evolution of the young bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur), mixing two training styles. It is a trail runner and soccer player: light-blue AND lime-green outfit, hydration vest, trail shoes, soccer socks, mid-leap running pose. Keep the bear features clearly visible.
 
-### Champion Resistência + Técnica: Nadobro Urso
+### Champion Resistência + Técnica: Salmãobro
 `urso_champion_resistencia_tecnica.png` · referências: Champion de Resistência + Champion de Técnica do urso
 
 > Hybrid evolution of the young bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur), mixing two training styles. It is a swimmer: light-blue AND lavender, swim cap with goggles on the forehead, swim trunks, towel over the shoulder, water droplets, relaxed confident smile. Keep the bear features clearly visible.
 
-### Champion Agilidade + Técnica: Gingabro Urso
+### Champion Agilidade + Técnica: Meialuabro
 `urso_champion_agilidade_tecnica.png` · referências: Champion de Agilidade + Champion de Técnica do urso
 
 > Hybrid evolution of the young bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur), mixing two training styles. It is a gymnast and capoeira dancer: lime-green AND lavender, flowing capoeira pants, wristbands, elegant one-hand balance pose. Keep the bear features clearly visible.
 
-### Ultimate Força + Resistência: Hércubro Urso
-`urso_ultimate_forca_resistencia.png` · referências: Champion híbrido Crossbro + Ultimates de Força e Resistência do urso
+### Ultimate Força + Resistência: Colossobro
+`urso_ultimate_forca_resistencia.png` · referências: Champion híbrido Burpeebro + Ultimates de Força e Resistência do urso
 
 > Hybrid final evolution of the CrossFit athlete: heroic and powerful, deep crimson AND deep blue with gold accents, competition singlet with a medal, kettlebell held overhead, a glowing aura mixing red and blue. The character is a bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur); keep the bear features clearly visible.
 
-### Ultimate Força + Agilidade: Titãbro Urso
-`urso_ultimate_forca_agilidade.png` · referências: Champion híbrido Golpebro + Ultimates de Força e Agilidade do urso
+### Ultimate Força + Agilidade: Brutobro
+`urso_ultimate_forca_agilidade.png` · referências: Champion híbrido Patadabro + Ultimates de Força e Agilidade do urso
 
 > Hybrid final evolution of the fighter: champion martial artist, deep crimson AND electric green with gold accents, championship belt, glowing fists with small sparks, mid-strike pose. The character is a bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur); keep the bear features clearly visible.
 
-### Ultimate Força + Técnica: Olimpibro Urso
-`urso_ultimate_forca_tecnica.png` · referências: Champion híbrido Arrancobro + Ultimates de Força e Técnica do urso
+### Ultimate Força + Técnica: Gigantebro
+`urso_ultimate_forca_tecnica.png` · referências: Champion híbrido Arremessobro + Ultimates de Força e Técnica do urso
 
 > Hybrid final evolution of the olympic weightlifter: legendary lifter, deep crimson AND deep purple with gold accents, golden singlet details, barbell locked overhead in a perfect snatch, small floating energy orbs. The character is a bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur); keep the bear features clearly visible.
 
-### Ultimate Resistência + Agilidade: Ventobro Urso
-`urso_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Trilhabro + Ultimates de Resistência e Agilidade do urso
+### Ultimate Resistência + Agilidade: Nevascabro
+`urso_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Mateirobro + Ultimates de Resistência e Agilidade do urso
 
 > Hybrid final evolution of the trail runner: wind spirit athlete, deep blue AND electric green, long scarf and wind trails around the body, sprinting mid-air pose. The character is a bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur); keep the bear features clearly visible.
 
-### Ultimate Resistência + Técnica: Marébro Urso
-`urso_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Nadobro + Ultimates de Resistência e Técnica do urso
+### Ultimate Resistência + Técnica: Polarbro
+`urso_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Salmãobro + Ultimates de Resistência e Técnica do urso
 
 > Hybrid final evolution of the swimmer: ocean master, deep blue AND deep purple with gold accents, cape like a wave, swirling water around, serene powerful stance. The character is a bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur); keep the bear features clearly visible.
 
-### Ultimate Agilidade + Técnica: Acrobro Urso
-`urso_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Gingabro + Ultimates de Agilidade e Técnica do urso
+### Ultimate Agilidade + Técnica: Aurorabro
+`urso_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Meialuabro + Ultimates de Agilidade e Técnica do urso
 
 > Hybrid final evolution of the gymnast/capoeira dancer: acrobat master, electric green AND deep purple with gold accents, flowing ribbons, floating mid-flip pose. The character is a bear (warm brown and honey fur, round fluffy ears, small snout with a dark nose, thick soft fur); keep the bear features clearly visible.
 
@@ -160,63 +176,63 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 
 # Rato
 
-### Champion Força + Resistência: Crossbro Rato
+### Champion Força + Resistência: Bigodefitbro
 `rato_champion_forca_resistencia.png` · referências: Champion de Força + Champion de Resistência do rato
 
 > Hybrid evolution of the young mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers), mixing two training styles. It is a CrossFit athlete: muscular but lean, coral-red AND light-blue outfit (black tank top with a small dumbbell icon, running shorts, running shoes), a kettlebell in one hand and a jump rope over the shoulder, energetic grin. Keep the mouse features clearly visible.
 
-### Champion Força + Agilidade: Golpebro Rato
+### Champion Força + Agilidade: Mordidabro
 `rato_champion_forca_agilidade.png` · referências: Champion de Força + Champion de Agilidade do rato
 
 > Hybrid evolution of the young mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers), mixing two training styles. It is a fighter (boxing and MMA): coral-red AND lime-green outfit, boxing gloves, fight shorts, kneepads, red-and-green headband, dynamic punching stance. Keep the mouse features clearly visible.
 
-### Champion Força + Técnica: Arrancobro Rato
+### Champion Força + Técnica: Gorgonzolabro
 `rato_champion_forca_tecnica.png` · referências: Champion de Força + Champion de Técnica do rato
 
 > Hybrid evolution of the young mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers), mixing two training styles. It is an olympic weightlifter: coral-red AND lavender singlet, lifting belt, wrist wraps, holding a barbell in the front rack position, focused calm expression. Keep the mouse features clearly visible.
 
-### Champion Resistência + Agilidade: Trilhabro Rato
+### Champion Resistência + Agilidade: Bueirobro
 `rato_champion_resistencia_agilidade.png` · referências: Champion de Resistência + Champion de Agilidade do rato
 
 > Hybrid evolution of the young mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers), mixing two training styles. It is a trail runner and soccer player: light-blue AND lime-green outfit, hydration vest, trail shoes, soccer socks, mid-leap running pose. Keep the mouse features clearly visible.
 
-### Champion Resistência + Técnica: Nadobro Rato
+### Champion Resistência + Técnica: Esgotobro
 `rato_champion_resistencia_tecnica.png` · referências: Champion de Resistência + Champion de Técnica do rato
 
 > Hybrid evolution of the young mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers), mixing two training styles. It is a swimmer: light-blue AND lavender, swim cap with goggles on the forehead, swim trunks, towel over the shoulder, water droplets, relaxed confident smile. Keep the mouse features clearly visible.
 
-### Champion Agilidade + Técnica: Gingabro Rato
+### Champion Agilidade + Técnica: Arraiabro
 `rato_champion_agilidade_tecnica.png` · referências: Champion de Agilidade + Champion de Técnica do rato
 
 > Hybrid evolution of the young mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers), mixing two training styles. It is a gymnast and capoeira dancer: lime-green AND lavender, flowing capoeira pants, wristbands, elegant one-hand balance pose. Keep the mouse features clearly visible.
 
-### Ultimate Força + Resistência: Hércubro Rato
-`rato_ultimate_forca_resistencia.png` · referências: Champion híbrido Crossbro + Ultimates de Força e Resistência do rato
+### Ultimate Força + Resistência: Metrôbro
+`rato_ultimate_forca_resistencia.png` · referências: Champion híbrido Bigodefitbro + Ultimates de Força e Resistência do rato
 
 > Hybrid final evolution of the CrossFit athlete: heroic and powerful, deep crimson AND deep blue with gold accents, competition singlet with a medal, kettlebell held overhead, a glowing aura mixing red and blue. The character is a mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers); keep the mouse features clearly visible.
 
-### Ultimate Força + Agilidade: Titãbro Rato
-`rato_ultimate_forca_agilidade.png` · referências: Champion híbrido Golpebro + Ultimates de Força e Agilidade do rato
+### Ultimate Força + Agilidade: Presabro
+`rato_ultimate_forca_agilidade.png` · referências: Champion híbrido Mordidabro + Ultimates de Força e Agilidade do rato
 
 > Hybrid final evolution of the fighter: champion martial artist, deep crimson AND electric green with gold accents, championship belt, glowing fists with small sparks, mid-strike pose. The character is a mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers); keep the mouse features clearly visible.
 
-### Ultimate Força + Técnica: Olimpibro Rato
-`rato_ultimate_forca_tecnica.png` · referências: Champion híbrido Arrancobro + Ultimates de Força e Técnica do rato
+### Ultimate Força + Técnica: Parmesãobro
+`rato_ultimate_forca_tecnica.png` · referências: Champion híbrido Gorgonzolabro + Ultimates de Força e Técnica do rato
 
 > Hybrid final evolution of the olympic weightlifter: legendary lifter, deep crimson AND deep purple with gold accents, golden singlet details, barbell locked overhead in a perfect snatch, small floating energy orbs. The character is a mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers); keep the mouse features clearly visible.
 
-### Ultimate Resistência + Agilidade: Ventobro Rato
-`rato_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Trilhabro + Ultimates de Resistência e Agilidade do rato
+### Ultimate Resistência + Agilidade: Ventaniabro
+`rato_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Bueirobro + Ultimates de Resistência e Agilidade do rato
 
 > Hybrid final evolution of the trail runner: wind spirit athlete, deep blue AND electric green, long scarf and wind trails around the body, sprinting mid-air pose. The character is a mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers); keep the mouse features clearly visible.
 
-### Ultimate Resistência + Técnica: Marébro Rato
-`rato_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Nadobro + Ultimates de Resistência e Técnica do rato
+### Ultimate Resistência + Técnica: Correntezabro
+`rato_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Esgotobro + Ultimates de Resistência e Técnica do rato
 
 > Hybrid final evolution of the swimmer: ocean master, deep blue AND deep purple with gold accents, cape like a wave, swirling water around, serene powerful stance. The character is a mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers); keep the mouse features clearly visible.
 
-### Ultimate Agilidade + Técnica: Acrobro Rato
-`rato_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Gingabro + Ultimates de Agilidade e Técnica do rato
+### Ultimate Agilidade + Técnica: Piãobro
+`rato_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Arraiabro + Ultimates de Agilidade e Técnica do rato
 
 > Hybrid final evolution of the gymnast/capoeira dancer: acrobat master, electric green AND deep purple with gold accents, flowing ribbons, floating mid-flip pose. The character is a mouse (soft gray and white fur, big round ears with pink inside, long thin pink tail, whiskers); keep the mouse features clearly visible.
 
@@ -225,63 +241,63 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 
 # Lobo
 
-### Champion Força + Resistência: Crossbro Lobo
+### Champion Força + Resistência: Caninobro
 `lobo_champion_forca_resistencia.png` · referências: Champion de Força + Champion de Resistência do lobo
 
 > Hybrid evolution of the young wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail), mixing two training styles. It is a CrossFit athlete: muscular but lean, coral-red AND light-blue outfit (black tank top with a small dumbbell icon, running shorts, running shoes), a kettlebell in one hand and a jump rope over the shoulder, energetic grin. Keep the wolf features clearly visible.
 
-### Champion Força + Agilidade: Golpebro Lobo
+### Champion Força + Agilidade: Investidabro
 `lobo_champion_forca_agilidade.png` · referências: Champion de Força + Champion de Agilidade do lobo
 
 > Hybrid evolution of the young wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail), mixing two training styles. It is a fighter (boxing and MMA): coral-red AND lime-green outfit, boxing gloves, fight shorts, kneepads, red-and-green headband, dynamic punching stance. Keep the wolf features clearly visible.
 
-### Champion Força + Técnica: Arrancobro Lobo
+### Champion Força + Técnica: Cumebro
 `lobo_champion_forca_tecnica.png` · referências: Champion de Força + Champion de Técnica do lobo
 
 > Hybrid evolution of the young wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail), mixing two training styles. It is an olympic weightlifter: coral-red AND lavender singlet, lifting belt, wrist wraps, holding a barbell in the front rack position, focused calm expression. Keep the wolf features clearly visible.
 
-### Champion Resistência + Agilidade: Trilhabro Lobo
+### Champion Resistência + Agilidade: Rastrobro
 `lobo_champion_resistencia_agilidade.png` · referências: Champion de Resistência + Champion de Agilidade do lobo
 
 > Hybrid evolution of the young wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail), mixing two training styles. It is a trail runner and soccer player: light-blue AND lime-green outfit, hydration vest, trail shoes, soccer socks, mid-leap running pose. Keep the wolf features clearly visible.
 
-### Champion Resistência + Técnica: Nadobro Lobo
+### Champion Resistência + Técnica: Riachobro
 `lobo_champion_resistencia_tecnica.png` · referências: Champion de Resistência + Champion de Técnica do lobo
 
 > Hybrid evolution of the young wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail), mixing two training styles. It is a swimmer: light-blue AND lavender, swim cap with goggles on the forehead, swim trunks, towel over the shoulder, water droplets, relaxed confident smile. Keep the wolf features clearly visible.
 
-### Champion Agilidade + Técnica: Gingabro Lobo
+### Champion Agilidade + Técnica: Crepúsculobro
 `lobo_champion_agilidade_tecnica.png` · referências: Champion de Agilidade + Champion de Técnica do lobo
 
 > Hybrid evolution of the young wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail), mixing two training styles. It is a gymnast and capoeira dancer: lime-green AND lavender, flowing capoeira pants, wristbands, elegant one-hand balance pose. Keep the wolf features clearly visible.
 
-### Ultimate Força + Resistência: Hércubro Lobo
-`lobo_ultimate_forca_resistencia.png` · referências: Champion híbrido Crossbro + Ultimates de Força e Resistência do lobo
+### Ultimate Força + Resistência: Lobisombro
+`lobo_ultimate_forca_resistencia.png` · referências: Champion híbrido Caninobro + Ultimates de Força e Resistência do lobo
 
 > Hybrid final evolution of the CrossFit athlete: heroic and powerful, deep crimson AND deep blue with gold accents, competition singlet with a medal, kettlebell held overhead, a glowing aura mixing red and blue. The character is a wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail); keep the wolf features clearly visible.
 
-### Ultimate Força + Agilidade: Titãbro Lobo
-`lobo_ultimate_forca_agilidade.png` · referências: Champion híbrido Golpebro + Ultimates de Força e Agilidade do lobo
+### Ultimate Força + Agilidade: Ragnarbro
+`lobo_ultimate_forca_agilidade.png` · referências: Champion híbrido Investidabro + Ultimates de Força e Agilidade do lobo
 
 > Hybrid final evolution of the fighter: champion martial artist, deep crimson AND electric green with gold accents, championship belt, glowing fists with small sparks, mid-strike pose. The character is a wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail); keep the wolf features clearly visible.
 
-### Ultimate Força + Técnica: Olimpibro Lobo
-`lobo_ultimate_forca_tecnica.png` · referências: Champion híbrido Arrancobro + Ultimates de Força e Técnica do lobo
+### Ultimate Força + Técnica: Cordilheirabro
+`lobo_ultimate_forca_tecnica.png` · referências: Champion híbrido Cumebro + Ultimates de Força e Técnica do lobo
 
 > Hybrid final evolution of the olympic weightlifter: legendary lifter, deep crimson AND deep purple with gold accents, golden singlet details, barbell locked overhead in a perfect snatch, small floating energy orbs. The character is a wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail); keep the wolf features clearly visible.
 
-### Ultimate Resistência + Agilidade: Ventobro Lobo
-`lobo_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Trilhabro + Ultimates de Resistência e Agilidade do lobo
+### Ultimate Resistência + Agilidade: Vendavalbro
+`lobo_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Rastrobro + Ultimates de Resistência e Agilidade do lobo
 
 > Hybrid final evolution of the trail runner: wind spirit athlete, deep blue AND electric green, long scarf and wind trails around the body, sprinting mid-air pose. The character is a wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail); keep the wolf features clearly visible.
 
-### Ultimate Resistência + Técnica: Marébro Lobo
-`lobo_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Nadobro + Ultimates de Resistência e Técnica do lobo
+### Ultimate Resistência + Técnica: Fiordebro
+`lobo_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Riachobro + Ultimates de Resistência e Técnica do lobo
 
 > Hybrid final evolution of the swimmer: ocean master, deep blue AND deep purple with gold accents, cape like a wave, swirling water around, serene powerful stance. The character is a wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail); keep the wolf features clearly visible.
 
-### Ultimate Agilidade + Técnica: Acrobro Lobo
-`lobo_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Gingabro + Ultimates de Agilidade e Técnica do lobo
+### Ultimate Agilidade + Técnica: Eclipsebro
+`lobo_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Crepúsculobro + Ultimates de Agilidade e Técnica do lobo
 
 > Hybrid final evolution of the gymnast/capoeira dancer: acrobat master, electric green AND deep purple with gold accents, flowing ribbons, floating mid-flip pose. The character is a wolf (slate gray and silver fur, pointed upright ears, long snout, fluffy tail); keep the wolf features clearly visible.
 
@@ -290,63 +306,63 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 
 # Cachorro
 
-### Champion Força + Resistência: Crossbro Cachorro
+### Champion Força + Resistência: Viralatabro
 `cachorro_champion_forca_resistencia.png` · referências: Champion de Força + Champion de Resistência do cachorro
 
 > Hybrid evolution of the young mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)), mixing two training styles. It is a CrossFit athlete: muscular but lean, coral-red AND light-blue outfit (black tank top with a small dumbbell icon, running shorts, running shoes), a kettlebell in one hand and a jump rope over the shoulder, energetic grin. Keep the mutt dog features clearly visible.
 
-### Champion Força + Agilidade: Golpebro Cachorro
+### Champion Força + Agilidade: Boxerbro
 `cachorro_champion_forca_agilidade.png` · referências: Champion de Força + Champion de Agilidade do cachorro
 
 > Hybrid evolution of the young mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)), mixing two training styles. It is a fighter (boxing and MMA): coral-red AND lime-green outfit, boxing gloves, fight shorts, kneepads, red-and-green headband, dynamic punching stance. Keep the mutt dog features clearly visible.
 
-### Champion Força + Técnica: Arrancobro Cachorro
+### Champion Força + Técnica: Bulldogbro
 `cachorro_champion_forca_tecnica.png` · referências: Champion de Força + Champion de Técnica do cachorro
 
 > Hybrid evolution of the young mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)), mixing two training styles. It is an olympic weightlifter: coral-red AND lavender singlet, lifting belt, wrist wraps, holding a barbell in the front rack position, focused calm expression. Keep the mutt dog features clearly visible.
 
-### Champion Resistência + Agilidade: Trilhabro Cachorro
+### Champion Resistência + Agilidade: Gandulabro
 `cachorro_champion_resistencia_agilidade.png` · referências: Champion de Resistência + Champion de Agilidade do cachorro
 
 > Hybrid evolution of the young mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)), mixing two training styles. It is a trail runner and soccer player: light-blue AND lime-green outfit, hydration vest, trail shoes, soccer socks, mid-leap running pose. Keep the mutt dog features clearly visible.
 
-### Champion Resistência + Técnica: Nadobro Cachorro
+### Champion Resistência + Técnica: Labradorbro
 `cachorro_champion_resistencia_tecnica.png` · referências: Champion de Resistência + Champion de Técnica do cachorro
 
 > Hybrid evolution of the young mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)), mixing two training styles. It is a swimmer: light-blue AND lavender, swim cap with goggles on the forehead, swim trunks, towel over the shoulder, water droplets, relaxed confident smile. Keep the mutt dog features clearly visible.
 
-### Champion Agilidade + Técnica: Gingabro Cachorro
+### Champion Agilidade + Técnica: Poodlebro
 `cachorro_champion_agilidade_tecnica.png` · referências: Champion de Agilidade + Champion de Técnica do cachorro
 
 > Hybrid evolution of the young mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)), mixing two training styles. It is a gymnast and capoeira dancer: lime-green AND lavender, flowing capoeira pants, wristbands, elegant one-hand balance pose. Keep the mutt dog features clearly visible.
 
-### Ultimate Força + Resistência: Hércubro Cachorro
-`cachorro_ultimate_forca_resistencia.png` · referências: Champion híbrido Crossbro + Ultimates de Força e Resistência do cachorro
+### Ultimate Força + Resistência: Cérberobro
+`cachorro_ultimate_forca_resistencia.png` · referências: Champion híbrido Viralatabro + Ultimates de Força e Resistência do cachorro
 
 > Hybrid final evolution of the CrossFit athlete: heroic and powerful, deep crimson AND deep blue with gold accents, competition singlet with a medal, kettlebell held overhead, a glowing aura mixing red and blue. The character is a mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)); keep the mutt dog features clearly visible.
 
-### Ultimate Força + Agilidade: Titãbro Cachorro
-`cachorro_ultimate_forca_agilidade.png` · referências: Champion híbrido Golpebro + Ultimates de Força e Agilidade do cachorro
+### Ultimate Força + Agilidade: Dobermanbro
+`cachorro_ultimate_forca_agilidade.png` · referências: Champion híbrido Boxerbro + Ultimates de Força e Agilidade do cachorro
 
 > Hybrid final evolution of the fighter: champion martial artist, deep crimson AND electric green with gold accents, championship belt, glowing fists with small sparks, mid-strike pose. The character is a mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)); keep the mutt dog features clearly visible.
 
-### Ultimate Força + Técnica: Olimpibro Cachorro
-`cachorro_ultimate_forca_tecnica.png` · referências: Champion híbrido Arrancobro + Ultimates de Força e Técnica do cachorro
+### Ultimate Força + Técnica: Sãobernardobro
+`cachorro_ultimate_forca_tecnica.png` · referências: Champion híbrido Bulldogbro + Ultimates de Força e Técnica do cachorro
 
 > Hybrid final evolution of the olympic weightlifter: legendary lifter, deep crimson AND deep purple with gold accents, golden singlet details, barbell locked overhead in a perfect snatch, small floating energy orbs. The character is a mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)); keep the mutt dog features clearly visible.
 
-### Ultimate Resistência + Agilidade: Ventobro Cachorro
-`cachorro_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Trilhabro + Ultimates de Resistência e Agilidade do cachorro
+### Ultimate Resistência + Agilidade: Salukibro
+`cachorro_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Gandulabro + Ultimates de Resistência e Agilidade do cachorro
 
 > Hybrid final evolution of the trail runner: wind spirit athlete, deep blue AND electric green, long scarf and wind trails around the body, sprinting mid-air pose. The character is a mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)); keep the mutt dog features clearly visible.
 
-### Ultimate Resistência + Técnica: Marébro Cachorro
-`cachorro_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Nadobro + Ultimates de Resistência e Técnica do cachorro
+### Ultimate Resistência + Técnica: Terranovabro
+`cachorro_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Labradorbro + Ultimates de Resistência e Técnica do cachorro
 
 > Hybrid final evolution of the swimmer: ocean master, deep blue AND deep purple with gold accents, cape like a wave, swirling water around, serene powerful stance. The character is a mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)); keep the mutt dog features clearly visible.
 
-### Ultimate Agilidade + Técnica: Acrobro Cachorro
-`cachorro_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Gingabro + Ultimates de Agilidade e Técnica do cachorro
+### Ultimate Agilidade + Técnica: Borderbro
+`cachorro_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Poodlebro + Ultimates de Agilidade e Técnica do cachorro
 
 > Hybrid final evolution of the gymnast/capoeira dancer: acrobat master, electric green AND deep purple with gold accents, flowing ribbons, floating mid-flip pose. The character is a mutt dog (caramel and cream fur, floppy ears, wagging tail, playful tongue (Brazilian 'caramelo' street dog)); keep the mutt dog features clearly visible.
 
@@ -355,63 +371,63 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 
 # Esquilo
 
-### Champion Força + Resistência: Crossbro Esquilo
+### Champion Força + Resistência: Bolotabro
 `esquilo_champion_forca_resistencia.png` · referências: Champion de Força + Champion de Resistência do esquilo
 
 > Hybrid evolution of the young squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks), mixing two training styles. It is a CrossFit athlete: muscular but lean, coral-red AND light-blue outfit (black tank top with a small dumbbell icon, running shorts, running shoes), a kettlebell in one hand and a jump rope over the shoulder, energetic grin. Keep the squirrel features clearly visible.
 
-### Champion Força + Agilidade: Golpebro Esquilo
+### Champion Força + Agilidade: Ouriçobro
 `esquilo_champion_forca_agilidade.png` · referências: Champion de Força + Champion de Agilidade do esquilo
 
 > Hybrid evolution of the young squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks), mixing two training styles. It is a fighter (boxing and MMA): coral-red AND lime-green outfit, boxing gloves, fight shorts, kneepads, red-and-green headband, dynamic punching stance. Keep the squirrel features clearly visible.
 
-### Champion Força + Técnica: Arrancobro Esquilo
+### Champion Força + Técnica: Torabro
 `esquilo_champion_forca_tecnica.png` · referências: Champion de Força + Champion de Técnica do esquilo
 
 > Hybrid evolution of the young squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks), mixing two training styles. It is an olympic weightlifter: coral-red AND lavender singlet, lifting belt, wrist wraps, holding a barbell in the front rack position, focused calm expression. Keep the squirrel features clearly visible.
 
-### Champion Resistência + Agilidade: Trilhabro Esquilo
+### Champion Resistência + Agilidade: Copabro
 `esquilo_champion_resistencia_agilidade.png` · referências: Champion de Resistência + Champion de Agilidade do esquilo
 
 > Hybrid evolution of the young squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks), mixing two training styles. It is a trail runner and soccer player: light-blue AND lime-green outfit, hydration vest, trail shoes, soccer socks, mid-leap running pose. Keep the squirrel features clearly visible.
 
-### Champion Resistência + Técnica: Nadobro Esquilo
+### Champion Resistência + Técnica: Cachoeirabro
 `esquilo_champion_resistencia_tecnica.png` · referências: Champion de Resistência + Champion de Técnica do esquilo
 
 > Hybrid evolution of the young squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks), mixing two training styles. It is a swimmer: light-blue AND lavender, swim cap with goggles on the forehead, swim trunks, towel over the shoulder, water droplets, relaxed confident smile. Keep the squirrel features clearly visible.
 
-### Champion Agilidade + Técnica: Gingabro Esquilo
+### Champion Agilidade + Técnica: Cipóbro
 `esquilo_champion_agilidade_tecnica.png` · referências: Champion de Agilidade + Champion de Técnica do esquilo
 
 > Hybrid evolution of the young squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks), mixing two training styles. It is a gymnast and capoeira dancer: lime-green AND lavender, flowing capoeira pants, wristbands, elegant one-hand balance pose. Keep the squirrel features clearly visible.
 
-### Ultimate Força + Resistência: Hércubro Esquilo
-`esquilo_ultimate_forca_resistencia.png` · referências: Champion híbrido Crossbro + Ultimates de Força e Resistência do esquilo
+### Ultimate Força + Resistência: Sequoiabro
+`esquilo_ultimate_forca_resistencia.png` · referências: Champion híbrido Bolotabro + Ultimates de Força e Resistência do esquilo
 
 > Hybrid final evolution of the CrossFit athlete: heroic and powerful, deep crimson AND deep blue with gold accents, competition singlet with a medal, kettlebell held overhead, a glowing aura mixing red and blue. The character is a squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks); keep the squirrel features clearly visible.
 
-### Ultimate Força + Agilidade: Titãbro Esquilo
-`esquilo_ultimate_forca_agilidade.png` · referências: Champion híbrido Golpebro + Ultimates de Força e Agilidade do esquilo
+### Ultimate Força + Agilidade: Espinheirobro
+`esquilo_ultimate_forca_agilidade.png` · referências: Champion híbrido Ouriçobro + Ultimates de Força e Agilidade do esquilo
 
 > Hybrid final evolution of the fighter: champion martial artist, deep crimson AND electric green with gold accents, championship belt, glowing fists with small sparks, mid-strike pose. The character is a squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks); keep the squirrel features clearly visible.
 
-### Ultimate Força + Técnica: Olimpibro Esquilo
-`esquilo_ultimate_forca_tecnica.png` · referências: Champion híbrido Arrancobro + Ultimates de Força e Técnica do esquilo
+### Ultimate Força + Técnica: Jequitibro
+`esquilo_ultimate_forca_tecnica.png` · referências: Champion híbrido Torabro + Ultimates de Força e Técnica do esquilo
 
 > Hybrid final evolution of the olympic weightlifter: legendary lifter, deep crimson AND deep purple with gold accents, golden singlet details, barbell locked overhead in a perfect snatch, small floating energy orbs. The character is a squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks); keep the squirrel features clearly visible.
 
-### Ultimate Resistência + Agilidade: Ventobro Esquilo
-`esquilo_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Trilhabro + Ultimates de Resistência e Agilidade do esquilo
+### Ultimate Resistência + Agilidade: Redemoinhobro
+`esquilo_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Copabro + Ultimates de Resistência e Agilidade do esquilo
 
 > Hybrid final evolution of the trail runner: wind spirit athlete, deep blue AND electric green, long scarf and wind trails around the body, sprinting mid-air pose. The character is a squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks); keep the squirrel features clearly visible.
 
-### Ultimate Resistência + Técnica: Marébro Esquilo
-`esquilo_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Nadobro + Ultimates de Resistência e Técnica do esquilo
+### Ultimate Resistência + Técnica: Cascatabro
+`esquilo_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Cachoeirabro + Ultimates de Resistência e Técnica do esquilo
 
 > Hybrid final evolution of the swimmer: ocean master, deep blue AND deep purple with gold accents, cape like a wave, swirling water around, serene powerful stance. The character is a squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks); keep the squirrel features clearly visible.
 
-### Ultimate Agilidade + Técnica: Acrobro Esquilo
-`esquilo_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Gingabro + Ultimates de Agilidade e Técnica do esquilo
+### Ultimate Agilidade + Técnica: Trapezistabro
+`esquilo_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Cipóbro + Ultimates de Agilidade e Técnica do esquilo
 
 > Hybrid final evolution of the gymnast/capoeira dancer: acrobat master, electric green AND deep purple with gold accents, flowing ribbons, floating mid-flip pose. The character is a squirrel (reddish orange and cream fur, big bushy curled tail, small tufted ears, chubby cheeks); keep the squirrel features clearly visible.
 
@@ -420,63 +436,63 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 
 # Gato
 
-### Champion Força + Resistência: Crossbro Gato
+### Champion Força + Resistência: Miaufitbro
 `gato_champion_forca_resistencia.png` · referências: Champion de Força + Champion de Resistência do gato
 
 > Hybrid evolution of the young cat (tricolor calico fur, triangular ears, whiskers, long curvy tail), mixing two training styles. It is a CrossFit athlete: muscular but lean, coral-red AND light-blue outfit (black tank top with a small dumbbell icon, running shorts, running shoes), a kettlebell in one hand and a jump rope over the shoulder, energetic grin. Keep the cat features clearly visible.
 
-### Champion Força + Agilidade: Golpebro Gato
+### Champion Força + Agilidade: Unhadabro
 `gato_champion_forca_agilidade.png` · referências: Champion de Força + Champion de Agilidade do gato
 
 > Hybrid evolution of the young cat (tricolor calico fur, triangular ears, whiskers, long curvy tail), mixing two training styles. It is a fighter (boxing and MMA): coral-red AND lime-green outfit, boxing gloves, fight shorts, kneepads, red-and-green headband, dynamic punching stance. Keep the cat features clearly visible.
 
-### Champion Força + Técnica: Arrancobro Gato
+### Champion Força + Técnica: Pumabro
 `gato_champion_forca_tecnica.png` · referências: Champion de Força + Champion de Técnica do gato
 
 > Hybrid evolution of the young cat (tricolor calico fur, triangular ears, whiskers, long curvy tail), mixing two training styles. It is an olympic weightlifter: coral-red AND lavender singlet, lifting belt, wrist wraps, holding a barbell in the front rack position, focused calm expression. Keep the cat features clearly visible.
 
-### Champion Resistência + Agilidade: Trilhabro Gato
+### Champion Resistência + Agilidade: Gatunobro
 `gato_champion_resistencia_agilidade.png` · referências: Champion de Resistência + Champion de Agilidade do gato
 
 > Hybrid evolution of the young cat (tricolor calico fur, triangular ears, whiskers, long curvy tail), mixing two training styles. It is a trail runner and soccer player: light-blue AND lime-green outfit, hydration vest, trail shoes, soccer socks, mid-leap running pose. Keep the cat features clearly visible.
 
-### Champion Resistência + Técnica: Nadobro Gato
+### Champion Resistência + Técnica: Molhadobro
 `gato_champion_resistencia_tecnica.png` · referências: Champion de Resistência + Champion de Técnica do gato
 
 > Hybrid evolution of the young cat (tricolor calico fur, triangular ears, whiskers, long curvy tail), mixing two training styles. It is a swimmer: light-blue AND lavender, swim cap with goggles on the forehead, swim trunks, towel over the shoulder, water droplets, relaxed confident smile. Keep the cat features clearly visible.
 
-### Champion Agilidade + Técnica: Gingabro Gato
+### Champion Agilidade + Técnica: Muretabro
 `gato_champion_agilidade_tecnica.png` · referências: Champion de Agilidade + Champion de Técnica do gato
 
 > Hybrid evolution of the young cat (tricolor calico fur, triangular ears, whiskers, long curvy tail), mixing two training styles. It is a gymnast and capoeira dancer: lime-green AND lavender, flowing capoeira pants, wristbands, elegant one-hand balance pose. Keep the cat features clearly visible.
 
-### Ultimate Força + Resistência: Hércubro Gato
-`gato_ultimate_forca_resistencia.png` · referências: Champion híbrido Crossbro + Ultimates de Força e Resistência do gato
+### Ultimate Força + Resistência: Tigrebro
+`gato_ultimate_forca_resistencia.png` · referências: Champion híbrido Miaufitbro + Ultimates de Força e Resistência do gato
 
 > Hybrid final evolution of the CrossFit athlete: heroic and powerful, deep crimson AND deep blue with gold accents, competition singlet with a medal, kettlebell held overhead, a glowing aura mixing red and blue. The character is a cat (tricolor calico fur, triangular ears, whiskers, long curvy tail); keep the cat features clearly visible.
 
-### Ultimate Força + Agilidade: Titãbro Gato
-`gato_ultimate_forca_agilidade.png` · referências: Champion híbrido Golpebro + Ultimates de Força e Agilidade do gato
+### Ultimate Força + Agilidade: Smilodonbro
+`gato_ultimate_forca_agilidade.png` · referências: Champion híbrido Unhadabro + Ultimates de Força e Agilidade do gato
 
 > Hybrid final evolution of the fighter: champion martial artist, deep crimson AND electric green with gold accents, championship belt, glowing fists with small sparks, mid-strike pose. The character is a cat (tricolor calico fur, triangular ears, whiskers, long curvy tail); keep the cat features clearly visible.
 
-### Ultimate Força + Técnica: Olimpibro Gato
-`gato_ultimate_forca_tecnica.png` · referências: Champion híbrido Arrancobro + Ultimates de Força e Técnica do gato
+### Ultimate Força + Técnica: Leãobro
+`gato_ultimate_forca_tecnica.png` · referências: Champion híbrido Pumabro + Ultimates de Força e Técnica do gato
 
 > Hybrid final evolution of the olympic weightlifter: legendary lifter, deep crimson AND deep purple with gold accents, golden singlet details, barbell locked overhead in a perfect snatch, small floating energy orbs. The character is a cat (tricolor calico fur, triangular ears, whiskers, long curvy tail); keep the cat features clearly visible.
 
-### Ultimate Resistência + Agilidade: Ventobro Gato
-`gato_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Trilhabro + Ultimates de Resistência e Agilidade do gato
+### Ultimate Resistência + Agilidade: Guepardobro
+`gato_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Gatunobro + Ultimates de Resistência e Agilidade do gato
 
 > Hybrid final evolution of the trail runner: wind spirit athlete, deep blue AND electric green, long scarf and wind trails around the body, sprinting mid-air pose. The character is a cat (tricolor calico fur, triangular ears, whiskers, long curvy tail); keep the cat features clearly visible.
 
-### Ultimate Resistência + Técnica: Marébro Gato
-`gato_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Nadobro + Ultimates de Resistência e Técnica do gato
+### Ultimate Resistência + Técnica: Onçabro
+`gato_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Molhadobro + Ultimates de Resistência e Técnica do gato
 
 > Hybrid final evolution of the swimmer: ocean master, deep blue AND deep purple with gold accents, cape like a wave, swirling water around, serene powerful stance. The character is a cat (tricolor calico fur, triangular ears, whiskers, long curvy tail); keep the cat features clearly visible.
 
-### Ultimate Agilidade + Técnica: Acrobro Gato
-`gato_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Gingabro + Ultimates de Agilidade e Técnica do gato
+### Ultimate Agilidade + Técnica: Bastetbro
+`gato_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Muretabro + Ultimates de Agilidade e Técnica do gato
 
 > Hybrid final evolution of the gymnast/capoeira dancer: acrobat master, electric green AND deep purple with gold accents, flowing ribbons, floating mid-flip pose. The character is a cat (tricolor calico fur, triangular ears, whiskers, long curvy tail); keep the cat features clearly visible.
 
@@ -485,62 +501,62 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 
 # Coruja
 
-### Champion Força + Resistência: Crossbro Coruja
+### Champion Força + Resistência: Madrugabro
 `coruja_champion_forca_resistencia.png` · referências: Champion de Força + Champion de Resistência do coruja
 
 > Hybrid evolution of the young owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms), mixing two training styles. It is a CrossFit athlete: muscular but lean, coral-red AND light-blue outfit (black tank top with a small dumbbell icon, running shorts, running shoes), a kettlebell in one hand and a jump rope over the shoulder, energetic grin. Keep the owl features clearly visible.
 
-### Champion Força + Agilidade: Golpebro Coruja
+### Champion Força + Agilidade: Bicadabro
 `coruja_champion_forca_agilidade.png` · referências: Champion de Força + Champion de Agilidade do coruja
 
 > Hybrid evolution of the young owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms), mixing two training styles. It is a fighter (boxing and MMA): coral-red AND lime-green outfit, boxing gloves, fight shorts, kneepads, red-and-green headband, dynamic punching stance. Keep the owl features clearly visible.
 
-### Champion Força + Técnica: Arrancobro Coruja
+### Champion Força + Técnica: Mochobro
 `coruja_champion_forca_tecnica.png` · referências: Champion de Força + Champion de Técnica do coruja
 
 > Hybrid evolution of the young owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms), mixing two training styles. It is an olympic weightlifter: coral-red AND lavender singlet, lifting belt, wrist wraps, holding a barbell in the front rack position, focused calm expression. Keep the owl features clearly visible.
 
-### Champion Resistência + Agilidade: Trilhabro Coruja
+### Champion Resistência + Agilidade: Revoadabro
 `coruja_champion_resistencia_agilidade.png` · referências: Champion de Resistência + Champion de Agilidade do coruja
 
 > Hybrid evolution of the young owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms), mixing two training styles. It is a trail runner and soccer player: light-blue AND lime-green outfit, hydration vest, trail shoes, soccer socks, mid-leap running pose. Keep the owl features clearly visible.
 
-### Champion Resistência + Técnica: Nadobro Coruja
+### Champion Resistência + Técnica: Martimbro
 `coruja_champion_resistencia_tecnica.png` · referências: Champion de Resistência + Champion de Técnica do coruja
 
 > Hybrid evolution of the young owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms), mixing two training styles. It is a swimmer: light-blue AND lavender, swim cap with goggles on the forehead, swim trunks, towel over the shoulder, water droplets, relaxed confident smile. Keep the owl features clearly visible.
 
-### Champion Agilidade + Técnica: Gingabro Coruja
+### Champion Agilidade + Técnica: Plumabro
 `coruja_champion_agilidade_tecnica.png` · referências: Champion de Agilidade + Champion de Técnica do coruja
 
 > Hybrid evolution of the young owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms), mixing two training styles. It is a gymnast and capoeira dancer: lime-green AND lavender, flowing capoeira pants, wristbands, elegant one-hand balance pose. Keep the owl features clearly visible.
 
-### Ultimate Força + Resistência: Hércubro Coruja
-`coruja_ultimate_forca_resistencia.png` · referências: Champion híbrido Crossbro + Ultimates de Força e Resistência do coruja
+### Ultimate Força + Resistência: Grifobro
+`coruja_ultimate_forca_resistencia.png` · referências: Champion híbrido Madrugabro + Ultimates de Força e Resistência do coruja
 
 > Hybrid final evolution of the CrossFit athlete: heroic and powerful, deep crimson AND deep blue with gold accents, competition singlet with a medal, kettlebell held overhead, a glowing aura mixing red and blue. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
 
-### Ultimate Força + Agilidade: Titãbro Coruja
-`coruja_ultimate_forca_agilidade.png` · referências: Champion híbrido Golpebro + Ultimates de Força e Agilidade do coruja
+### Ultimate Força + Agilidade: Falcãobro
+`coruja_ultimate_forca_agilidade.png` · referências: Champion híbrido Bicadabro + Ultimates de Força e Agilidade do coruja
 
 > Hybrid final evolution of the fighter: champion martial artist, deep crimson AND electric green with gold accents, championship belt, glowing fists with small sparks, mid-strike pose. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
 
-### Ultimate Força + Técnica: Olimpibro Coruja
-`coruja_ultimate_forca_tecnica.png` · referências: Champion híbrido Arrancobro + Ultimates de Força e Técnica do coruja
+### Ultimate Força + Técnica: Atenabro
+`coruja_ultimate_forca_tecnica.png` · referências: Champion híbrido Mochobro + Ultimates de Força e Técnica do coruja
 
 > Hybrid final evolution of the olympic weightlifter: legendary lifter, deep crimson AND deep purple with gold accents, golden singlet details, barbell locked overhead in a perfect snatch, small floating energy orbs. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
 
-### Ultimate Resistência + Agilidade: Ventobro Coruja
-`coruja_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Trilhabro + Ultimates de Resistência e Agilidade do coruja
+### Ultimate Resistência + Agilidade: Ciclonebro
+`coruja_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Revoadabro + Ultimates de Resistência e Agilidade do coruja
 
 > Hybrid final evolution of the trail runner: wind spirit athlete, deep blue AND electric green, long scarf and wind trails around the body, sprinting mid-air pose. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
 
-### Ultimate Resistência + Técnica: Marébro Coruja
-`coruja_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Nadobro + Ultimates de Resistência e Técnica do coruja
+### Ultimate Resistência + Técnica: Albatrozbro
+`coruja_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Martimbro + Ultimates de Resistência e Técnica do coruja
 
 > Hybrid final evolution of the swimmer: ocean master, deep blue AND deep purple with gold accents, cape like a wave, swirling water around, serene powerful stance. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
 
-### Ultimate Agilidade + Técnica: Acrobro Coruja
-`coruja_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Gingabro + Ultimates de Agilidade e Técnica do coruja
+### Ultimate Agilidade + Técnica: Fênixbro
+`coruja_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Plumabro + Ultimates de Agilidade e Técnica do coruja
 
 > Hybrid final evolution of the gymnast/capoeira dancer: acrobat master, electric green AND deep purple with gold accents, flowing ribbons, floating mid-flip pose. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.

@@ -27,10 +27,18 @@ O app não usa controles padrão do iOS: telas, cabeçalhos, barra de abas, bot�
 
 ## Ligas
 
-- Inspiradas no GymRats: cada liga é um ranking contínuo de check-ins de qualquer atividade, com pontuação por pontos (XP da atividade), treinos ou minutos; ranking "desde o início" e "esta semana", e feed com foto.
+- Inspiradas no GymRats: cada liga é um ranking contínuo de check-ins de qualquer atividade, com ranking da liga toda, da semana e do mês, e feed com foto.
+- Pontuação (`GymMonsters/Leagues.swift`): pontos (XP da atividade), treinos, minutos, distância (GPS do app ou Apple Saúde) ou calorias (do Saúde ou estimadas). No modo pontos, cada liga define um peso de 0× a 3× por atributo (ex.: Resistência 2× favorece cardio; 0× tira o atributo da conta).
+- Desempate escolhido na liga: quem chegou antes à pontuação, maior sequência de dias seguidos ou mais check-ins. O ranking mostra quando a posição foi decidida no desempate.
+- Foto do treino: opcional, sem foto vale metade, ou obrigatória (sem foto não pontua). O formulário de check-in avisa quando falta a foto.
+- Times: o placar do time é a soma dos membros, e cada time tem um bro que cresce com a média de XP dos membros e evolui pelo atributo que o time mais treina. Você escolhe o time tocando nele no ranking.
+- Mural: recados da galera da liga, cada um com o seu bro.
+- Amigos (botão na tela inicial, `GymMonsters/Friends.swift`): seu código de amigo para compartilhar, adicionar por código, pedidos recebidos e sugestões de quem está nas suas ligas e ainda não é seu amigo. Mesmo esquema das ligas: `FriendsBackend` com `MockFriendsBackend` simulado; quem deixa de ser amigo some do mapa.
+- Perfil do amigo (toque na lista de amigos, `GymMonsters/PublicProfile.swift`): foto, nome, @usuário, bio, se está treinando agora, e o mesmo card público da prévia do seu perfil (bro principal, números e conquistas, respeitando o que a pessoa escondeu), ligas em comum e posts em calendário (toque no dia para ver os posts). Vem de `FriendsBackend.profile`.
+- Seu perfil: a aba Público é exatamente o que os amigos veem (card público e posts em calendário); a aba Privado tem seus números, recordes, estatísticas, metas, peso e o calendário de todas as atividades. Nome, @usuário, bio e o que aparece para os outros ficam em "Editar perfil".
 - Check-in em várias ligas de uma vez: ao registrar atividade, ao concluir treino guiado ou pelo botão da liga (nova atividade ou uma já registrada, inclusive do Saúde).
 - Coleção de bros (`GymMonsters/Monsters.swift`): ao entrar numa liga você escolhe quem te representa, um bro seu ou um ovo novo adotado na hora. Os check-ins da liga dão XP só para ele; atividades fora de ligas vão para o bro principal (tela inicial e widgets), que pode ser trocado em "Meus bros".
-- Sem servidor ainda: convites são só um código para compartilhar. A "Liga dos Amigos" (código `AMIGOS`) tem 5 participantes simulados (`GymMonsters/Leagues.swift`).
+- Sem servidor ainda, mas o contrato já existe (`GymMonsters/LeagueRemote.swift`): `LeagueBackend` busca participantes, check-ins, times e mural (tipos `Remote*`, Codable, no formato da API) e envia seus recados. Hoje quem responde é o `MockLeagueBackend`, com dados simulados e determinísticos; para ligar um servidor, basta implementar o protocolo e trocar `LeagueRemoteStore.shared.backend`. Seus recados ficam no aparelho como caixa de saída (`LeagueMessage.syncedAt`). Os seus check-ins ainda não têm envio: é o próximo passo quando houver API. A "Liga dos Bros" (código `AMIGOS`) tem 8 participantes simulados divididos em dois times (Gui, Lia e Rafa ainda não são seus amigos).
 
 ## Biblioteca e CrossFit
 
@@ -46,13 +54,13 @@ O app não usa controles padrão do iOS: telas, cabeçalhos, barra de abas, bot�
 
 ## Apple Saúde e backup
 
-- Treinos do iPhone/Apple Watch são importados ao abrir o app (Ajustes → Apple Saúde; na primeira vez, últimos 14 dias). O tipo vira a atividade correspondente e o esforço é estimado pelas calorias ativas em relação ao esperado para a atividade. Treinos que se sobrepõem a algo já registrado (ex.: treino guiado também gravado no Watch) não contam duas vezes. Só leitura.
+- Treinos do iPhone/Apple Watch são importados ao abrir o app (Ajustes → Apple Saúde; na primeira vez, últimos 14 dias). O tipo vira a atividade correspondente e o esforço é estimado pelas calorias ativas em relação ao esperado para a atividade. Treinos que se sobrepõem a algo já registrado (ex.: treino guiado também gravado no Watch) não contam duas vezes. Opcionalmente, as atividades registradas no app também são gravadas no Saúde (Ajustes → Apple Saúde).
 - Backup completo em JSON (Ajustes → Backup): exportar para o Arquivos/iCloud Drive e restaurar.
 
 ## Companheiro, conquistas e widget
 
 - Humor do bro (animado, feliz, entediado, triste, exausto) pelos dias sem treinar, sequência e excesso no dia; balão com frases que citam a rotina do dia e músculos esquecidos na semana.
-- 22 conquistas (Dex → Conquistas), com aviso ao desbloquear.
+- 28 conquistas (Bros → Conquistas), com aviso ao desbloquear.
 - Lembretes locais no horário escolhido, só nos dias sem treino (opcional: só em dias de rotina).
 - Widget "Meu bro" (pequeno, médio, grande e tela bloqueada redondo/retangular): muda de pose a cada minuto com transição animada e reage a carinho com um toque (widget interativo).
 - Widget "Status do bro" (pequeno, médio e tela bloqueada) com bro, humor, XP e sequência. Os dados chegam pelo App Group `group.com.alonsoalmeida.gymmonsters` (`Shared/WidgetShared.swift`).
@@ -67,5 +75,7 @@ xcrun devicectl device install app --device <UDID> build/Build/Products/Debug-ip
 ```
 
 A versão web anterior (Next.js + Express) continua no branch `main`.
+
+Requisitos, arquitetura e design system em [docs/](docs/README.md).
 
 Créditos de terceiros em [NOTICE.md](NOTICE.md).

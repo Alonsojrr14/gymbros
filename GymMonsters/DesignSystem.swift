@@ -6,11 +6,20 @@ import UIKit
 // e de abas): tudo passa por estes componentes. Ficam com o sistema só o que o iOS não
 // deixa substituir: teclado, seletor de fotos, compartilhar, seletor de arquivos e permissões.
 
+// Cores em Shared/Theme.swift. Escala de raios: use só estes valores.
 extension Theme {
-    static let raised = Color.white.opacity(0.06)
-    static let stroke = Color.white.opacity(0.08)
-    static let danger = Color(red: 1.0, green: 0.38, blue: 0.38)
+    /// Barras finas de gráfico e de esforço
+    static let radiusXS: CGFloat = 4
+    /// Quadrado de ícone, miniaturas
+    static let radiusS: CGFloat = 10
+    /// Campos, botão pequeno, fotos em lista
+    static let radiusM: CGFloat = 12
+    /// Botão, blocos dentro de card, mapas
+    static let radiusL: CGFloat = 16
+    /// Cards (GMCard)
     static let radius: CGFloat = 20
+    /// Bottom sheet e diálogo
+    static let radiusXL: CGFloat = 28
 }
 
 // MARK: - Botões
@@ -57,7 +66,7 @@ struct GMButton: View {
             .frame(maxWidth: full ? .infinity : nil)
             .padding(.vertical, small ? 9 : 15)
             .padding(.horizontal, small ? 14 : 20)
-            .background(background, in: .rect(cornerRadius: small ? 12 : 16))
+            .background(background, in: .rect(cornerRadius: small ? Theme.radiusM : Theme.radiusL))
             .foregroundStyle(foreground)
             .opacity(enabled ? 1 : 0.4)
         }
@@ -87,6 +96,8 @@ struct GMIconButton: View {
     let icon: String
     var size: CGFloat = 40
     var tint: Color = .white
+    /// Rótulo do VoiceOver; sem ele, vem do ícone (fechar, voltar, ajustes…)
+    var label: String?
     let action: () -> Void
 
     var body: some View {
@@ -98,23 +109,68 @@ struct GMIconButton: View {
                 .foregroundStyle(tint)
         }
         .buttonStyle(GMPress())
+        .accessibilityLabel(label ?? Self.defaultLabel(icon))
+    }
+
+    static func defaultLabel(_ icon: String) -> String {
+        switch icon {
+        case "xmark": "Fechar"
+        case "chevron.left": "Voltar"
+        case "chevron.right": "Avançar"
+        case "ellipsis": "Mais opções"
+        case "gearshape", "gearshape.fill": "Ajustes"
+        case "person.2.fill", "person.2": "Amigos"
+        case "square.stack.3d.up": "Bros"
+        case "plus": "Adicionar"
+        case "pencil": "Editar"
+        case "trash": "Apagar"
+        case "square.and.arrow.up": "Compartilhar"
+        case "magnifyingglass": "Buscar"
+        default: icon.replacingOccurrences(of: ".fill", with: "").replacingOccurrences(of: ".", with: " ")
+        }
     }
 }
 
-/// Botão de texto pequeno para cabeçalhos (Salvar, OK…)
+/// Botão redondo de acento que flutua no canto da tela (criar, postar)
+struct GMFloatingButton: View {
+    var icon = "plus"
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.title2.bold())
+                .frame(width: 62, height: 62)
+                .background(Theme.accent, in: .circle)
+                .foregroundStyle(.black)
+                .shadow(color: .black.opacity(0.4), radius: 10, y: 4)
+        }
+        .buttonStyle(GMPress())
+        .accessibilityLabel(label)
+    }
+}
+
+/// Botão de texto em acento, para cabeçalhos de tela ou de seção ("Adicionar", "OK"…)
 struct GMTextButton: View {
     let title: String
+    var icon: String?
     var bold = false
+    /// Tamanho de rótulo de seção (caption)
+    var small = false
     var enabled = true
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(bold ? .headline : .body)
-                .foregroundStyle(enabled ? Theme.accent : Theme.dim)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 8)
+            Group {
+                if let icon { Label(title, systemImage: icon) } else { Text(title) }
+            }
+            .font(small ? .caption.bold() : bold ? .headline : .body)
+            .foregroundStyle(enabled ? Theme.accent : Theme.dim)
+            .padding(.horizontal, small ? 0 : 6)
+            .padding(.vertical, small ? 0 : 8)
+            .contentShape(Rectangle())
         }
         .buttonStyle(GMPress())
         .disabled(!enabled)
@@ -132,6 +188,34 @@ struct GMCard<Content: View>: View {
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+    }
+}
+
+/// Fonte do sistema com tamanho próprio que acompanha o Dynamic Type
+private struct GMScaledFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    let weight: Font.Weight
+    let design: Font.Design
+    let mono: Bool
+
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design, mono: Bool, relativeTo style: Font.TextStyle) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: style)
+        self.weight = weight
+        self.design = design
+        self.mono = mono
+    }
+
+    func body(content: Content) -> some View {
+        let f = Font.system(size: size, weight: weight, design: design)
+        content.font(mono ? f.monospacedDigit() : f)
+    }
+}
+
+extension View {
+    /// Igual a `.font(.system(size:weight:design:))`, mas cresce com o Dynamic Type
+    func gmFont(_ size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default, mono: Bool = false,
+                relativeTo style: Font.TextStyle = .body) -> some View {
+        modifier(GMScaledFont(size: size, weight: weight, design: design, mono: mono, relativeTo: style))
     }
 }
 
@@ -190,7 +274,7 @@ struct GMRow<Trailing: View>: View {
                     .font(.body.weight(.semibold))
                     .foregroundStyle(iconTint)
                     .frame(width: 34, height: 34)
-                    .background(Theme.raised, in: .rect(cornerRadius: 10))
+                    .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusS))
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
@@ -255,7 +339,7 @@ struct GMProgressBar: View {
     var body: some View {
         GeometryReader { g in
             ZStack(alignment: .leading) {
-                Capsule().fill(.white.opacity(0.1))
+                Capsule().fill(Theme.track)
                 Capsule().fill(tint).frame(width: max(g.size.width * min(max(value, 0), 1), value > 0 ? height : 0))
             }
         }
@@ -334,6 +418,39 @@ struct GMSegmented<T: Hashable>: View {
     }
 }
 
+/// Ponto de "online": verde, com uma névoa que sai dele e se desfaz, sem parar
+struct GMOnlineDot: View {
+    var size: CGFloat = 8
+    var color = Theme.online
+    @State private var breathe = false
+
+    var body: some View {
+        ZStack {
+            // Névoa: borrada, cresce e some
+            Circle()
+                .fill(color)
+                .frame(width: size, height: size)
+                .blur(radius: size * 0.25)
+                .scaleEffect(breathe ? 1.6 : 1)
+                .opacity(breathe ? 0 : 0.6)
+            // Brilho fixo em volta
+            Circle()
+                .fill(color.opacity(0.25))
+                .frame(width: size * 1.3, height: size * 1.3)
+                .blur(radius: size * 0.15)
+            Circle()
+                .fill(color)
+                .frame(width: size, height: size)
+                .shadow(color: color.opacity(0.6), radius: size * 0.2)
+        }
+        .frame(width: size * 1.6, height: size * 1.6)
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) { breathe = true }
+        }
+        .accessibilityLabel("Online")
+    }
+}
+
 struct GMSwitch: View {
     @Binding var isOn: Bool
 
@@ -404,6 +521,62 @@ struct GMStepper: View {
     }
 }
 
+/// Stepper compacto em bloco (− valor/rótulo +), para grades e linhas apertadas.
+/// Com `editable`, o valor também pode ser digitado (séries do treino).
+struct GMCompactStepper: View {
+    @Binding var value: Double
+    var range: ClosedRange<Double> = 0...Double.greatestFiniteMagnitude
+    let step: Double
+    let label: Text
+    var decimals = false
+    var editable = false
+
+    var body: some View {
+        HStack(spacing: 2) {
+            stepButton("minus") { value = max(value - step, range.lowerBound) }
+            VStack(spacing: editable ? -2 : 0) {
+                if editable {
+                    TextField("0", value: $value, format: .number.precision(.fractionLength(0...(decimals ? 2 : 0))))
+                        .keyboardType(decimals ? .decimalPad : .numberPad)
+                        .multilineTextAlignment(.center)
+                        .font(.body.bold().monospacedDigit())
+                        .frame(width: 52)
+                } else {
+                    Text(value, format: .number.precision(.fractionLength(0...(decimals ? 2 : 0))))
+                        .font(.subheadline.bold().monospacedDigit())
+                        .contentTransition(.numericText())
+                }
+                label.font(.caption2).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: editable ? nil : .infinity)
+            stepButton("plus") { value = min(value + step, range.upperBound) }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, editable ? 0 : 4)
+        .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
+    }
+
+    private func stepButton(_ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            withAnimation(.snappy) { action() }
+        } label: {
+            Image(systemName: icon).font(.caption.bold()).frame(width: 28, height: 34).contentShape(Rectangle())
+        }
+        .buttonStyle(GMPress())
+        .foregroundStyle(.white)
+        .accessibilityLabel(icon == "minus" ? "Diminuir" : "Aumentar")
+    }
+}
+
+extension GMCompactStepper {
+    /// Versão inteira (séries, reps)
+    init(value: Binding<Int>, range: ClosedRange<Int>, step: Int, label: String) {
+        self.init(value: Binding(get: { Double(value.wrappedValue) }, set: { value.wrappedValue = Int($0) }),
+                  range: Double(range.lowerBound)...Double(range.upperBound), step: Double(step), label: Text(label))
+    }
+}
+
 /// Esforço de 1 a 10: barras crescentes, toque ou arraste
 struct GMEffortPicker: View {
     @Binding var value: Int
@@ -418,8 +591,8 @@ struct GMEffortPicker: View {
             GeometryReader { g in
                 HStack(alignment: .bottom, spacing: 4) {
                     ForEach(1...10, id: \.self) { i in
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(i <= value ? color(i) : Color.white.opacity(0.1))
+                        RoundedRectangle(cornerRadius: Theme.radiusXS)
+                            .fill(i <= value ? color(i) : Theme.track)
                             .frame(height: 12 + CGFloat(i) * 2.6)
                     }
                 }
@@ -456,7 +629,7 @@ struct GMTextField: View {
             .lineLimit(axis == .vertical ? 2...6 : 1...1)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(Theme.raised, in: .rect(cornerRadius: 12))
+            .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
     }
 }
 
@@ -585,7 +758,7 @@ private func fieldRow(icon: String, title: String, value: String, action: @escap
             Image(systemName: icon)
                 .font(.body.weight(.semibold))
                 .frame(width: 34, height: 34)
-                .background(Theme.raised, in: .rect(cornerRadius: 10))
+                .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusS))
             Text(title).font(.subheadline.weight(.semibold))
             Spacer()
             Text(value)
@@ -600,6 +773,46 @@ private func fieldRow(icon: String, title: String, value: String, action: @escap
     .buttonStyle(GMPress())
 }
 
+/// Grade do mês usada pelos calendários do app (GMCalendar e ActivityCalendar): começa no domingo, em português
+enum GMMonth {
+    static let calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.locale = GMDateText.locale
+        c.firstWeekday = 1
+        return c
+    }()
+
+    static let weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
+
+    static func start(of month: Date) -> Date {
+        calendar.date(from: calendar.dateComponents([.year, .month], from: month))!
+    }
+
+    /// Dias do mês, com `nil` antes do dia 1 para alinhar na semana
+    static func cells(_ month: Date) -> [Date?] {
+        let start = start(of: month)
+        let days = calendar.range(of: .day, in: .month, for: start)!.count
+        let lead = (calendar.component(.weekday, from: start) - calendar.firstWeekday + 7) % 7
+        return Array(repeating: nil, count: lead) + (0..<days).map { calendar.date(byAdding: .day, value: $0, to: start) }
+    }
+
+    static func title(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = GMDateText.locale
+        f.dateFormat = "MMMM 'de' yyyy"
+        return f.string(from: d).capitalizedFirst
+    }
+
+    /// Linha com os nomes dos dias da semana
+    static var header: some View {
+        HStack(spacing: 4) {
+            ForEach(weekdays, id: \.self) {
+                Text($0).font(.caption.bold()).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.6).frame(maxWidth: .infinity)
+            }
+        }
+    }
+}
+
 /// Calendário mensal próprio, em português, começando no domingo
 struct GMCalendar: View {
     @Binding var selection: Date
@@ -607,32 +820,23 @@ struct GMCalendar: View {
     var minDate: Date? = nil
     @State private var month = Date.now
 
-    private var cal: Calendar {
-        var c = Calendar(identifier: .gregorian)
-        c.locale = GMDateText.locale
-        c.firstWeekday = 1
-        return c
-    }
+    private var cal: Calendar { GMMonth.calendar }
 
     var body: some View {
-        let start = cal.date(from: cal.dateComponents([.year, .month], from: month))!
-        let days = cal.range(of: .day, in: .month, for: start)!.count
-        let lead = (cal.component(.weekday, from: start) - cal.firstWeekday + 7) % 7
-        let cells: [Date?] = Array(repeating: nil, count: lead) + (0..<days).map { cal.date(byAdding: .day, value: $0, to: start) }
+        let start = GMMonth.start(of: month)
+        let cells = GMMonth.cells(month)
         let canGoForward = maxDate.map { cal.date(byAdding: .month, value: 1, to: start)! <= $0 } ?? true
 
         VStack(spacing: 14) {
             HStack {
-                GMIconButton(icon: "chevron.left", size: 36) { shift(-1) }
+                GMIconButton(icon: "chevron.left", size: 36, label: "Mês anterior") { shift(-1) }
                 Spacer()
-                Text(monthTitle(start)).font(.headline)
+                Text(GMMonth.title(start)).font(.headline)
                 Spacer()
-                GMIconButton(icon: "chevron.right", size: 36, tint: canGoForward ? .white : Theme.dim) { if canGoForward { shift(1) } }
+                GMIconButton(icon: "chevron.right", size: 36, tint: canGoForward ? .white : Theme.dim, label: "Próximo mês") { if canGoForward { shift(1) } }
             }
+            GMMonth.header
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 6) {
-                ForEach(Array(["D", "S", "T", "Q", "Q", "S", "S"].enumerated()), id: \.offset) { _, d in
-                    Text(d).font(.caption.bold()).foregroundStyle(Theme.dim)
-                }
                 ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
                     if let day { dayCell(day) } else { Color.clear.frame(height: 40) }
                 }
@@ -668,13 +872,6 @@ struct GMCalendar: View {
         .disabled(disabled)
     }
 
-    private func monthTitle(_ d: Date) -> String {
-        let f = DateFormatter()
-        f.locale = GMDateText.locale
-        f.dateFormat = "MMMM 'de' yyyy"
-        return f.string(from: d).capitalizedFirst
-    }
-
     private func shift(_ n: Int) {
         withAnimation(.snappy) { month = cal.date(byAdding: .month, value: n, to: month) ?? month }
     }
@@ -687,7 +884,7 @@ struct GMTimeWheel: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12).fill(Theme.raised).frame(height: GMWheel.row)
+            RoundedRectangle(cornerRadius: Theme.radiusM).fill(Theme.raised).frame(height: GMWheel.row)
             HStack(spacing: 0) {
                 GMWheel(values: Array(0..<24), selection: $hour)
                 Text(":").font(.title.bold())
@@ -755,7 +952,7 @@ struct GMHeader<Leading: View, Trailing: View>: View {
             }
             .frame(minHeight: 40)
             if large {
-                Text(title).font(.system(size: 32, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7)
+                Text(title).gmFont(32, weight: .heavy, design: .rounded, relativeTo: .largeTitle).lineLimit(1).minimumScaleFactor(0.5)
                 if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(Theme.dim) }
             }
         }
@@ -772,18 +969,22 @@ struct GMScreen<Content: View, Trailing: View>: View {
     var back = false
     /// Mostra a bolinha do perfil à esquerda (telas principais das abas)
     var avatar = false
+    /// Mostra o X para fechar (tela apresentada com gmModal, sem formulário)
+    var close = false
     var large = true
     var bottomInset: CGFloat = 100
     @ViewBuilder var trailing: Trailing
     @ViewBuilder var content: Content
     @Environment(\.dismiss) private var dismiss
 
-    init(_ title: String, subtitle: String? = nil, back: Bool = false, avatar: Bool = false, large: Bool = true, bottomInset: CGFloat = 100,
+    init(_ title: String, subtitle: String? = nil, back: Bool = false, avatar: Bool = false, close: Bool = false, large: Bool = true,
+         bottomInset: CGFloat = 100,
          @ViewBuilder trailing: () -> Trailing = { EmptyView() }, @ViewBuilder content: () -> Content) {
         self.title = title
         self.subtitle = subtitle
         self.back = back
         self.avatar = avatar
+        self.close = close
         self.large = large
         self.bottomInset = bottomInset
         self.trailing = trailing()
@@ -795,9 +996,10 @@ struct GMScreen<Content: View, Trailing: View>: View {
             GMHeader(title: title, subtitle: subtitle, large: large && !back) {
                 if back { GMIconButton(icon: "chevron.left") { dismiss() } }
                 if avatar { ProfileAvatarButton() }
+                if close { GMIconButton(icon: "xmark", label: "Fechar") { dismiss() } }
             } trailing: { trailing }
             if back && large {
-                Text(title).font(.system(size: 26, weight: .heavy, design: .rounded))
+                Text(title).gmFont(26, weight: .heavy, design: .rounded, relativeTo: .title)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.bottom, 8)
                     .lineLimit(2)
             }
@@ -818,17 +1020,15 @@ struct GMScreen<Content: View, Trailing: View>: View {
 /// Tela modal (formulários): fechar à esquerda, título ao centro, ação à direita
 struct GMModal<Content: View>: View {
     let title: String
-    var cancel = "Cancelar"
     var confirm: String?
     var confirmEnabled = true
     var onConfirm: (() -> Void)?
     @ViewBuilder var content: Content
     @Environment(\.dismiss) private var dismiss
 
-    init(_ title: String, cancel: String = "Cancelar", confirm: String? = nil, confirmEnabled: Bool = true,
+    init(_ title: String, confirm: String? = nil, confirmEnabled: Bool = true,
          onConfirm: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
         self.title = title
-        self.cancel = cancel
         self.confirm = confirm
         self.confirmEnabled = confirmEnabled
         self.onConfirm = onConfirm
@@ -840,7 +1040,7 @@ struct GMModal<Content: View>: View {
             ZStack {
                 Text(title).font(.headline)
                 HStack {
-                    GMIconButton(icon: "xmark", size: 36) { dismiss() }
+                    GMIconButton(icon: "xmark", size: 36, label: "Fechar") { dismiss() }
                     Spacer()
                     if let confirm, let onConfirm {
                         GMButton(confirm, full: false, small: true, enabled: confirmEnabled, action: onConfirm)
@@ -939,7 +1139,7 @@ struct GMSheetCard<Content: View>: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 24)
         .frame(maxWidth: .infinity)
-        .background(Theme.card, in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
+        .background(Theme.card, in: UnevenRoundedRectangle(topLeadingRadius: Theme.radiusXL, topTrailingRadius: Theme.radiusXL))
         .ignoresSafeArea(edges: .bottom)
     }
 }
@@ -994,7 +1194,7 @@ extension View {
                     }
                 }
                 .padding(20)
-                .background(Theme.card, in: .rect(cornerRadius: 24))
+                .background(Theme.card, in: .rect(cornerRadius: Theme.radiusXL))
                 .padding(.horizontal, 28)
             }
         }
@@ -1035,6 +1235,8 @@ struct GMTabBar<Center: View>: View {
         .background(.ultraThinMaterial, in: .capsule)
         .overlay(Capsule().stroke(Theme.stroke))
         .padding(.horizontal, 14)
+        // Barra compacta: cresce com o texto só até um limite
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 
     private func select(_ t: Int) {
@@ -1049,14 +1251,14 @@ struct GMTabBar<Center: View>: View {
                 Image(systemName: item.icon).font(.system(size: 18, weight: .semibold))
                     .overlay(alignment: .topTrailing) {
                         if let n = item.badge, n > 0 {
-                            Text("\(n)").font(.system(size: 9, weight: .heavy))
+                            Text("\(n)").gmFont(9, weight: .heavy, relativeTo: .caption2)
                                 .frame(minWidth: 15, minHeight: 15)
-                                .background(Color.red, in: .circle)
+                                .background(Theme.badge, in: .circle)
                                 .foregroundStyle(.white)
                                 .offset(x: 9, y: -6)
                         }
                     }
-                Text(item.title).font(.system(size: 10, weight: .semibold))
+                Text(item.title).gmFont(10, weight: .semibold, relativeTo: .caption2).lineLimit(1).minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
@@ -1066,6 +1268,7 @@ struct GMTabBar<Center: View>: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(item.badge.map { $0 > 0 ? "\(item.title), \($0)" : item.title } ?? item.title)
     }
 
     private var centerButton: some View {
@@ -1335,7 +1538,7 @@ struct GMDurationWheel: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 12).fill(Theme.raised).frame(height: GMWheel.row)
+            RoundedRectangle(cornerRadius: Theme.radiusM).fill(Theme.raised).frame(height: GMWheel.row)
             HStack(spacing: 0) {
                 GMWheel(values: Array(0...maxMinutes), selection: Binding(get: { seconds / 60 }, set: { seconds = $0 * 60 + seconds % 60 }))
                 Text("min").font(.headline).foregroundStyle(Theme.dim)

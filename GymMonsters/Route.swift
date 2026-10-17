@@ -155,7 +155,7 @@ struct RouteRunView: View {
                 .mapStyle(.standard(pointsOfInterest: .excludingAll))
                 .ignoresSafeArea()
 
-                VStack(spacing: 14) {
+                GMCard(padding: 18) { VStack(spacing: 14) {
                     HStack {
                         stat(clock(secs), "tempo")
                         stat(kmText(tracker.meters), "distância")
@@ -173,9 +173,7 @@ struct RouteRunView: View {
                             }
                         }
                     }
-                }
-                .padding(18)
-                .background(Theme.card, in: .rect(cornerRadius: 26))
+                } }
                 .padding(12)
             }
             .overlay(alignment: .topLeading) {
@@ -222,7 +220,7 @@ struct RouteFinishView: View {
         let secs = tracker.elapsed()
         GMModal("\(tracker.kind.name) concluída", confirm: "Salvar", onConfirm: save) {
             if tracker.coords.count > 1 {
-                RouteMap(coords: tracker.coords).frame(height: 220).clipShape(.rect(cornerRadius: 18))
+                RouteMap(coords: tracker.coords).frame(height: 220).clipShape(.rect(cornerRadius: Theme.radiusL))
             }
             GMCard {
                 HStack {
@@ -249,6 +247,7 @@ struct RouteFinishView: View {
         let start = tracker.start ?? .now
         let activity = Activity(kind: tracker.kind, date: start, minutes: max(secs / 60, 1), effort: effort,
                                 note: kmText(tracker.meters) + " · " + paceText(kind: tracker.kind, meters: tracker.meters, seconds: secs))
+        activity.meters = tracker.meters
         context.insert(activity)
         let route = RouteRecord(kind: tracker.kind, start: start)
         route.activityUUID = activity.uuid

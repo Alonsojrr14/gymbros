@@ -1,10 +1,6 @@
 import SwiftUI
 import WidgetKit
 
-private let bg = Color(red: 0.05, green: 0.06, blue: 0.08)
-private let accent = Color(red: 0.64, green: 0.90, blue: 0.21)
-private let dim = Color.white.opacity(0.55)
-
 struct Entry: TimelineEntry {
     let date: Date
     let data: WidgetData
@@ -70,7 +66,7 @@ struct XPBar: View {
         GeometryReader { g in
             ZStack(alignment: .leading) {
                 Capsule().fill(.white.opacity(0.12))
-                Capsule().fill(accent).frame(width: max(g.size.width * progress, 4))
+                Capsule().fill(Theme.accent).frame(width: max(g.size.width * progress, 4))
             }
         }
         .frame(height: 6)
@@ -98,19 +94,19 @@ struct WidgetView: View {
                 Text(entry.mood.emoji)
                 Spacer()
                 if entry.streak > 0 {
-                    Label("\(entry.streak)", systemImage: "flame.fill").foregroundStyle(.orange)
+                    Label("\(entry.streak)", systemImage: "flame.fill").foregroundStyle(Theme.streak)
                 }
             }
             .font(.caption.bold())
             Sprite(data: d, mood: entry.mood).frame(maxHeight: .infinity)
             Text(d.monsterName).font(.caption.bold()).lineLimit(1)
             if let e = d.event(at: entry.date) {
-                Text(e).font(.system(size: 10, weight: .semibold)).foregroundStyle(accent).lineLimit(1).minimumScaleFactor(0.7)
+                Text(e).font(.caption2.weight(.semibold)).foregroundStyle(Theme.accent).lineLimit(1).minimumScaleFactor(0.7)
             }
             XPBar(progress: d.progress)
         }
         .foregroundStyle(.white)
-        .containerBackground(bg, for: .widget)
+        .containerBackground(Theme.bg, for: .widget)
     }
 
     private var medium: some View {
@@ -120,9 +116,9 @@ struct WidgetView: View {
                 Text(d.monsterName).font(.headline)
                 Text(d.isEgg ? d.stageName : "\(d.stageName) · Nível \(d.level)")
                     .font(.caption)
-                    .foregroundStyle(dim)
+                    .foregroundStyle(Theme.dim)
                 if let e = d.event(at: entry.date) {
-                    Text(e).font(.caption.bold()).foregroundStyle(accent).lineLimit(2)
+                    Text(e).font(.caption.bold()).foregroundStyle(Theme.accent).lineLimit(2)
                 } else {
                     Text("\(entry.mood.emoji) \(entry.line)").font(.caption).lineLimit(2)
                 }
@@ -132,15 +128,15 @@ struct WidgetView: View {
                     Text(d.xpToNext.map { d.isEgg ? "\($0) XP para chocar" : "\($0) XP para evoluir" } ?? "forma final")
                     Spacer()
                     if entry.streak > 0 {
-                        Label("\(entry.streak)", systemImage: "flame.fill").foregroundStyle(.orange)
+                        Label("\(entry.streak)", systemImage: "flame.fill").foregroundStyle(Theme.streak)
                     }
                 }
                 .font(.caption2.bold())
-                .foregroundStyle(dim)
+                .foregroundStyle(Theme.dim)
             }
         }
         .foregroundStyle(.white)
-        .containerBackground(bg, for: .widget)
+        .containerBackground(Theme.bg, for: .widget)
     }
 
     private var rectangular: some View {

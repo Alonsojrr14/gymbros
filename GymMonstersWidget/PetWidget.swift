@@ -165,7 +165,7 @@ struct PetView: View {
         }
         .buttonStyle(.plain)
         .containerBackground(for: .widget) {
-            LinearGradient(colors: [Color(red: 0.12, green: 0.16, blue: 0.10), Color(red: 0.05, green: 0.06, blue: 0.08)],
+            LinearGradient(colors: [Color(red: 0.12, green: 0.16, blue: 0.10), Theme.bg],
                            startPoint: .top, endPoint: .bottom)
         }
     }

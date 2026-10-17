@@ -23,7 +23,7 @@ enum MuscleGroup: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Grupos em que um salto de 5 kg é normal
+    /// Grupos em que um salto de 5 kg é normal (com barra; ver `Exercise.increment`)
     var heavy: Bool { [.costas, .quadriceps, .posterior, .gluteos, .panturrilha].contains(self) }
 
     /// Músculos padrão, para exercícios personalizados
@@ -84,7 +84,8 @@ struct Exercise: Identifiable, Hashable {
     /// Movimento de CrossFit (aparece na seção própria da biblioteca)
     var crossfit = false
 
-    var increment: Double { group.heavy && equipment != "Halteres" ? 5 : 2.5 }
+    /// Passo de carga: 5 kg só com barra em grupo pesado (agachamento, terra, stiff…); máquina, polia e halteres sobem de 2,5
+    var increment: Double { group.heavy && equipment == "Barra" ? 5 : 2.5 }
 
     var isCustom: Bool { id.hasPrefix("custom-") }
     /// Fotos embutidas no app (funcionam sem internet)
@@ -105,10 +106,15 @@ struct Exercise: Identifiable, Hashable {
 
     /// Usa barra olímpica (polia e máquina não)
     var usesBar: Bool { equipment == "Barra" }
-    /// A carga anotada já inclui a barra? CrossFit sempre; musculação conforme o ajuste (padrão: só anilhas)
-    var weightIncludesBar: Bool { !usesBar || isCrossfit || UserDefaults.standard.bool(forKey: "barCountsBar") }
+    /// A carga anotada já inclui a barra? Automático pelo treino: no de CrossFit, o total com a barra; na musculação,
+    /// só as anilhas (mesmo agachamento e terra). Sem treino, vale a biblioteca do exercício.
+    func weightIncludesBar(in session: WorkoutSession? = nil) -> Bool { !usesBar || (session?.isCrossfit ?? crossfit) }
+    var weightIncludesBar: Bool { weightIncludesBar() }
     /// Rótulo da carga na série
-    var weightUnit: String { usesBar ? (weightIncludesBar ? "kg total" : "kg anilhas") : "kg" }
+    func weightUnit(in session: WorkoutSession? = nil) -> String {
+        usesBar ? (weightIncludesBar(in: session) ? "kg total" : "kg anilhas") : "kg"
+    }
+    var weightUnit: String { weightUnit() }
     var muscles: MuscleTargets { ExerciseData.muscles[id] ?? ExerciseExtraData.muscles[id] ?? group.muscles }
     /// Instruções em português (biblioteca original)
     var instructions: [String] { ExerciseInstructions.steps[id] ?? [] }
@@ -129,7 +135,10 @@ struct Exercise: Identifiable, Hashable {
 
     static let equipments = ["Barra", "Halteres", "Máquina", "Polia", "Peso do corpo", "Kettlebell", "Elástico", "Corda", "Caixa", "Argola", "Bola", "Outro"]
 
-    static func name(_ id: String) -> String { index[id]?.name ?? id }
+    /// Nome para mostrar (inclui os personalizados; apagado vira "Exercício personalizado")
+    static func name(_ id: String) -> String {
+        byID(id)?.name ?? (id.hasPrefix("custom-") ? "Exercício personalizado" : id)
+    }
 
     private static let index = Dictionary((library + extra).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
 
@@ -228,4 +237,9 @@ struct Exercise: Identifiable, Hashable {
         .init(id: "thruster", name: "Thruster", group: .corpo, equipment: "Barra"),
         .init(id: "clean", name: "Power clean", group: .corpo, equipment: "Barra"),
     ]
+}
+
+extension WorkoutSession {
+    /// Treino de CrossFit: tem algum exercício da biblioteca de CrossFit (thruster, clean, snatch…)
+    var isCrossfit: Bool { sets.contains { Exercise.byID($0.exerciseID)?.crossfit == true } }
 }

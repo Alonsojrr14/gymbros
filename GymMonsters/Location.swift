@@ -240,14 +240,17 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
     }
 
     private func left(_ g: Gym) async {
-        guard insideID == g.uuid else { return }
-        insideID = nil
-        pendingArrival = nil
-        if let open = try? ctx.fetch(FetchDescriptor<GymVisit>(predicate: #Predicate { $0.end == nil },
+        // Fecha a visita aberta deste lugar (com mais de um lugar, a última aberta pode ser de outro)
+        let gid: UUID? = g.uuid
+        if let open = try? ctx.fetch(FetchDescriptor<GymVisit>(predicate: #Predicate { $0.end == nil && $0.gymUUID == gid },
                                                                sortBy: [SortDescriptor(\.start, order: .reverse)])).first {
             open.end = .now
             try? ctx.save()
         }
+        // Já tinha entrado em outro lugar: só fecha a visita deste
+        guard insideID == g.uuid else { return }
+        insideID = nil
+        pendingArrival = nil
         // Encerra só o treino daquele lugar (ou sem lugar definido)
         guard autoFinish, let s = LiveWorkout.runningSession, s.gymUUID == nil || s.gymUUID == g.uuid,
               Date.now.timeIntervalSince(s.start) >= Self.minWorkoutMinutes * 60 else { return }

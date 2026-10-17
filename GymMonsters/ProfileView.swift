@@ -10,22 +10,7 @@ struct Avatar: View {
     @AppStorage("profilePhoto") private var photo: Data?
     @AppStorage("trainerName") private var name = ""
 
-    var body: some View {
-        Group {
-            if let photo, let img = UIImage(data: photo) {
-                Image(uiImage: img).resizable().scaledToFill()
-            } else {
-                Text(name.prefix(1).uppercased().isEmpty ? "?" : name.prefix(1).uppercased())
-                    .font(.system(size: size * 0.42, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Theme.accent)
-            }
-        }
-        .frame(width: size, height: size)
-        .clipShape(.circle)
-        .overlay(Circle().stroke(Theme.stroke, lineWidth: 1))
-    }
+    var body: some View { PersonAvatar(name: name, photo: photo, size: size) }
 }
 
 /// Bolinha no topo das abas; abre o perfil
@@ -40,7 +25,6 @@ struct ProfileAvatarButton: View {
 }
 
 struct ProfileView: View {
-    @Environment(\.dismiss) private var dismiss
     @Query(sort: \Activity.date, order: .reverse) private var activities: [Activity]
     @Query private var checkIns: [LeagueCheckIn]
     @Query(sort: \Monster.createdAt) private var monsters: [Monster]
@@ -59,9 +43,8 @@ struct ProfileView: View {
     @State private var pick: PhotosPickerItem?
     @State private var settings = false
     @State private var logging = false
-    @State private var month = Date.now
+    @State private var editing = false
     @State private var day: Date?
-    @State private var openedPost: FeedItem?
 
     private var roster: Roster { Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues) }
     private var activeDays: Int { Set(activities.map { Calendar.current.startOfDay(for: $0.date) }).count }
@@ -69,45 +52,20 @@ struct ProfileView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
-                ScrollView {
-                    VStack(spacing: 18) {
-                        header
-                        GMSegmented(options: [(0, "Público"), (1, "Privado")], selection: $tab)
-                        if tab == 0 { publicPart } else { privatePart }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 110)
-                }
-                .scrollDismissesKeyboard(.immediately)
-
-                Button { logging = true } label: {
-                    Image(systemName: "plus")
-                        .font(.title2.bold())
-                        .frame(width: 62, height: 62)
-                        .background(Theme.accent, in: .circle)
-                        .foregroundStyle(.black)
-                        .shadow(color: .black.opacity(0.4), radius: 10, y: 4)
-                }
-                .buttonStyle(GMPress())
-                .padding(20)
+            GMScreen("", close: true, large: false, bottomInset: 110) {
+                GMIconButton(icon: "gearshape", label: "Ajustes") { settings = true }
+            } content: {
+                header.frame(maxWidth: .infinity)
+                GMSegmented(options: [(0, "Público"), (1, "Privado")], selection: $tab)
+                if tab == 0 { publicPart } else { privatePart }
             }
-            .background(Theme.bg.ignoresSafeArea())
-            .safeAreaInset(edge: .top) {
-                HStack {
-                    GMIconButton(icon: "xmark") { dismiss() }
-                    Spacer()
-                    GMIconButton(icon: "gearshape") { settings = true }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                .background(Theme.bg)
+            .overlay(alignment: .bottomTrailing) {
+                GMFloatingButton(label: "Registrar atividade") { logging = true }
+                    .padding(20)
             }
-            .toolbar(.hidden, for: .navigationBar)
-            .gmKeyboardDone()
             .gmModal(isPresented: $settings) { SettingsView() }
+            .gmModal(isPresented: $editing) { EditProfileView() }
             .gmModal(isPresented: $logging) { LogActivityView(snapshot: roster.mainSnapshot) }
-            .gmModal(item: $openedPost) { CheckInDetailView(item: $0) }
             .gmSheet(isPresented: Binding(get: { day != nil }, set: { if !$0 { day = nil } })) { _ in dayDetail }
             .onChange(of: pick) { _, item in
                 Task {
@@ -137,12 +95,8 @@ struct ProfileView: View {
                 if !username.isEmpty { Text("@\(username)").font(.subheadline).foregroundStyle(Theme.dim) }
                 if !bio.isEmpty { Text(bio).font(.subheadline).multilineTextAlignment(.center).padding(.top, 4) }
             }
-            HStack {
-                stat("\(activities.count)", "Check-ins")
-                stat("\(activeDays)", "Dias ativos")
-                stat(hoursText(totalMinutes), "Duração")
-            }
-            .padding(.top, 4)
+            GMButton("Editar perfil", icon: "pencil", kind: .secondary, full: false, small: true) { editing = true }
+                .padding(.top, 2)
         }
     }
 
@@ -158,6 +112,11 @@ struct ProfileView: View {
 
     private var privatePart: some View {
         VStack(spacing: 18) {
+            HStack {
+                stat("\(activities.count)", "Atividades")
+                stat("\(activeDays)", "Dias ativos")
+                stat(hoursText(totalMinutes), "Duração")
+            }
             HStack(spacing: 0) {
                 pill("medal", "Recordes") { ExerciseStatsList(sessions: sessions.reversed()) }
                 pill("bolt", "Estatísticas") { ProfileStatsView() }
@@ -201,41 +160,8 @@ struct ProfileView: View {
     // MARK: Calendário com fotos
 
     private var calendar: some View {
-        let cal = Calendar.current
-        let start = cal.date(from: cal.dateComponents([.year, .month], from: month))!
-        let count = cal.range(of: .day, in: .month, for: start)!.count
-        let lead = (cal.component(.weekday, from: start) + 6) % 7
-        let cells: [Date?] = Array(repeating: nil, count: lead) + (0..<count).map { cal.date(byAdding: .day, value: $0, to: start) }
-        let byDay = Dictionary(grouping: activities) { cal.startOfDay(for: $0.date) }
         let photos = photosByActivity
-        let isCurrent = cal.isDate(start, equalTo: .now, toGranularity: .month)
-
-        return VStack(spacing: 12) {
-            HStack {
-                GMIconButton(icon: "chevron.left", size: 34) { shift(-1) }
-                Spacer()
-                Text(monthTitle(start)).font(.title3.weight(.heavy))
-                Spacer()
-                GMIconButton(icon: "chevron.right", size: 34, tint: isCurrent ? Theme.dim : .white) { if !isCurrent { shift(1) } }
-            }
-            HStack {
-                ForEach(["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"], id: \.self) {
-                    Text($0).font(.caption).foregroundStyle(Theme.dim).frame(maxWidth: .infinity)
-                }
-            }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 8) {
-                ForEach(Array(cells.enumerated()), id: \.offset) { _, d in
-                    if let d {
-                        let items = byDay[cal.startOfDay(for: d)] ?? []
-                        dayCell(d, items: items, photos: items.compactMap { photos[$0.uuid] })
-                    } else {
-                        Color.clear.frame(height: 48)
-                    }
-                }
-            }
-            .padding(10)
-            .background(Theme.card, in: .rect(cornerRadius: 20))
-        }
+        return ActivityCalendar(marks: activities.map { CalendarMark(id: $0.uuid.uuidString, date: $0.date, kind: $0.kind, photo: photos[$0.uuid]) }) { day = $0 }
     }
 
     /// Foto do check-in de cada atividade (a primeira, se foi postada em várias ligas)
@@ -243,38 +169,6 @@ struct ProfileView: View {
         var out: [UUID: Data] = [:]
         for c in checkIns { if let p = c.photo, out[c.activityUUID] == nil { out[c.activityUUID] = p } }
         return out
-    }
-
-    private func dayCell(_ d: Date, items: [Activity], photos: [Data]) -> some View {
-        let today = Calendar.current.isDateInToday(d)
-        return Button {
-            if !items.isEmpty { day = d }
-        } label: {
-            ZStack {
-                if let first = photos.first, let img = UIImage(data: first) {
-                    Image(uiImage: img).resizable().scaledToFill().frame(width: 42, height: 42).clipShape(.circle)
-                    if photos.count > 1, let img2 = UIImage(data: photos[1]) {
-                        Image(uiImage: img2).resizable().scaledToFill().frame(width: 26, height: 26).clipShape(.circle)
-                            .overlay(Circle().stroke(Theme.card, lineWidth: 2))
-                            .offset(x: 14, y: 14)
-                    }
-                } else if let a = items.first {
-                    Circle().fill(Theme.accent.opacity(0.9)).frame(width: 42, height: 42)
-                    Image(systemName: a.kind.symbol).font(.subheadline.bold()).foregroundStyle(.black)
-                    if items.count > 1 {
-                        Text("\(items.count)").font(.system(size: 10, weight: .heavy)).foregroundStyle(.black)
-                            .frame(width: 18, height: 18).background(.white, in: .circle).offset(x: 15, y: -15)
-                    }
-                } else {
-                    Text("\(Calendar.current.component(.day, from: d))")
-                        .font(.body.weight(today ? .heavy : .regular).monospacedDigit())
-                        .foregroundStyle(today ? Theme.accent : .white)
-                }
-            }
-            .frame(height: 48)
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(GMPress())
     }
 
     private var dayDetail: some View {
@@ -287,21 +181,10 @@ struct ProfileView: View {
                 ActivityRow(activity: a, xp: xp[a.uuid] ?? 0)
                 if let p = photos[a.uuid], let img = UIImage(data: p) {
                     Image(uiImage: img).resizable().scaledToFill().frame(height: 180).frame(maxWidth: .infinity)
-                        .clipShape(.rect(cornerRadius: 14))
+                        .clipShape(.rect(cornerRadius: Theme.radiusL))
                 }
             }
         }
-    }
-
-    private func shift(_ n: Int) {
-        withAnimation(.snappy) { month = Calendar.current.date(byAdding: .month, value: n, to: month) ?? month }
-    }
-
-    private func monthTitle(_ d: Date) -> String {
-        let f = DateFormatter()
-        f.locale = GMDateText.locale
-        f.dateFormat = "MMMM 'de' yyyy"
-        return f.string(from: d).capitalizedFirst
     }
 
     // MARK: Público
@@ -311,58 +194,64 @@ struct ProfileView: View {
         let s = r.mainSnapshot
         let best = Achievements.evaluate(.init(activities: activities.map(\.record),
                                                fromHealth: activities.filter { $0.healthUUID != nil }.count,
-                                               snapshot: Game.snapshot(activities.map(\.record)), sessions: sessions.map(\.log),
+                                               snapshot: Game.cachedSnapshot(activities.map(\.record)), sessions: sessions.map(\.log),
                                                species: Set(r.snapshots.values.filter { $0.stage > .egg }.map(\.form.species)).count,
                                                ultimates: r.snapshots.values.filter { $0.stage == .ultimate }.count,
                                                discovered: discovered.split(separator: ",").count, dexTotal: DexView.allForms.count))
             .filter(\.unlocked)
         return VStack(spacing: 18) {
-            GMSection("Como seus amigos te veem") {
-                HStack(spacing: 12) {
-                    Avatar(size: 52)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(name.isEmpty ? "Treinador" : name).font(.headline)
-                        if !username.isEmpty { Text("@\(username)").font(.caption).foregroundStyle(Theme.dim) }
-                        if !bio.isEmpty { Text(bio).font(.caption) }
-                    }
-                }
-                if showMonster {
-                    GMDivider()
-                    HStack(spacing: 12) {
-                        LivingMonster(form: s.form, progress: s.progress).frame(width: 60, height: 60)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(r.main?.displayName(s.form) ?? s.form.name).font(.subheadline.bold())
-                            Text(s.stage == .egg ? "Ovo" : "\(s.form.speciesInfo.name) · \(s.stage.name) · Nível \(s.level)")
-                                .font(.caption).foregroundStyle(Theme.dim)
-                        }
-                    }
-                }
-                if showStats {
-                    GMDivider()
-                    HStack {
-                        stat("\(activities.count)", "Check-ins")
-                        stat("\(activeDays)", "Dias ativos")
-                        stat("\(leagues.count)", "Ligas")
-                    }
-                }
-                if showAchievements && !best.isEmpty {
-                    GMDivider()
-                    Text("Conquistas · \(best.count)").font(.caption.bold()).foregroundStyle(Theme.dim)
-                    GMFlow {
-                        ForEach(best.prefix(6)) { a in
-                            Label(a.title, systemImage: a.symbol)
-                                .font(.caption.weight(.semibold))
-                                .padding(.horizontal, 10).padding(.vertical, 6)
-                                .background(Color.yellow.opacity(0.15), in: .capsule)
-                                .foregroundStyle(.yellow)
-                        }
-                    }
-                }
+            Text("É assim que seus amigos te veem").font(.caption).foregroundStyle(Theme.dim)
+            GMCard {
+                PublicProfileCard(profile: PublicProfile(
+                    id: "me", name: name, username: username, bio: bio,
+                    bro: showMonster ? .init(name: r.main?.displayName(s.form) ?? s.form.name, formID: s.form.id, level: s.level, progress: s.progress) : nil,
+                    stats: showStats ? publicStats : nil,
+                    achievements: showAchievements ? best.map { .init(title: $0.title, symbol: $0.symbol) } : nil
+                ), showHeader: false)
             }
+            postsCalendar(avatar: s.form)
+        }
+    }
+}
 
-            postsGrid(avatar: s.form)
+extension ProfileView {
+    /// Números públicos: só o que foi postado (perfil ou ligas) conta; atividade não postada fica privada.
+    /// Ligas = as que você está agora (temporadas passadas da mesma liga não contam de novo).
+    var publicStats: PublicProfile.Stats {
+        let existing = Set(activities.map(\.uuid))
+        let posted = Set(checkIns.map(\.activityUUID)).intersection(existing)
+        let days = Set(activities.filter { posted.contains($0.uuid) }.map { Calendar.current.startOfDay(for: $0.date) })
+        return .init(checkIns: posted.count, activeDays: days.count, leagues: leagues.filter { !$0.isPastSeason }.count)
+    }
 
-            GMSection("Perfil público") {
+    /// Check-ins postados no perfil, em calendário (igual ao que os amigos veem)
+    @ViewBuilder
+    func postsCalendar(avatar: MonsterForm) -> some View {
+        let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+        let posts: [FeedItem] = checkIns.filter { $0.leagueUUID == ProfileFeed.id }.sorted { $0.date > $1.date }.compactMap { c in
+            guard let a = byID[c.activityUUID] else { return nil }
+            return FeedItem(id: c.uuid.uuidString, memberID: "me", name: name, avatar: avatar, isMe: true, date: c.date, title: c.title,
+                            note: c.note, kind: a.kind, minutes: a.minutes, score: Game.xp(kind: a.kind, minutes: a.minutes, effort: a.effort),
+                            photo: c.photo, place: c.place, hasPhoto: c.hasPhoto, effort: a.effort)
+        }
+        GMSection("Posts · \(posts.count)", footer: posts.isEmpty ? "Ao registrar uma atividade, marque \"Meu perfil\" em \"Postar em\"." : nil) {
+            PostsCalendar(posts: posts)
+        }
+    }
+}
+
+/// Nome, @usuário, bio e o que aparece para os outros
+struct EditProfileView: View {
+    @AppStorage("trainerName") private var name = ""
+    @AppStorage("profileUsername") private var username = ""
+    @AppStorage("profileBio") private var bio = ""
+    @AppStorage("publicMonster") private var showMonster = true
+    @AppStorage("publicStats") private var showStats = true
+    @AppStorage("publicAchievements") private var showAchievements = true
+
+    var body: some View {
+        GMModal("Editar perfil") {
+            GMSection("Perfil público", footer: "A foto você troca tocando nela, no topo do perfil.") {
                 GMTextField(placeholder: "Seu nome", text: $name, capitalization: .words)
                 GMTextField(placeholder: "@usuário", text: Binding(
                     get: { username },
@@ -370,54 +259,13 @@ struct ProfileView: View {
                 ), capitalization: .never)
                 GMTextField(placeholder: "Bio (ex.: Rato de academia desde 2019)", text: $bio, axis: .vertical)
             }
-
             GMSection("O que aparece para os outros",
-                      footer: "Quando as ligas tiverem servidor, é isso que seus amigos vão ver. Peso, medidas, notas e o histórico detalhado ficam sempre privados.") {
+                      footer: "Foto, nome, @usuário, bio e os posts do perfil sempre aparecem. Peso, medidas, recordes, metas, notas e as atividades que você não postou ficam sempre privados.") {
                 GMToggle(title: "Bro principal", isOn: $showMonster)
                 GMDivider()
                 GMToggle(title: "Números (check-ins, dias, ligas)", isOn: $showStats)
                 GMDivider()
                 GMToggle(title: "Conquistas", isOn: $showAchievements)
-            }
-        }
-    }
-}
-
-extension ProfileView {
-    /// Check-ins postados no perfil, em grade de fotos
-    @ViewBuilder
-    func postsGrid(avatar: MonsterForm) -> some View {
-        let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
-        let posts: [FeedItem] = checkIns.filter { $0.leagueUUID == ProfileFeed.id }.sorted { $0.date > $1.date }.compactMap { c in
-            guard let a = byID[c.activityUUID] else { return nil }
-            return FeedItem(id: c.uuid.uuidString, memberID: "me", name: name, avatar: avatar, isMe: true, date: c.date, title: c.title,
-                            note: c.note, kind: a.kind, minutes: a.minutes, score: Game.xp(kind: a.kind, minutes: a.minutes, effort: a.effort),
-                            photo: c.photo, place: c.place)
-        }
-        GMSection("Posts · \(posts.count)", footer: posts.isEmpty ? "Ao registrar uma atividade, marque \"Meu perfil\" em \"Postar check-in em\"." : nil) {
-            if !posts.isEmpty {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
-                    ForEach(posts) { p in
-                        Button { openedPost = p } label: {
-                            ZStack {
-                                if let d = p.photo, let img = UIImage(data: d) {
-                                    Color.clear.overlay { Image(uiImage: img).resizable().scaledToFill() }
-                                } else {
-                                    Theme.raised
-                                    VStack(spacing: 4) {
-                                        Image(systemName: p.kind.symbol).font(.title2)
-                                        Text(p.title).font(.caption2.weight(.semibold)).lineLimit(2).multilineTextAlignment(.center)
-                                    }
-                                    .padding(6)
-                                    .foregroundStyle(.white)
-                                }
-                            }
-                            .aspectRatio(1, contentMode: .fit)
-                            .clipShape(.rect(cornerRadius: 8))
-                        }
-                        .buttonStyle(GMPress())
-                    }
-                }
             }
         }
     }
@@ -464,7 +312,7 @@ struct ProfileStatsView: View {
     @Query(sort: \Activity.date) private var activities: [Activity]
 
     var body: some View {
-        let s = Game.snapshot(activities.map(\.record))
+        let s = Game.cachedSnapshot(activities.map(\.record))
         let byKind = Dictionary(grouping: activities, by: \.kind)
         let maxMinutes = byKind.values.map { $0.reduce(0) { $0 + $1.minutes } }.max() ?? 1
         let weeks = max(Double(Calendar.current.dateComponents([.day], from: activities.first?.date ?? .now, to: .now).day ?? 0) / 7, 1)
@@ -529,7 +377,7 @@ struct ProfileStatsView: View {
                     ForEach(0..<7, id: \.self) { d in
                         let day = cal.date(byAdding: .day, value: d - (15 - w) * 7, to: thisWeek)!
                         let m = minutes[day] ?? 0
-                        RoundedRectangle(cornerRadius: 3)
+                        RoundedRectangle(cornerRadius: Theme.radiusXS)
                             .fill(day > .now ? Color.clear : m == 0 ? Theme.raised : Theme.accent.opacity(min(0.3 + Double(m) / 120, 1)))
                             .aspectRatio(1, contentMode: .fit)
                     }

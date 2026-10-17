@@ -7,11 +7,52 @@ import UserNotifications
 /// Container único do app, compartilhado com os botões do Live Activity (que rodam no processo do app)
 @MainActor
 enum AppData {
+    static let schema = Schema([Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
+                                CustomExercise.self, League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
+                                WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self,
+                                LeagueMessage.self])
+
+    /// Cópia do banco que não abriu (migração que falhou); o app começa com um banco novo em vez de fechar ao abrir
+    private(set) static var recoveredCopy: URL?
+
     static let container: ModelContainer = {
-        try! ModelContainer(for: Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
-                            CustomExercise.self, League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
-                            WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self)
+        let config = ModelConfiguration(schema: schema)
+        if let c = try? ModelContainer(for: schema, configurations: config) {
+            protect(config.url)
+            return c
+        }
+        recoveredCopy = setAside(config.url)
+        if let c = try? ModelContainer(for: schema, configurations: config) {
+            protect(config.url)
+            return c
+        }
+        // Último recurso: roda sem gravar, mas abre
+        return try! ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
     }()
+
+    /// Arquivos do SQLite: o banco e os auxiliares do journal
+    private static func files(_ url: URL) -> [URL] {
+        [url, URL(fileURLWithPath: url.path + "-wal"), URL(fileURLWithPath: url.path + "-shm")]
+    }
+
+    /// Dados de saúde e localização: só legíveis depois do primeiro desbloqueio do aparelho
+    private static func protect(_ url: URL) {
+        for f in files(url) where FileManager.default.fileExists(atPath: f.path) {
+            try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: f.path)
+        }
+    }
+
+    /// Move o banco com problema para o lado (ex.: default-erro-1760000000.store), sem apagar nada
+    private static func setAside(_ url: URL) -> URL? {
+        let stamp = Int(Date.now.timeIntervalSince1970)
+        let base = url.deletingPathExtension().lastPathComponent
+        let dest = url.deletingLastPathComponent().appendingPathComponent("\(base)-erro-\(stamp).\(url.pathExtension)")
+        var moved = false
+        for (from, to) in zip(files(url), files(dest)) where FileManager.default.fileExists(atPath: from.path) {
+            moved = (try? FileManager.default.moveItem(at: from, to: to)) != nil || moved
+        }
+        return moved ? dest : nil
+    }
 }
 
 /// Treino em andamento: séries, descanso e o Live Activity (tela de bloqueio e Dynamic Island)
@@ -41,8 +82,9 @@ enum LiveWorkout {
             setNumber: (next ?? sets.count) + 1,
             setCount: sets.count,
             setText: next.map { (sets[$0].warmup ? "Aquecimento · " : "") + setText(sets[$0]) } ?? "",
-            doneSets: s.sets.filter(\.done).count,
-            totalSets: s.sets.count,
+            // Totais só com séries de trabalho, como na conclusão (aquecimento fica de fora)
+            doneSets: s.doneWorkSets.count,
+            totalSets: s.workSets.count,
             restEnd: s.restEnd.flatMap { $0 > .now ? $0 : nil },
             sprite: WidgetData.load()?.sprite ?? "sprite_baby"
         )
@@ -113,14 +155,16 @@ enum LiveWorkout {
         let sets = s.orderedSets.filter { $0.exerciseID == id }
         guard let set = sets.first(where: { !$0.done }) else { return "\(Exercise.name(id)) já está completo." }
         set.done = true
-        let number = (sets.firstIndex { $0 === set } ?? 0) + 1
+        // Número entre as séries do mesmo tipo (trabalho ou aquecimento), como na tela
+        let same = sets.filter { $0.warmup == set.warmup }
+        let number = (same.firstIndex { $0 === set } ?? 0) + 1
         // Superset passa direto para o próximo do bloco; senão descansa e, se acabou, vai para o próximo exercício
         let rest = s.advance(after: id)
         if rest { startRest(s, seconds: set.rest) } else { cancelRest(s) }
         try? AppData.container.mainContext.save()
         await refresh(s)
         HeadphoneControl.shared.refresh()
-        var msg = "\(Exercise.name(id)): \(set.warmup ? "aquecimento" : "série \(number) de \(sets.count)") feita." + (rest ? " Descanso de \(spoken(set.rest))." : "")
+        var msg = "\(Exercise.name(id)): \(set.warmup ? "aquecimento" : "série \(number) de \(same.count)") feita." + (rest ? " Descanso de \(spoken(set.rest))." : "")
         if let next = s.currentExerciseID, next != id { msg += rest ? " Próximo: \(Exercise.name(next))." : " Superset: agora \(Exercise.name(next))." }
         if s.sets.allSatisfy(\.done) { msg = "Última série feita! Treino completo, é só concluir no app." }
         return msg
@@ -146,26 +190,48 @@ enum LiveWorkout {
     }
 
     /// Encerra e salva o treino sem a tela de conclusão (ex.: ao sair da academia). Devolve o resumo.
+    /// Faz o mesmo que o "Salvar" da conclusão com os padrões dela: posta no perfil e nas ligas ativas, com os recordes;
+    /// o esforço é a média dos últimos treinos; mudança na rotina vira oferta pendente na aba Treino.
     static func autoFinish(_ s: WorkoutSession, place: String?) async -> String {
         let ctx = AppData.container.mainContext
         cancelRest(s)
         await endAll()
         HeadphoneControl.shared.stop()
-        let done = s.sets.filter(\.done)
+        // Como na conclusão: só série de trabalho conta (só aquecimento não salva)
+        let done = s.doneWorkSets
         guard !done.isEmpty else {
             ctx.delete(s)
             try? ctx.save()
             return "Nenhuma série marcada, então o treino foi descartado."
         }
+        let finished = (try? ctx.fetch(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end != nil },
+                                                                      sortBy: [SortDescriptor(\.start)]))) ?? []
+        let efforts = ((try? ctx.fetch(FetchDescriptor<Activity>(sortBy: [SortDescriptor(\.date)]))) ?? [])
+            .filter { $0.kind == .musculacao }.map(\.effort)
+        let effort = Progression.estimatedEffort(recent: efforts)
         let minutes = max(Int(Date.now.timeIntervalSince(s.start) / 60), 1)
-        let activity = Activity(kind: .musculacao, date: s.start, minutes: minutes, effort: s.effort, note: s.title + (place.map { " · 📍 \($0)" } ?? ""))
+        let activity = Activity(kind: .musculacao, date: s.start, minutes: minutes, effort: effort, note: s.title + (place.map { " · 📍 \($0)" } ?? ""))
         activity.gymUUID = s.gymUUID
         ctx.insert(activity)
+        // Mesmo destino padrão da conclusão: perfil e ligas em andamento, com os recordes no texto
+        let records = Progression.records(in: s.log, history: finished.map(\.log))
+        let leagues = ((try? ctx.fetch(FetchDescriptor<League>())) ?? []).filter { !$0.isOver && $0.hasStarted }
+        postCheckIns(activity: activity, leagues: Set(leagues.map(\.uuid)).union([ProfileFeed.id]), title: s.title,
+                     note: records.isEmpty ? "" : "🏆 " + records.joined(separator: " · "), photo: nil, context: ctx)
         s.end = .now
+        s.effort = effort
         s.activityUUID = activity.uuid
+        // Não dá para perguntar agora: guarda a oferta de atualizar a rotina para a aba Treino
+        var routineNote = ""
+        if let id = s.routineUUID,
+           let r = try? ctx.fetch(FetchDescriptor<Routine>(predicate: #Predicate { $0.uuid == id })).first,
+           !s.routineChanges(r).isEmpty {
+            PendingRoutineUpdate.sessionUUID = s.uuid
+            routineNote = " A rotina \(r.name) mudou: abra a aba Treino para atualizar."
+        }
         try? ctx.save()
-        let xp = Game.xp(kind: .musculacao, minutes: minutes, effort: s.effort)
-        return "\(s.title): \(durationText(minutes)), \(done.count) séries. +\(xp) XP pro seu bro."
+        let xp = Game.xp(kind: .musculacao, minutes: minutes, effort: effort)
+        return "\(s.title): \(durationText(minutes)), \(done.count) séries. +\(xp) XP pro seu bro." + routineNote
     }
 
     /// Começa um treino (de rotina ou livre) já com as cargas sugeridas pelo histórico
@@ -183,17 +249,14 @@ enum LiveWorkout {
         ctx.insert(session)
         let deload = Deload.active
         session.isDeload = deload
-        let autoWarmup = UserDefaults.standard.object(forKey: "autoWarmup") as? Bool ?? true
+        // Ligado por padrão; `bool` também lê o "1"/"0" que a restauração do backup grava como texto
+        let autoWarmup = UserDefaults.standard.object(forKey: "autoWarmup") == nil || UserDefaults.standard.bool(forKey: "autoWarmup")
         var warmedUp = false
         for (i, item) in (routine?.sortedItems ?? []).enumerated() {
             var sug = Progression.suggest(exerciseID: item.exerciseID, sets: item.sets, reps: item.reps, history: history)
             // Deload: 70 % da carga e um terço a menos de séries
             var count = item.sets
-            if deload {
-                let inc = Exercise.byID(item.exerciseID)?.increment ?? 2.5
-                sug = Suggestion(weight: (sug.weight * Deload.load / inc).rounded() * inc, reps: sug.reps, reason: "Semana de deload")
-                count = max(1, Int((Double(item.sets) * 2 / 3).rounded()))
-            }
+            if deload { (sug, count) = Deload.apply(sug, sets: item.sets, exerciseID: item.exerciseID) }
             var k = 0
             // Aquecimento automático no primeiro exercício com carga
             if autoWarmup, !warmedUp, let ex = Exercise.byID(item.exerciseID), ex.type == .weighted, sug.weight >= 20 {

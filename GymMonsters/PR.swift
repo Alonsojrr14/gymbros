@@ -30,13 +30,22 @@ enum PRBook {
         manual = Dictionary(grouping: all.map(\.log), by: \.exerciseID)
     }
 
-    /// Melhor série: maior 1RM estimado, ou maior carga, ou mais reps
+    /// Melhor série: maior força na escala de 1RM (acima de 12 reps conta como 12, sem misturar com carga bruta),
+    /// depois maior carga e mais reps
     static func best(_ sets: [SetLog]) -> SetLog? {
         sets.filter(\.done).max { a, b in
-            let ra = Progression.oneRM(weight: a.weight, reps: a.reps) ?? a.weight
-            let rb = Progression.oneRM(weight: b.weight, reps: b.reps) ?? b.weight
-            return (ra, a.reps) < (rb, b.reps)
+            let ra = Progression.strength(weight: a.weight, reps: a.reps)
+            let rb = Progression.strength(weight: b.weight, reps: b.reps)
+            return (ra, a.weight, a.reps) < (rb, b.weight, b.reps)
         }
+    }
+
+    /// `new` supera `old`? Mesma régua de `best`
+    static func beats(_ new: SetLog, _ old: SetLog?) -> Bool {
+        guard let old else { return true }
+        let a = Progression.strength(weight: new.weight, reps: new.reps), b = Progression.strength(weight: old.weight, reps: old.reps)
+        if abs(a - b) > 0.01 { return a > b }
+        return (new.weight, new.reps) > (old.weight, old.reps)
     }
 
     /// Carga de trabalho para `reps` a partir do melhor PR registrado à mão (com 1–2 reps de sobra)
@@ -199,8 +208,7 @@ struct PRSessionView: View {
     private func card(_ id: String) -> some View {
         let b = best(id)
         let w = weights[id] ?? 0, r = Int(reps[id] ?? 0)
-        let newOrm = Progression.oneRM(weight: w, reps: r) ?? w
-        let oldOrm = b.map { Progression.oneRM(weight: $0.weight, reps: $0.reps) ?? $0.weight } ?? 0
+        let isNew = PRBook.beats(SetLog(exerciseID: id, weight: w, reps: r, target: r, done: true), b)
         return GMCard {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -209,7 +217,7 @@ struct PRSessionView: View {
                         .font(.caption).foregroundStyle(Theme.dim)
                 }
                 Spacer()
-                if w > 0, r > 0, newOrm > oldOrm + 0.01 { GMBadge(text: "🏆 novo PR") }
+                if w > 0, r > 0, isNew { GMBadge(text: "🏆 novo PR") }
                 if only == nil {
                     Button { ids.removeAll { $0 == id } } label: { Image(systemName: "xmark").font(.caption.bold()).foregroundStyle(Theme.dim) }
                         .buttonStyle(GMPress())
