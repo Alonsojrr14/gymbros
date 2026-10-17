@@ -113,6 +113,8 @@ struct MainView: View {
         .task(id: monsters.map { roster.snapshot($0.uuid).form.id + $0.uuid.uuidString }.joined()) { check(roster) }
         .task(id: phase) {
             guard phase == .active else { return }
+            // Ligas com renovação automática que acabaram ganham a próxima temporada
+            LeagueRenewal.run(context: context)
             let running = (try? context.fetchCount(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end == nil }))) ?? 0
             if running == 0 { await LiveWorkout.endAll() }
             // Chegou na academia há pouco e ainda não começou: oferece começar

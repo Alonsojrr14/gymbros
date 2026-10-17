@@ -64,6 +64,7 @@ struct Backup: Codable {
         var uuid: UUID, name: String, emoji: String, scoring: String, start: Date, code: String, isMock: Bool, joinedAt: Date
         var monsterUUID: UUID?
         var end: Date? = nil
+        var autoRenew: Bool? = nil, season: Int? = nil, seriesID: UUID? = nil, nextUUID: UUID? = nil
     }
 
     /// Fotos ficam de fora para o arquivo não ficar enorme
@@ -136,7 +137,7 @@ struct Backup: Codable {
             },
             leagues: try context.fetch(FetchDescriptor<League>()).map {
                 LeagueDTO(uuid: $0.uuid, name: $0.name, emoji: $0.emoji, scoring: $0.scoringRaw, start: $0.start, code: $0.code,
-                          isMock: $0.isMock, joinedAt: $0.joinedAt, monsterUUID: $0.monsterUUID, end: $0.end)
+                          isMock: $0.isMock, joinedAt: $0.joinedAt, monsterUUID: $0.monsterUUID, end: $0.end, autoRenew: $0.autoRenew, season: $0.season, seriesID: $0.seriesID, nextUUID: $0.nextUUID)
             },
             monsters: try context.fetch(FetchDescriptor<Monster>()).map {
                 MonsterDTO(uuid: $0.uuid, name: $0.name, createdAt: $0.createdAt, isStarter: $0.isStarter, lastFormID: $0.lastFormID, speciesID: $0.speciesID)
@@ -245,6 +246,10 @@ struct Backup: Codable {
             league.joinedAt = l.joinedAt
             league.monsterUUID = l.monsterUUID
             league.end = l.end
+            league.autoRenew = l.autoRenew ?? false
+            league.season = l.season ?? 1
+            league.seriesID = l.seriesID
+            league.nextUUID = l.nextUUID
             context.insert(league)
         }
         for b in body ?? [] {

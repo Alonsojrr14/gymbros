@@ -20,10 +20,10 @@ struct LeaguesView: View {
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
         NavigationStack {
             GMScreen("Ligas", avatar: true) {
-                if leagues.isEmpty {
+                if leagues.filter({ !$0.isPastSeason }).isEmpty {
                     GMEmptyState(icon: "trophy", title: "Nenhuma liga", message: "Crie uma liga e chame os amigos, ou entre com um código.")
                 }
-                ForEach(leagues) { l in
+                ForEach(leagues.filter { !$0.isPastSeason }) { l in
                     NavigationLink { LeagueDetailView(league: l) } label: {
                         GMCard { LeagueRow(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, roster: roster, me: trainerName) }
                     }
@@ -48,6 +48,7 @@ struct LeaguesView: View {
                 // Ligas de exemplo antigas não tinham data de fim
                 for l in leagues where l.isMock && l.end == nil { l.setDuration(days: 30) }
                 try? context.save()
+                LeagueRenewal.run(context: context)
             }
         }
     }
@@ -82,8 +83,9 @@ private struct LeagueRow: View {
                 HStack(spacing: 6) {
                     Text(league.name).font(.headline)
                     if league.isMock { GMBadge(text: "exemplo", tint: .white) }
+                    if league.autoRenew { Image(systemName: "arrow.triangle.2.circlepath").font(.caption2.bold()).foregroundStyle(Theme.dim) }
                 }
-                Text("\(pos)º de \(rank.count) · " + (league.isOver ? "encerrada" : league.daysLeft.map { $0 == 1 ? "último dia" : "faltam \($0) dias" } ?? league.scoring.name))
+                Text((league.season > 1 ? "T\(league.season) · " : "") + "\(pos)º de \(rank.count) · " + (league.isOver ? "encerrada" : league.daysLeft.map { $0 == 1 ? "último dia" : "faltam \($0) dias" } ?? league.scoring.name))
                     .font(.caption).foregroundStyle(Theme.dim)
             }
             Spacer()
@@ -150,6 +152,7 @@ struct LeagueDetailView: View {
                         if i < rank.count - 1 { GMDivider() }
                     }
                 }
+                pastSeasons(byID: byID, avatar: avatar)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -178,12 +181,47 @@ struct LeagueDetailView: View {
         .gmActions(isPresented: $leaving, title: "Sair de \(league.name)?",
                    message: "Os check-ins desta liga somem. Suas atividades e seus bros continuam.", actions: [
             GMAction("Sair", icon: "rectangle.portrait.and.arrow.right", destructive: true) {
-                mine.forEach(context.delete)
-                context.delete(league)
+                // Sai de todas as temporadas da liga
+                let series = leagues.filter { $0.seriesKey == league.seriesKey }
+                let ids = Set(series.map(\.uuid))
+                allCheckIns.filter { ids.contains($0.leagueUUID) }.forEach(context.delete)
+                series.forEach(context.delete)
                 try? context.save()
                 dismiss()
             }
         ])
+    }
+
+    /// Temporadas anteriores da mesma liga, com o campeão de cada uma
+    @ViewBuilder
+    private func pastSeasons(byID: [UUID: Activity], avatar: MonsterForm) -> some View {
+        let past = leagues.filter { $0.seriesKey == league.seriesKey && $0.season < league.season }.sorted { $0.season > $1.season }
+        if !past.isEmpty {
+            GMSection("Temporadas anteriores") {
+                ForEach(past) { p in
+                    let feed = LeagueBoard.feed(league: p, mine: allCheckIns.filter { $0.leagueUUID == p.uuid }, activities: byID, me: trainerName, myAvatar: avatar)
+                    let rank = LeagueBoard.ranking(feed: feed, league: p, me: trainerName, myAvatar: avatar, since: nil)
+                    let pos = (rank.firstIndex { $0.isMe } ?? 0) + 1
+                    NavigationLink { LeagueDetailView(league: p) } label: {
+                        HStack(spacing: 12) {
+                            Text("T\(p.season)").font(.subheadline.bold().monospacedDigit())
+                                .frame(width: 40, height: 40).background(Theme.raised, in: .circle)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(rank.first.map { "🏆 \($0.isMe ? "Você" : $0.name) · \($0.score)" } ?? "Sem check-ins").font(.subheadline.weight(.semibold))
+                                Text("\(p.start.formatted(.dateTime.day().month(.abbreviated))) – \((p.end ?? p.start).formatted(.dateTime.day().month(.abbreviated))) · você ficou em \(pos)º")
+                                    .font(.caption).foregroundStyle(Theme.dim)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
+                        }
+                        .contentShape(Rectangle())
+                        .foregroundStyle(.white)
+                    }
+                    .buttonStyle(GMPress())
+                    if p.id != past.last?.id { GMDivider() }
+                }
+            }
+        }
     }
 
     private var inviteText: String {
@@ -212,6 +250,7 @@ struct LeagueDetailView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     if league.isMock { GMBadge(text: "exemplo", tint: .white) }
+                    if league.season > 1 || league.autoRenew { GMBadge(text: "temporada \(league.season)", tint: .white) }
                     if league.isOver { GMBadge(text: "encerrada", tint: .white) }
                 }
                 Text("\(league.emoji) \(league.name)").font(.system(size: 26, weight: .heavy, design: .rounded)).lineLimit(2)
@@ -429,6 +468,7 @@ struct CreateLeagueView: View {
     @State private var start = Calendar.current.startOfDay(for: .now)
     @State private var end: Date = Calendar.current.date(byAdding: .day, value: 29, to: Calendar.current.startOfDay(for: .now))!
     @State private var hasEnd = true
+    @State private var autoRenew = false
     @State private var cover: Data?
     @State private var coverPick: PhotosPickerItem?
     @State private var withExamples = false
@@ -482,6 +522,11 @@ struct CreateLeagueView: View {
                 LeaguePeriodField(start: $start, end: $end, hasEnd: $hasEnd,
                                   minDate: min(cal.startOfDay(for: .now), league.map { cal.startOfDay(for: $0.start) } ?? .distantFuture))
             }
+            if hasEnd {
+                GMSection(footer: "Quando acabar, começa outra temporada com o mesmo nome, pessoas e duração, e os check-ins zeram. As temporadas passadas ficam guardadas na liga, com o campeão de cada uma.") {
+                    GMToggle(title: "Renovar automaticamente", subtitle: "Nova temporada ao fim de cada período", isOn: $autoRenew)
+                }
+            }
             GMSection("Pontuação", footer: scoring.detail) {
                 GMSegmented(options: LeagueScoring.allCases.map { ($0, $0.name) }, selection: $scoring)
             }
@@ -500,6 +545,7 @@ struct CreateLeagueView: View {
             scoring = l.scoring
             start = l.start
             hasEnd = l.end != nil
+            autoRenew = l.autoRenew
             if let e = l.end { end = cal.startOfDay(for: e) }
             cover = l.cover
         }
@@ -512,6 +558,7 @@ struct CreateLeagueView: View {
         l.scoringRaw = scoring.rawValue
         l.cover = cover
         l.setPeriod(start: start, end: hasEnd ? end : nil)
+        l.autoRenew = hasEnd && autoRenew
         if league == nil {
             l.monsterUUID = context.representative(rep)
             context.insert(l)

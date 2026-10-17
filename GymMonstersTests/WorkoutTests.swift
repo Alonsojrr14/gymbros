@@ -143,4 +143,47 @@ final class WorkoutTests: GymTestCase {
         XCTAssertEqual(LeaguePeriodField.detail(day(1), day(30)), "30 dias · começa amanhã")
         XCTAssertEqual(LeaguePeriodField.detail(day(0), nil), "Sem data de fim · começa hoje")
     }
+
+    func testRenewalStartsNextSeasonRightAfterTheEnd() throws {
+        let ctx = try memoryContext()
+        let old = League(name: "Bros", emoji: "🔥", scoring: .treinos)
+        old.setPeriod(start: day(-7), end: day(-1))   // 7 dias, acabou ontem
+        old.autoRenew = true
+        ctx.insert(old)
+        LeagueRenewal.run(context: ctx)
+        let all = try ctx.fetch(FetchDescriptor<League>())
+        XCTAssertEqual(all.count, 2)
+        let next = try XCTUnwrap(all.first { $0.uuid == old.nextUUID })
+        XCTAssertEqual(next.name, "Bros")
+        XCTAssertEqual(next.season, 2)
+        XCTAssertEqual(next.seriesKey, old.seriesKey)
+        XCTAssertEqual(next.code, old.code)
+        XCTAssertEqual(next.durationDays, 7)
+        XCTAssertEqual(next.start, Calendar.current.startOfDay(for: day(0)), "Começa no dia seguinte ao fim")
+        XCTAssertTrue(next.autoRenew)
+        XCTAssertTrue(old.isPastSeason)
+        // Rodar de novo não cria outra
+        LeagueRenewal.run(context: ctx)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<League>()).count, 2)
+    }
+
+    func testRenewalSkipsSeasonsMissedWithAppClosed() {
+        let old = League(name: "Bros", emoji: "🔥", scoring: .pontos)
+        old.setPeriod(start: day(-30), end: day(-24))   // 7 dias; passaram ~3 temporadas
+        let next = LeagueRenewal.makeNext(after: old)
+        XCTAssertLessThanOrEqual(next.start, Date.now)
+        XCTAssertFalse(next.isOver, "A nova temporada inclui hoje")
+        XCTAssertEqual(next.durationDays, 7)
+        XCTAssertEqual(next.season, 5)
+    }
+
+    func testLeagueWithoutRenewalIsNotRenewed() throws {
+        let ctx = try memoryContext()
+        let old = League(name: "Uma vez", emoji: "🏆", scoring: .pontos)
+        old.setPeriod(start: day(-7), end: day(-1))
+        ctx.insert(old)
+        LeagueRenewal.run(context: ctx)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<League>()).count, 1)
+        XCTAssertFalse(old.autoRenew, "Vem desligada")
+    }
 }

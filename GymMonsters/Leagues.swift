@@ -53,6 +53,13 @@ final class League {
     var end: Date?
     /// Capa da liga
     @Attribute(.externalStorage) var cover: Data?
+    /// Renovação automática: ao acabar, começa outra temporada igual
+    var autoRenew: Bool = false
+    var season: Int = 1
+    /// Liga da 1ª temporada (todas as temporadas apontam para ela); nil = esta é a primeira
+    var seriesID: UUID?
+    /// Temporada seguinte, quando esta já foi renovada
+    var nextUUID: UUID?
 
     init(name: String, emoji: String, scoring: LeagueScoring, start: Date = .now, isMock: Bool = false) {
         self.name = name
@@ -75,6 +82,12 @@ final class League {
     }
 
     var hasStarted: Bool { start <= .now }
+
+    /// Identifica a série de temporadas
+    var seriesKey: UUID { seriesID ?? uuid }
+
+    /// Já virou temporada passada (existe uma seguinte)
+    var isPastSeason: Bool { nextUUID != nil }
 
     /// Dias até começar (0 se já começou)
     var daysToStart: Int {
@@ -144,6 +157,48 @@ final class LeagueCheckIn {
 /// O perfil funciona como um destino de check-in, igual a uma liga
 enum ProfileFeed {
     static let id = UUID(uuidString: "00000000-0000-0000-0000-0000000000AA")!
+}
+
+// MARK: - Renovação
+
+enum LeagueRenewal {
+    /// Cria a próxima temporada das ligas com renovação que acabaram. Se o app ficou fechado por
+    /// mais de uma temporada, pula direto para a que está acontecendo agora.
+    @MainActor
+    static func run(context: ModelContext, now: Date = .now) {
+        let all = (try? context.fetch(FetchDescriptor<League>())) ?? []
+        var created = false
+        for old in all where old.autoRenew && old.nextUUID == nil {
+            guard let end = old.end, end < now else { continue }
+            let next = makeNext(after: old, now: now)
+            context.insert(next)
+            old.nextUUID = next.uuid
+            created = true
+        }
+        if created { try? context.save() }
+    }
+
+    static func makeNext(after old: League, now: Date = .now) -> League {
+        let cal = Calendar.current
+        let days = max(old.durationDays, 1)
+        var start = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: old.end ?? now))!
+        var seasons = 1
+        // Temporadas que passaram com o app fechado
+        while let last = cal.date(byAdding: .day, value: days - 1, to: start), cal.startOfDay(for: last) < cal.startOfDay(for: now) {
+            start = cal.date(byAdding: .day, value: days, to: start)!
+            seasons += 1
+        }
+        let l = League(name: old.name, emoji: old.emoji, scoring: old.scoring, start: start, isMock: old.isMock)
+        l.setPeriod(start: start, end: cal.date(byAdding: .day, value: days - 1, to: start))
+        l.code = old.code
+        l.cover = old.cover
+        l.monsterUUID = old.monsterUUID
+        l.joinedAt = old.joinedAt
+        l.autoRenew = true
+        l.season = old.season + seasons
+        l.seriesID = old.seriesKey
+        return l
+    }
 }
 
 // MARK: - Participantes simulados
