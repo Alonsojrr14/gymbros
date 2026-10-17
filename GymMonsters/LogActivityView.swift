@@ -127,7 +127,7 @@ struct ActivityKindGrid: View {
                     kind = k
                 } label: {
                     VStack(spacing: 6) {
-                        Image(systemName: k.symbol).font(.title2)
+                        Image(systemName: k.symbol).font(.title2).frame(height: 30)
                         Text(k.name).font(.caption2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
                     }
                     .frame(maxWidth: .infinity, minHeight: 66)

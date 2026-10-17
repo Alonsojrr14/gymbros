@@ -22,6 +22,8 @@ struct WorkoutView: View {
     /// Roleta do descanso: agora (nil) ou padrão de um exercício
     @State private var restPicker: RestTarget?
     @State private var restDraft = 90
+    @State private var historyFor: String?
+    @Query(filter: #Predicate<WorkoutSession> { $0.end != nil }, sort: \WorkoutSession.start, order: .reverse) private var doneSessions: [WorkoutSession]
     @State private var headphones = HeadphoneControl.shared.isOn
     @State private var headphoneInfo = false
     @AppStorage("headphoneInfoSeen") private var headphoneInfoSeen = false
@@ -64,6 +66,9 @@ struct WorkoutView: View {
         .gmKeyboardDone()
         .gmModal(isPresented: $picking) { ExercisePicker(onPick: add) }
         .gmModal(item: $info) { ExerciseInfoView(exercise: $0) }
+        .gmModal(item: Binding(get: { historyFor.map { IDBox(id: $0) } }, set: { historyFor = $0?.id })) { box in
+            NavigationStack { ExerciseDetailView(exerciseID: box.id, sessions: doneSessions) }
+        }
         .gmModal(isPresented: $finishing) {
             FinishWorkoutView(session: session, history: history) { dismiss() }
         }
@@ -207,7 +212,8 @@ struct WorkoutView: View {
             list.append(GMAction("Ver como fazer", icon: "info.circle") { info = ex })
             if ex.type == .weighted {
                 let w = session.orderedSets.last { $0.exerciseID == id }?.weight ?? 60
-                list.append(GMAction("Calcular anilhas", icon: "circle.grid.2x1") { platesFor = w })
+                let bar = UserDefaults.standard.object(forKey: "barWeight") as? Double ?? 20
+                list.append(GMAction("Calcular anilhas", icon: "circle.grid.2x1") { platesFor = ex.weightIncludesBar ? w : w + bar })
             }
         }
         let rest = session.orderedSets.first { $0.exerciseID == id && !$0.done }?.rest
@@ -216,6 +222,7 @@ struct WorkoutView: View {
             restDraft = rest
             restPicker = RestTarget(exerciseID: id)
         })
+        list.append(GMAction("Histórico de cargas", icon: "chart.line.uptrend.xyaxis") { historyFor = id })
         let current = notes.first { $0.exerciseID == id }?.text ?? ""
         list.append(GMAction(current.isEmpty ? "Adicionar nota" : "Editar nota", icon: "note.text") {
             noteText = current
@@ -299,6 +306,15 @@ struct WorkoutView: View {
                 }
                 .buttonStyle(GMPress())
             }
+            let lastMax = last?.sets.filter { $0.exerciseID == id && $0.done }.map(\.weight).max()
+            if let lastMax, suggestion.weight > lastMax {
+                // Completou tudo da última vez: subir a carga
+                Label("Subir para \(Progression.fmt(suggestion.weight)) kg (+\(Progression.fmt(suggestion.weight - lastMax)) kg)", systemImage: "arrow.up.circle.fill")
+                    .font(.subheadline.bold())
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Theme.accent.opacity(0.18), in: .capsule)
+                    .foregroundStyle(Theme.accent)
+            }
             Label(suggestion.reason, systemImage: "arrow.up.right")
                 .font(.caption)
                 .foregroundStyle(Theme.accent.opacity(0.9))
@@ -315,7 +331,7 @@ struct WorkoutView: View {
             }
 
             ForEach(sets) { s in
-                SetRow(set: s, type: ex?.type ?? .weighted, increment: ex?.increment ?? 2.5) { done in
+                SetRow(set: s, type: ex?.type ?? .weighted, increment: ex?.increment ?? 2.5, unit: ex?.weightUnit ?? "kg") { done in
                     if done {
                         startRest(s.rest)
                         setToggled(id)
@@ -414,6 +430,7 @@ private struct SetRow: View {
     @Bindable var set: LoggedSet
     let type: ExerciseType
     let increment: Double
+    var unit = "kg"
     let onToggle: (Bool) -> Void
 
     var body: some View {
@@ -425,7 +442,7 @@ private struct SetRow: View {
 
             // Peso do corpo e isometria aceitam carga extra (cinto, colete, halteres)
             field(value: Binding(get: { set.weight }, set: { set.weight = max($0, 0) }),
-                  step: type == .weighted ? increment : 2.5, unit: type == .weighted ? "kg" : "+kg", decimals: true)
+                  step: type == .weighted ? increment : 2.5, unit: type == .weighted ? unit : "+kg", decimals: true)
             field(value: Binding(get: { Double(set.reps) }, set: { set.reps = max(Int($0), 0) }),
                   step: type == .time ? 5 : 1, unit: type == .time ? "s" : "reps", decimals: false)
 
@@ -505,6 +522,18 @@ struct FinishWorkoutView: View {
                     BodyPair(intensities: normalized(muscleLoad(session.log.sets))).frame(height: 220)
                 }
             }
+            let ups = nextUps
+            if !ups.isEmpty {
+                GMSection("No próximo treino, suba a carga", footer: "Você completou todas as séries desses exercícios. A sugestão já vem preenchida no próximo treino.") {
+                    ForEach(ups, id: \.0) { name, text in
+                        HStack {
+                            Text(name).font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Label(text, systemImage: "arrow.up.circle.fill").font(.subheadline.bold()).foregroundStyle(Theme.accent)
+                        }
+                    }
+                }
+            }
             if !records.isEmpty {
                 GMSection("Recordes 🏆") {
                     ForEach(records, id: \.self) { Text($0).font(.subheadline) }
@@ -532,6 +561,21 @@ struct FinishWorkoutView: View {
 
     private var records: [String] { Progression.records(in: session.log, history: history) }
 
+    /// Exercícios em que a regra de progressão manda subir carga (ou reps/tempo) no próximo treino
+    private var nextUps: [(String, String)] {
+        let log = session.log
+        return session.exerciseIDs.compactMap { id in
+            let sets = log.sets.filter { $0.exerciseID == id }
+            guard let w = sets.filter(\.done).map(\.weight).max(), let reps = sets.first?.target else { return nil }
+            let s = Progression.suggest(exerciseID: id, sets: sets.count, reps: reps, history: history + [log])
+            if s.weight > w { return (Exercise.name(id), "\(Progression.fmt(s.weight)) kg (+\(Progression.fmt(s.weight - w)))") }
+            if s.reps > reps && s.weight == w {
+                return (Exercise.name(id), Exercise.byID(id)?.type == .time ? "\(s.reps) s" : "\(s.reps) reps")
+            }
+            return nil
+        }
+    }
+
     private func save() {
         let activity = Activity(kind: .musculacao, date: session.start, minutes: minutes, effort: effort, note: session.title)
         context.insert(activity)
@@ -555,3 +599,5 @@ struct RestTarget: Identifiable {
     let exerciseID: String?
     var id: String { exerciseID ?? "agora" }
 }
+
+struct IDBox: Identifiable { let id: String }

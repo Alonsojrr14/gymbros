@@ -32,14 +32,14 @@ struct WorkoutLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 6) {
-                        SetLine(state: s)
+                        SetLine(state: s, stale: context.isStale)
                         ProgressView(value: s.progress).tint(accent)
                     }
                 }
             } compactLeading: {
                 Image(systemName: "dumbbell.fill").foregroundStyle(accent)
             } compactTrailing: {
-                if let end = s.restEnd, end > .now {
+                if let end = s.restEnd, end > .now, !context.isStale {
                     Text(timerInterval: Date.now...end, countsDown: true)
                         .monospacedDigit()
                         .frame(width: 42)
@@ -57,10 +57,27 @@ struct WorkoutLiveActivity: Widget {
 /// Série atual ou descanso, com o botão da vez
 private struct SetLine: View {
     let state: WorkoutAttributes.ContentState
+    /// O descanso já acabou (conteúdo ficou velho), mesmo sem o app ter atualizado
+    var stale = false
 
     var body: some View {
         HStack(spacing: 10) {
-            if let end = state.restEnd, end > .now {
+            if let end = state.restEnd, stale || end <= .now {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Descanso acabou").font(.caption).foregroundStyle(dim)
+                    Text(state.exerciseDone ? "Exercício concluído" : "Série \(state.setNumber) de \(state.setCount) · \(state.setText)")
+                        .font(.subheadline.bold()).foregroundStyle(accent)
+                }
+                Spacer()
+                Button(intent: SkipRestIntent()) {
+                    Label("Próxima série", systemImage: "arrow.right")
+                        .font(.subheadline.bold())
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(accent, in: .capsule)
+                        .foregroundStyle(.black)
+                }
+                .buttonStyle(.plain)
+            } else if let end = state.restEnd, end > .now {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("Descanso").font(.caption).foregroundStyle(dim)
                     Text(timerInterval: Date.now...end, countsDown: true)
@@ -116,7 +133,7 @@ private struct LockScreenWorkout: View {
                         .frame(width: 64)
                 }
                 Text(s.exercise).font(.headline).foregroundStyle(.white).lineLimit(1)
-                SetLine(state: s).foregroundStyle(.white)
+                SetLine(state: s, stale: context.isStale).foregroundStyle(.white)
                 ProgressView(value: s.progress).tint(accent)
             }
         }

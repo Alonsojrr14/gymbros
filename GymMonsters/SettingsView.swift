@@ -13,6 +13,8 @@ struct SettingsView: View {
     @AppStorage("remindersOn") private var remindersOn = false
     @AppStorage("reminderMinute") private var reminderMinute = 18 * 60
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
+    @AppStorage("restNotification") private var restNotification = false
+    @AppStorage("barCountsBar") private var barCountsBar = false
     @State private var healthOn = HealthSync.enabled
     @State private var healthStatus: String?
     @State private var syncing = false
@@ -47,6 +49,12 @@ struct SettingsView: View {
                     GMDivider()
                     GMToggle(title: "Só em dias de rotina", isOn: $reminderRoutineOnly)
                 }
+                GMDivider()
+                GMToggle(title: "Notificação no fim do descanso",
+                         subtitle: "O Live Activity já mostra o descanso; ligue só se quiser o alerta também", isOn: $restNotification)
+            }
+            GMSection("Carga na barra", footer: "Na musculação é comum anotar só as anilhas. Exercícios de CrossFit sempre contam o total com a barra; polia e máquina não têm barra.") {
+                GMSegmented(options: [(false, "Só anilhas"), (true, "Total com barra")], selection: $barCountsBar)
             }
 
             if HealthSync.available {

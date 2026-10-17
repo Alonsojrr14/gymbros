@@ -102,6 +102,13 @@ struct Exercise: Identifiable, Hashable {
                                              "levantamento-terra", "barra-fixa", "flexao", "agachamento-livre-corpo", "abdominal",
                                              "desenvolvimento", "agachamento", "paralelas", "prancha"]
     var isCrossfit: Bool { crossfit || Exercise.crossfitAlso.contains(id) }
+
+    /// Usa barra olímpica (polia e máquina não)
+    var usesBar: Bool { equipment == "Barra" }
+    /// A carga anotada já inclui a barra? CrossFit sempre; musculação conforme o ajuste (padrão: só anilhas)
+    var weightIncludesBar: Bool { !usesBar || isCrossfit || UserDefaults.standard.bool(forKey: "barCountsBar") }
+    /// Rótulo da carga na série
+    var weightUnit: String { usesBar ? (weightIncludesBar ? "kg total" : "kg anilhas") : "kg" }
     var muscles: MuscleTargets { ExerciseData.muscles[id] ?? ExerciseExtraData.muscles[id] ?? group.muscles }
     /// Instruções em português (biblioteca original)
     var instructions: [String] { ExerciseInstructions.steps[id] ?? [] }

@@ -57,7 +57,8 @@ enum LiveWorkout {
     /// Começa (ou atualiza, se já existe) o Live Activity do treino
     static func show(title: String, start: Date, state: WorkoutAttributes.ContentState) async {
         guard enabled else { return }
-        let content = ActivityContent(state: state, staleDate: nil)
+        // No fim do descanso o conteúdo fica "velho" e o iOS redesenha mesmo com o app suspenso
+        let content = ActivityContent(state: state, staleDate: state.restEnd)
         if let activity = current, activity.attributes.start == start {
             await activity.update(content)
             return
@@ -79,13 +80,14 @@ enum LiveWorkout {
         guard seconds > 0 else { return }
         s.restEnd = Date.now.addingTimeInterval(TimeInterval(seconds))
         s.restTotal = keepTotal ? max(s.restTotal, seconds) : seconds
-        // Aviso mesmo com o app em segundo plano
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ["rest"])
+        // Notificação de fim de descanso é opcional (o Live Activity já mostra)
+        guard UserDefaults.standard.bool(forKey: "restNotification") else { return }
         let content = UNMutableNotificationContent()
         content.title = "Descanso acabou"
         content.body = "Bora para a próxima série 💪"
         content.sound = .default
-        let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: ["rest"])
         center.add(UNNotificationRequest(identifier: "rest", content: content,
                                          trigger: UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(seconds), repeats: false)))
     }
