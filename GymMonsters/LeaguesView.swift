@@ -185,6 +185,8 @@ struct LeagueDetailView: View {
                    message: "Seus check-ins passam a somar para este time. Dá para trocar depois.", actions: [
             GMAction("Entrar no time", icon: "person.3.fill") {
                 league.myTeamID = teamChoice?.id
+                league.syncedAt = nil
+                LeagueRemoteStore.shared.scheduleFlush()
                 try? context.save()
             }
         ])
@@ -207,6 +209,12 @@ struct LeagueDetailView: View {
                 ((try? context.fetch(FetchDescriptor<CheckInComment>())) ?? []).filter { goneIDs.contains($0.itemID) }.forEach(context.delete)
                 gone.forEach(context.delete)
                 messages.filter { ids.contains($0.leagueUUID) }.forEach(context.delete)
+                // No servidor, sair leva junto seus check-ins
+                if !league.isMock {
+                    let key = league.key
+                    Task { try? await LeagueRemoteStore.shared.backend.leave(key) }
+                }
+                ids.forEach(LeagueOutbox.clear)
                 series.forEach(context.delete)
                 try? context.save()
                 dismiss()
@@ -708,7 +716,9 @@ struct CreateLeagueView: View {
             l.monsterUUID = context.representative(rep)
             context.insert(l)
         }
+        l.syncedAt = nil
         try? context.save()
+        LeagueRemoteStore.shared.scheduleFlush()
         dismiss()
     }
 }
@@ -745,7 +755,24 @@ struct JoinLeagueView: View {
             try? context.save()
             dismiss()
         } else {
-            message = "Liga não encontrada. Convites entre pessoas chegam quando o app tiver servidor."
+            message = "Procurando…"
+            Task {
+                do {
+                    guard let d = try await LeagueRemoteStore.shared.join(code: c) else {
+                        message = Backend.mode == .mock ? "Liga não encontrada. Sem servidor, só a liga de exemplo (\(MockLeague.code)) existe."
+                                                        : "Liga não encontrada. Confira o código."
+                        return
+                    }
+                    let l = League(draft: d)
+                    l.monsterUUID = context.representative(rep)
+                    context.insert(l)
+                    try? context.save()
+                    LeagueRemoteStore.shared.scheduleFlush()
+                    dismiss()
+                } catch {
+                    message = "Não deu para procurar agora: \(error.localizedDescription)"
+                }
+            }
         }
     }
 }
@@ -762,6 +789,7 @@ func postCheckIns(activity: Activity, leagues: Set<UUID>, title: String, note: S
         c.place = place
         context.insert(c)
     }
+    LeagueRemoteStore.shared.scheduleFlush()
 }
 
 /// Deixa os check-ins da atividade exatamente nos destinos escolhidos, com o mesmo post em todos
@@ -770,7 +798,10 @@ func syncCheckIns(activity: Activity, destinations: Set<UUID>, title: String, no
     let id = activity.uuid
     let existing = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
     let t = title.trimmingCharacters(in: .whitespaces).isEmpty ? activity.kind.name : title.trimmingCharacters(in: .whitespaces)
-    for c in existing where !destinations.contains(c.leagueUUID) { context.delete(c) }
+    for c in existing where !destinations.contains(c.leagueUUID) {
+        LeagueOutbox.retract(c)
+        context.delete(c)
+    }
     let kept = Set(existing.filter { destinations.contains($0.leagueUUID) }.map(\.leagueUUID))
     for c in existing where destinations.contains(c.leagueUUID) {
         c.title = t
@@ -778,12 +809,15 @@ func syncCheckIns(activity: Activity, destinations: Set<UUID>, title: String, no
         c.setPhoto(photo)
         c.place = place
         c.date = activity.date
+        // Editado: publica de novo
+        c.syncedAt = nil
     }
     for d in destinations.subtracting(kept) {
         let c = LeagueCheckIn(leagueUUID: d, activityUUID: id, title: t, note: note, date: activity.date, photo: photo)
         c.place = place
         context.insert(c)
     }
+    LeagueRemoteStore.shared.scheduleFlush()
 }
 
 /// Reduz a foto para algo razoável de guardar

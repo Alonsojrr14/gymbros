@@ -2,13 +2,12 @@ import Foundation
 import Observation
 import SwiftData
 
-// Contrato entre o app e o servidor das ligas. Hoje quem responde é o MockLeagueBackend,
-// com participantes, check-ins, times e recados simulados (determinísticos). Para ligar um
-// servidor de verdade: implementar LeagueBackend (HTTP) e trocar LeagueRemoteStore.shared.backend.
-// Os tipos Remote* são Codable e já têm o formato que a API deve devolver.
+// Contrato entre o app e o servidor das ligas. Quem responde é escolhido em Backend.swift:
+// MockLeagueBackend (participantes, check-ins, times e recados simulados e determinísticos) ou
+// CloudKitLeagueBackend. Os tipos Remote*/Outgoing*/LeagueDraft são Codable e têm o formato do servidor.
 //
-// O que é seu continua no aparelho (LeagueCheckIn, LeagueMessage) e funciona como caixa de saída:
-// LeagueMessage.syncedAt fica nil até o servidor aceitar.
+// O que é seu continua no aparelho (League, LeagueCheckIn, LeagueMessage) e funciona como caixa de saída:
+// `syncedAt` fica nil até o servidor aceitar; LeagueRemoteStore.flush manda tudo o que está pendente.
 
 /// O que o servidor precisa saber de uma liga para responder
 struct LeagueKey: Hashable, Sendable {
@@ -85,11 +84,61 @@ struct OutgoingMessage: Codable, Sendable {
     let text: String
 }
 
+/// Seu check-in a publicar numa liga (o id é o do LeagueCheckIn: publicar de novo atualiza)
+struct OutgoingCheckIn: Codable, Sendable {
+    let id: UUID
+    let date: Date
+    let kindRaw: String
+    let minutes: Int
+    let effort: Int
+    var meters: Double?
+    var kcal: Double?
+    let title: String
+    let note: String
+    let hasPhoto: Bool
+    var photo: Data?
+}
+
+/// Liga como o servidor guarda: regras e times. Serve para criar e para entrar por código.
+struct LeagueDraft: Codable, Sendable {
+    let uuid: UUID
+    let code: String
+    let name: String
+    let emoji: String
+    let scoring: String
+    let weights: String
+    let tieBreak: String
+    let photoRule: String
+    let teams: String
+    let start: Date
+    let end: Date?
+    let autoRenew: Bool
+}
+
+/// Como você aparece numa liga
+struct Membership: Codable, Sendable {
+    let name: String
+    let formID: String
+    let teamID: String?
+}
+
 protocol LeagueBackend: Sendable {
     /// Estado atual da liga (outros participantes, check-ins deles, times, mural)
     func fetch(_ league: LeagueKey, now: Date) async throws -> RemoteLeague
     /// Publica seus recados no mural; devolve os ids aceitos
     func send(_ messages: [OutgoingMessage], to league: LeagueKey) async throws -> [UUID]
+    /// Cria a liga (você é o dono)
+    func create(_ league: LeagueDraft) async throws
+    /// Acha a liga pelo código; nil = não existe
+    func join(code: String) async throws -> LeagueDraft?
+    /// Seu nome, bro e time na liga
+    func setMembership(_ membership: Membership, in league: LeagueKey) async throws
+    /// Publica (ou atualiza) seus check-ins; devolve os ids aceitos
+    func publish(_ checkIns: [OutgoingCheckIn], to league: LeagueKey) async throws -> [UUID]
+    /// Tira check-ins seus da liga
+    func retract(_ checkInIDs: [UUID], from league: LeagueKey) async throws
+    /// Sai da liga (some do ranking; seus check-ins saem junto)
+    func leave(_ league: LeagueKey) async throws
 }
 
 // MARK: - Cache
@@ -100,32 +149,143 @@ final class LeagueRemoteStore {
 
     var backend: any LeagueBackend = MockLeagueBackend()
     private(set) var cache: [LeagueKey: RemoteLeague] = [:]
+    /// Último erro de sincronização (para mostrar se precisar)
+    private(set) var lastError: String?
+
+    /// A liga de exemplo é sempre simulada, mesmo com servidor ligado
+    private func backend(for key: LeagueKey) -> any LeagueBackend { key.isMock ? MockLeagueBackend() : backend }
 
     /// O que já se sabe da liga. Sem resposta ainda, o exemplo é calculado na hora (para não piscar vazio).
     func remote(_ league: League) -> RemoteLeague {
         let key = league.key
         if let r = cache[key] { return r }
-        return backend is MockLeagueBackend ? MockLeagueBackend.build(key) : .empty
+        return backend(for: key) is MockLeagueBackend ? MockLeagueBackend.build(key) : .empty
     }
 
     func refresh(_ leagues: [League]) async {
         for l in leagues {
             let key = l.key
-            if let r = try? await backend.fetch(key, now: .now) { cache[key] = r }
+            if let r = try? await backend(for: key).fetch(key, now: .now) { cache[key] = r }
         }
     }
 
-    /// Manda os recados pendentes e marca os aceitos
+    /// Manda tudo o que está na caixa de saída: ligas e seu lugar nelas, check-ins (novos, editados e apagados) e recados
     func flush(context: ModelContext) async {
-        let pending = (try? context.fetch(FetchDescriptor<LeagueMessage>(predicate: #Predicate { $0.syncedAt == nil }))) ?? []
-        let leagues = (try? context.fetch(FetchDescriptor<League>())) ?? []
-        for (leagueID, msgs) in Dictionary(grouping: pending, by: \.leagueUUID) {
-            guard let l = leagues.first(where: { $0.uuid == leagueID }) else { continue }
-            let out = msgs.map { OutgoingMessage(id: $0.uuid, date: $0.date, text: $0.text) }
-            guard let accepted = try? await backend.send(out, to: l.key) else { continue }
-            for m in msgs where accepted.contains(m.uuid) { m.syncedAt = .now }
+        let leagues = ((try? context.fetch(FetchDescriptor<League>())) ?? []).filter { !$0.isMock }
+        let byID = Dictionary(leagues.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+        let monsters = (try? context.fetch(FetchDescriptor<Monster>())) ?? []
+        let name = UserDefaults.standard.string(forKey: "trainerName") ?? ""
+        do {
+            for l in leagues where l.syncedAt == nil && !l.isPastSeason {
+                if !l.joined { try await backend.create(l.draft) }
+                let last = monsters.first { $0.uuid == l.monsterUUID }?.lastFormID ?? ""
+                let form = last.isEmpty ? MonsterForm.egg.id : last
+                try await backend.setMembership(Membership(name: name, formID: form, teamID: l.myTeamID), in: l.key)
+                l.syncedAt = .now
+            }
+
+            let activities = Dictionary(((try? context.fetch(FetchDescriptor<Activity>())) ?? []).map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+            let pending = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.syncedAt == nil }))) ?? []
+            for (leagueID, list) in Dictionary(grouping: pending, by: \.leagueUUID) {
+                guard let key = leagueID == ProfileFeed.id ? .profileFeed : byID[leagueID]?.key else { continue }
+                let out = list.compactMap { c -> OutgoingCheckIn? in
+                    guard let a = activities[c.activityUUID] else { return nil }
+                    return OutgoingCheckIn(id: c.uuid, date: c.date, kindRaw: a.kindRaw, minutes: a.minutes, effort: a.effort,
+                                           meters: a.meters, kcal: a.kcal, title: c.title, note: c.note, hasPhoto: c.hasPhoto, photo: c.photo)
+                }
+                let accepted = Set(try await backend.publish(out, to: key))
+                for c in list where accepted.contains(c.uuid) { c.syncedAt = .now }
+            }
+
+            for (leagueID, ids) in LeagueOutbox.retractions {
+                if let key = leagueID == ProfileFeed.id ? .profileFeed : byID[leagueID]?.key { try await backend.retract(ids, from: key) }
+                LeagueOutbox.clear(leagueID)
+            }
+
+            let msgs = (try? context.fetch(FetchDescriptor<LeagueMessage>(predicate: #Predicate { $0.syncedAt == nil }))) ?? []
+            for (leagueID, list) in Dictionary(grouping: msgs, by: \.leagueUUID) {
+                guard let l = byID[leagueID] else { continue }
+                let accepted = try await backend.send(list.map { OutgoingMessage(id: $0.uuid, date: $0.date, text: $0.text) }, to: l.key)
+                for m in list where accepted.contains(m.uuid) { m.syncedAt = .now }
+            }
+            lastError = nil
+        } catch {
+            // Fica na caixa de saída e tenta de novo na próxima vez
+            lastError = error.localizedDescription
         }
         try? context.save()
+    }
+
+    private var flushTask: Task<Void, Never>?
+
+    /// Manda a caixa de saída daqui a pouco (junta várias mudanças seguidas num envio só)
+    func scheduleFlush() {
+        flushTask?.cancel()
+        flushTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            await flush(context: AppData.container.mainContext)
+        }
+    }
+
+    /// Sair da liga no servidor (as temporadas saem junto)
+    func leave(_ league: League) async {
+        guard !league.isMock else { return }
+        try? await backend.leave(league.key)
+    }
+
+    /// Procura a liga pelo código no servidor
+    func join(code: String) async throws -> LeagueDraft? { try await backend.join(code: code) }
+}
+
+/// Check-ins seus que precisam sair do servidor (apagados aqui depois de publicados)
+enum LeagueOutbox {
+    private static let key = "pendingRetractions"
+
+    static var retractions: [UUID: [UUID]] {
+        let raw = UserDefaults.standard.dictionary(forKey: key) as? [String: [String]] ?? [:]
+        return raw.reduce(into: [:]) { acc, kv in
+            if let l = UUID(uuidString: kv.key) { acc[l] = kv.value.compactMap(UUID.init(uuidString:)) }
+        }
+    }
+
+    /// Chame antes de apagar um check-in: se ele já tinha subido, entra na fila para sair
+    static func retract(_ c: LeagueCheckIn) {
+        guard c.syncedAt != nil else { return }
+        var raw = UserDefaults.standard.dictionary(forKey: key) as? [String: [String]] ?? [:]
+        raw[c.leagueUUID.uuidString, default: []].append(c.uuid.uuidString)
+        UserDefaults.standard.set(raw, forKey: key)
+    }
+
+    static func clear(_ league: UUID) {
+        var raw = UserDefaults.standard.dictionary(forKey: key) as? [String: [String]] ?? [:]
+        raw[league.uuidString] = nil
+        UserDefaults.standard.set(raw, forKey: key)
+    }
+}
+
+extension LeagueKey {
+    /// Destino dos posts do perfil no servidor (funciona como uma liga só sua)
+    static let profileFeed = LeagueKey(uuid: ProfileFeed.id, code: CloudType.profileFeed, start: .distantPast, end: nil, isMock: false, teams: [])
+}
+
+extension League {
+    /// Liga de outra pessoa, achada pelo código
+    convenience init(draft d: LeagueDraft) {
+        self.init(name: d.name, emoji: d.emoji, scoring: LeagueScoring(rawValue: d.scoring) ?? .pontos, start: d.start)
+        code = d.code
+        weightsRaw = d.weights
+        tieBreakRaw = d.tieBreak
+        photoRuleRaw = d.photoRule
+        teamsRaw = d.teams
+        end = d.end
+        autoRenew = d.autoRenew
+        joined = true
+    }
+
+    var draft: LeagueDraft {
+        LeagueDraft(uuid: seriesKey, code: code, name: name, emoji: emoji, scoring: scoringRaw, weights: weightsRaw, tieBreak: tieBreakRaw,
+                    photoRule: photoRuleRaw, teams: teamsRaw, start: start, end: end, autoRenew: autoRenew)
     }
 }
 
@@ -152,6 +312,13 @@ struct MockLeagueBackend: LeagueBackend {
 
     /// Sem servidor, tudo é aceito e fica só no aparelho
     func send(_ messages: [OutgoingMessage], to league: LeagueKey) async throws -> [UUID] { messages.map(\.id) }
+    func create(_ league: LeagueDraft) async throws {}
+    /// Só existe a liga de exemplo (tratada no app pelo código AMIGOS)
+    func join(code: String) async throws -> LeagueDraft? { nil }
+    func setMembership(_ membership: Membership, in league: LeagueKey) async throws {}
+    func publish(_ checkIns: [OutgoingCheckIn], to league: LeagueKey) async throws -> [UUID] { checkIns.map(\.id) }
+    func retract(_ checkInIDs: [UUID], from league: LeagueKey) async throws {}
+    func leave(_ league: LeagueKey) async throws {}
 
     static func build(_ league: LeagueKey, now: Date = .now) -> RemoteLeague {
         var teams = league.teams.map { RemoteTeam(id: $0.id, name: $0.name) }

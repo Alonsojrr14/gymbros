@@ -217,6 +217,7 @@ func deleteActivity(_ a: Activity, context: ModelContext) {
     if !postIDs.isEmpty {
         ((try? context.fetch(FetchDescriptor<CheckInComment>())) ?? []).filter { postIDs.contains($0.itemID) }.forEach(context.delete)
     }
+    posts.forEach(LeagueOutbox.retract)
     posts.forEach(context.delete)
     let wods = (try? context.fetch(FetchDescriptor<WodResult>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
     wods.forEach(context.delete)

@@ -218,10 +218,7 @@ extension ProfileView {
     /// Números públicos: só o que foi postado (perfil ou ligas) conta; atividade não postada fica privada.
     /// Ligas = as que você está agora (temporadas passadas da mesma liga não contam de novo).
     var publicStats: PublicProfile.Stats {
-        let existing = Set(activities.map(\.uuid))
-        let posted = Set(checkIns.map(\.activityUUID)).intersection(existing)
-        let days = Set(activities.filter { posted.contains($0.uuid) }.map { Calendar.current.startOfDay(for: $0.date) })
-        return .init(checkIns: posted.count, activeDays: days.count, leagues: leagues.filter { !$0.isPastSeason }.count)
+        PublicProfile.stats(activities: activities, checkIns: checkIns, leagues: leagues)
     }
 
     /// Check-ins postados no perfil, em calendário (igual ao que os amigos veem)

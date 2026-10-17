@@ -14,6 +14,8 @@ struct GymMonstersApp: App {
         NotificationRouter.shared.install()
         GymLocation.shared.startMonitoring()
         PRBook.reload()
+        // Mock ou CloudKit (Backend.mode)
+        Backend.install()
     }
 
     var body: some Scene {
@@ -124,6 +126,10 @@ struct MainView: View {
         .task(id: monsters.map { roster.snapshot($0.uuid).form.id + $0.uuid.uuidString }.joined()) { check(roster) }
         .task(id: phase) {
             guard phase == .active else { return }
+            // Caixa de saída (ligas, check-ins, recados) e o seu perfil público para o servidor
+            await LeagueRemoteStore.shared.flush(context: context)
+            await FriendsStore.shared.publish(PublicProfile.mine(roster: roster, activities: activities, checkIns: checkIns,
+                                                                 leagues: leagues, unlocked: achievements.filter(\.unlocked)))
             // Peso mais recente para as estimativas de calorias (perfil físico)
             BodyProfile.remember(weight: ((try? context.fetch(FetchDescriptor<BodyEntry>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? [])
                 .compactMap(\.weight).first)

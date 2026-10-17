@@ -195,4 +195,33 @@ final class LeagueTests: GymTestCase {
         XCTAssertTrue(teams.first?.isMine ?? false)
         XCTAssertEqual(teams.last?.score, 0)
     }
+
+    // MARK: Caixa de saída
+
+    func testDraftRoundTripKeepsRules() {
+        let l = league(.sequencia)
+        l.code = "ABC123"
+        l.photoRule = .metade
+        l.attributeWeights = [.forca: 2]
+        let joined = League(draft: l.draft)
+        XCTAssertEqual(joined.code, "ABC123")
+        XCTAssertEqual(joined.tieBreak, .sequencia)
+        XCTAssertEqual(joined.photoRule, .metade)
+        XCTAssertEqual(joined.attributeWeights, [.forca: 2])
+        XCTAssertTrue(joined.joined)
+        XCTAssertNil(joined.syncedAt)
+    }
+
+    func testOnlyPublishedCheckInsAreRetracted() {
+        let leagueID = UUID()
+        LeagueOutbox.clear(leagueID)
+        let draft = LeagueCheckIn(leagueUUID: leagueID, activityUUID: UUID(), title: "", note: "", date: .now, photo: nil)
+        LeagueOutbox.retract(draft)
+        XCTAssertNil(LeagueOutbox.retractions[leagueID], "nunca subiu: não precisa sair do servidor")
+        let sent = LeagueCheckIn(leagueUUID: leagueID, activityUUID: UUID(), title: "", note: "", date: .now, photo: nil)
+        sent.syncedAt = .now
+        LeagueOutbox.retract(sent)
+        XCTAssertEqual(LeagueOutbox.retractions[leagueID], [sent.uuid])
+        LeagueOutbox.clear(leagueID)
+    }
 }

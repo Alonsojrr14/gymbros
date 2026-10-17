@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Observation
 import SwiftData
@@ -47,6 +48,8 @@ protocol FriendsBackend: Sendable {
     func remove(_ id: String) async throws
     /// Perfil público da pessoa (só o que ela deixou aparecer)
     func profile(_ id: String) async throws -> PublicProfile
+    /// Publica o seu perfil público (o que você deixou aparecer) com o seu código de amigo
+    func publish(_ profile: PublicProfile, friendCode: String) async throws
 }
 
 // MARK: - Cache
@@ -74,6 +77,19 @@ final class FriendsStore {
     }
 
     var friendIDs: Set<String> { Set(state.friends.map(\.id)) }
+
+    /// Publica o seu perfil se mudou desde o último envio
+    func publish(_ profile: PublicProfile) async {
+        // Hash estável entre aberturas do app (o hashValue do Swift muda a cada execução)
+        let fingerprint = (try? JSONEncoder().encode(profile)).map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() } ?? ""
+        // Por backend: trocar de mock para CloudKit publica de novo
+        let key = "publishedProfile-\(Backend.mode)"
+        guard UserDefaults.standard.string(forKey: key) != fingerprint else { return }
+        do {
+            try await backend.publish(profile, friendCode: myCode)
+            UserDefaults.standard.set(fingerprint, forKey: key)
+        } catch {}
+    }
 
     /// Antes da primeira resposta: o mock responde do aparelho; outro backend começa vazio até o `refresh`
     private static func initialState(_ backend: any FriendsBackend) -> FriendsState {
@@ -238,6 +254,8 @@ struct MockFriendsBackend: FriendsBackend {
         }
         return out
     }
+
+    func publish(_ profile: PublicProfile, friendCode: String) async throws {}
 
     func remove(_ id: String) async throws {
         var s = Self.load()

@@ -18,7 +18,7 @@ struct AuthUser: Codable, Equatable, Sendable {
 }
 
 enum AuthError: LocalizedError {
-    case invalidEmail, shortPassword, missingName, wrongPassword, emailInUse, cancelled
+    case invalidEmail, shortPassword, missingName, wrongPassword, emailInUse, cancelled, appleOnly
 
     var errorDescription: String? {
         switch self {
@@ -28,6 +28,7 @@ enum AuthError: LocalizedError {
         case .wrongPassword: "E-mail ou senha incorretos."
         case .emailInUse: "Já existe uma conta com esse e-mail. Entre em vez de criar."
         case .cancelled: "Login cancelado."
+        case .appleOnly: "Por enquanto, entre com a Apple (usa a sua conta do iCloud)."
         }
     }
 }

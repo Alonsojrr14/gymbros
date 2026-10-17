@@ -9,6 +9,7 @@ Documentação levantada a partir do código (outubro de 2026) e atualizada depo
 | [Requisitos funcionais · Treino](requisitos-funcionais/02-treino.md) | `RF-TRE-01…39`: rotinas, treino guiado, progressão e deload, descanso, recordes, biblioteca (wger) e créditos, mapa muscular, CrossFit/WOD, peso e metas |
 | [Requisitos funcionais · Social e dados](requisitos-funcionais/03-social-e-dados.md) | `RF-SOC-01…27`: ligas, times, mural, amigos, perfil público e privado, mapa e localização, Apple Saúde, backup e ajustes |
 | [Requisitos não funcionais](requisitos-nao-funcionais.md) | `RNF-01…49`: plataforma, privacidade, segurança, desempenho, confiabilidade, usabilidade, testabilidade e o que o futuro servidor precisa atender |
+| [Backend com CloudKit](cloudkit.md) | Interruptor mock/CloudKit, esquema do banco público, permissões, caixa de saída e o que falta |
 | [Design system](design-system.md) | Princípios, tokens (cores, tipografia, raios), catálogo de componentes `GM*`, padrões de tela, componentes de domínio e checklist |
 
 ## Convenções

@@ -219,6 +219,7 @@ struct SettingsView: View {
         let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>())) ?? []
         let postIDs = Set(posts.map(\.uuid.uuidString))
         ((try? context.fetch(FetchDescriptor<CheckInComment>())) ?? []).filter { postIDs.contains($0.itemID) }.forEach(context.delete)
+        posts.forEach(LeagueOutbox.retract)
         posts.forEach(context.delete)
         ((try? context.fetch(FetchDescriptor<RouteRecord>())) ?? []).filter { $0.activityUUID.map(ids.contains) ?? true }.forEach(context.delete)
         ((try? context.fetch(FetchDescriptor<WodResult>())) ?? []).filter { $0.activityUUID.map(ids.contains) ?? false }.forEach(context.delete)

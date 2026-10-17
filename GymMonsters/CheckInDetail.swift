@@ -72,7 +72,10 @@ struct CheckInDetailView: View {
         .gmActions(isPresented: $confirmDelete, title: "Apagar check-in?",
                    message: "Sai desta liga. A atividade continua no seu histórico.", actions: [
             GMAction("Apagar check-in", icon: "trash", destructive: true) {
-                if let c = mine { context.delete(c) }
+                if let c = mine {
+                    LeagueOutbox.retract(c)
+                    context.delete(c)
+                }
                 comments.forEach(context.delete)
                 try? context.save()
                 dismiss()

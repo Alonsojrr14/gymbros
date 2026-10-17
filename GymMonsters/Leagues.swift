@@ -205,6 +205,10 @@ final class League {
     var photoRuleRaw: String = PhotoRule.livre.rawValue
     /// Times, um por linha: "id\tnome" (formato antigo: só o nome, id = posição); vazio = liga sem times
     var teamsRaw: String = ""
+    /// Quando o servidor recebeu a liga (regras) e o seu lugar nela (nome, bro, time); nil = pendente
+    var syncedAt: Date?
+    /// Entrou por código numa liga de outra pessoa (não é você quem cria no servidor)
+    var joined: Bool = false
     /// Seu time (`LeagueTeam.id`)
     var myTeamID: String?
 
@@ -335,6 +339,8 @@ final class LeagueCheckIn {
     var place: String?
     /// Foi postado com foto, mesmo que a imagem não esteja mais aqui (backup restaurado não traz as fotos)
     var hadPhoto: Bool = false
+    /// Quando o servidor recebeu esta versão; nil = na caixa de saída (novo ou editado)
+    var syncedAt: Date?
 
     /// Vale como check-in com foto na regra da liga
     var hasPhoto: Bool { photo != nil || hadPhoto }

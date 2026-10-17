@@ -41,6 +41,31 @@ struct PublicProfile: Codable, Identifiable, Sendable {
     var posts: [RemoteCheckIn] = []
 }
 
+extension PublicProfile {
+    /// Números públicos: só o que foi postado (perfil ou ligas) conta; atividade não postada fica privada.
+    /// Ligas = as que você está agora (temporadas passadas da mesma liga não contam de novo).
+    static func stats(activities: [Activity], checkIns: [LeagueCheckIn], leagues: [League]) -> Stats {
+        let existing = Set(activities.map(\.uuid))
+        let posted = Set(checkIns.map(\.activityUUID)).intersection(existing)
+        let days = Set(activities.filter { posted.contains($0.uuid) }.map { Calendar.current.startOfDay(for: $0.date) })
+        return .init(checkIns: posted.count, activeDays: days.count, leagues: leagues.filter { !$0.isPastSeason }.count)
+    }
+
+    /// O seu perfil público, respeitando o que você escondeu em "O que aparece para os outros"
+    @MainActor
+    static func mine(roster: Roster, activities: [Activity], checkIns: [LeagueCheckIn], leagues: [League], unlocked: [Achievement]) -> PublicProfile {
+        let d = UserDefaults.standard
+        func shows(_ key: String) -> Bool { d.object(forKey: key) == nil || d.bool(forKey: key) }
+        let s = roster.mainSnapshot
+        return PublicProfile(
+            id: "me", name: d.string(forKey: "trainerName") ?? "", username: d.string(forKey: "profileUsername") ?? "",
+            bio: d.string(forKey: "profileBio") ?? "",
+            bro: shows("publicMonster") ? .init(name: roster.main?.displayName(s.form) ?? s.form.name, formID: s.form.id, level: s.level, progress: s.progress) : nil,
+            stats: shows("publicStats") ? stats(activities: activities, checkIns: checkIns, leagues: leagues) : nil,
+            achievements: shows("publicAchievements") ? unlocked.map { .init(title: $0.title, symbol: $0.symbol) } : nil)
+    }
+}
+
 /// Bolinha com a foto ou, sem foto, a inicial
 struct PersonAvatar: View {
     let name: String
