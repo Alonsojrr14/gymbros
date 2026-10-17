@@ -302,51 +302,79 @@ struct GymEditorView: View {
 
     var body: some View {
         GMModal(gym == nil ? "Novo lugar" : "Editar lugar", confirm: "Salvar", confirmEnabled: center != nil, onConfirm: save) {
-            GMSection("Local", footer: "Toque no mapa para marcar, ou use sua localização atual se estiver lá agora.") {
-                MapReader { proxy in
-                    Map(position: $camera) {
-                        UserAnnotation()
-                        if let center {
-                            MapCircle(center: center, radius: radius).foregroundStyle(Theme.accent.opacity(0.2)).stroke(Theme.accent, lineWidth: 2)
-                            Annotation(name, coordinate: center) {
-                                Image(systemName: "dumbbell.fill").font(.caption.bold()).padding(8).background(Theme.accent, in: .circle).foregroundStyle(.black)
-                            }
+            // Mapa em destaque: tocar marca o lugar; o botão no canto usa onde você está
+            MapReader { proxy in
+                Map(position: $camera) {
+                    UserAnnotation()
+                    if let center {
+                        MapCircle(center: center, radius: radius).foregroundStyle(Theme.accent.opacity(0.2)).stroke(Theme.accent, lineWidth: 2)
+                        Annotation(name, coordinate: center) {
+                            Image(systemName: "dumbbell.fill").font(.caption.bold()).padding(8).background(Theme.accent, in: .circle).foregroundStyle(.black)
                         }
-                    }
-                    .onTapGesture { point in
-                        if let c = proxy.convert(point, from: .local) { center = c; Task { await suggest(CLLocation(latitude: c.latitude, longitude: c.longitude)) } }
                     }
                 }
-                .frame(height: 280)
-                .clipShape(.rect(cornerRadius: 14))
-                GMButton(locating ? "Buscando…" : "Usar minha localização atual", icon: "location.fill", kind: .secondary, small: true, enabled: !locating) {
-                    Task {
-                        locating = true
-                        if let loc = await GymLocation.shared.currentLocation() {
-                            center = loc.coordinate
-                            camera = .region(MKCoordinateRegion(center: loc.coordinate, latitudinalMeters: 600, longitudinalMeters: 600))
-                            await suggest(loc)
-                        }
-                        locating = false
-                    }
+                .onTapGesture { point in
+                    if let c = proxy.convert(point, from: .local) { center = c; Task { await suggest(CLLocation(latitude: c.latitude, longitude: c.longitude)) } }
                 }
             }
+            .frame(height: 320)
+            .clipShape(.rect(cornerRadius: Theme.radius))
+            .overlay(alignment: .top) {
+                Text(center == nil ? "Toque no mapa para marcar o lugar" : "Toque em outro ponto para mover")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Theme.bg.opacity(0.9), in: .capsule)
+                    .padding(10)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Button { Task { await useCurrent() } } label: {
+                    Label(locating ? "Buscando…" : "Estou aqui", systemImage: "location.fill")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .background(Theme.accent, in: .capsule)
+                        .foregroundStyle(.black)
+                }
+                .buttonStyle(GMPress())
+                .disabled(locating)
+                .padding(10)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("RAIO").font(.caption.weight(.bold)).foregroundStyle(Theme.dim).tracking(0.6).padding(.horizontal, 4)
+                GMSegmented(options: [(50.0, "50 m"), (100.0, "100 m"), (150.0, "150 m"), (250.0, "250 m")], selection: $radius)
+                Text("100 m cobre uma academia comum. Aumente se o GPS da região for impreciso.")
+                    .font(.caption).foregroundStyle(Theme.dim).padding(.horizontal, 4)
+            }
+
             GMSection("Nome") {
                 GMTextField(placeholder: "Ex.: Smart Fit Paulista", text: $name)
-                if !suggestions.isEmpty {
-                    Text("Academias aqui perto").font(.caption).foregroundStyle(Theme.dim)
-                    GMFlow {
-                        ForEach(suggestions, id: \.name) { s in GMChip(title: s.name, selected: name == s.name) { name = s.name } }
+            }
+
+            if !suggestions.isEmpty {
+                GMSection("Academias aqui perto") {
+                    ForEach(suggestions, id: \.name) { s in
+                        Button { name = s.name } label: {
+                            HStack {
+                                Image(systemName: "dumbbell.fill").font(.caption).foregroundStyle(Theme.dim).frame(width: 22)
+                                Text(s.name).font(.subheadline).lineLimit(1)
+                                Spacer()
+                                Text(s.meters < 1000 ? "\(Int(s.meters)) m" : kmText(s.meters)).font(.caption.monospacedDigit()).foregroundStyle(Theme.dim)
+                                Image(systemName: name == s.name ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(name == s.name ? Theme.accent : Theme.dim)
+                            }
+                            .contentShape(Rectangle())
+                            .foregroundStyle(.white)
+                        }
+                        .buttonStyle(GMPress())
+                        if s.name != suggestions.last?.name { GMDivider() }
                     }
                 }
             }
-            GMSection("Raio", footer: "Uma academia comum cabe em 100 m. Aumente se o GPS da região for impreciso.") {
-                GMChoiceChips(options: [(50.0, "50 m"), (100.0, "100 m"), (150.0, "150 m"), (250.0, "250 m")], selection: $radius)
-            }
+
             if let gym {
-                GMSection(footer: "O histórico de treinos continua; só o lugar some.") {
-                    GMRow(icon: "trash", iconTint: Theme.danger, title: "Apagar \(gym.name)") { confirmDelete = true }
-                }
+                GMButton("Apagar \(gym.name)", icon: "trash", kind: .secondary) { confirmDelete = true }
+                Text("O histórico de treinos continua; só o lugar some.").font(.caption).foregroundStyle(Theme.dim)
+                    .frame(maxWidth: .infinity)
             }
         }
         .gmActions(isPresented: $confirmDelete, title: "Apagar \(gym?.name ?? "")?", actions: [
@@ -362,6 +390,16 @@ struct GymEditorView: View {
             radius = g.radius
             camera = .region(MKCoordinateRegion(center: g.coordinate, latitudinalMeters: 600, longitudinalMeters: 600))
         }
+    }
+
+    private func useCurrent() async {
+        locating = true
+        if let loc = await GymLocation.shared.currentLocation() {
+            center = loc.coordinate
+            withAnimation { camera = .region(MKCoordinateRegion(center: loc.coordinate, latitudinalMeters: 600, longitudinalMeters: 600)) }
+            await suggest(loc)
+        }
+        locating = false
     }
 
     private func suggest(_ loc: CLLocation) async {

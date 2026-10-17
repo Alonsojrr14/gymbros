@@ -16,16 +16,21 @@ struct MapScreen: View {
     @State private var here: CLLocation?
     @State private var arrival = GymLocation.shared.notifyArrival
     @State private var autoFinish = GymLocation.shared.autoFinish
+    @State private var settings = false
 
     var body: some View {
         NavigationStack {
             GMScreen("Mapa", avatar: true) {
+                GMIconButton(icon: "gearshape") { settings = true }
+            } content: {
                 bigMap
-                statusCard
-                gymSection
+                if needsAlways { permissionBanner }
+                monthStats
                 outdoorSection
+                gymSection
                 if !routes.isEmpty { routesSection }
             }
+            .gmSheet(isPresented: $settings) { _ in settingsSheet }
             .gmModal(item: $editing) { GymEditorView(gym: $0.gym) }
             .gmModal(item: $outdoor) { RouteRunView(kind: $0) }
             .gmSheet(isPresented: Binding(get: { route != nil }, set: { if !$0 { route = nil } })) { _ in
@@ -54,10 +59,98 @@ struct MapScreen: View {
             }
         }
         .mapStyle(.standard(pointsOfInterest: .excludingAll))
-        .frame(height: 300)
+        .frame(height: 340)
         .clipShape(.rect(cornerRadius: Theme.radius))
         .overlay(alignment: .topTrailing) {
             if !gyms.isEmpty { GMIconButton(icon: "scope", size: 36) { focusPlaces() }.padding(10) }
+        }
+        .overlay(alignment: .bottom) { statusPill.padding(10) }
+    }
+
+    /// Onde você está agora, por cima do mapa
+    private var statusPill: some View {
+        let inside = GymLocation.shared.insideGym
+        let nearest = here.flatMap { h in gyms.map { ($0, $0.location.distance(from: h)) }.min { $0.1 < $1.1 } }
+        return HStack(spacing: 10) {
+            Image(systemName: inside != nil ? "figure.strengthtraining.traditional" : "location.fill")
+                .font(.subheadline.bold())
+                .frame(width: 34, height: 34)
+                .background(inside != nil ? Theme.accent : Theme.raised, in: .circle)
+                .foregroundStyle(inside != nil ? .black : .white)
+            VStack(alignment: .leading, spacing: 1) {
+                if let inside {
+                    Text("Você está na \(inside.name)").font(.subheadline.bold()).lineLimit(1)
+                    Text(LiveWorkout.hasRunning ? "Treino em andamento" : "Bora treinar 💪").font(.caption).foregroundStyle(Theme.accent)
+                } else if let (g, m) = nearest {
+                    Text(g.name).font(.subheadline.bold()).lineLimit(1)
+                    Text("Lugar mais próximo · \(distance(m))").font(.caption).foregroundStyle(Theme.dim)
+                } else {
+                    Text(gyms.isEmpty ? "Nenhum lugar salvo" : "Procurando você…").font(.subheadline.bold())
+                    Text(gyms.isEmpty ? "Ao começar um treino, o app pergunta onde você está" : "Permita a localização para ver a distância")
+                        .font(.caption).foregroundStyle(Theme.dim).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(Theme.bg.opacity(0.92), in: .rect(cornerRadius: 16))
+        .foregroundStyle(.white)
+    }
+
+    private var needsAlways: Bool { !gyms.isEmpty && GymLocation.shared.authorization != .authorizedAlways }
+
+    private var permissionBanner: some View {
+        Button {
+            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+                Text("Permita a localização \"Sempre\" para avisar ao chegar e encerrar o treino ao sair com o app fechado.")
+                    .font(.caption).multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
+            }
+            .padding(12)
+            .background(Color.yellow.opacity(0.1), in: .rect(cornerRadius: 14))
+            .foregroundStyle(.white)
+        }
+        .buttonStyle(GMPress())
+    }
+
+    /// Números do mês, em linha
+    private var monthStats: some View {
+        let month = Calendar.current.dateInterval(of: .month, for: .now)!
+        let monthVisits = visits.filter { month.contains($0.start) }
+        let km = routes.filter { month.contains($0.start) }.reduce(0) { $0 + $1.meters }
+        return HStack(spacing: 8) {
+            chip("\(monthVisits.count)", "idas à academia")
+            chip(avgMinutes(monthVisits).map { durationText($0) } ?? "–", "tempo médio")
+            chip(km > 0 ? kmText(km) : "–", "ao ar livre")
+        }
+    }
+
+    private func chip(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.headline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
+            Text(label).font(.caption2).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(Theme.card, in: .rect(cornerRadius: 16))
+    }
+
+    /// Ajustes de localização, fora da lista de lugares
+    private var settingsSheet: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Localização").font(.headline)
+            GMToggle(title: "Avisar ao chegar", subtitle: "Sugere começar o treino do dia quando você chega num lugar salvo", isOn: $arrival)
+                .onChange(of: arrival) { _, v in GymLocation.shared.notifyArrival = v }
+            GMDivider()
+            GMToggle(title: "Encerrar treino ao sair", subtitle: "Salva o treino em andamento (mais de 10 min) quando você sai do lugar", isOn: $autoFinish)
+                .onChange(of: autoFinish) { _, v in GymLocation.shared.autoFinish = v }
+            GMDivider()
+            Text("Ao começar musculação ou CrossFit, o app reconhece o lugar ou pergunta onde você está. A localização fica só no seu iPhone.")
+                .font(.caption).foregroundStyle(Theme.dim)
         }
     }
 
@@ -76,80 +169,55 @@ struct MapScreen: View {
         }
     }
 
-    // MARK: Status
+    // MARK: Lugares de treino
 
-    private var statusCard: some View {
-        let inside = GymLocation.shared.insideGym
-        let nearest = here.flatMap { h in gyms.map { ($0, $0.location.distance(from: h)) }.min { $0.1 < $1.1 } }
-        let always = GymLocation.shared.authorization == .authorizedAlways
-        return GMCard {
-            HStack(spacing: 12) {
-                Image(systemName: inside != nil ? "figure.strengthtraining.traditional" : "location.fill")
-                    .font(.title2)
-                    .frame(width: 48, height: 48)
-                    .background(inside != nil ? Theme.accent : Theme.raised, in: .circle)
-                    .foregroundStyle(inside != nil ? .black : .white)
-                VStack(alignment: .leading, spacing: 3) {
-                    if let inside {
-                        Text("Você está na \(inside.name)").font(.headline)
-                        Text(LiveWorkout.hasRunning ? "Treino em andamento" : "Bora treinar 💪").font(.caption).foregroundStyle(Theme.accent)
-                    } else if let (g, m) = nearest {
-                        Text(m < 1000 ? "A \(Int(m)) m da \(g.name)" : "A \(kmText(m)) da \(g.name)").font(.headline).lineLimit(2)
-                        Text("Lugar salvo mais próximo").font(.caption).foregroundStyle(Theme.dim)
-                    } else {
-                        Text("Nenhum lugar salvo ainda").font(.headline)
-                        Text("Ao começar um treino, o app pergunta onde você está e guarda o lugar").font(.caption).foregroundStyle(Theme.dim)
-                    }
-                }
-                Spacer()
+    private var gymSection: some View {
+        // Mais visitados primeiro; conta visitas detectadas e treinos registrados no lugar
+        let sorted = gyms.sorted { count($0) > count($1) }
+        return GMSection("Lugares de treino", trailing: AnyView(
+            Button { editing = GymEdit(gym: nil) } label: { Label("Adicionar", systemImage: "plus").font(.caption.bold()) }
+                .foregroundStyle(Theme.accent)
+        )) {
+            if sorted.isEmpty {
+                Text("Nenhum lugar ainda. Toque em Adicionar ou comece um treino na academia.").font(.subheadline).foregroundStyle(Theme.dim)
             }
-            if !gyms.isEmpty && !always {
-                GMDivider()
-                HStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
-                    Text("Para avisar ao chegar e encerrar ao sair com o app fechado, permita a localização \"Sempre\".").font(.caption)
-                    Spacer()
-                    GMButton("Ajustes", kind: .secondary, full: false, small: true) {
-                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                    }
-                }
+            ForEach(sorted) { g in
+                gymRow(g)
+                if g.id != sorted.last?.id { GMDivider() }
             }
         }
     }
 
-    // MARK: Lugares de treino
-
-    private var gymSection: some View {
-        let month = Calendar.current.dateInterval(of: .month, for: .now)!
-        let monthVisits = visits.filter { month.contains($0.start) }
-        // Mais visitados primeiro; conta visitas detectadas e treinos registrados no lugar
-        let sorted = gyms.sorted { count($0) > count($1) }
-        return GMSection("Lugares de treino · \(gyms.count)",
-                         footer: "Ao começar musculação ou CrossFit, o app identifica o lugar ou pergunta onde você está.") {
-            ForEach(sorted) { g in
-                let last = lastDate(g)
-                GMRow(icon: "dumbbell.fill", iconTint: GymLocation.shared.insideID == g.uuid ? Theme.accent : .white, title: g.name,
-                      subtitle: "\(count(g)) treino\(count(g) == 1 ? "" : "s")" + (last.map { " · último \($0.formatted(.dateTime.day().month(.abbreviated)))" } ?? ""),
-                      chevron: true, action: { editing = GymEdit(gym: g) }) {
-                    if let h = here { Text(distance(g.location.distance(from: h))).font(.caption.monospacedDigit()).foregroundStyle(Theme.dim) }
-                }
-                GMDivider()
+    private func gymRow(_ g: Gym) -> some View {
+        let inside = GymLocation.shared.insideID == g.uuid
+        let last = lastDate(g)
+        return HStack(spacing: 12) {
+            // Tocar no ícone centraliza no mapa
+            Button {
+                withAnimation { camera = .region(MKCoordinateRegion(center: g.coordinate, latitudinalMeters: 800, longitudinalMeters: 800)) }
+            } label: {
+                Image(systemName: inside ? "figure.strengthtraining.traditional" : "dumbbell.fill")
+                    .font(.subheadline.bold())
+                    .frame(width: 40, height: 40)
+                    .background(inside ? Theme.accent : Theme.raised, in: .circle)
+                    .foregroundStyle(inside ? .black : .white)
             }
-            GMRow(icon: "plus", iconTint: Theme.accent, title: "Adicionar lugar", chevron: true) { editing = GymEdit(gym: nil) }
-            if !gyms.isEmpty {
-                GMDivider()
-                GMToggle(title: "Avisar ao chegar", subtitle: "Sugere começar o treino do dia", isOn: $arrival)
-                    .onChange(of: arrival) { _, v in GymLocation.shared.notifyArrival = v }
-                GMDivider()
-                GMToggle(title: "Encerrar treino ao sair", subtitle: "Salva o treino em andamento (mais de 10 min) ao sair do lugar", isOn: $autoFinish)
-                    .onChange(of: autoFinish) { _, v in GymLocation.shared.autoFinish = v }
-                GMDivider()
+            .buttonStyle(GMPress())
+            Button { editing = GymEdit(gym: g) } label: {
                 HStack {
-                    stat("\(monthVisits.count)", "idas no mês")
-                    stat(avgMinutes(monthVisits).map { durationText($0) } ?? "–", "tempo médio")
-                    stat("\(Set(monthVisits.compactMap(\.gymUUID)).count)", "lugares no mês")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(g.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        Text("\(count(g)) treino\(count(g) == 1 ? "" : "s")" + (last.map { " · último \($0.formatted(.dateTime.day().month(.abbreviated)))" } ?? ""))
+                            .font(.caption).foregroundStyle(Theme.dim)
+                    }
+                    Spacer()
+                    if let h = here { Text(distance(g.location.distance(from: h))).font(.caption.monospacedDigit()).foregroundStyle(Theme.dim) }
+                    Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
                 }
+                .contentShape(Rectangle())
+                .foregroundStyle(.white)
             }
+            .buttonStyle(GMPress())
         }
     }
 
@@ -173,7 +241,7 @@ struct MapScreen: View {
     private var outdoorSection: some View {
         let month = Calendar.current.dateInterval(of: .month, for: .now)!
         let monthRoutes = routes.filter { month.contains($0.start) }
-        return GMSection("Ao ar livre (GPS)") {
+        return GMSection("Começar ao ar livre", footer: "Grava o percurso pelo GPS. Embaixo de cada um, o total do mês.") {
             HStack(spacing: 10) {
                 ForEach([ActivityKind.corrida, .caminhada, .bike]) { k in
                     Button { outdoor = k } label: {
@@ -190,7 +258,6 @@ struct MapScreen: View {
                     .buttonStyle(GMPress())
                 }
             }
-            Text("Toque para começar. Abaixo de cada um, o total do mês.").font(.caption).foregroundStyle(Theme.dim)
         }
     }
 
