@@ -29,9 +29,12 @@ struct GymMonstersApp: App {
 
 struct RootView: View {
     @AppStorage("trainerName") private var trainerName = ""
+    @State private var auth = AuthStore.shared
 
     var body: some View {
-        if trainerName.isEmpty {
+        if !auth.isSignedIn {
+            LoginView()
+        } else if trainerName.isEmpty {
             OnboardingView()
         } else {
             MainView()
@@ -121,6 +124,9 @@ struct MainView: View {
         .task(id: monsters.map { roster.snapshot($0.uuid).form.id + $0.uuid.uuidString }.joined()) { check(roster) }
         .task(id: phase) {
             guard phase == .active else { return }
+            // Peso mais recente para as estimativas de calorias (perfil físico)
+            BodyProfile.remember(weight: ((try? context.fetch(FetchDescriptor<BodyEntry>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? [])
+                .compactMap(\.weight).first)
             // Ligas com renovação automática que acabaram ganham a próxima temporada
             LeagueRenewal.run(context: context)
             let running = (try? context.fetchCount(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end == nil }))) ?? 0

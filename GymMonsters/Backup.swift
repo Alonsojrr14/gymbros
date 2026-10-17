@@ -126,7 +126,7 @@ struct Backup: Codable {
         var uuid: UUID, name: String, group: String, equipment: String, type: String, notes: String
     }
 
-    static let settingKeys = ["trainerName", "monsterNick", "lastFormID", "discovered", "bodyGender", "mainMonster", "profileUsername", "profileBio", "exerciseGoals", "autoWarmup", "restNotification", "barWeight"]
+    static let settingKeys = ["trainerName", "monsterNick", "lastFormID", "discovered", "bodyGender", "mainMonster", "profileUsername", "profileBio", "exerciseGoals", "autoWarmup", "restNotification", "barWeight"] + BodyProfile.keys
 
     enum Setting: Codable {
         case bool(Bool), number(Double), text(String)

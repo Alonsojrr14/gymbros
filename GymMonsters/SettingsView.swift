@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage("restNotification") private var restNotification = false
     @AppStorage("weeklySummary") private var weeklySummary = true
     @AppStorage("autoWarmup") private var autoWarmup = true
+    @State private var confirmSignOut = false
     @State private var healthOn = HealthSync.enabled
     @State private var healthWrite = HealthSync.writeEnabled
     @State private var healthStatus: String?
@@ -91,6 +92,15 @@ struct SettingsView: View {
                 }
             }
 
+            if let user = AuthStore.shared.user {
+                GMSection("Conta", footer: "Login simulado enquanto não há servidor. Sair não apaga nada deste iPhone.") {
+                    GMRow(icon: user.provider == .apple ? "apple.logo" : "envelope", title: user.name.isEmpty ? "Sua conta" : user.name,
+                          subtitle: user.email)
+                    GMDivider()
+                    GMRow(icon: "rectangle.portrait.and.arrow.right", iconTint: Theme.danger, title: "Sair da conta") { confirmSignOut = true }
+                }
+            }
+
             GMSection(footer: Self.resetText + " Rotinas, lugares, medidas e seu nome continuam.") {
                 GMRow(icon: "arrow.counterclockwise", iconTint: Theme.danger, title: "Recomeçar jornada") { confirmReset = true }
             }
@@ -100,6 +110,10 @@ struct SettingsView: View {
                     .foregroundStyle(Theme.dim)
             }
         }
+        .gmActions(isPresented: $confirmSignOut, title: "Sair da conta?", message: "Seus treinos e bros continuam neste iPhone.",
+                   actions: [GMAction("Sair", icon: "rectangle.portrait.and.arrow.right", destructive: true) {
+                       Task { await AuthStore.shared.signOut() }
+                   }])
         .gmActions(isPresented: $confirmReset, title: "Recomeçar a jornada?",
                    message: Self.resetText + " Não dá para desfazer.",
                    actions: [GMAction("Recomeçar", icon: "arrow.counterclockwise", destructive: true, action: reset)])

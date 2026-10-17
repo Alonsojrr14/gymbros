@@ -71,7 +71,7 @@ enum HealthSync {
         let bodyWeight = ((try? context.fetch(FetchDescriptor<BodyEntry>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? [])
             .compactMap(\.weight).first
         let weight: Double
-        if let bodyWeight { weight = bodyWeight } else { weight = await bodyMass() ?? 70 }
+        if let bodyWeight { weight = bodyWeight } else { weight = await bodyMass() ?? BodyProfile.weightForEstimates }
         for a in list {
             if let id = try? await write(a, weight: weight) {
                 a.healthWrittenUUID = id.uuidString
@@ -144,7 +144,7 @@ enum HealthSync {
             sortDescriptors: [SortDescriptor(\.startDate)]
         )
         let workouts = try await query.result(for: store)
-        let weight = await bodyMass() ?? 70
+        let weight = await bodyMass() ?? BodyProfile.weightForEstimates
 
         let existing = try context.fetch(FetchDescriptor<Activity>())
         let known = Set(existing.compactMap(\.healthUUID)).union(existing.compactMap(\.healthWrittenUUID)).union(ignored)

@@ -403,6 +403,7 @@ struct GoalsView: View {
         let weight = body_.compactMap(\.weight).first
 
         GMScreen("Metas", back: true) {
+            BodyProfileSection()
             GMSection("Treinos na semana") {
                 ring(Double(thisWeek.count) / Double(weekly), "\(thisWeek.count)/\(weekly)", "treinos")
                 GMStepper(title: "Meta", value: $weekly, range: 1...14, format: { "\($0)×" })

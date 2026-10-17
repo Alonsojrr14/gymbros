@@ -390,21 +390,56 @@ enum TrainingGoal: String, CaseIterable, Identifiable {
 struct Suggestion {
     let weight: Double
     let reps: Int
-    let reason: String
+    var reason: String
+    /// Quantas séries de trabalho prescrever (nil = as da rotina)
+    var sets: Int? = nil
+    /// Rampa que você fez à mão da última vez (séries leves antes das de trabalho), para repetir como aquecimento
+    var ramp: [(weight: Double, reps: Int)] = []
 }
 
 enum Progression {
     /// Treinos seguidos sem completar antes de reduzir a carga
     static let deloadAfter = 3
 
+    /// Abaixo disso (fração da maior carga do exercício no treino) a série é rampa, não trabalho
+    static let rampShare = 0.8
+
+    /// Séries de trabalho de um exercício num treino: tira a rampa (séries bem mais leves que a maior carga)
+    static func workSets(_ sets: [SetLog]) -> [SetLog] {
+        let top = sets.map(\.weight).max() ?? 0
+        guard top > 0 else { return sets }
+        return sets.filter { $0.weight >= top * rampShare }
+    }
+
     /// Próxima prescrição de um exercício. `history` são treinos concluídos, do mais antigo ao mais novo.
-    /// Uma sessão só "conta como sucesso" se todas as séries prescritas foram feitas com as reps alvo.
+    /// A rampa feita à mão (ex.: 30, 50, 70, 70) não conta como trabalho: só as séries pesadas viram referência,
+    /// e a carga nova vai no mesmo número de séries pesadas. Subir carga e séries juntas não acontece:
+    /// com carga nova, repete o número de séries pesadas; sem carga nova, pode somar uma, até o que a rotina pede.
     static func suggest(exerciseID: String, sets: Int, reps: Int, history: [SessionLog]) -> Suggestion {
-        let ex = Exercise.byID(exerciseID)
-        let past = history.filter { !$0.deload }.compactMap { s -> [SetLog]? in
-            let mine = s.sets.filter { $0.exerciseID == exerciseID }
-            return mine.isEmpty ? nil : mine
+        let mine = history.filter { !$0.deload }.compactMap { s -> [SetLog]? in
+            let m = s.sets.filter { $0.exerciseID == exerciseID }
+            return m.isEmpty ? nil : m
         }
+        guard let lastAll = mine.last else { return core(exerciseID: exerciseID, sets: sets, reps: reps, past: []) }
+        let past = mine.map(workSets)
+        let work = past.last ?? []
+        let top = lastAll.map(\.weight).max() ?? 0
+        let ramp = lastAll.filter { $0.weight < top * rampShare }
+        // A rotina conta a rampa feita à mão; as séries pesadas que ela pede são o resto
+        let wanted = max(sets - ramp.count, 1)
+        var s = core(exerciseID: exerciseID, sets: work.count, reps: reps, past: past)
+        let lastWeight = work.map(\.weight).max() ?? 0
+        let raised = s.weight > lastWeight
+        s.sets = raised ? min(wanted, work.count) : min(wanted, work.count + 1)
+        s.ramp = ramp.map { ($0.weight, $0.reps) }
+        if !ramp.isEmpty {
+            s.reason += " As séries leves (\(ramp.map { fmt($0.weight) }.joined(separator: ", ")) kg) contam como aquecimento."
+        }
+        return s
+    }
+
+    private static func core(exerciseID: String, sets: Int, reps: Int, past: [[SetLog]]) -> Suggestion {
+        let ex = Exercise.byID(exerciseID)
         let goal = (ex?.type ?? .weighted) == .weighted ? TrainingGoal.of(exerciseID) : nil
         let reps = goal?.range.lowerBound ?? reps
         guard let last = past.last else {
@@ -467,7 +502,7 @@ enum Progression {
             var misses = 0
             for s in past.reversed() {
                 let w = s.filter(\.done).map(\.weight).max() ?? s.map(\.weight).max() ?? 0
-                let ok = s.count >= sets && s.prefix(sets).allSatisfy(\.hit)
+                let ok = !s.isEmpty && s.allSatisfy(\.hit)
                 guard w == lastWeight, !ok else { break }
                 misses += 1
             }

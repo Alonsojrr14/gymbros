@@ -202,4 +202,37 @@ final class ProgressionTests: GymTestCase {
         let done = [session("crucifixo", weight: 14, reps: [12], target: 12)]
         XCTAssertEqual(SwapExerciseView.ranked(base: base, candidates: Exercise.builtIn, exclude: [], history: done).first?.id, "crucifixo")
     }
+
+    // MARK: Rampa feita à mão
+
+    private func ramped(_ pairs: [(Double, Int)], target: Int = 10) -> SessionLog {
+        SessionLog(date: .now.addingTimeInterval(-86400),
+                   sets: pairs.map { SetLog(exerciseID: "agachamento", weight: $0.0, reps: $0.1, target: target, done: true) })
+    }
+
+    func testManualRampIsNotWork() {
+        // 30×10, 50×10, 70×10, 70×10 numa rotina de 4 séries: só as duas de 70 são trabalho
+        let s = Progression.suggest(exerciseID: "agachamento", sets: 4, reps: 8, history: [ramped([(30, 10), (50, 10), (70, 10), (70, 10)])])
+        XCTAssertEqual(s.weight, 75)
+        XCTAssertEqual(s.sets, 2, "carga nova vai nas mesmas 2 séries pesadas, não nas 4")
+        XCTAssertEqual(s.ramp.map(\.weight), [30, 50])
+    }
+
+    func testLoadAndSetsDoNotRiseTogether() {
+        // Subiu carga: mantém 2 pesadas, mesmo a rotina pedindo 3 sem rampa
+        let up = Progression.suggest(exerciseID: "agachamento", sets: 3, reps: 8, history: [ramped([(70, 10), (70, 10)])])
+        XCTAssertEqual(up.weight, 75)
+        XCTAssertEqual(up.sets, 2)
+        // Mesma carga (faltou rep): pode somar uma série, até o que a rotina pede
+        let same = Progression.suggest(exerciseID: "agachamento", sets: 3, reps: 10, history: [ramped([(70, 10), (70, 7)])])
+        XCTAssertEqual(same.weight, 70)
+        XCTAssertEqual(same.sets, 3)
+    }
+
+    func testPyramidCloseToTopCountsAsWork() {
+        // 60, 65, 70: todas acima de 80 % da maior, são trabalho
+        let s = Progression.suggest(exerciseID: "agachamento", sets: 3, reps: 8, history: [ramped([(60, 10), (65, 10), (70, 10)])])
+        XCTAssertTrue(s.ramp.isEmpty)
+        XCTAssertEqual(s.sets, 3)
+    }
 }

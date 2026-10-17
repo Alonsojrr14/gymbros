@@ -254,19 +254,27 @@ enum LiveWorkout {
         var warmedUp = false
         for (i, item) in (routine?.sortedItems ?? []).enumerated() {
             var sug = Progression.suggest(exerciseID: item.exerciseID, sets: item.sets, reps: item.reps, history: history)
+            // Séries pesadas pelo histórico (a rampa feita à mão não conta como trabalho)
+            var count = sug.sets ?? item.sets
+            let ramp = sug.ramp
             // Deload: 70 % da carga e um terço a menos de séries
-            var count = item.sets
-            if deload { (sug, count) = Deload.apply(sug, sets: item.sets, exerciseID: item.exerciseID) }
+            if deload { (sug, count) = Deload.apply(sug, sets: count, exerciseID: item.exerciseID) }
             var k = 0
-            // Aquecimento automático no primeiro exercício com carga
+            func warm(_ w: Double, _ reps: Int) {
+                let set = LoggedSet(exerciseID: item.exerciseID, exerciseOrder: i, index: k, weight: w, reps: reps, rest: 60)
+                set.warmup = true
+                session.sets.append(set)
+                k += 1
+            }
+            // Aquecimento automático no primeiro exercício com carga; ele substitui a rampa feita à mão (não soma)
             if autoWarmup, !warmedUp, let ex = Exercise.byID(item.exerciseID), ex.type == .weighted, sug.weight >= 20 {
                 warmedUp = true
                 for w in Progression.warmup(work: sug.weight, increment: ex.increment, minimum: ex.usesBar && ex.weightIncludesBar ? 20 : 0) {
-                    let set = LoggedSet(exerciseID: item.exerciseID, exerciseOrder: i, index: k, weight: w.weight, reps: w.reps, rest: 60)
-                    set.warmup = true
-                    session.sets.append(set)
-                    k += 1
+                    warm(w.weight, w.reps)
                 }
+            } else {
+                // Sua rampa da última vez volta como aquecimento (fica de fora de volume e progressão)
+                for r in ramp where r.weight < sug.weight { warm(r.weight, r.reps) }
             }
             for _ in 0..<count {
                 session.sets.append(LoggedSet(exerciseID: item.exerciseID, exerciseOrder: i, index: k,

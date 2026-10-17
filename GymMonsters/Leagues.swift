@@ -19,7 +19,11 @@ struct ScoreInput {
 }
 
 extension Activity {
-    var scoreInput: ScoreInput { ScoreInput(kind: kind, minutes: minutes, effort: effort, meters: meters, kcal: kcal) }
+    /// Sem calorias do Saúde, estima com o seu peso (perfil físico) em vez do peso de referência
+    var scoreInput: ScoreInput {
+        ScoreInput(kind: kind, minutes: minutes, effort: effort, meters: meters,
+                   kcal: kcal ?? HealthSync.activeKcal(kind: kind, minutes: minutes, effort: effort, weight: BodyProfile.weightForEstimates))
+    }
 }
 
 enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
