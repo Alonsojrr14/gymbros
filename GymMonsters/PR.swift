@@ -22,7 +22,7 @@ final class PersonalRecord {
 
 /// PRs registrados à mão, em memória para a progressão (que é uma função pura) poder consultar
 enum PRBook {
-    nonisolated(unsafe) private(set) static var manual: [String: [SetLog]] = [:]
+    nonisolated(unsafe) static var manual: [String: [SetLog]] = [:]
 
     @MainActor
     static func reload() {

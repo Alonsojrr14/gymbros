@@ -518,29 +518,29 @@ No coelho o nome é só o da forma; nas outras espécies leva o nome da espécie
 ### Ultimate Força + Resistência: Hércubro Coruja
 `coruja_ultimate_forca_resistencia.png` · referências: Champion híbrido Crossbro + Ultimates de Força e Resistência do coruja
 
-> Hybrid final evolution of the CrossFit athlete: heroic and powerful, deep crimson AND deep blue with gold accents, competition singlet with a medal, kettlebell held overhead, a glowing aura mixing red and blue. The character is a owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
+> Hybrid final evolution of the CrossFit athlete: heroic and powerful, deep crimson AND deep blue with gold accents, competition singlet with a medal, kettlebell held overhead, a glowing aura mixing red and blue. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
 
 ### Ultimate Força + Agilidade: Titãbro Coruja
 `coruja_ultimate_forca_agilidade.png` · referências: Champion híbrido Golpebro + Ultimates de Força e Agilidade do coruja
 
-> Hybrid final evolution of the fighter: champion martial artist, deep crimson AND electric green with gold accents, championship belt, glowing fists with small sparks, mid-strike pose. The character is a owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
+> Hybrid final evolution of the fighter: champion martial artist, deep crimson AND electric green with gold accents, championship belt, glowing fists with small sparks, mid-strike pose. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
 
 ### Ultimate Força + Técnica: Olimpibro Coruja
 `coruja_ultimate_forca_tecnica.png` · referências: Champion híbrido Arrancobro + Ultimates de Força e Técnica do coruja
 
-> Hybrid final evolution of the olympic weightlifter: legendary lifter, deep crimson AND deep purple with gold accents, golden singlet details, barbell locked overhead in a perfect snatch, small floating energy orbs. The character is a owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
+> Hybrid final evolution of the olympic weightlifter: legendary lifter, deep crimson AND deep purple with gold accents, golden singlet details, barbell locked overhead in a perfect snatch, small floating energy orbs. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
 
 ### Ultimate Resistência + Agilidade: Ventobro Coruja
 `coruja_ultimate_resistencia_agilidade.png` · referências: Champion híbrido Trilhabro + Ultimates de Resistência e Agilidade do coruja
 
-> Hybrid final evolution of the trail runner: wind spirit athlete, deep blue AND electric green, long scarf and wind trails around the body, sprinting mid-air pose. The character is a owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
+> Hybrid final evolution of the trail runner: wind spirit athlete, deep blue AND electric green, long scarf and wind trails around the body, sprinting mid-air pose. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
 
 ### Ultimate Resistência + Técnica: Marébro Coruja
 `coruja_ultimate_resistencia_tecnica.png` · referências: Champion híbrido Nadobro + Ultimates de Resistência e Técnica do coruja
 
-> Hybrid final evolution of the swimmer: ocean master, deep blue AND deep purple with gold accents, cape like a wave, swirling water around, serene powerful stance. The character is a owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
+> Hybrid final evolution of the swimmer: ocean master, deep blue AND deep purple with gold accents, cape like a wave, swirling water around, serene powerful stance. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
 
 ### Ultimate Agilidade + Técnica: Acrobro Coruja
 `coruja_ultimate_agilidade_tecnica.png` · referências: Champion híbrido Gingabro + Ultimates de Agilidade e Técnica do coruja
 
-> Hybrid final evolution of the gymnast/capoeira dancer: acrobat master, electric green AND deep purple with gold accents, flowing ribbons, floating mid-flip pose. The character is a owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
+> Hybrid final evolution of the gymnast/capoeira dancer: acrobat master, electric green AND deep purple with gold accents, flowing ribbons, floating mid-flip pose. The character is an owl (brown and beige feathers, big round eyes with feather rings, small hooked beak, ear tufts, wings as arms); keep the owl features clearly visible.
