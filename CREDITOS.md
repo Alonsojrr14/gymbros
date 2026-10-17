@@ -15,6 +15,13 @@ para os exercícios que o wger não ilustra: os desenhos de `dist/png` e alguns 
 desenhos, sem exercício cadastrado, identificados à mão). A pasta `images-ai` do repositório é o formato do Adobe
 Illustrator, não imagem gerada por IA. Gerado por `tools/wger/everkinetic.py`.
 
+## Fotos e ilustrações: Wikimedia Commons
+Para os exercícios que nem o wger nem o Everkinetic cobrem (sobretudo CrossFit), imagens escolhidas à mão no
+[Wikimedia Commons](https://commons.wikimedia.org): domínio público (muitas de forças armadas dos EUA), CC0
+(sequências de levantamento olímpico de FunesFacuu), CC BY e CC BY-SA. Autor, licença e link de cada arquivo ficam
+em `GymMonsters/wger.json` e aparecem no app embaixo da imagem. Gerado por `tools/wger/commons.py`.
+Fotos com pessoas: a licença cobre a foto, não a imagem da pessoa; evite usá-las em anúncios.
+
 ## Mapa muscular: MuscleMap
 [MuscleMap](https://github.com/melihcolpan/MuscleMap), Copyright (c) 2026 Melih Colpan, licença MIT.
 

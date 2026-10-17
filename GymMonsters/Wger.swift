@@ -56,6 +56,11 @@ enum WgerLibrary {
         return Exercise(id: n.id, name: n.name, group: g, equipment: n.equipment, type: t)
     }
 
+    /// Nome curto da origem de um link (wger.de, Everkinetic, Commons)
+    static func sourceName(_ url: String) -> String {
+        url.contains("everkinetic") ? "Everkinetic" : url.contains("wikimedia") ? "Commons" : "wger.de"
+    }
+
     /// Autores e licenças distintos, para a tela de créditos
     static var allCredits: [(WgerCredit, Int)] {
         var count: [WgerCredit: Int] = [:]
@@ -117,7 +122,7 @@ struct CreditLine: View {
             if let url = URL(string: credit.licenseURL) { Link(credit.license, destination: url).underline() }
             if let s = source, let url = URL(string: s) {
                 Text("·")
-                Link(url.host?.contains("everkinetic") == true || s.contains("everkinetic") ? "Everkinetic" : "wger.de", destination: url).underline()
+                Link(WgerLibrary.sourceName(s), destination: url).underline()
             }
         }
         .font(.caption2)
@@ -149,12 +154,15 @@ struct WgerVideoView: View {
 struct CreditsView: View {
     var body: some View {
         GMModal("Créditos e licenças") {
-            GMSection("Exercícios: wger e Everkinetic", footer: "Imagens, vídeos e instruções de exercícios do projeto wger (wger.de) e ilustrações do Everkinetic (github.com/everkinetic/data, de Greg Priday), sob Creative Commons. Cada imagem mostra o autor e a licença. Instruções em inglês são traduzidas no próprio iPhone; as adaptações seguem a mesma licença (CC BY-SA).") {
+            GMSection("Exercícios: wger, Everkinetic e Commons", footer: "Imagens, vídeos e instruções de exercícios do projeto wger (wger.de), ilustrações do Everkinetic (github.com/everkinetic/data, de Greg Priday) e fotos do Wikimedia Commons (domínio público, CC0, CC BY e CC BY-SA), sob Creative Commons. Cada imagem mostra o autor e a licença. Instruções em inglês são traduzidas no próprio iPhone; as adaptações seguem a mesma licença (CC BY-SA).") {
                 if let url = URL(string: "https://wger.de") {
                     Link(destination: url) { Label("wger.de", systemImage: "link").font(.subheadline.weight(.semibold)) }
                 }
                 if let url = URL(string: "https://github.com/everkinetic/data") {
                     Link(destination: url) { Label("Everkinetic", systemImage: "link").font(.subheadline.weight(.semibold)) }
+                }
+                if let url = URL(string: "https://commons.wikimedia.org") {
+                    Link(destination: url) { Label("Wikimedia Commons", systemImage: "link").font(.subheadline.weight(.semibold)) }
                 }
                 GMDivider()
                 ForEach(WgerLibrary.allCredits, id: \.0) { credit, n in

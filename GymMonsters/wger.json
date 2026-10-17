@@ -890,7 +890,15 @@
     "licenseURL": "https://creativecommons.org/publicdomain/zero/1.0/",
     "author": "BFad07"
    },
-   "images": [],
+   "images": [
+    {
+     "asset": "cm_cf-hspu_0",
+     "source": "https://commons.wikimedia.org/wiki/File:USMC-102406-M-0058D-001085.jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:USMC-102406-M-0058D-001085.jpg",
+     "author": "Wikimedia Commons"
+    }
+   ],
    "videos": []
   },
   "cf-pistol": {
@@ -1624,7 +1632,15 @@
     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/",
     "author": "clafal"
    },
-   "images": [],
+   "images": [
+    {
+     "asset": "cm_elevacao-pernas_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Alexandr_Varlamov_,Italia.jpg",
+     "license": "CC BY-SA 4.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+     "author": "Alexandr Varlamov"
+    }
+   ],
    "videos": []
   },
   "encolhimento": {
@@ -5833,6 +5849,937 @@
      "license": "CC BY-SA 4.0",
      "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/",
      "author": "Everkinetic"
+    }
+   ],
+   "videos": []
+  },
+  "puxada-frente": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Wide_grip_lat_pull_down_1.svg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+    "author": "Everkinetic"
+   },
+   "images": [
+    {
+     "asset": "cm_puxada-frente_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Wide_grip_lat_pull_down_1.svg",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Everkinetic"
+    },
+    {
+     "asset": "cm_puxada-frente_1",
+     "source": "https://commons.wikimedia.org/wiki/File:Wide_grip_lat_pull_down_2.svg",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Everkinetic"
+    }
+   ],
+   "videos": []
+  },
+  "remada-alta-maquina": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Cable-upright-rows-1.png",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+    "author": "Everkinetic"
+   },
+   "images": [
+    {
+     "asset": "cm_remada-alta-maquina_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Cable-upright-rows-1.png",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Everkinetic"
+    },
+    {
+     "asset": "cm_remada-alta-maquina_1",
+     "source": "https://commons.wikimedia.org/wiki/File:Cable-upright-rows-2.png",
+     "license": "CC BY 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by/3.0",
+     "author": "Everkinetic"
+    }
+   ],
+   "videos": []
+  },
+  "desenvolvimento-arnold": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Arnold-press-1.png",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+    "author": "Everkinetic"
+   },
+   "images": [
+    {
+     "asset": "cm_desenvolvimento-arnold_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Arnold-press-1.png",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Everkinetic"
+    },
+    {
+     "asset": "cm_desenvolvimento-arnold_1",
+     "source": "https://commons.wikimedia.org/wiki/File:Arnold-press-2.png",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Everkinetic"
+    }
+   ],
+   "videos": []
+  },
+  "cuban-press": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Cuban-press-1.png",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+    "author": "Everkinetic"
+   },
+   "images": [
+    {
+     "asset": "cm_cuban-press_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Cuban-press-1.png",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Everkinetic"
+    },
+    {
+     "asset": "cm_cuban-press_1",
+     "source": "https://commons.wikimedia.org/wiki/File:Cuban-press-2.png",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Everkinetic"
+    }
+   ],
+   "videos": []
+  },
+  "clean": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Power_Clean.png",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC0",
+    "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "author": "FunesFacuu"
+   },
+   "images": [
+    {
+     "asset": "cm_clean_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Power_Clean.png",
+     "license": "CC0",
+     "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+     "author": "FunesFacuu"
+    }
+   ],
+   "videos": []
+  },
+  "cf-snatch": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Squat_snatch.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC0",
+    "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "author": "FunesFacuu"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-snatch_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Squat_snatch.jpg",
+     "license": "CC0",
+     "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+     "author": "FunesFacuu"
+    }
+   ],
+   "videos": []
+  },
+  "cf-power-snatch": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Power_snatch.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC0",
+    "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "author": "FunesFacuu"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-power-snatch_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Power_snatch.jpg",
+     "license": "CC0",
+     "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+     "author": "FunesFacuu"
+    }
+   ],
+   "videos": []
+  },
+  "cf-hang-snatch": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Hang_Squat_Snatch.png",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC0",
+    "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "author": "FunesFacuu"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-hang-snatch_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Hang_Squat_Snatch.png",
+     "license": "CC0",
+     "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+     "author": "FunesFacuu"
+    }
+   ],
+   "videos": []
+  },
+  "cf-clean-jerk": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Squat_clean_and_jerk.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC0",
+    "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "author": "FunesFacuu"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-clean-jerk_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Squat_clean_and_jerk.jpg",
+     "license": "CC0",
+     "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+     "author": "FunesFacuu"
+    }
+   ],
+   "videos": []
+  },
+  "cf-squat-clean": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Squat_clean.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC0",
+    "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "author": "FunesFacuu"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-squat-clean_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Squat_clean.jpg",
+     "license": "CC0",
+     "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+     "author": "FunesFacuu"
+    }
+   ],
+   "videos": []
+  },
+  "cf-hang-power-clean": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Hang_Power_Clean.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC0",
+    "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "author": "FunesFacuu"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-hang-power-clean_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Hang_Power_Clean.jpg",
+     "license": "CC0",
+     "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+     "author": "FunesFacuu"
+    }
+   ],
+   "videos": []
+  },
+  "cf-split-jerk": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Split_jerk_con_barra.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC0",
+    "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "author": "FunesFacuu"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-split-jerk_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Split_jerk_con_barra.jpg",
+     "license": "CC0",
+     "licenseURL": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+     "author": "FunesFacuu"
+    }
+   ],
+   "videos": []
+  },
+  "farmer-walk": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Farmer%27s_walk.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 2.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/2.0",
+    "author": "stu_spivack"
+   },
+   "images": [
+    {
+     "asset": "cm_farmer-walk_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Farmer%27s_walk.jpg",
+     "license": "CC BY-SA 2.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/2.0",
+     "author": "stu_spivack"
+    }
+   ],
+   "videos": []
+  },
+  "agachamento-livre-corpo": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Exercise_Chair_Squat.png",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+    "author": "BruceBlaus"
+   },
+   "images": [
+    {
+     "asset": "cm_agachamento-livre-corpo_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Exercise_Chair_Squat.png",
+     "license": "CC BY-SA 4.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+     "author": "BruceBlaus"
+    }
+   ],
+   "videos": []
+  },
+  "burpee": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Burpee_2_Squat.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+    "author": "Taco fleur"
+   },
+   "images": [
+    {
+     "asset": "cm_burpee_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Burpee_2_Squat.jpg",
+     "license": "CC BY-SA 4.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+     "author": "Taco fleur"
+    },
+    {
+     "asset": "cm_burpee_1",
+     "source": "https://commons.wikimedia.org/wiki/File:Burpee_4_Hips_High.jpg",
+     "license": "CC BY-SA 4.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+     "author": "Taco fleur"
+    }
+   ],
+   "videos": []
+  },
+  "flexao-inclinada": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Civilian_push-up.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+    "author": "Herzi Pinki"
+   },
+   "images": [
+    {
+     "asset": "cm_flexao-inclinada_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Civilian_push-up.jpg",
+     "license": "CC BY-SA 4.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+     "author": "Herzi Pinki"
+    }
+   ],
+   "videos": []
+  },
+  "remada-curvada-halter": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:DumbbellBentOverRow.JPG",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "http://creativecommons.org/licenses/by-sa/3.0/",
+    "author": "GeorgeStepanek"
+   },
+   "images": [
+    {
+     "asset": "cm_remada-curvada-halter_0",
+     "source": "https://commons.wikimedia.org/wiki/File:DumbbellBentOverRow.JPG",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "http://creativecommons.org/licenses/by-sa/3.0/",
+     "author": "GeorgeStepanek"
+    }
+   ],
+   "videos": []
+  },
+  "terra-hexagonal": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Deadlift_event_Army_Combat_Fitness_Test.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:Deadlift_event_Army_Combat_Fitness_Test.jpg",
+    "author": "U.S. Army photo by Sean Kimmons"
+   },
+   "images": [
+    {
+     "asset": "cm_terra-hexagonal_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Deadlift_event_Army_Combat_Fitness_Test.jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:Deadlift_event_Army_Combat_Fitness_Test.jpg",
+     "author": "U.S. Army photo by Sean Kimmons"
+    }
+   ],
+   "videos": []
+  },
+  "terra-deficit": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Fit_young_man_doing_deadlift_exercise_in_gym.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY 2.0",
+    "licenseURL": "https://creativecommons.org/licenses/by/2.0",
+    "author": "Nenad Stojkovic"
+   },
+   "images": [
+    {
+     "asset": "cm_terra-deficit_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Fit_young_man_doing_deadlift_exercise_in_gym.jpg",
+     "license": "CC BY 2.0",
+     "licenseURL": "https://creativecommons.org/licenses/by/2.0",
+     "author": "Nenad Stojkovic"
+    }
+   ],
+   "videos": []
+  },
+  "rosca-punho-inversa": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Wrist_curl_flexion_to_strengthen_UCL.JPG",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+    "author": "Hipnotic88"
+   },
+   "images": [
+    {
+     "asset": "cm_rosca-punho-inversa_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Wrist_curl_flexion_to_strengthen_UCL.JPG",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Hipnotic88"
+    },
+    {
+     "asset": "cm_rosca-punho-inversa_1",
+     "source": "https://commons.wikimedia.org/wiki/File:Wrist_curls.jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:Wrist_curls.jpg",
+     "author": "Hipnotic88"
+    }
+   ],
+   "videos": []
+  },
+  "panturrilha-halter": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:DumbbellStandingCalfRaise.JPG",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "http://creativecommons.org/licenses/by-sa/3.0/",
+    "author": "GeorgeStepanek"
+   },
+   "images": [
+    {
+     "asset": "cm_panturrilha-halter_0",
+     "source": "https://commons.wikimedia.org/wiki/File:DumbbellStandingCalfRaise.JPG",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "http://creativecommons.org/licenses/by-sa/3.0/",
+     "author": "GeorgeStepanek"
+    }
+   ],
+   "videos": []
+  },
+  "panturrilha-smith": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:SeatedCalfRaiseMachineExercise.JPG",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "http://creativecommons.org/licenses/by-sa/3.0/",
+    "author": "George Stepanek"
+   },
+   "images": [
+    {
+     "asset": "cm_panturrilha-smith_0",
+     "source": "https://commons.wikimedia.org/wiki/File:SeatedCalfRaiseMachineExercise.JPG",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "http://creativecommons.org/licenses/by-sa/3.0/",
+     "author": "George Stepanek"
+    }
+   ],
+   "videos": []
+  },
+  "abdominal-completo": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Sit-up_on_the_bench_draw.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+    "author": "Mohamed Ouda"
+   },
+   "images": [
+    {
+     "asset": "cm_abdominal-completo_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Sit-up_on_the_bench_draw.jpg",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Mohamed Ouda"
+    }
+   ],
+   "videos": []
+  },
+  "remo-ergometro": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:RowPerfect_Indoor_Rower.JPG",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:RowPerfect_Indoor_Rower.JPG",
+    "author": "Wikimedia Commons"
+   },
+   "images": [
+    {
+     "asset": "cm_remo-ergometro_0",
+     "source": "https://commons.wikimedia.org/wiki/File:RowPerfect_Indoor_Rower.JPG",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:RowPerfect_Indoor_Rower.JPG",
+     "author": "Wikimedia Commons"
+    }
+   ],
+   "videos": []
+  },
+  "eliptico": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Elliptical_machine.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+    "author": "Cpetro45"
+   },
+   "images": [
+    {
+     "asset": "cm_eliptico_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Elliptical_machine.jpg",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Cpetro45"
+    }
+   ],
+   "videos": []
+  },
+  "escada": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Machine_servant_%C3%A0_soulever_un_fauteuil_roulant.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+    "author": "Celeda"
+   },
+   "images": [
+    {
+     "asset": "cm_escada_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Machine_servant_%C3%A0_soulever_un_fauteuil_roulant.jpg",
+     "license": "CC BY-SA 4.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+     "author": "Celeda"
+    }
+   ],
+   "videos": []
+  },
+  "corda-naval": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:170331-N-ZY039-015_(33869515046).jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:170331-N-ZY039-015_(33869515046).jpg",
+    "author": "National Museum of the U.S. Navy"
+   },
+   "images": [
+    {
+     "asset": "cm_corda-naval_0",
+     "source": "https://commons.wikimedia.org/wiki/File:170331-N-ZY039-015_(33869515046).jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:170331-N-ZY039-015_(33869515046).jpg",
+     "author": "National Museum of the U.S. Navy"
+    }
+   ],
+   "videos": []
+  },
+  "cf-kb-snatch": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Kettlebell_Half_Snatch_4_Back-swing.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+    "author": "Taco fleur"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-kb-snatch_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Kettlebell_Half_Snatch_4_Back-swing.jpg",
+     "license": "CC BY-SA 4.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+     "author": "Taco fleur"
+    },
+    {
+     "asset": "cm_cf-kb-snatch_1",
+     "source": "https://commons.wikimedia.org/wiki/File:Kettlebell_Half_Snatch_8_Upwards_Trajectory.jpg",
+     "license": "CC BY-SA 4.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+     "author": "Taco fleur"
+    }
+   ],
+   "videos": []
+  },
+  "cf-box-jump": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Capt._Jacob_Lopez_demonstrates_a_box_jump_at_Joint_Base_Balad.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:Capt._Jacob_Lopez_demonstrates_a_box_jump_at_Joint_Base_Balad.jpg",
+    "author": "Sgt. Justin A. Naylor"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-box-jump_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Capt._Jacob_Lopez_demonstrates_a_box_jump_at_Joint_Base_Balad.jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:Capt._Jacob_Lopez_demonstrates_a_box_jump_at_Joint_Base_Balad.jpg",
+     "author": "Sgt. Justin A. Naylor"
+    }
+   ],
+   "videos": []
+  },
+  "cf-box-jump-over": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:District_Crossfit_Class_Warfare-50.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY 2.0",
+    "licenseURL": "https://creativecommons.org/licenses/by/2.0",
+    "author": "ROSE PHYSICAL THERAPY GROUP"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-box-jump-over_0",
+     "source": "https://commons.wikimedia.org/wiki/File:District_Crossfit_Class_Warfare-50.jpg",
+     "license": "CC BY 2.0",
+     "licenseURL": "https://creativecommons.org/licenses/by/2.0",
+     "author": "ROSE PHYSICAL THERAPY GROUP"
+    }
+   ],
+   "videos": []
+  },
+  "cf-burpee-box": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Warhorse_soldiers_honor_fallen_through_Crossfit_120408-A-VX278-008.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:Warhorse_soldiers_honor_fallen_through_Crossfit_120408-A-VX278-008.jpg",
+    "author": "Sgt. Ruth Pagan"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-burpee-box_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Warhorse_soldiers_honor_fallen_through_Crossfit_120408-A-VX278-008.jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:Warhorse_soldiers_honor_fallen_through_Crossfit_120408-A-VX278-008.jpg",
+     "author": "Sgt. Ruth Pagan"
+    }
+   ],
+   "videos": []
+  },
+  "cf-chest-to-bar": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Vandenberg_CrossFit_group_a_product_of_resilience_and_commitment_to_fitness_(7207524).jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:Vandenberg_CrossFit_group_a_product_of_resilience_and_commitment_to_fitness_(7207524).jpg",
+    "author": "U.S. Space Force"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-chest-to-bar_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Vandenberg_CrossFit_group_a_product_of_resilience_and_commitment_to_fitness_(7207524).jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:Vandenberg_CrossFit_group_a_product_of_resilience_and_commitment_to_fitness_(7207524).jpg",
+     "author": "U.S. Space Force"
+    }
+   ],
+   "videos": []
+  },
+  "cf-ring-muscle-up": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Muscle_Up_World_Record.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+    "author": "Sebastian1966"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-ring-muscle-up_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Muscle_Up_World_Record.jpg",
+     "license": "CC BY-SA 4.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+     "author": "Sebastian1966"
+    }
+   ],
+   "videos": []
+  },
+  "cf-handstand-walk": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:MKAB_Best_Warrior_of_the_Rotation_Competition_2024_(8604273).jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:MKAB_Best_Warrior_of_the_Rotation_Competition_2024_(8604273).jpg",
+    "author": "U.S. Army 22MPAD by Pfc. Jason Sessions"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-handstand-walk_0",
+     "source": "https://commons.wikimedia.org/wiki/File:MKAB_Best_Warrior_of_the_Rotation_Competition_2024_(8604273).jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:MKAB_Best_Warrior_of_the_Rotation_Competition_2024_(8604273).jpg",
+     "author": "U.S. Army 22MPAD by Pfc. Jason Sessions"
+    }
+   ],
+   "videos": []
+  },
+  "cf-rope-climb": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Lano_tomas.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 4.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+    "author": "Samuell1990"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-rope-climb_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Lano_tomas.jpg",
+     "license": "CC BY-SA 4.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0",
+     "author": "Samuell1990"
+    }
+   ],
+   "videos": []
+  },
+  "cf-l-sit": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:West_Point_male_gymnast_L-sit.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:West_Point_male_gymnast_L-sit.jpg",
+    "author": "Tommy Gilligan/West Point Public Affairs"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-l-sit_0",
+     "source": "https://commons.wikimedia.org/wiki/File:West_Point_male_gymnast_L-sit.jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:West_Point_male_gymnast_L-sit.jpg",
+     "author": "Tommy Gilligan/West Point Public Affairs"
+    }
+   ],
+   "videos": []
+  },
+  "cf-row-cal": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:%E9%A3%8E%E9%98%BB%E5%88%92%E8%88%B9%E5%99%A8%EF%BC%88Concept2_E%E5%9E%8B%E5%88%92%E8%88%B9%E5%99%A8%EF%BC%89.JPG",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY-SA 3.0",
+    "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+    "author": "Nick3488"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-row-cal_0",
+     "source": "https://commons.wikimedia.org/wiki/File:%E9%A3%8E%E9%98%BB%E5%88%92%E8%88%B9%E5%99%A8%EF%BC%88Concept2_E%E5%9E%8B%E5%88%92%E8%88%B9%E5%99%A8%EF%BC%89.JPG",
+     "license": "CC BY-SA 3.0",
+     "licenseURL": "https://creativecommons.org/licenses/by-sa/3.0",
+     "author": "Nick3488"
+    }
+   ],
+   "videos": []
+  },
+  "cf-bike-cal": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Noah_Fifita_(7396647)_(cropped).jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:Noah_Fifita_(7396647)_(cropped).jpg",
+    "author": "U.S. Air Force photo by Staff Sgt. Alex Miller"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-bike-cal_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Noah_Fifita_(7396647)_(cropped).jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:Noah_Fifita_(7396647)_(cropped).jpg",
+     "author": "U.S. Air Force photo by Staff Sgt. Alex Miller"
+    }
+   ],
+   "videos": []
+  },
+  "cf-ski-cal": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:CrossFit_workout_on_SkiErg_DSC1807.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY 2.0",
+    "licenseURL": "https://creativecommons.org/licenses/by/2.0",
+    "author": "Kiet Le"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-ski-cal_0",
+     "source": "https://commons.wikimedia.org/wiki/File:CrossFit_workout_on_SkiErg_DSC1807.jpg",
+     "license": "CC BY 2.0",
+     "licenseURL": "https://creativecommons.org/licenses/by/2.0",
+     "author": "Kiet Le"
+    }
+   ],
+   "videos": []
+  },
+  "cf-sled-push": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Marine_sled_push.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:Marine_sled_push.jpg",
+    "author": "Kaitlin Kelly, Marine Corps Systems Command"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-sled-push_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Marine_sled_push.jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:Marine_sled_push.jpg",
+     "author": "Kaitlin Kelly, Marine Corps Systems Command"
+    }
+   ],
+   "videos": []
+  },
+  "cf-sandbag": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:U.S._Army_students_assigned_to_Naval_Construction_Training_Center_Gulfport,_Miss.,_fill_and_carry_sandbags_at_the_center_Aug._27,_2012,_in_preparation_for_Tropical_Storm_Isaac_120827-N-AW868-041.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "Domínio público",
+    "licenseURL": "https://commons.wikimedia.org/wiki/File:U.S._Army_students_assigned_to_Naval_Construction_Training_Center_Gulfport,_Miss.,_fill_and_carry_sandbags_at_the_center_Aug._27,_2012,_in_preparation_for_Tropical_Storm_Isaac_120827-N-AW868-041.jpg",
+    "author": "U.S. Navy photo by Chief Mass Communication Specialist Ry…"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-sandbag_0",
+     "source": "https://commons.wikimedia.org/wiki/File:U.S._Army_students_assigned_to_Naval_Construction_Training_Center_Gulfport,_Miss.,_fill_and_carry_sandbags_at_the_center_Aug._27,_2012,_in_preparation_for_Tropical_Storm_Isaac_120827-N-AW868-041.jpg",
+     "license": "Domínio público",
+     "licenseURL": "https://commons.wikimedia.org/wiki/File:U.S._Army_students_assigned_to_Naval_Construction_Training_Center_Gulfport,_Miss.,_fill_and_carry_sandbags_at_the_center_Aug._27,_2012,_in_preparation_for_Tropical_Storm_Isaac_120827-N-AW868-041.jpg",
+     "author": "U.S. Navy photo by Chief Mass Communication Specialist Ry…"
+    }
+   ],
+   "videos": []
+  },
+  "cf-sledgehammer": {
+   "wger": 0,
+   "url": "https://commons.wikimedia.org/wiki/File:Pratiquante_de_CrossFit,_faisant_l%27exercice_de_frappe_sur_pneu.jpg",
+   "language": "en",
+   "steps": [],
+   "text": {
+    "license": "CC BY 2.0",
+    "licenseURL": "https://creativecommons.org/licenses/by/2.0",
+    "author": "lululemon athletica"
+   },
+   "images": [
+    {
+     "asset": "cm_cf-sledgehammer_0",
+     "source": "https://commons.wikimedia.org/wiki/File:Pratiquante_de_CrossFit,_faisant_l%27exercice_de_frappe_sur_pneu.jpg",
+     "license": "CC BY 2.0",
+     "licenseURL": "https://creativecommons.org/licenses/by/2.0",
+     "author": "lululemon athletica"
     }
    ],
    "videos": []
