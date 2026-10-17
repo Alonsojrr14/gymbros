@@ -88,6 +88,7 @@ struct Backup: Codable {
 
     struct SetDTO: Codable {
         var exerciseID: String, exerciseOrder: Int, index: Int, weight: Double, reps: Int, targetReps: Int, rest: Int, done: Bool
+        var feel: Int? = nil
     }
 
     struct CustomDTO: Codable {
@@ -114,7 +115,7 @@ struct Backup: Codable {
                 SessionDTO(uuid: s.uuid, title: s.title, routineUUID: s.routineUUID, start: s.start, end: s.end,
                            effort: s.effort, activityUUID: s.activityUUID, sets: s.orderedSets.map {
                     SetDTO(exerciseID: $0.exerciseID, exerciseOrder: $0.exerciseOrder, index: $0.index, weight: $0.weight,
-                           reps: $0.reps, targetReps: $0.targetReps, rest: $0.rest, done: $0.done)
+                           reps: $0.reps, targetReps: $0.targetReps, rest: $0.rest, done: $0.done, feel: $0.feel)
                 })
             },
             customExercises: try context.fetch(FetchDescriptor<CustomExercise>()).map {
@@ -202,6 +203,7 @@ struct Backup: Codable {
                                     weight: x.weight, reps: x.reps, rest: x.rest)
                 set.targetReps = x.targetReps
                 set.done = x.done
+                set.feel = x.feel ?? 0
                 session.sets.append(set)
             }
         }

@@ -82,7 +82,7 @@ final class WorkoutSession {
 
     var log: SessionLog {
         SessionLog(date: start, sets: orderedSets.map {
-            SetLog(exerciseID: $0.exerciseID, weight: $0.weight, reps: $0.reps, target: $0.targetReps, done: $0.done)
+            SetLog(exerciseID: $0.exerciseID, weight: $0.weight, reps: $0.reps, target: $0.targetReps, done: $0.done, feel: $0.feel)
         })
     }
 }
@@ -97,6 +97,8 @@ final class LoggedSet {
     var targetReps: Int = 0
     var rest: Int = 90
     var done: Bool = false
+    /// Esforço sentido na série (SetFeel 1…5); 0 = não anotado
+    var feel: Int = 0
     var session: WorkoutSession?
 
     init(exerciseID: String, exerciseOrder: Int, index: Int, weight: Double, reps: Int, rest: Int) {
@@ -118,8 +120,49 @@ struct SetLog {
     let reps: Int
     let target: Int
     let done: Bool
+    var feel: Int = 0
 
     var hit: Bool { done && reps >= target }
+}
+
+/// Esforço sentido numa série, pensado em "quantas reps ainda sairiam" (RIR)
+enum SetFeel: Int, CaseIterable, Identifiable {
+    case facil = 1, tranquilo, puxado, limite, falhei
+
+    var id: Int { rawValue }
+
+    var emoji: String {
+        switch self {
+        case .facil: "😌"
+        case .tranquilo: "🙂"
+        case .puxado: "😤"
+        case .limite: "🥵"
+        case .falhei: "💀"
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .facil: "Fácil"
+        case .tranquilo: "Tranquilo"
+        case .puxado: "Puxado"
+        case .limite: "No limite"
+        case .falhei: "Falhei"
+        }
+    }
+
+    /// Quantas reps ainda sairiam
+    var detail: String {
+        switch self {
+        case .facil: "sobravam 4+"
+        case .tranquilo: "sobravam 2–3"
+        case .puxado: "sobrava 1"
+        case .limite: "não sobrava nada"
+        case .falhei: "não completei"
+        }
+    }
+
+    static func emoji(_ v: Int) -> String { SetFeel(rawValue: v)?.emoji ?? "" }
 }
 
 struct SessionLog {
@@ -170,6 +213,15 @@ enum Progression {
                 : Suggestion(weight: 0, reps: lastTarget, reason: "Mesmas reps: faltou completar da última vez.")
         default:
             let inc = ex?.increment ?? 2.5
+            let feels = last.prefix(sets).map(\.feel).filter { $0 > 0 }
+            if success, !feels.isEmpty, feels.contains(where: { $0 >= SetFeel.limite.rawValue }) {
+                return Suggestion(weight: lastWeight, reps: target,
+                                  reason: "Mesma carga: você completou, mas no limite. Repita até sobrar pelo menos 1 rep.")
+            }
+            if success, feels.count == min(sets, last.count), feels.allSatisfy({ $0 == SetFeel.facil.rawValue }) {
+                return Suggestion(weight: lastWeight + inc * 2, reps: target,
+                                  reason: "+\(fmt(inc * 2)) kg: todas as séries ficaram fáceis da última vez.")
+            }
             if success {
                 return Suggestion(weight: lastWeight + inc, reps: target,
                                   reason: "+\(fmt(inc)) kg: você completou todas as séries da última vez.")

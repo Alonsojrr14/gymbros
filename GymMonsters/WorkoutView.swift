@@ -363,7 +363,7 @@ struct WorkoutView: View {
                 let prev = last.sets.filter { $0.exerciseID == id && $0.done }
                 if !prev.isEmpty {
                     Text("Última vez: " + prev.map { s in
-                        ex?.type == .weighted || s.weight > 0 ? "\(Progression.fmt(s.weight))×\(s.reps)" : "\(s.reps)"
+                        (ex?.type == .weighted || s.weight > 0 ? "\(Progression.fmt(s.weight))×\(s.reps)" : "\(s.reps)") + SetFeel.emoji(s.feel)
                     }.joined(separator: ", "))
                         .font(.caption2)
                         .foregroundStyle(Theme.dim)
@@ -472,8 +472,43 @@ private struct SetRow: View {
     let increment: Double
     var unit = "kg"
     let onToggle: (Bool) -> Void
+    @AppStorage("logSetFeel") private var logSetFeel = false
 
     var body: some View {
+        VStack(spacing: 6) {
+            row
+            // Esforço sentido: aparece ao marcar a série; depois vira um selo ao lado do check
+            if logSetFeel && set.done && set.feel == 0 { feelPicker }
+        }
+        .animation(.snappy, value: set.done)
+        .animation(.snappy, value: set.feel)
+    }
+
+    private var feelPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Como foi essa série?").font(.caption2).foregroundStyle(Theme.dim)
+            HStack(spacing: 6) {
+                ForEach(SetFeel.allCases) { f in
+                    Button {
+                        set.feel = f.rawValue
+                        UISelectionFeedbackGenerator().selectionChanged()
+                    } label: {
+                        VStack(spacing: 1) {
+                            Text(f.emoji).font(.title3)
+                            Text(f.name).font(.system(size: 9, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .background(Theme.raised, in: .rect(cornerRadius: 10))
+                        .foregroundStyle(.white)
+                    }
+                    .buttonStyle(GMPress())
+                }
+            }
+        }
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private var row: some View {
         HStack(spacing: 10) {
             Text("\(set.index + 1)")
                 .font(.subheadline.bold().monospacedDigit())
@@ -488,8 +523,15 @@ private struct SetRow: View {
 
             Spacer(minLength: 0)
 
+            if set.done, let f = SetFeel(rawValue: set.feel) {
+                // Toque para trocar
+                Button { set.feel = 0 } label: { Text(f.emoji).font(.title3) }
+                    .buttonStyle(GMPress())
+            }
+
             Button {
                 set.done.toggle()
+                if !set.done { set.feel = 0 }
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 onToggle(set.done)
             } label: {
@@ -574,12 +616,32 @@ struct FinishWorkoutView: View {
                     }
                 }
             }
+            let feels = feelRows
+            if !feels.isEmpty {
+                GMSection("Esforço por exercício", footer: "🥵/💀 = você está no limite ali: mantenha a carga e capriche na técnica. Tudo 😌 = dá para subir mais.") {
+                    ForEach(feels, id: \.0) { name, emojis, hint in
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(name).font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Text(emojis).font(.subheadline)
+                            }
+                            if let hint { Text(hint).font(.caption).foregroundStyle(Theme.accent) }
+                        }
+                    }
+                }
+            }
             if !records.isEmpty {
                 GMSection("Recordes 🏆") {
                     ForEach(records, id: \.self) { Text($0).font(.subheadline) }
                 }
             }
             GMSection { GMEffortPicker(value: $effort) }
+                .onAppear {
+                    // Com esforço anotado nas séries, o esforço do treino já vem pela média
+                    let f = session.sets.filter { $0.done && $0.feel > 0 }.map(\.feel)
+                    if !f.isEmpty { effort = [4, 5, 7, 9, 10][Int((Double(f.reduce(0, +)) / Double(f.count)).rounded()) - 1] }
+                }
             LeaguePostSection(selected: $leagues, photo: $photo)
             GMSection(footer: done.isEmpty ? "Marque ao menos uma série feita para salvar." : nil) {
                 HStack {
@@ -600,6 +662,17 @@ struct FinishWorkoutView: View {
     }
 
     private var records: [String] { Progression.records(in: session.log, history: history) }
+
+    /// (exercício, emojis das séries, dica) para os exercícios com esforço anotado
+    private var feelRows: [(String, String, String?)] {
+        session.exerciseIDs.compactMap { id in
+            let f = session.orderedSets.filter { $0.exerciseID == id && $0.done && $0.feel > 0 }.map(\.feel)
+            guard !f.isEmpty else { return nil }
+            let hint: String? = f.contains { $0 >= SetFeel.limite.rawValue } ? "No limite: ponto a trabalhar"
+                : f.allSatisfy { $0 == SetFeel.facil.rawValue } ? "Ficou fácil: dá para subir a carga" : nil
+            return (Exercise.name(id), f.map(SetFeel.emoji).joined(separator: " "), hint)
+        }
+    }
 
     /// Exercícios em que a regra de progressão manda subir carga (ou reps/tempo) no próximo treino
     private var nextUps: [(String, String)] {
