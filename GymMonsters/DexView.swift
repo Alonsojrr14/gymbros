@@ -113,11 +113,8 @@ struct DexView: View {
                 } else {
                     Text("Em breve").font(.caption2).foregroundStyle(Theme.dim)
                 }
-                if let a = sp.affinity {
-                    Image(systemName: a.symbol).font(.caption2).foregroundStyle(ready ? a.color : Theme.dim)
-                } else {
-                    Image(systemName: "circle.grid.cross").font(.caption2).foregroundStyle(Theme.dim)
-                }
+                Image(systemName: sp.kinds.first?.symbol ?? "circle.grid.cross").font(.caption2)
+                    .foregroundStyle(ready ? Theme.accent : Theme.dim)
             }
             .frame(width: 92)
             .padding(.vertical, 12)
@@ -128,6 +125,15 @@ struct DexView: View {
         .buttonStyle(GMPress())
     }
 
+    /// De onde a espécie nasce (as atividades do app; as do Apple Saúde seguem a mesma ideia)
+    private func hatchText(_ sp: Species) -> String {
+        let names = sp.kinds.filter { $0 != .outro }.map { $0.name.lowercased() }
+        let list = names.count > 1 ? names.dropLast().joined(separator: ", ") + " ou " + names.last! : names.first ?? ""
+        return sp.id == Species.standard.id
+            ? "Nasce quando o ovo choca com \"Outro\" ou com treinos variados, sem atividade principal"
+            : "Nasce quando o ovo choca com \(list) (e parecidos no Apple Saúde)"
+    }
+
     // MARK: Árvore
 
     private func tree(_ sp: Species) -> some View {
@@ -135,7 +141,7 @@ struct DexView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(sp.name).font(.title2.weight(.heavy))
-                    Text(sp.affinity.map { "Nasce de ovos chocados com treinos de \($0.name)" } ?? "Nasce de ovos chocados com treinos equilibrados, sem atributo dominante")
+                    Text(hatchText(sp))
                         .font(.caption).foregroundStyle(Theme.dim)
                 }
                 Spacer()

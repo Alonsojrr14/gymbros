@@ -12,6 +12,8 @@ final class Activity {
     var note: String = ""
     /// UUID do treino no app Saúde, quando importado de lá
     var healthUUID: String?
+    /// Tipo do treino no Apple Saúde (HKWorkoutActivityType), para o ovo saber o animal exato
+    var healthType: Int?
     /// App ou aparelho de origem (ex.: "Apple Watch de Zero")
     var source: String?
     /// Monstro que recebe o XP quando a atividade não é postada em nenhuma liga
@@ -37,7 +39,7 @@ final class Activity {
     var kind: ActivityKind { ActivityKind(rawValue: kindRaw) ?? .outro }
 
     var record: ActivityRecord {
-        ActivityRecord(id: uuid, kind: kind, date: date, minutes: minutes, effort: effort)
+        ActivityRecord(id: uuid, kind: kind, date: date, minutes: minutes, effort: effort, healthType: healthType.map(UInt.init))
     }
 }
 

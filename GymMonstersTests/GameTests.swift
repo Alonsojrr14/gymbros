@@ -45,15 +45,33 @@ final class GameTests: GymTestCase {
         XCTAssertNil(Game.branch([:]).1)
     }
 
-    func testBalancedHatchIsStandardSpecies() {
+    func testHatchFollowsMainActivity() {
         let seed = UUID()
-        // Nenhum atributo com 35% do total: nasce Coelho
-        XCTAssertEqual(Species.hatch(attributes: [.forca: 25, .resistencia: 25, .agilidade: 25, .tecnica: 25], seed: seed).id, Species.standard.id)
-        XCTAssertEqual(Species.hatch(attributes: [.forca: 34, .resistencia: 33, .agilidade: 33], seed: seed).id, Species.standard.id)
-        XCTAssertEqual(Species.hatch(attributes: [:], seed: seed).id, Species.standard.id)
-        // Com afinidade clara, só nasce espécie dessa afinidade (ou Coelho se nenhuma estiver pronta)
-        let yoga = Species.hatch(attributes: [.tecnica: 60], seed: seed)
-        XCTAssertTrue(yoga.affinity == .tecnica || yoga.id == Species.standard.id)
+        func hatch(_ items: [(ActivityKind, Int)], health: UInt? = nil) -> String {
+            let recs = items.map { k, minutes in
+                var r = ActivityRecord(id: UUID(), kind: k, date: .now, minutes: minutes, effort: 5)
+                r.healthType = health
+                return r
+            }
+            return Species.hatch(records: recs, seed: seed).id
+        }
+        // Atividade com mais da metade dos minutos do ovo decide (a espécie, se a arte estiver pronta)
+        XCTAssertTrue(["urso", "rato", "coelho"].contains(hatch([(.musculacao, 40), (.crossfit, 20)])))
+        // Musculação 60 min e corrida 40 min: vence a musculação (por XP, a corrida venceria)
+        XCTAssertTrue(["urso", "rato", "coelho"].contains(hatch([(.musculacao, 60), (.corrida, 40)])))
+        XCTAssertTrue(["lobo", "coelho"].contains(hatch([(.corrida, 61)])))
+        XCTAssertTrue(["coruja", "coelho"].contains(hatch([(.outro, 61)], health: 21)), "golfe no Saúde é Coruja")  // 21 = golf
+        // Sem atividade principal, "Outro" ou ovo vazio: Coelho
+        XCTAssertEqual(hatch([(.corrida, 30), (.yoga, 30)]), Species.standard.id)
+        XCTAssertEqual(hatch([(.outro, 60)]), Species.standard.id)
+        XCTAssertEqual(hatch([]), Species.standard.id)
+    }
+
+    func testEveryActivityHasAnimal() {
+        let ids = Set(Species.all.map(\.id))
+        for k in ActivityKind.allCases { XCTAssertFalse(Hatch.species(for: k).isEmpty, k.rawValue) }
+        // Todo animal nasce de alguma atividade do app
+        XCTAssertEqual(Set(ActivityKind.allCases.flatMap { Hatch.species(for: $0) }), ids)
     }
 
     func testXPOwnersFollowLeagues() {

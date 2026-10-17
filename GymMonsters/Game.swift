@@ -229,8 +229,6 @@ struct MonsterForm: Hashable, Identifiable {
 struct Species: Identifiable {
     let id: String
     let name: String
-    /// Atributo que, dominando os treinos que chocaram o ovo, faz nascer esta espécie (nil = padrão)
-    let affinity: Attribute?
     /// Nome de cada forma, pela chave (baby, rookie, champion_forca…)
     let names: [String: String]
     /// Prefixo das artes: sprite_<prefixo><chave>. A padrão usa os nomes antigos (sem prefixo)
@@ -239,7 +237,7 @@ struct Species: Identifiable {
     func sprite(_ key: String) -> String { "sprite_\(spritePrefix)\(key)" }
 
     static let standard = Species(
-        id: "coelho", name: "Coelho", affinity: nil,
+        id: "coelho", name: "Coelho",
         names: ["baby": "Gymbro", "rookie": "Cutebro",
                 "champion_forca": "Halterobro", "champion_resistencia": "Maratobro",
                 "champion_agilidade": "Saltabro", "champion_tecnica": "Zenbro",
@@ -254,31 +252,31 @@ struct Species: Identifiable {
     /// e artes "sprite_<id>_<chave>" no app e no widget.
     /// Uma espécie só nasce e aparece na Dex quando as artes dela estão no app (`isReady`).
     static let all: [Species] = [standard] + [
-        make("urso", "Urso", .forca, ["Pelucibro", "Ursabro", "Supinobro", "Trilhabro", "Rolabro", "Sumobro",
+        make("urso", "Urso", ["Pelucibro", "Ursabro", "Supinobro", "Trilhabro", "Rolabro", "Sumobro",
                                       "Grizzlibro", "Montanhabro", "Avalanchebro", "Kodiabro"],
              ["Burpeebro", "Patadabro", "Arremessobro", "Mateirobro", "Salmãobro", "Meialuabro",
               "Colossobro", "Brutobro", "Gigantebro", "Nevascabro", "Polarbro", "Aurorabro"]),
-        make("rato", "Rato", .forca, ["Queijibro", "Ratibro", "Marombabro", "Rodibro", "Fuxibro", "Labiribro",
+        make("rato", "Rato", ["Queijibro", "Ratibro", "Marombabro", "Rodibro", "Fuxibro", "Labiribro",
                                       "Ratazanabro", "Esteirabro", "Sombrabro", "Engenhobro"],
              ["Bigodefitbro", "Mordidabro", "Gorgonzolabro", "Bueirobro", "Esgotobro", "Arraiabro",
               "Metrôbro", "Presabro", "Parmesãobro", "Ventaniabro", "Correntezabro", "Piãobro"]),
-        make("lobo", "Lobo", .resistencia, ["Uivibro", "Lobinbro", "Alfabro", "Trotebro", "Caçabro", "Matilhabro",
+        make("lobo", "Lobo", ["Uivibro", "Lobinbro", "Alfabro", "Trotebro", "Caçabro", "Matilhabro",
                                              "Fenribro", "Luabro", "Ventobro", "Ancestrabro"],
              ["Caninobro", "Investidabro", "Cumebro", "Rastrobro", "Riachobro", "Crepúsculobro",
               "Lobisombro", "Ragnarbro", "Cordilheirabro", "Vendavalbro", "Fiordebro", "Eclipsebro"]),
-        make("cachorro", "Cachorro", .resistencia, ["Filhotibro", "Caramelbro", "Pitbulbro", "Galgobro", "Frisbeebro", "Pastorbro",
+        make("cachorro", "Cachorro", ["Filhotibro", "Caramelbro", "Pitbulbro", "Galgobro", "Frisbeebro", "Pastorbro",
                                                      "Mastibro", "Huskybro", "Agilitybro", "Guiabro"],
              ["Viralatabro", "Boxerbro", "Bulldogbro", "Gandulabro", "Labradorbro", "Poodlebro",
               "Cérberobro", "Dobermanbro", "Sãobernardobro", "Salukibro", "Terranovabro", "Borderbro"]),
-        make("esquilo", "Esquilo", .agilidade, ["Nozibro", "Esquilbro", "Quebranozbro", "Galhobro", "Pulabro", "Acrobabro",
+        make("esquilo", "Esquilo", ["Nozibro", "Esquilbro", "Quebranozbro", "Galhobro", "Pulabro", "Acrobabro",
                                                  "Carvalhobro", "Florestabro", "Voadorbro", "Parkourbro"],
              ["Bolotabro", "Ouriçobro", "Torabro", "Copabro", "Cachoeirabro", "Cipóbro",
               "Sequoiabro", "Espinheirobro", "Jequitibro", "Redemoinhobro", "Cascatabro", "Trapezistabro"]),
-        make("gato", "Gato", .agilidade, ["Novelbro", "Bichanobro", "Garrabro", "Rondabro", "Telhadobro", "Ronrobro",
+        make("gato", "Gato", ["Novelbro", "Bichanobro", "Garrabro", "Rondabro", "Telhadobro", "Ronrobro",
                                           "Jubabro", "Panterabro", "Linxbro", "Esfingebro"],
              ["Miaufitbro", "Unhadabro", "Pumabro", "Gatunobro", "Molhadobro", "Muretabro",
               "Tigrebro", "Smilodonbro", "Leãobro", "Guepardobro", "Onçabro", "Bastetbro"]),
-        make("coruja", "Coruja", .tecnica, ["Penugbro", "Corujabro", "Rapinabro", "Noturnbro", "Planabro", "Sabiobro",
+        make("coruja", "Coruja", ["Penugbro", "Corujabro", "Rapinabro", "Noturnbro", "Planabro", "Sabiobro",
                                              "Harpiabro", "Luarbro", "Rasantebro", "Oraculobro"],
              ["Madrugabro", "Bicadabro", "Mochobro", "Revoadabro", "Martimbro", "Plumabro",
               "Grifobro", "Falcãobro", "Atenabro", "Ciclonebro", "Albatrozbro", "Fênixbro"]),
@@ -291,8 +289,8 @@ struct Species: Identifiable {
     static let keys = ["baby", "rookie", "champion_forca", "champion_resistencia", "champion_agilidade", "champion_tecnica",
                        "ultimate_forca", "ultimate_resistencia", "ultimate_agilidade", "ultimate_tecnica"]
 
-    private static func make(_ id: String, _ name: String, _ affinity: Attribute, _ names: [String], _ hybrids: [String]) -> Species {
-        Species(id: id, name: name, affinity: affinity, names: Dictionary(uniqueKeysWithValues: zip(keys + hybridKeys, names + hybrids)),
+    private static func make(_ id: String, _ name: String, _ names: [String], _ hybrids: [String]) -> Species {
+        Species(id: id, name: name, names: Dictionary(uniqueKeysWithValues: zip(keys + hybridKeys, names + hybrids)),
                 spritePrefix: "\(id)_")
     }
 
@@ -314,18 +312,19 @@ struct Species: Identifiable {
     /// Tem pelo menos uma arte híbrida no app (a Dex só mostra a seção nesse caso)
     var hasHybrids: Bool { MonsterForm.hybrids(species: id).contains(where: \.hasArt) }
 
-    /// Abaixo dessa fatia do total, o atributo dominante não define afinidade (treinos equilibrados → Coelho)
-    static let balancedShare = 0.35
+    /// Atividades do app que fazem nascer esta espécie (as do Apple Saúde estão todas em `Hatch`)
+    var kinds: [ActivityKind] { ActivityKind.allCases.filter { Hatch.species(for: $0).contains(id) } }
 
-    /// Espécie de um ovo que acabou de chocar, pelos treinos que o chocaram.
-    /// Treinos equilibrados (dominante < 35% do total) chocam a espécie padrão.
-    /// Entre várias espécies com a mesma afinidade, escolhe de forma estável pelo id do monstro.
-    static func hatch(attributes: [Attribute: Double], seed: UUID) -> Species {
-        let total = attributes.values.reduce(0, +)
-        guard total > 0 else { return standard }
-        let dominant = Game.dominant(attributes)
-        guard (attributes[dominant] ?? 0) / total >= balancedShare else { return standard }
-        let matches = catalog.filter { $0.affinity == dominant }
+    /// Espécie de um ovo que acabou de chocar: a atividade com mais da metade dos minutos treinados no ovo decide
+    /// (minutos, não XP: senão corrida, que rende quase o dobro de XP por minuto, venceria a musculação);
+    /// sem atividade principal, nasce a espécie padrão. Entre candidatas (Urso e Rato), escolhe de forma
+    /// estável pelo id do bro.
+    static func hatch(records: [ActivityRecord], seed: UUID) -> Species {
+        var votes: [[String]: Double] = [:]
+        for r in records { votes[Hatch.species(r), default: 0] += Double(max(r.minutes, 0)) }
+        let total = votes.values.reduce(0, +)
+        guard total > 0, let (ids, top) = votes.max(by: { $0.value < $1.value }), top / total > Hatch.majority else { return standard }
+        let matches = catalog.filter { ids.contains($0.id) }
         guard !matches.isEmpty else { return standard }
         var rng = SeededRandom(seed: seed.uuidString)
         return matches[Int(rng.next() * Double(matches.count)) % matches.count]
@@ -338,6 +337,8 @@ struct ActivityRecord: Identifiable, Hashable {
     let date: Date
     let minutes: Int
     let effort: Int
+    /// Tipo exato do treino no Apple Saúde (decide a espécie com mais precisão que a categoria)
+    var healthType: UInt?
 }
 
 struct Evolution: Identifiable {

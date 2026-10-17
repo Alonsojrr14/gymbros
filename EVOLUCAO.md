@@ -78,20 +78,32 @@ XP de cada atividade = duração × gasto típico (MET) × esforço; acima de 15
 
 ## Espécies
 
-A espécie é decidida quando o ovo choca, pelos treinos que o chocaram: se o atributo dominante bate com a afinidade de alguma espécie, nasce ela; senão, nasce o Coelho (espécie padrão). Depois de nascer, a espécie fica gravada no bro. Liga nenhuma restringe espécie.
+A espécie é decidida quando o ovo choca (60 XP, de 1 a 4 treinos), pela **atividade** dos treinos que o chocaram: a atividade com **mais da metade dos minutos** treinados no ovo define o animal. Sem atividade principal (uma mistura) ou com "Outro", nasce o **Coelho**. Os minutos contam, não o XP: senão a corrida, que rende quase o dobro de XP por minuto, venceria a musculação. Urso e Rato dividem musculação e crossfit; o sorteio entre os dois é fixo pelo id do bro. Depois de nascer, a espécie fica gravada no bro. A forma (Champion, Ultimate, híbrido) continua saindo dos atributos.
 
-Para incluir uma espécie (`Species.catalog` em `GymMonsters/Game.swift`): id, nome, afinidade, nomes das 10 formas e as artes `sprite_<id>_<forma>` (baby, rookie, champion_forca… ultimate_tecnica) no app e no widget.
+| Espécie | Atividades no app | No Apple Saúde (tipo exato do treino) |
+|---|---|---|
+| Urso e Rato | Musculação, Crossfit | Força tradicional e funcional, core, cross training, HIIT, cardio misto, pular corda, escada, step |
+| Lobo | Corrida, Bike, Natação | Corrida, atletismo, ciclismo, handbike, cadeira de rodas (corrida), natação, hidroginástica, remo, canoagem e remo de pé, esqui cross-country, triatlo, elíptico, mergulho |
+| Cachorro | Caminhada, Futebol | Caminhada, trilha, cadeira de rodas (passeio), futebol, futebol americano e australiano, rúgbi, basquete, handebol, hóquei, lacrosse, beisebol, softbol, críquete, polo aquático, frisbee, brincar, hipismo, caça |
+| Esquilo | Vôlei | Vôlei, escalada, ginástica, tênis, tênis de mesa, badminton, squash, raquetebol, pickleball, patinação, snowboard, esqui alpino, esportes na neve, surfe, esportes aquáticos |
+| Gato | Lutas, Dança | Artes marciais, boxe, kickboxing, luta, esgrima, dança (cardio e social), barre |
+| Coruja | Yoga | Yoga, pilates, flexibilidade, mente e corpo, tai chi, preparação e recuperação, desaquecimento, golfe, arco e flecha, boliche, curling, vela, pesca |
+| Coelho | Outro, ou mistura sem atividade principal | Outro, jogos de fitness, transição |
 
-| Espécie | Afinidade | Bebê → Rookie | Champions (Força / Resistência / Agilidade / Técnica) | Ultimates |
+Treinos importados do Apple Saúde usam o tipo exato (tênis vira Esquilo, golfe vira Coruja); os registrados no app usam a categoria. Todas as 84 atividades que o iPhone e o Apple Watch gravam têm um animal (`GymMonsters/Hatch.swift`).
+
+Para incluir uma espécie (`Species.all` em `GymMonsters/Game.swift`): id, nome, nomes das 10 formas e dos 12 híbridos, as atividades em `Hatch.swift` e as artes `sprite_<id>_<forma>` no app e no widget.
+
+| Espécie | Nasce de | Bebê → Rookie | Champions (Força / Resistência / Agilidade / Técnica) | Ultimates |
 |---|---|---|---|---|
-| Coelho | padrão | Gymbro → Cutebro | Halterobro / Maratobro / Saltabro / Zenbro | Trebobro / Fôlegobro / Relampabro / Mestrebro |
-| Urso | Força | Pelucibro → Ursabro | Supinobro / Trilhabro / Rolabro / Sumobro | Grizzlibro / Montanhabro / Avalanchebro / Kodiabro |
-| Rato | Força | Queijibro → Ratibro | Marombabro / Rodibro / Fuxibro / Labiribro | Ratazanabro / Esteirabro / Sombrabro / Engenhobro |
-| Lobo | Resistência | Uivibro → Lobinbro | Alfabro / Trotebro / Caçabro / Matilhabro | Fenribro / Luabro / Ventobro / Ancestrabro |
-| Cachorro | Resistência | Filhotibro → Caramelbro | Pitbulbro / Galgobro / Frisbeebro / Pastorbro | Mastibro / Huskybro / Agilitybro / Guiabro |
-| Esquilo | Agilidade | Nozibro → Esquilbro | Quebranozbro / Galhobro / Pulabro / Acrobabro | Carvalhobro / Florestabro / Voadorbro / Parkourbro |
-| Gato | Agilidade | Novelbro → Bichanobro | Garrabro / Rondabro / Telhadobro / Ronrobro | Jubabro / Panterabro / Linxbro / Esfingebro |
-| Coruja | Técnica | Penugbro → Corujabro | Rapinabro / Noturnbro / Planabro / Sabiobro | Harpiabro / Luarbro / Rasantebro / Oraculobro |
+| Coelho | Outro ou mistura | Gymbro → Cutebro | Halterobro / Maratobro / Saltabro / Zenbro | Trebobro / Fôlegobro / Relampabro / Mestrebro |
+| Urso | Musculação, Crossfit | Pelucibro → Ursabro | Supinobro / Trilhabro / Rolabro / Sumobro | Grizzlibro / Montanhabro / Avalanchebro / Kodiabro |
+| Rato | Musculação, Crossfit | Queijibro → Ratibro | Marombabro / Rodibro / Fuxibro / Labiribro | Ratazanabro / Esteirabro / Sombrabro / Engenhobro |
+| Lobo | Corrida, Bike, Natação | Uivibro → Lobinbro | Alfabro / Trotebro / Caçabro / Matilhabro | Fenribro / Luabro / Ventobro / Ancestrabro |
+| Cachorro | Caminhada, Futebol | Filhotibro → Caramelbro | Pitbulbro / Galgobro / Frisbeebro / Pastorbro | Mastibro / Huskybro / Agilitybro / Guiabro |
+| Esquilo | Vôlei | Nozibro → Esquilbro | Quebranozbro / Galhobro / Pulabro / Acrobabro | Carvalhobro / Florestabro / Voadorbro / Parkourbro |
+| Gato | Lutas, Dança | Novelbro → Bichanobro | Garrabro / Rondabro / Telhadobro / Ronrobro | Jubabro / Panterabro / Linxbro / Esfingebro |
+| Coruja | Yoga | Penugbro → Corujabro | Rapinabro / Noturnbro / Planabro / Sabiobro | Harpiabro / Luarbro / Rasantebro / Oraculobro |
 
 Só nascem espécies com as 10 artes no app; as demais ficam cadastradas esperando a arte. Prontas: todas as 8.
 

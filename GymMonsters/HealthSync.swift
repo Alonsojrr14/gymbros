@@ -174,6 +174,7 @@ enum HealthSync {
                                     effort: effort(kind: kind, minutes: minutes, kcal: kcal, weight: weight),
                                     note: kcal.map { "\(Int($0)) kcal" } ?? "")
             activity.healthUUID = id
+            activity.healthType = Int(w.workoutActivityType.rawValue)
             activity.kcal = kcal
             activity.meters = distance(w)
             activity.source = w.sourceRevision.source.name
