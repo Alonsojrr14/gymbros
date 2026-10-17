@@ -188,6 +188,7 @@ struct ExercisePicker: View {
     @State private var info: Exercise?
     @State private var creating = false
     @State private var filter = 0
+    @State private var showCredits = false
 
     private func matches(_ e: Exercise) -> Bool {
         search.isEmpty || e.name.localizedStandardContains(search) || e.group.name.localizedStandardContains(search)
@@ -215,8 +216,10 @@ struct ExercisePicker: View {
                     }
                 }
             }
+            GMButton("Imagens e vídeos: wger.de · créditos e licenças", kind: .ghost, small: true) { showCredits = true }
         }
         .gmModal(item: $info) { ExerciseInfoView(exercise: $0) }
+        .gmModal(isPresented: $showCredits) { CreditsView() }
         .gmModal(isPresented: $creating) {
             CustomExerciseForm(onCreate: { e in
                 if let onPick {
@@ -266,12 +269,9 @@ struct ExerciseThumb: View {
 
     var body: some View {
         Group {
-            if exercise.hasPhotos {
-                Image("ex_\(exercise.id)_0").resizable().scaledToFill()
-            } else if let url = exercise.remotePhotos?.first {
-                AsyncImage(url: url) { img in img.resizable().scaledToFill() } placeholder: {
-                    Image(systemName: exercise.group.symbol).font(.system(size: size * 0.45)).foregroundStyle(Theme.dim)
-                }
+            if let asset = exercise.photoAssets.first {
+                // Ilustração do wger (fundo branco)
+                Image(asset).resizable().scaledToFit().padding(3).background(Color.white)
             } else {
                 Image(systemName: exercise.isCrossfit ? "figure.cross.training" : exercise.group.symbol)
                     .font(.system(size: size * 0.45))

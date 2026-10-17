@@ -1,7 +1,6 @@
 import MuscleMap
 
-// Gerado a partir do free-exercise-db (github.com/yuhonas/free-exercise-db, domínio público).
-// Fotos em Assets.xcassets/Exercises: ex_<id>_0 (posição inicial) e ex_<id>_1 (final).
+// Músculos trabalhados por exercício (fatos anatômicos). As fotos vêm do wger, com créditos (Wger.swift).
 
 struct MuscleTargets {
     let primary: [Muscle]
@@ -9,84 +8,8 @@ struct MuscleTargets {
 }
 
 enum ExerciseData {
-    static let withPhotos: Set<String> = [
-        "supino-reto",
-        "supino-reto-halter",
-        "supino-inclinado",
-        "supino-inclinado-halter",
-        "supino-declinado",
-        "supino-maquina",
-        "crucifixo",
-        "peck-deck",
-        "crossover",
-        "flexao",
-        "paralelas",
-        "barra-fixa",
-        "puxada-frente",
-        "puxada-triangulo",
-        "remada-curvada",
-        "remada-unilateral",
-        "remada-baixa",
-        "remada-cavalinho",
-        "remada-maquina",
-        "pulldown",
-        "levantamento-terra",
-        "hiperextensao",
-        "desenvolvimento",
-        "desenvolvimento-halter",
-        "desenvolvimento-maquina",
-        "elevacao-lateral",
-        "elevacao-lateral-polia",
-        "elevacao-frontal",
-        "crucifixo-inverso",
-        "face-pull",
-        "encolhimento",
-        "rosca-direta",
-        "rosca-alternada",
-        "rosca-martelo",
-        "rosca-scott",
-        "rosca-concentrada",
-        "rosca-polia",
-        "triceps-pulley",
-        "triceps-corda",
-        "triceps-testa",
-        "triceps-frances",
-        "supino-fechado",
-        "mergulho-banco",
-        "rosca-punho",
-        "farmer-walk",
-        "agachamento",
-        "agachamento-frontal",
-        "agachamento-smith",
-        "agachamento-goblet",
-        "hack",
-        "leg-press",
-        "cadeira-extensora",
-        "afundo",
-        "bulgaro",
-        "agachamento-livre-corpo",
-        "stiff",
-        "terra-romeno",
-        "mesa-flexora",
-        "cadeira-flexora",
-        "good-morning",
-        "elevacao-pelvica",
-        "cadeira-abdutora",
-        "gluteo-polia",
-        "cadeira-adutora",
-        "panturrilha-pe",
-        "panturrilha-sentado",
-        "panturrilha-leg",
-        "prancha",
-        "abdominal",
-        "abdominal-infra",
-        "elevacao-pernas",
-        "abdominal-polia",
-        "roda-abdominal",
-        "kettlebell-swing",
-        "thruster",
-        "clean",
-    ]
+    /// Fotos embutidas antigas (free-exercise-db) foram removidas
+    static let withPhotos: Set<String> = []
 
     static let muscles: [String: MuscleTargets] = [
         "supino-reto": MuscleTargets(primary: [.chest], secondary: [.deltoids, .triceps]),
