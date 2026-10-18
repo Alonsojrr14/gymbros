@@ -173,7 +173,7 @@ struct MainView: View {
                    message: "O app começou do zero para não travar. O arquivo antigo foi guardado (\(AppData.recoveredCopy?.lastPathComponent ?? "")) e dá para voltar com um backup em Ajustes → Backup.",
                    actions: [GMAction("Entendi", icon: "checkmark") {}])
         .gmActions(isPresented: $arrivalPrompt, title: "Chegou na \(GymLocation.shared.insideGym?.name ?? "academia") 💪",
-                   message: GymLocation.todayRoutineName().map { "Hoje é dia de \($0)." } ?? "Bora treinar?",
+                   message: GymLocation.todayTrainingName().map { "Hoje é dia de \($0)." } ?? "Bora treinar?",
                    actions: [GMAction("Começar treino", icon: "play.fill") {
                        GymLocation.shared.pendingArrival = nil
                        tab = 1

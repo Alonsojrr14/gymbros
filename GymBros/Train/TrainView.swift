@@ -6,6 +6,11 @@ struct TrainView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Routine.order) private var routines: [Routine]
     @Query(sort: \WorkoutSession.start, order: .reverse) private var sessions: [WorkoutSession]
+    @Query private var wodResults: [WodResult]
+    @AppStorage(WodPlan.key) private var plannedRaw = ""
+    @State private var importing = false
+    @State private var coachWod: Wod?
+    @State private var planDetail: PlannedWod?
     @State private var active: WorkoutSession?
     @State private var templates = false
     @State private var library = false
@@ -13,6 +18,10 @@ struct TrainView: View {
     private var finished: [WorkoutSession] { sessions.filter { $0.end != nil } }
     private var inProgress: WorkoutSession? { sessions.first { $0.end == nil } }
     private var today: Int { Calendar.current.component(.weekday, from: .now) }
+    private var plannedToday: PlannedWod? { WodPlan.pending(raw: plannedRaw, done: Set(wodResults.map(\.wodID))) }
+    private var plannedNext: [PlannedWod] {
+        WodPlan.all(plannedRaw).filter { $0.day > Calendar.current.startOfDay(for: .now) && !Calendar.current.isDateInToday($0.day) }
+    }
 
     @State private var routineMenu: Routine?
     /// Rotina a apagar, esperando confirmação
@@ -39,7 +48,13 @@ struct TrainView: View {
                 } else {
                     let todays = routines.filter { $0.weekdays.contains(today) }
                     GMSection(todays.isEmpty ? "Hoje" : "Hoje · \(Date.now.formatted(.dateTime.weekday(.wide)))") {
-                        if todays.isEmpty {
+                        if let p = plannedToday {
+                            card(title: p.name, subtitle: "Treino do coach · \(p.format.name)", action: "Começar") { coachWod = p.wod }
+                            GMRow(icon: "list.bullet", title: "Ver treino completo", subtitle: p.parts.isEmpty ? nil : p.parts.map(\.title).joined(separator: ", "),
+                                  chevron: true) { planDetail = p }
+                            GMDivider()
+                        }
+                        if todays.isEmpty && plannedToday == nil {
                             Text(routines.isEmpty ? "Crie uma rotina ou use um modelo pronto." : "Nenhuma rotina para hoje. Descanso também evolui o bro.")
                                 .font(.subheadline)
                                 .foregroundStyle(Theme.dim)
@@ -68,6 +83,13 @@ struct TrainView: View {
                 }
 
                 GMSection("CrossFit") {
+                    GMRow(icon: "doc.on.clipboard", iconTint: Theme.accent, title: "Importar treino do coach",
+                          subtitle: "Cole o texto ou leia um print", chevron: true) { importing = true }
+                    GMDivider()
+                    ForEach(plannedNext) { p in
+                        GMRow(icon: "calendar", title: p.name, subtitle: PlannedWodView.dayText(p.day) + " · " + p.format.name, chevron: true) { planDetail = p }
+                        GMDivider()
+                    }
                     NavigationLink { WodListView() } label: {
                         GMRow(icon: "flame.fill", iconTint: Theme.streak, title: "WODs e cronômetro",
                               subtitle: "Fran, Cindy, Murph… · For Time, AMRAP, EMOM, Tabata", chevron: true)
@@ -125,6 +147,9 @@ struct TrainView: View {
             }
             .navigationDestination(item: $editing) { RoutineEditView(routine: $0) }
             .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.startWorkout)) { _ in startToday() }
+            .gmModal(isPresented: $importing) { ImportWodView() }
+            .gmModal(item: $coachWod) { WodTimerView(wod: $0) }
+            .gmModal(item: $planDetail) { PlannedWodView(initial: $0) }
             .gmModal(isPresented: $templates) { TemplatesView(startingOrder: routines.count) }
             .gmModal(isPresented: $library) { ExercisePicker() }
             .gmSheet(isPresented: $plates) { _ in PlateCalculatorView(total: 60) }
@@ -241,6 +266,7 @@ struct TrainView: View {
     /// Chegou na academia: abre o treino em andamento ou começa a rotina do dia
     private func startToday() {
         if let s = inProgress { active = s; return }
+        if let p = plannedToday { coachWod = p.wod; return }
         start(routines.first { $0.weekdays.contains(today) })
     }
 

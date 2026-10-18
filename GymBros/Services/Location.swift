@@ -195,7 +195,7 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         try? ctx.save()
         guard notifyArrival, LiveWorkout.runningSession == nil else { return }
         pendingArrival = .now
-        let routine = Self.todayRoutineName()
+        let routine = Self.todayTrainingName()
         notify(id: "gym-arrival", title: "Chegou na \(g.name) 💪",
                body: routine.map { "Começar \($0)? Toque para abrir o treino." } ?? "Bora treinar? Toque para começar.",
                category: "ARRIVAL")
@@ -227,6 +227,11 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         c.sound = .default
         if let category { c.categoryIdentifier = category }
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: c, trigger: nil))
+    }
+
+    /// O WOD do coach agendado para hoje vem antes da rotina do dia
+    static func todayTrainingName() -> String? {
+        WodPlan.pendingToday().map { "\($0.name) (\($0.format.name))" } ?? todayRoutineName()
     }
 
     static func todayRoutineName() -> String? {

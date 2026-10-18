@@ -101,10 +101,12 @@ struct WodListView: View {
     @Query(sort: \WodResult.date, order: .reverse) private var results: [WodResult]
     @State private var running: Wod?
     @State private var custom = false
+    @State private var importing = false
 
     var body: some View {
         GMScreen("WODs", subtitle: "CrossFit: benchmarks e cronômetro", back: true) {
             GMButton("WOD livre (monte o seu)", icon: "timer", kind: .secondary) { custom = true }
+            GMButton("Importar treino do coach", icon: "doc.on.clipboard", kind: .secondary) { importing = true }
             ForEach(["Girls", "Heróis"], id: \.self) { cat in
                 GMSection(cat) {
                     let list = Wod.benchmarks.filter { $0.category == cat }
@@ -128,6 +130,7 @@ struct WodListView: View {
             }
         }
         .gmModal(isPresented: $custom) { CustomWodView() }
+        .gmModal(isPresented: $importing) { ImportWodView() }
     }
 
     private func best(_ w: Wod) -> WodResult? { results.filter { $0.wodID == w.id }.max { $0.score < $1.score } }

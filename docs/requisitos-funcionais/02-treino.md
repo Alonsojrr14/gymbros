@@ -393,6 +393,23 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 **Critério de aceitação:** Fran em 5:30 aparece como recorde "5:30 RX" se for o menor tempo; um CAP com 80 reps nunca supera um tempo de 9:50.  
 **Fonte:** `GymBros/Train/Wod.swift` (`WodResultForm`, `WodTimerView.FinishedWod`), `GymBros/Models/WodResult.swift` (`WodResult.capped`), `GymBrosTests/WorkoutTests.swift` (`testForTimeCapIsNotAFinishTime`)
 
+### RF-TRE-42 — Treino do coach (importar e agendar)
+**Descrição:** O app deve transformar o treino que o coach manda (mensagem, outro app ou quadro do box) num WOD agendado para o dia, pronto para começar ao chegar no box.  
+**Regras de negócio:**
+- Entrada em Treino → CrossFit → "Importar treino do coach" e na lista de WODs. A tela abre com "Traga o treino do coach" e três jeitos: os cartões "Print" (galeria filtrada em capturas de tela) e "Foto" (qualquer imagem, ex.: quadro do box), o cartão "Texto copiado" com o botão "Colar" do sistema (sem pedido de permissão) e um campo para digitar, com "Ler treino". Enquanto lê, mostra "Lendo o treino…".
+- Print e foto: texto lido no aparelho pelo Vision (português e inglês, de cima para baixo); horários soltos de mensagens ("10:32") saem. Sem texto na imagem: "Não achei texto nessa imagem. Tente um print mais de perto."
+- Leitura do texto (`WodParser`): tira negrito/itálico de mensagem, emojis e marcadores; títulos (Aquecimento/Mobilidade, Skill/Técnica, Força/LPO/Strength, WOD/Metcon, Acessórios/Core/Cooldown), com ou sem "1." / "B)" na frente, separam as partes; o que vem depois de "WOD:" na mesma linha conta como linha do WOD. Linhas antes do primeiro título (saudação, data, nome do box) ficam de fora.
+- WOD principal: a seção WOD/Metcon; sem ela, a que tem um formato; sem títulos, o texto todo. Formatos reconhecidos: "AMRAP 15'" / "20' AMRAP", "EMOM 10" / "E2MOM de 16 min", "Tabata" (rodadas opcionais, padrão 8), "For Time" / "FT" / "por tempo" com time cap ("TC 12min", "Cap: 15'") na mesma linha ou em outra. Linhas que são só o formato saem dos movimentos; "3 rounds for time:" fica.
+- Sem formato no texto ou sem movimentos, e com Apple Intelligence disponível (iOS 26), o modelo do próprio aparelho tenta ler o texto; senão fica For Time sem limite com o aviso "Não achei o formato no texto: confira antes de salvar."
+- Conferência antes de salvar: cartão com o nome editável (padrão "WOD do coach"), formato e número de movimentos; "Quando" (Hoje, Amanhã ou Outro dia no calendário); formato e tempo (time cap 0 = sem limite); movimentos um por linha; as outras partes em cartões (cada uma pode ser tirada). Embaixo, "Salvar e começar agora" se o dia é hoje ou "Agendar para <dia>"; "Usar outro texto" volta à entrada.
+- Agendados ficam no aparelho (`UserDefaults("plannedWods")`, entram no backup); os de mais de 14 dias saem ao salvar outro.
+- Treino → Hoje mostra o WOD do dia ("Treino do coach · <formato>", "Começar") e "Ver treino completo" (partes, WOD, editar, apagar); agendados para os próximos dias aparecem em CrossFit. O WOD some de Hoje quando tem resultado salvo.
+- Chegada ao box (notificação e aviso ao abrir o app): o WOD do dia vem antes da rotina ("Começar <nome> (<formato>)?"); tocar em começar abre o cronômetro do WOD. Widget "Treino do dia" faz o mesmo.
+- O resultado entra como qualquer WOD (RF-TRE-34), com id próprio por treino agendado.
+
+**Critério de aceitação:** colar "WOD\nAMRAP 15'\n10 wall balls\n10 burpees" agenda um AMRAP de 15 min com 2 movimentos para hoje; ao chegar no box, o aviso oferece esse WOD e abre o cronômetro.  
+**Fonte:** `GymBros/Train/WodImport.swift`, `GymBros/Train/TrainView.swift` (`plannedToday`, `startToday`), `GymBros/Services/Location.swift` (`todayTrainingName`), `GymBrosTests/WodImportTests.swift`
+
 ## 10. Peso, medidas e anilhas
 ### RF-TRE-35 — Peso e medidas
 **Descrição:** O app deve registrar peso, medidas e fotos de progresso.  

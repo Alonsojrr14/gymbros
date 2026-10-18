@@ -96,6 +96,7 @@ tools/                scripts de artes e tools/wger/build.py, que gera GymBros/R
 | `GymBros/Train/ExerciseStatsView.swift`, `GymBros/Train/WeeklyVolume.swift` | Estatísticas por exercício, volume semanal |
 | `GymBros/Train/PR.swift` | `PRBook`, `PRBookView`, `PRSessionView` |
 | `GymBros/Train/Wod.swift` | Benchmarks, cronômetros For Time/AMRAP/EMOM/Tabata, `clock`, telas de WOD e de resultado |
+| `GymBros/Train/WodImport.swift` | Treino do coach: `PlannedWod` e `WodPlan` (agendados em `UserDefaults("plannedWods")`), `WodParser` (texto → formato, movimentos e partes), `WodOCR` (Vision), `WodAI` (Foundation Models, iOS 26 com Apple Intelligence), `ImportWodView` e `PlannedWodView` |
 | `GymBros/Exercises/Exercises.swift`, `GymBros/Exercises/ExerciseMuscles.swift`, `GymBros/Exercises/ExerciseInstructions.swift`, `GymBros/Exercises/ExerciseExtra.swift` | Biblioteca: 78 originais (instruções PT), 150 extras (42 de CrossFit), músculos |
 | `GymBros/Exercises/CustomExerciseForm.swift` | `Exercise.register` dos personalizados e `CustomExerciseForm` |
 | `GymBros/Exercises/MuscleViews.swift` | Mapa muscular (MuscleMap) |
@@ -362,14 +363,14 @@ O caminho previsto é trocar `Backend.mode` para `.cloudKit` depois de configura
 
 ### Backup JSON (`GymBros/Services/Backup.swift`)
 
-- `Backup.make` serializa DTOs de todos os modelos (inclusive `LeagueMessage`), um subconjunto de ajustes (`settingKeys`, com `autoWarmup`, `restNotification`, `barWeight`, metas por exercício e o perfil físico com as metas de peso e frequência de `BodyProfile.keys`) em texto e com tipo (`typedSettings`), a foto do perfil e a capa reduzida da temporada atual de cada liga; `version = 1`, campos novos opcionais para ler backups antigos.
+- `Backup.make` serializa DTOs de todos os modelos (inclusive `LeagueMessage`), um subconjunto de ajustes (`settingKeys`, com `autoWarmup`, `restNotification`, `barWeight`, os WODs agendados (`plannedWods`), metas por exercício e o perfil físico com as metas de peso e frequência de `BodyProfile.keys`) em texto e com tipo (`typedSettings`), a foto do perfil e a capa reduzida da temporada atual de cada liga; `version = 1`, campos novos opcionais para ler backups antigos.
 - `restore` apaga todos os modelos do banco e reinsere num só `save()` (se algo falhar, `rollback()` e o banco fica como estava); check-ins voltam sem imagem, mas com `hadPhoto`. Ligas e check-ins guardam `syncedAt` (e a liga, `joined`), então o flush não recria ligas nem republica check-ins já enviados; em backups antigos (sem `hasSyncState`) tudo volta como já enviado e a liga como de outra pessoa (`joined = true`). Depois, Ajustes reinicia o monitoramento dos lugares. Exportação/importação por `fileExporter`/`fileImporter` em `GymBros/App/SettingsView.swift`.
 - Não entram no backup: imagens dos check-ins, fotos de progresso do `BodyEntry`, a sessão (`authUser`), lembretes, preferências do Saúde e de lugares, visibilidade do perfil e o estado do servidor de amigos simulado.
 
 ## 7. Testes
 
 - **Como rodam**: o alvo `GymBrosTests` tem `TEST_HOST` apontando para `GymBros.app`, então os testes rodam **dentro do app instalado** no aparelho. `GymTestCase` (`GymBrosTests/TestSupport.swift`) salva e restaura chaves de `UserDefaults` (`exerciseGoals`, `deloadUntil`, `deloadSnooze` e `barCountsBar`, chave que o app não usa mais) e `PRBook.manual`, e oferece `memoryContext()` com um `ModelContainer` em memória (`Activity`, `WorkoutSession`, `LoggedSet`, `League`, `LeagueCheckIn`) separado do banco real. `StoryTests` monta um container próprio, que inclui `BodyEntry` e `RouteRecord`. `StoreTests` confere que o banco real do aparelho abre com o `SchemaV1` sem ser movido.
-- **Cobertura** (83 testes, por `func test`):
+- **Cobertura** (90 testes, por `func test`):
 
 | Arquivo | Testes | O que cobre |
 |---|---|---|
@@ -380,6 +381,7 @@ O caminho previsto é trocar `Backend.mode` para `.cloudKit` depois de configura
 | `GymBrosTests/NamesAndBarTests.swift` | 2 | Nomes únicos das formas, carga com barra pelo tipo do treino |
 | `GymBrosTests/StoryTests.swift` | 4 | Card do story: sem peso não mostra calorias, com peso estima, kcal do Saúde vence a estimativa, corrida com distância, pace e trajeto |
 | `GymBrosTests/KeychainTests.swift` | 1 | Gravar, sobrescrever e apagar um item no Keychain |
+| `GymBrosTests/WodImportTests.swift` | 7 | Treino do coach: seções da mensagem (aquecimento, força, WOD), formato no título, time cap em linha separada, formatos (AMRAP, EMOM/E2MOM, Tabata, For Time), linha de formato com conteúdo mantida, formato não achado, WOD agendado pendente até ter resultado |
 | `GymBrosTests/StoreTests.swift` | 2 | Banco do aparelho abre com o `SchemaV1` sem ser movido, container em memória com o `AppMigrationPlan` |
 | `GymBrosTests/LeagueFlushTests.swift` | 2 | `flush` concorrente não repete create/publish/retract/send e grava `syncedAt`; liga e check-in apagados durante o envio não derrubam o app (backend que grava as chamadas, `pendingRetractions` salvo e restaurado) |
 | `GymBrosTests/BackupTests.swift` | 2 | `make` -> JSON -> `restore` em banco em memória: `syncedAt`/`joined` de ligas e check-ins, `typedSettings` e foto do perfil; backup antigo (sem `hasSyncState`) volta com `syncedAt = exportedAt` e `joined = true` |

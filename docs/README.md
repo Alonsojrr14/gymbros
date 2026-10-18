@@ -55,7 +55,7 @@ A primeira versão destes documentos listava bugs e pendências encontrados no c
 - O banco não derruba mais o app: se não abrir, o arquivo é guardado ao lado, o app abre com um banco novo e avisa como voltar pelo backup. O banco tem file protection (`completeUntilFirstUserAuthentication`).
 - Cache de snapshot (`Game.cachedSnapshot`) evita recalcular o histórico a cada render.
 - Textos de tamanho próprio passaram a usar `gmFont` (acompanha o Dynamic Type); botões só com ícone têm rótulo do VoiceOver.
-- 83 testes (eram 43).
+- 90 testes (eram 43).
 
 **Design system**
 - Cores em `Shared/Theme.swift` (app e widget), com tokens semânticos no lugar de `.orange`, `.yellow`, `.cyan`, `.pink` e da cor fixa do vídeo.

@@ -252,7 +252,7 @@ Fonte: `pbxproj` (`developmentRegion = "pt-BR"`), `GymBros/DesignSystem/GMCalend
 `GymTestCase` salva e restaura as chaves de `UserDefaults` e os recordes manuais e usa banco em memória, para não mexer nos dados reais.
 Fonte: `pbxproj` (l. 487, 499), `GymBrosTests/TestSupport.swift`.
 
-**RNF-36 — Cobertura atual por arquivo de teste (83 testes, contados por `func test` em `GymBrosTests/`).**
+**RNF-36 — Cobertura atual por arquivo de teste (90 testes, contados por `func test` em `GymBrosTests/`).**
 
 | Arquivo | Testes | O que cobre |
 |---|---|---|
@@ -263,6 +263,7 @@ Fonte: `pbxproj` (l. 487, 499), `GymBrosTests/TestSupport.swift`.
 | `NamesAndBarTests.swift` | 2 | nomes únicos de todas as formas (22 por espécie), carga com ou sem barra pelo tipo do treino |
 | `StoryTests.swift` | 4 | card do story: sem peso não há calorias, com peso há estimativa, kcal do Saúde vence a estimativa, corrida com distância, pace e trajeto |
 | `KeychainTests.swift` | 1 | gravar, sobrescrever e apagar a sessão no Keychain |
+| `WodImportTests.swift` | 7 | leitura do treino do coach (seções, formatos, time cap, formato não achado) e WOD agendado pendente até ter resultado |
 | `StoreTests.swift` | 2 | banco do aparelho abre com o `SchemaV1` sem ser movido, container em memória com o `AppMigrationPlan` |
 | `LeagueFlushTests.swift` | 2 | `flush` concorrente envia cada item uma vez e grava `syncedAt`; item apagado durante o envio não derruba o app |
 | `BackupTests.swift` | 2 | ida e volta do backup com `syncedAt`/`joined` das ligas e check-ins e os ajustes com tipo; backup antigo restaura ligas e check-ins como já enviados e de outra pessoa |
