@@ -53,7 +53,7 @@ Fonte: `GymMonsters/Wger.swift` (`WgerLibrary`, `CreditLine`, `CreditsView`), `G
 ## 2. Privacidade e dados pessoais
 
 **RNF-07 — Dados no aparelho, login simulado e servidor desligado.** O app pede login antes do onboarding, mas no modo
-padrão (`Backend.mode = .mock`) ele é simulado: não há rede, a conta fica só no aparelho (`UserDefaults("authUser")`) e
+padrão (`Backend.mode = .mock`) ele é simulado: não há rede, a conta fica só no aparelho (no Keychain) e
 nenhuma senha é guardada. Todos os dados ficam no SwiftData local e em `UserDefaults`. Com `Backend.mode = .cloudKit`
 (exige iCloud, ainda não configurado), sobe para o banco público do CloudKit só o que é compartilhado: perfil público,
 ligas, seu lugar nelas, check-ins postados e recados; peso, medidas, perfil físico, recordes, metas e atividades não postadas nunca sobem.
@@ -131,9 +131,9 @@ Fonte: varredura do repositório.
 **RNF-18 — Chamadas ao servidor exigem autenticação.** O backend ativo é o simulado (`MockAuthBackend`, `MockLeagueBackend`, `MockFriendsBackend`).
 A implementação CloudKit já existente usa a conta do iCloud do aparelho como identidade (`CloudKitAuthBackend`) e o banco público com
 permissões World: Read · Authenticated: Create · Creator: Write (`docs/cloudkit.md`).
-Hoje o `AuthUser`, com o token da sessão, fica em `UserDefaults("authUser")`, embora o comentário de `Auth.swift` fale em Keychain; o token é simulado.
-**Recomendação:** antes de qualquer login real (servidor próprio com e-mail e senha), guardar o token no Keychain e nunca em `UserDefaults` ou no código; implementações HTTP de `AuthBackend`/`LeagueBackend`/`FriendsBackend` devem usar HTTPS (ATS padrão, sem exceções no `Info.plist`). Credenciais de servidor ficam em cofre ou gerenciador de segredos.
-Fonte: `GymMonsters/Auth.swift` (`AuthStore.finish`), `GymMonsters/Backend.swift`, `GymMonsters/LeagueRemote.swift` (`LeagueBackend`), `GymMonsters/Friends.swift` (`FriendsBackend`).
+O `AuthUser`, com o token da sessão, fica no Keychain (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, não vai para backups de outro aparelho); sessões gravadas em `UserDefaults` por versões antigas migram na primeira leitura.
+**Recomendação:** manter tokens só no Keychain, nunca em `UserDefaults` ou no código; implementações HTTP de `AuthBackend`/`LeagueBackend`/`FriendsBackend` devem usar HTTPS (ATS padrão, sem exceções no `Info.plist`). Credenciais de servidor ficam em cofre ou gerenciador de segredos.
+Fonte: `GymMonsters/Auth.swift` (`AuthStore.finish`, `Keychain`), `GymMonsters/Backend.swift`, `GymMonsters/LeagueRemote.swift` (`LeagueBackend`), `GymMonsters/Friends.swift` (`FriendsBackend`).
 
 ## 4. Desempenho
 
@@ -241,7 +241,7 @@ Fonte: `pbxproj` (`developmentRegion = "pt-BR"`), `GymMonsters/DesignSystem.swif
 `GymTestCase` salva e restaura as chaves de `UserDefaults` e os recordes manuais e usa banco em memória, para não mexer nos dados reais.
 Fonte: `pbxproj` (l. 487, 499), `GymMonstersTests/TestSupport.swift`.
 
-**RNF-36 — Cobertura atual por arquivo de teste (76 testes, contados por `func test` em `GymMonstersTests/`).**
+**RNF-36 — Cobertura atual por arquivo de teste (77 testes, contados por `func test` em `GymMonstersTests/`).**
 
 | Arquivo | Testes | O que cobre |
 |---|---|---|
@@ -251,6 +251,7 @@ Fonte: `pbxproj` (l. 487, 499), `GymMonstersTests/TestSupport.swift`.
 | `LeagueTests.swift` | 19 | pesos por atributo, métricas, janela do mês, desempates, regra de foto, "Vale ½" sem zerar, pontuação de check-in restaurado, ids estáveis e legados de times, ranking com `remote` injetado, mesmo bro em todo lugar, estabilidade do mock, placar do time, `LeagueDraft` ida e volta, retirada só de check-in já publicado |
 | `NamesAndBarTests.swift` | 2 | nomes únicos de todas as formas (22 por espécie), carga com ou sem barra pelo tipo do treino |
 | `StoryTests.swift` | 4 | card do story: sem peso não há calorias, com peso há estimativa, kcal do Saúde vence a estimativa, corrida com distância, pace e trajeto |
+| `KeychainTests.swift` | 1 | gravar, sobrescrever e apagar a sessão no Keychain |
 
 Sem testes: backup/restauração (ida e volta), recuperação do banco, importação/escrita no Saúde, localização, widget, amigos, login (`AuthStore`), envio da caixa de saída (`flush`), backends CloudKit e telas.
 **Recomendação:** testes de ida e volta do backup (inclusive `typedSettings` e `hadPhoto`), da recuperação do banco e da deduplicação com o Saúde; meta mínima de cobertura nas regras de `Game`, `Training`, `Leagues` e `Backup`.

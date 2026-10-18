@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import Security
 import SwiftUI
 
 // Conta: mesmo esquema de ligas e amigos. AuthBackend é o contrato com o servidor; por enquanto quem responde
@@ -68,20 +69,24 @@ final class AuthStore {
     func signOut() async {
         if let user { await backend.signOut(user) }
         user = nil
-        UserDefaults.standard.removeObject(forKey: Self.key)
+        Keychain.delete(Self.key)
     }
 
     private func finish(_ u: AuthUser) {
         user = u
-        UserDefaults.standard.set(try? JSONEncoder().encode(u), forKey: Self.key)
+        if let data = try? JSONEncoder().encode(u) { Keychain.save(data, for: Self.key) }
         // O nome da conta vira o nome de treinador, se ainda não tiver um
         if (UserDefaults.standard.string(forKey: "trainerName") ?? "").isEmpty, !u.name.isEmpty {
             UserDefaults.standard.set(u.name, forKey: "trainerName")
         }
     }
 
+    /// Sessões gravadas por versões antigas em `UserDefaults` migram para o Keychain na primeira leitura
     private static func load() -> AuthUser? {
-        UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(AuthUser.self, from: $0) }
+        if let legacy = UserDefaults.standard.data(forKey: key), Keychain.save(legacy, for: key) {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        return Keychain.load(key).flatMap { try? JSONDecoder().decode(AuthUser.self, from: $0) }
     }
 
     static func clean(_ email: String) -> String { email.trimmingCharacters(in: .whitespaces).lowercased() }
@@ -93,6 +98,41 @@ final class AuthStore {
             throw AuthError.invalidEmail
         }
         guard password.count >= 8 else { throw AuthError.shortPassword }
+    }
+}
+
+// MARK: - Keychain
+
+/// Itens do app no Keychain, legíveis só neste aparelho e depois do primeiro desbloqueio
+enum Keychain {
+    private static let service = "GymMonsters.auth"
+
+    private static func query(_ account: String) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
+    }
+
+    @discardableResult
+    static func save(_ data: Data, for account: String) -> Bool {
+        let attributes: [String: Any] = [kSecValueData as String: data,
+                                         kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
+        let status = SecItemUpdate(query(account) as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            return SecItemAdd(query(account).merging(attributes) { $1 } as CFDictionary, nil) == errSecSuccess
+        }
+        return status == errSecSuccess
+    }
+
+    static func load(_ account: String) -> Data? {
+        var q = query(account)
+        q[kSecReturnData as String] = true
+        q[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: AnyObject?
+        guard SecItemCopyMatching(q as CFDictionary, &result) == errSecSuccess else { return nil }
+        return result as? Data
+    }
+
+    static func delete(_ account: String) {
+        SecItemDelete(query(account) as CFDictionary)
     }
 }
 

@@ -58,7 +58,7 @@ tools/                scripts de artes e tools/wger/build.py, que gera wger.json
 | `GymMonsters/Wod.swift` | Benchmarks, cronômetros For Time/AMRAP/EMOM/Tabata, `@Model WodResult` |
 | `GymMonsters/Leagues.swift` | `@Model League`/`LeagueCheckIn`, `ScoreInput`, `LeagueScoring`, desempate, regra de foto, renovação, participantes simulados, `LeagueBoard` |
 | `GymMonsters/LeagueRemote.swift` | Contrato com o servidor das ligas, tipos `Remote*`/`Outgoing*`/`LeagueDraft`, `LeagueRemoteStore` (caixa de saída), `LeagueOutbox`, `@Model LeagueMessage`, `MockLeagueBackend` |
-| `GymMonsters/Auth.swift` | Conta: `AuthBackend`, `AuthUser`, `AuthStore` (sessão em `UserDefaults("authUser")`), `MockAuthBackend` (e-mail/senha e Apple simulados) e `LoginView` |
+| `GymMonsters/Auth.swift` | Conta: `AuthBackend`, `AuthUser`, `AuthStore` (sessão no Keychain), `Keychain` (gravar, ler e apagar itens do app), `MockAuthBackend` (e-mail/senha e Apple simulados) e `LoginView` |
 | `GymMonsters/Backend.swift` | Interruptor `Backend.mode` (`.mock` por padrão, `.cloudKit`), `Backend.install()` e as implementações CloudKit dos três contratos (`CloudKitAuthBackend`, `CloudKitLeagueBackend`, `CloudKitFriendsBackend`) sobre o banco público (`Cloud`, `CloudType`) |
 | `GymMonsters/LeaguesView.swift`, `LeagueMural.swift`, `CheckInDetail.swift`, `PeriodPicker.swift` | Telas de ligas, mural, detalhe/comentários do check-in (`@Model CheckInComment`), calendário de período |
 | `GymMonsters/Friends.swift`, `FriendsLive.swift`, `PublicProfile.swift` | Amigos (`FriendsBackend`, mock), amigos treinando no mapa (simulados), perfil público |
@@ -168,7 +168,7 @@ erDiagram
 
 ### Estado fora do banco
 
-`UserDefaults.standard` guarda ajustes e alguns estados de domínio: `trainerName`, `mainMonster` (`MainMonster.id`), `discovered`, `achievementsSeen`, lembretes, chaves do Saúde (`healthEnabled`, `healthLastSync`, `healthIgnored`, `healthWrite`…), estado do `GymLocation` (`gymInsideID`, `gymArrival`, `gymNotifyArrival`, `gymAutoFinish`), código de amigo (`friendCode`), a oferta pendente de atualizar rotina (`pendingRoutineUpdate`) e o estado inteiro do servidor de amigos simulado (`mockFriends`), a sessão (`authUser`), as contas do login simulado (`mockAccounts`), o id do iCloud no modo CloudKit (`cloudUserID`), os check-ins apagados a retirar do servidor (`pendingRetractions`, `LeagueOutbox`) e o perfil físico (`profileHeight`, `profileBirthYear`, `profileGoal`… em `BodyProfile.keys`).
+`UserDefaults.standard` guarda ajustes e alguns estados de domínio: `trainerName`, `mainMonster` (`MainMonster.id`), `discovered`, `achievementsSeen`, lembretes, chaves do Saúde (`healthEnabled`, `healthLastSync`, `healthIgnored`, `healthWrite`…), estado do `GymLocation` (`gymInsideID`, `gymArrival`, `gymNotifyArrival`, `gymAutoFinish`), código de amigo (`friendCode`), a oferta pendente de atualizar rotina (`pendingRoutineUpdate`) e o estado inteiro do servidor de amigos simulado (`mockFriends`), as contas do login simulado (`mockAccounts`), o id do iCloud no modo CloudKit (`cloudUserID`), os check-ins apagados a retirar do servidor (`pendingRetractions`, `LeagueOutbox`) e o perfil físico (`profileHeight`, `profileBirthYear`, `profileGoal`… em `BodyProfile.keys`).
 
 ## 4. Regras derivadas
 
@@ -214,7 +214,7 @@ O app fala com o servidor só por três contratos: `AuthBackend` (`GymMonsters/A
 ### Conta (`GymMonsters/Auth.swift`)
 
 - `AuthBackend`: `signInWithApple`, `signIn(email:password:)`, `signUp(name:email:password:)`, `signOut`.
-- `AuthStore` (`@MainActor @Observable`, singleton): valida e-mail e senha (mínimo 8 caracteres), guarda o `AuthUser` (id, nome, e-mail, provedor, token) em `UserDefaults("authUser")` e usa o nome da conta como nome de treinador se ainda não houver um; `RootView` só passa do `LoginView` com sessão. Nenhuma senha é guardada no app.
+- `AuthStore` (`@MainActor @Observable`, singleton): valida e-mail e senha (mínimo 8 caracteres), guarda o `AuthUser` (id, nome, e-mail, provedor, token) no Keychain (`Keychain`, serviço `GymMonsters.auth`, conta `authUser`, acessível só neste aparelho depois do primeiro desbloqueio); sessões antigas em `UserDefaults("authUser")` migram na primeira leitura. Usa o nome da conta como nome de treinador se ainda não houver um; `RootView` só passa do `LoginView` com sessão. Nenhuma senha é guardada no app.
 - `MockAuthBackend`: login simulado. "Continuar com a Apple" cria um usuário na hora, com e-mail de retransmissão; o cadastro guarda só e-mail → nome em `UserDefaults("mockAccounts")` (recusa e-mail repetido) e o login aceita qualquer senha válida, porque sem servidor não há como conferir.
 - `CloudKitAuthBackend`: a conta é a do iCloud do aparelho (`Cloud.me()`); e-mail e senha respondem `AuthError.appleOnly`.
 - Ajustes mostra a conta com o aviso "Login simulado enquanto não há servidor" e o botão de sair (não apaga dados do aparelho).
@@ -322,7 +322,7 @@ O caminho previsto é trocar `Backend.mode` para `.cloudKit` depois de configura
 ## 7. Testes
 
 - **Como rodam**: o alvo `GymMonstersTests` tem `TEST_HOST` apontando para `GymMonsters.app`, então os testes rodam **dentro do app instalado** no aparelho. `GymTestCase` (`GymMonstersTests/TestSupport.swift`) salva e restaura chaves de `UserDefaults` (`exerciseGoals`, `deloadUntil`, `deloadSnooze` e `barCountsBar`, chave que o app não usa mais) e `PRBook.manual`, e oferece `memoryContext()` com um `ModelContainer` em memória (`Activity`, `WorkoutSession`, `LoggedSet`, `League`, `LeagueCheckIn`) separado do banco real. `StoryTests` monta um container próprio, que inclui `BodyEntry` e `RouteRecord`.
-- **Cobertura** (76 testes, por `func test`):
+- **Cobertura** (77 testes, por `func test`):
 
 | Arquivo | Testes | O que cobre |
 |---|---|---|
@@ -332,8 +332,9 @@ O caminho previsto é trocar `Backend.mode` para `.cloudKit` depois de configura
 | `GymMonstersTests/WorkoutTests.swift` | 16 | Superset, aquecimento fora do log e dos totais, deload por semanas, ranking com período, período pelo calendário, textos de início, renovação de temporada, troca em superset, aviso "Dez segundos", CAP |
 | `GymMonstersTests/NamesAndBarTests.swift` | 2 | Nomes únicos das formas, carga com barra pelo tipo do treino |
 | `GymMonstersTests/StoryTests.swift` | 4 | Card do story: sem peso não mostra calorias, com peso estima, kcal do Saúde vence a estimativa, corrida com distância, pace e trajeto |
+| `GymMonstersTests/KeychainTests.swift` | 1 | Gravar, sobrescrever e apagar um item no Keychain |
 
-- **Sem cobertura**: `Backup` (ida e volta), recuperação do banco, `HealthSync` (sobreposição, estimativa de esforço), `LeagueRemoteStore.flush`, `FriendsStore`, `AuthStore`/`MockAuthBackend`, os backends CloudKit, `BodyProfile.targets`, `GymLocation`, `RouteTracker` e UI.
+- **Sem cobertura**: `Backup` (ida e volta), recuperação do banco, `HealthSync` (sobreposição, estimativa de esforço), `LeagueRemoteStore.flush`, `FriendsStore`, `AuthStore`/`MockAuthBackend` (só o `Keychain` tem teste), os backends CloudKit, `BodyProfile.targets`, `GymLocation`, `RouteTracker` e UI.
 
 ## 8. Decisões e dívidas técnicas observadas
 
@@ -355,7 +356,7 @@ O caminho previsto é trocar `Backend.mode` para `.cloudKit` depois de configura
 6. **Erros engolidos**: quase todo `save`/`fetch` usa `try?`; falhas de `backend.fetch` são silenciosas e as do `flush` só ficam em `LeagueRemoteStore.lastError` (o envio para no primeiro erro e tudo segue pendente).
 7. **Exclusões em cascata manuais**: como as relações são por UUID, a limpeza fica no código: `deleteActivity` (`GymMonsters/ActivityDetail.swift`) apaga `WorkoutSession`, `LeagueCheckIn` com seus `CheckInComment`, `RouteRecord` e `WodResult`; sair da liga apaga check-ins, comentários e recados; "Recomeçar jornada" faz o mesmo para todas as atividades.
 8. **Backup incompleto**: imagens de check-in e fotos de progresso não entram; ajustes fora de `settingKeys` (lembretes, Saúde, lugares, visibilidade, `friendCode`) não são restaurados.
-9. **Token da sessão em `UserDefaults`**: o comentário de `Auth.swift` diz que o token vai para o Keychain, mas `AuthStore.finish` grava o `AuthUser` inteiro, com o token, em `UserDefaults("authUser")`. Hoje o token é simulado; antes de um login real, mover para o Keychain (RNF-18).
+9. ~~Token da sessão em `UserDefaults`~~: corrigido, o `AuthUser` vai para o Keychain e sessões antigas migram (`testSaveOverwriteAndDelete`).
 10. **Simulação espalhada**: dados fictícios em três lugares (`FakeMember` em `GymMonsters/Leagues.swift`, `FriendsLive.simulated`, diretório do `MockFriendsBackend`), mas a forma do bro de cada pessoa vem só de `FakeMember`.
 
 ### Inconsistências encontradas
