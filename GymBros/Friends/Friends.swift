@@ -65,6 +65,7 @@ final class FriendsStore {
             profiles = [:]
         }
     }
+    var access: AccessStore = .shared
     private(set) var state = FriendsStore.initialState(MockFriendsBackend())
     private(set) var profiles: [String: PublicProfile] = [:]
 
@@ -76,7 +77,10 @@ final class FriendsStore {
         return c
     }
 
-    var friendIDs: Set<String> { Set(state.friends.map(\.id)) }
+    /// Sem quem você bloqueou
+    var friends: [RemoteFriend] { ModerationStore.shared.visible(state.friends) }
+    var incoming: [RemoteFriend] { ModerationStore.shared.visible(state.incoming) }
+    var friendIDs: Set<String> { Set(friends.map(\.id)) }
 
     /// Publica o seu perfil se mudou desde o último envio
     func publish(_ profile: PublicProfile) async {
@@ -84,7 +88,7 @@ final class FriendsStore {
         let fingerprint = (try? JSONEncoder().encode(profile)).map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() } ?? ""
         // Por backend: trocar de mock para CloudKit publica de novo
         let key = "publishedProfile-\(Backend.mode)"
-        guard UserDefaults.standard.string(forKey: key) != fingerprint else { return }
+        guard access.can(.profileUpdate), UserDefaults.standard.string(forKey: key) != fingerprint else { return }
         do {
             try await backend.publish(profile, friendCode: myCode)
             UserDefaults.standard.set(fingerprint, forKey: key)
@@ -100,7 +104,14 @@ final class FriendsStore {
         if let s = try? await backend.fetch() { state = s }
     }
 
+    /// Esquece o que veio do servidor (conta excluída)
+    func reset() {
+        state = Self.initialState(backend)
+        profiles = [:]
+    }
+
     func add(code: String) async throws -> RemoteFriend {
+        try access.authorize(.friendsManage)
         let c = code.trimmingCharacters(in: .whitespaces).uppercased()
         if c == myCode { throw FriendError.yourself }
         if state.friends.contains(where: { $0.code == c }) { throw FriendError.already }
@@ -110,6 +121,7 @@ final class FriendsStore {
     }
 
     func add(id: String) async throws -> RemoteFriend {
+        try access.authorize(.friendsManage)
         let f = try await backend.add(id: id)
         await refresh()
         return f
@@ -118,10 +130,10 @@ final class FriendsStore {
     /// Talvez você conheça: quem está nas suas ligas em andamento e ainda não é amigo nem te mandou pedido.
     /// Quem divide mais ligas com você vem primeiro.
     func suggestions(from leagues: [League]) -> [(member: RemoteMember, leagues: [League])] {
-        let known = friendIDs.union(state.incoming.map(\.id))
+        let known = Set(state.friends.map(\.id)).union(state.incoming.map(\.id))
         var found: [String: (member: RemoteMember, leagues: [League])] = [:]
         for l in leagues where !l.isPastSeason && !l.isOver {
-            for m in LeagueRemoteStore.shared.remote(l).members where !known.contains(m.id) {
+            for m in LeagueRemoteStore.shared.remote(l).members where !known.contains(m.id) && !ModerationStore.shared.isBlocked(m.id) {
                 found[m.id, default: (m, [])].leagues.append(l)
             }
         }
@@ -132,9 +144,20 @@ final class FriendsStore {
         if let p = try? await backend.profile(id) { profiles[id] = p }
     }
 
-    func accept(_ id: String) async { try? await backend.accept(id); await refresh() }
+    func accept(_ id: String) async {
+        guard access.can(.friendsManage) else { return }
+        try? await backend.accept(id)
+        await refresh()
+    }
     func decline(_ id: String) async { try? await backend.decline(id); await refresh() }
     func remove(_ id: String) async { try? await backend.remove(id); await refresh() }
+
+    /// Bloqueio: desfaz a amizade e recusa o pedido pendente
+    func unfriend(_ id: String) async {
+        if state.friends.contains(where: { $0.id == id }) { try? await backend.remove(id) }
+        if state.incoming.contains(where: { $0.id == id }) { try? await backend.decline(id) }
+        await refresh()
+    }
 }
 
 // MARK: - Servidor simulado
@@ -163,6 +186,9 @@ struct MockFriendsBackend: FriendsBackend {
     static func load() -> FriendsState {
         UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(FriendsState.self, from: $0) } ?? initial
     }
+
+    /// Volta ao começo (amigos e pedido de exemplo)
+    static func reset() { UserDefaults.standard.removeObject(forKey: key) }
 
     private static func save(_ s: FriendsState) {
         UserDefaults.standard.set(try? JSONEncoder().encode(s), forKey: key)
@@ -275,46 +301,48 @@ struct FriendsView: View {
 
     var body: some View {
         GMModal("Amigos") {
-            myCode
-            GMSection("Adicionar amigo", footer: message ?? "Peça o código para a pessoa (fica na tela de amigos dela).") {
-                HStack(spacing: 8) {
-                    GMTextField(placeholder: "Código do amigo", text: $code, capitalization: .characters)
-                        .font(.title3.monospaced())
-                        .autocorrectionDisabled()
-                    GMButton("Adicionar", full: false, small: true, enabled: code.trimmingCharacters(in: .whitespaces).count >= 6) { add(code) }
-                }
-            }
-            if !store.state.incoming.isEmpty {
-                GMSection("Pedidos de amizade") {
-                    ForEach(store.state.incoming) { f in
-                        HStack(spacing: 10) {
-                            person(f, subtitle: "Quer ser seu amigo")
-                            GMIconButton(icon: "xmark", size: 36, label: "Recusar") { Task { await store.decline(f.id) } }
-                            GMIconButton(icon: "checkmark", size: 36, label: "Aceitar") { Task { await store.accept(f.id) } }
-                        }
-                        if f.id != store.state.incoming.last?.id { GMDivider() }
+            SocialGate(requires: .friendsRead) {
+                myCode
+                GMSection("Adicionar amigo", footer: message ?? "Peça o código para a pessoa (fica na tela de amigos dela).") {
+                    HStack(spacing: 8) {
+                        GMTextField(placeholder: "Código do amigo", text: $code, capitalization: .characters)
+                            .font(.title3.monospaced())
+                            .autocorrectionDisabled()
+                        GMButton("Adicionar", full: false, small: true, enabled: code.trimmingCharacters(in: .whitespaces).count >= 6) { add(code) }
                     }
                 }
-            }
-            GMSection("Seus amigos · \(store.state.friends.count)") {
-                if store.state.friends.isEmpty {
-                    Text("Nenhum amigo ainda. Mande seu código pra galera.").font(.subheadline).foregroundStyle(Theme.dim)
-                }
-                ForEach(store.state.friends) { f in
-                    Button { opened = f } label: {
-                        HStack {
-                            person(f, subtitle: status(f), online: isLive(f))
-                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
+                if !store.incoming.isEmpty {
+                    GMSection("Pedidos de amizade") {
+                        ForEach(store.incoming) { f in
+                            HStack(spacing: 10) {
+                                person(f, subtitle: "Quer ser seu amigo")
+                                GMIconButton(icon: "xmark", size: 36, label: "Recusar") { Task { await store.decline(f.id) } }
+                                GMIconButton(icon: "checkmark", size: 36, label: "Aceitar") { Task { await store.accept(f.id) } }
+                            }
+                            if f.id != store.incoming.last?.id { GMDivider() }
                         }
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(GMPress())
-                    if f.id != store.state.friends.last?.id { GMDivider() }
                 }
+                GMSection("Seus amigos · \(store.friends.count)") {
+                    if store.friends.isEmpty {
+                        Text("Nenhum amigo ainda. Mande seu código pra galera.").font(.subheadline).foregroundStyle(Theme.dim)
+                    }
+                    ForEach(store.friends) { f in
+                        Button { opened = f } label: {
+                            HStack {
+                                person(f, subtitle: status(f), online: isLive(f))
+                                Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(GMPress())
+                        if f.id != store.friends.last?.id { GMDivider() }
+                    }
+                }
+                suggestionsSection
             }
-            suggestionsSection
         }
-        .task { await store.refresh() }
+        .task(id: AuthStore.shared.isSignedIn) { if AuthStore.shared.isSignedIn { await store.refresh() } }
         .gmModal(item: $opened) { FriendProfileView(friend: $0) }
     }
 

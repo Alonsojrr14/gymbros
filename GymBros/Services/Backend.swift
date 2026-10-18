@@ -1,15 +1,32 @@
+import AuthenticationServices
 import CloudKit
 import Foundation
+import UIKit
 
 // Onde moram os dados compartilhados (ligas, amigos, perfil público, login).
 //
 // Hoje: `.mock`. O app é assinado com o Personal Team, que não tem iCloud; tudo de outras pessoas é simulado.
 // Com a conta paga do Apple Developer:
 //   1. Em Signing & Capabilities, adicione iCloud → CloudKit com o container `Backend.containerID`
-//      (e Sign in with Apple, se quiser o login da Apple de verdade).
+//      e **Sign in with Apple** (sem ela, a folha da Apple do modo `.cloudKit` falha com erro 1000).
 //   2. Troque `mode` para `.cloudKit`.
 //   3. Crie o esquema no CloudKit Dashboard (docs/cloudkit.md: tipos de registro, índices e permissões).
-// Nada mais muda: as telas falam só com os contratos (AuthBackend, LeagueBackend, FriendsBackend).
+// Nada mais muda: as telas falam só com os contratos (AuthBackend, LeagueBackend, FriendsBackend, ModerationBackend,
+// AccountDataBackend).
+//
+// O que o modo `.cloudKit` ainda não cobre:
+//   - Excluir conta apaga só os registros que você criou: vínculos de amizade de outras pessoas para você e ligas
+//     criadas por você ficam (sem dono). O usuário do iCloud não pode ser apagado pelo app.
+//   - Revogar o token do Sign in with Apple ao excluir a conta exige servidor próprio (REST da Apple com chave .p8).
+//   - Moderação: as denúncias (Report) chegam ao banco público, mas analisar em até 24 h e tirar o conteúdo do ar
+//     para todos é trabalho de uma pessoa no CloudKit Dashboard (ou de um servidor com chave de servidor); o app
+//     não apaga registros de outras pessoas. Bloquear só esconde no seu aparelho (Block guarda a lista).
+//   - Dados da conta (AccountDataBackend): a cópia tem dados do Apple Saúde (treinos importados, kcal, peso), que não
+//     podem ir para o iCloud (guideline 5.1.3(ii)). Por isso `ServerAccountDataBackend` só lança erro: o caminho é um
+//     servidor próprio (HTTPS, token da sessão do AuthBackend, dados cifrados em repouso) ou, se for CloudKit, o banco
+//     privado sem nenhum campo vindo do Saúde. Enquanto isso, no `.cloudKit` o login para na tela "Não deu para abrir sua conta".
+//   - Termos de uso e filtro de palavras ficam só no aparelho: o aceite (versão e data) não sobe e o servidor não
+//     repete o ContentFilter. Expulsar quem viola os termos é ação administrativa (docs/cloudkit.md).
 
 enum BackendMode {
     /// Dados simulados no aparelho (pessoas, ligas e perfis de exemplo)
@@ -31,10 +48,22 @@ enum Backend {
             AuthStore.shared.backend = MockAuthBackend()
             LeagueRemoteStore.shared.backend = MockLeagueBackend()
             FriendsStore.shared.backend = MockFriendsBackend()
+            ModerationStore.shared.backend = MockModerationBackend()
+            AccountSync.shared.backend = MockAccountDataBackend()
+            InboxStore.shared.backend = MockInboxBackend()
+            #if DEBUG
+            AccessStore.shared.backend = MockRoleBackend(assignments: DevAccount.assignments)
+            #else
+            AccessStore.shared.backend = MockRoleBackend()
+            #endif
         case .cloudKit:
             AuthStore.shared.backend = CloudKitAuthBackend()
             LeagueRemoteStore.shared.backend = CloudKitLeagueBackend()
             FriendsStore.shared.backend = CloudKitFriendsBackend()
+            ModerationStore.shared.backend = CloudKitModerationBackend()
+            AccessStore.shared.backend = CloudKitRoleBackend()
+            AccountSync.shared.backend = ServerAccountDataBackend()
+            InboxStore.shared.backend = ServerInboxBackend()
         }
     }
 }
@@ -104,25 +133,95 @@ enum CloudError: LocalizedError {
 /// Tipos de registro do banco público (esquema em docs/cloudkit.md)
 enum CloudType {
     static let profile = "Profile", league = "League", member = "Member", checkIn = "CheckIn",
-               message = "Message", friendLink = "FriendLink"
+               message = "Message", friendLink = "FriendLink", report = "Report", block = "Block"
     /// Liga reservada aos posts do perfil
     static let profileFeed = "profile"
 }
 
 // MARK: - Login
 
-/// Com CloudKit, a conta é a do iCloud do aparelho: "Continuar com a Apple" usa o id do iCloud.
+/// Com CloudKit, "Continuar com a Apple" abre a folha da Apple e os dados ficam no id do iCloud do aparelho.
 /// E-mail e senha não existem nesse modo (não há servidor próprio para guardar senhas).
 struct CloudKitAuthBackend: AuthBackend {
     func signInWithApple() async throws -> AuthUser {
+        let credential = try await AppleIDAuthorization.request()
         let id = try await Cloud.me()
-        let name = UserDefaults.standard.string(forKey: "trainerName") ?? ""
-        return AuthUser(id: id, name: name, email: "", provider: .apple, token: id)
+        let given = [credential.fullName?.givenName, credential.fullName?.familyName].compactMap { $0 }.joined(separator: " ")
+        let name = given.isEmpty ? UserDefaults.standard.string(forKey: "trainerName") ?? "" : given
+        let token = credential.identityToken.flatMap { String(data: $0, encoding: .utf8) } ?? credential.user
+        return AuthUser(id: id, name: name, email: credential.email ?? "", provider: .apple, token: token)
     }
 
     func signIn(email: String, password: String) async throws -> AuthUser { throw AuthError.appleOnly }
     func signUp(name: String, email: String, password: String) async throws -> AuthUser { throw AuthError.appleOnly }
     func signOut(_ user: AuthUser) async { Cloud.forgetMe() }
+
+    /// Apaga o que você criou no banco público: perfil, lugar nas ligas, check-ins (e posts do perfil), recados,
+    /// os seus vínculos de amizade, denúncias e bloqueios
+    func deleteAccount(_ user: AuthUser) async throws {
+        let me = try await Cloud.me()
+        let byUser = NSPredicate(format: "user == %@", me)
+        async let members = Cloud.query(CloudType.member, byUser)
+        async let checkIns = Cloud.query(CloudType.checkIn, byUser)
+        async let messages = Cloud.query(CloudType.message, byUser)
+        async let links = Cloud.query(CloudType.friendLink, NSPredicate(format: "from == %@", me))
+        async let reports = Cloud.query(CloudType.report, byUser)
+        async let blocks = Cloud.query(CloudType.block, byUser)
+        let records = try await members + checkIns + messages + links + reports + blocks
+        let names = records.map(\.recordID.recordName) + [me]
+        for start in stride(from: 0, to: names.count, by: 300) {
+            try await Cloud.delete(Array(names[start..<min(start + 300, names.count)]))
+        }
+        Cloud.forgetMe()
+    }
+}
+
+/// Folha "Continuar com a Apple" de verdade (precisa da capability Sign in with Apple)
+@MainActor
+final class AppleIDAuthorization: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    private var continuation: CheckedContinuation<ASAuthorizationAppleIDCredential, Error>?
+    private static var current: AppleIDAuthorization?
+
+    static func request() async throws -> ASAuthorizationAppleIDCredential {
+        let flow = AppleIDAuthorization()
+        current = flow
+        defer { current = nil }
+        return try await withCheckedThrowingContinuation { c in
+            flow.continuation = c
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = [.fullName, .email]
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = flow
+            controller.presentationContextProvider = flow
+            controller.performRequests()
+        }
+    }
+
+    nonisolated func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        MainActor.assumeIsolated {
+            if let credential = authorization.credential as? ASAuthorizationAppleIDCredential {
+                continuation?.resume(returning: credential)
+            } else {
+                continuation?.resume(throwing: AuthError.cancelled)
+            }
+            continuation = nil
+        }
+    }
+
+    nonisolated func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        MainActor.assumeIsolated {
+            let cancelled = (error as? ASAuthorizationError)?.code == .canceled
+            continuation?.resume(throwing: cancelled ? AuthError.cancelled : error)
+            continuation = nil
+        }
+    }
+
+    nonisolated func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        MainActor.assumeIsolated {
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            return scenes.flatMap(\.windows).first(where: \.isKeyWindow) ?? ASPresentationAnchor()
+        }
+    }
 }
 
 // MARK: - Ligas
@@ -334,6 +433,67 @@ struct CloudKitFriendsBackend: FriendsBackend {
         let extra = PublicProfile.Extra(bro: profile.bro, stats: profile.stats, achievements: profile.achievements)
         r["public"] = (try? JSONEncoder().encode(extra)).flatMap { String(data: $0, encoding: .utf8) }
         _ = try await Cloud.save([r])
+    }
+}
+
+// MARK: - Moderação
+
+/// Denúncia e bloqueio são registros seus (campo `user`); a denúncia tem nome fixo por conteúdo, então denunciar de novo
+/// só troca o motivo. Report não é legível pelo público (permissões em docs/cloudkit.md).
+struct CloudKitModerationBackend: ModerationBackend {
+    private func blockName(_ me: String, _ id: String) -> String { "block-\(me)->\(id)" }
+
+    func report(content c: ReportedContent, reason: ReportReason) async throws {
+        let me = try await Cloud.me()
+        let r = CKRecord(recordType: CloudType.report, recordID: CKRecord.ID(recordName: "report-\(me)-\(c.key)"))
+        r["user"] = me
+        r["kind"] = c.kind.rawValue
+        r["contentID"] = c.id
+        r["author"] = c.authorID
+        r["authorName"] = c.authorName
+        r["reason"] = reason.rawValue
+        r["date"] = Date.now
+        _ = try await Cloud.save([r])
+    }
+
+    func block(userID: String, name: String) async throws {
+        let me = try await Cloud.me()
+        let r = CKRecord(recordType: CloudType.block, recordID: CKRecord.ID(recordName: blockName(me, userID)))
+        r["user"] = me
+        r["blocked"] = userID
+        r["name"] = name
+        r["date"] = Date.now
+        _ = try await Cloud.save([r])
+    }
+
+    func unblock(userID: String) async throws {
+        let me = try await Cloud.me()
+        try await Cloud.delete([blockName(me, userID)])
+    }
+
+    func blockedUsers() async throws -> [BlockedUser] {
+        let me = try await Cloud.me()
+        return try await Cloud.query(CloudType.block, NSPredicate(format: "user == %@", me)).compactMap { r in
+            guard let id = r["blocked"] as? String else { return nil }
+            return BlockedUser(id: id, name: r["name"] as? String ?? "", date: r["date"] as? Date ?? .now)
+        }
+    }
+}
+
+// MARK: - Roles
+
+/// Atribuição oficial em `RoleAssignment` (`role-<id do iCloud>`, campo `roles`, lista de String). Só o CloudKit Dashboard
+/// ou um servidor com chave guardada num cofre/gerenciador de segredos cria e altera esses registros; o app só lê.
+struct CloudKitRoleBackend: RoleBackend {
+    func assignment(for userID: String) async throws -> [String]? {
+        let me = try await Cloud.me()
+        guard me == userID else { throw CloudError.noAccount }
+        do {
+            let r = try await Cloud.db.record(for: CKRecord.ID(recordName: "role-\(me)"))
+            return r["roles"] as? [String] ?? []
+        } catch let error as CKError where error.code == .unknownItem {
+            return nil
+        }
     }
 }
 

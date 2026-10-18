@@ -52,18 +52,53 @@ Fonte: `GymBros/Exercises/Wger.swift` (`WgerLibrary`, `CreditLine`, `CreditsView
 
 ## 2. Privacidade e dados pessoais
 
-**RNF-07 — Dados no aparelho, login simulado e servidor desligado.** O app pede login antes do onboarding, mas no modo
-padrão (`Backend.mode = .mock`) ele é simulado: não há rede, a conta fica só no aparelho (no Keychain) e
-nenhuma senha é guardada. Todos os dados ficam no SwiftData local e em `UserDefaults`. Com `Backend.mode = .cloudKit`
-(exige iCloud, ainda não configurado), sobe para o banco público do CloudKit só o que é compartilhado: perfil público,
-ligas, seu lugar nelas, check-ins postados e recados; peso, medidas, perfil físico, recordes, metas e atividades não postadas nunca sobem.
-Critério: com `.mock`, nenhum uso de `URLSession` nem chamada ao CloudKit, e o app funciona completo sem rede depois do login.
+**RNF-07 — Conta obrigatória, dados da conta e servidor simulado.** A conta é obrigatória e os dados (treinos, bros, rotinas, recordes,
+medidas, fotos, lugares, ligas e ajustes) são dela: o aparelho guarda a cópia de trabalho (SwiftData e `UserDefaults`) e a cópia da conta
+(`AccountDataBackend`, formato do backup) sobe depois das mudanças e volta ao entrar; sair tira os dados do aparelho e outra conta nunca vê os
+da anterior. No modo padrão (`Backend.mode = .mock`) tudo é simulado: não há rede, a sessão fica no Keychain, nenhuma senha é guardada e o
+"servidor" da conta é um arquivo por conta em `Application Support/MockServer/` (sai junto com o app). Com `Backend.mode = .cloudKit`
+(exige iCloud, ainda não configurado), sobe para o banco público do CloudKit só o que é compartilhado: perfil público, ligas, seu lugar nelas,
+check-ins postados e recados. A cópia da conta tem dados do Apple Saúde e por isso nunca vai para o iCloud (RNF-07e): fica para um servidor
+próprio (ou CloudKit privado sem nenhum campo vindo do Saúde); até lá, `ServerAccountDataBackend` lança erro (`docs/cloudkit.md`).
+Critério: com `.mock`, nenhum uso de `URLSession` nem chamada ao CloudKit, e o app funciona completo sem rede depois do login;
+os dados locais de antes da conta obrigatória são adotados pela primeira conta que entra, sem perda (`AccountSyncTests`).
+
+**RNF-07b — Exclusão de conta (guideline 5.1.1(v)).** Ajustes > Conta > "Excluir conta" apaga a cópia da conta (`AccountDataBackend.delete`),
+chama `AuthBackend.deleteAccount` e, só se o servidor confirmar, apaga tudo da conta no aparelho (`AccountData.wipeAll`: banco inteiro, chaves de
+usuário, aceite dos termos, bloqueios, denúncias, resumo do widget) e a sessão do Keychain, e volta ao login. No CloudKit apaga os registros criados pelo usuário
+(perfil, `Member`, `CheckIn`, `Message`, `FriendLink` de saída). Pendências no servidor real: revogar o token do Sign in with Apple (exige servidor
+com a chave .p8) e vínculos de amizade criados por outras pessoas (`docs/cloudkit.md`).
+Também saem as cópias da conta guardadas em `Application Support/AccountSync/`. Se a limpeza do aparelho falhar depois de o servidor confirmar (ou o app
+fechar no meio), `accountDataPendingWipe` guarda a conta e a limpeza termina ao abrir o app ou antes de outra conta entrar; esses dados nunca são adotados.
+Critério: depois de excluir, nada da conta fica no aparelho nem no servidor simulado (`AccountSyncTests`, `AccountDeletionTests`).
+
+**RNF-07c — Conteúdo de usuários (guideline 1.2).** Denunciar e bloquear existem em check-ins, fotos, comentários, recados e perfis de outras pessoas,
+nunca no próprio conteúdo. Denúncia esconde na hora para quem denunciou e vai por uma fila que sobrevive a falta de rede; bloqueio esconde a pessoa
+em tudo menos na pontuação das ligas e desfaz a amizade. Tudo passa por `ModerationBackend` (`ModerationStore`); listas no `UserDefaults`, sem `@Model` novo.
+Pendência no servidor real: analisar denúncias em até 24 h e tirar do ar para todos (`docs/cloudkit.md`).
+Critério: `ModerationTests`.
+
+**RNF-07d — Termos de uso e filtro (guideline 1.2).** Termos com tolerância zero em Ajustes e na web (`docs/termos.md`, gerada do texto de
+`GymBros/App/TermsView.swift`), com aceite no primeiro acesso, guardado com a versão (`OnboardingView`, `TermsRequiredView`; `TermsGate` e `Terms.canPublish` como proteção).
+`ContentFilter` (puro, no aparelho, lista em `BlockedTerms.swift`) barra o texto antes de enviar; o que sobe sem tela (nome nas ligas, perfil
+público) sai vazio se barrado. Critério: `TermsTests` e `ContentFilterTests`.
+
+**RNF-07e — Dado do Apple Saúde não vai para o iCloud (guideline 5.1.3(ii)).** Check-in de atividade importada do Saúde
+(`healthUUID` ou `healthType`) sobe sem `kcal` e sem `meters`, e com esforço neutro (5), porque o esforço importado é derivado das kcal do Saúde
+(`HealthSync.effort`). Sobem só porque você posta: tipo, data e duração do treino do Saúde (aceito e dito na política e no aviso "Postar em"), mais
+título, nota e foto. Quem vê estima as
+calorias com o peso de referência; distância só sobe quando é do GPS do próprio app. O título sugerido ao postar uma atividade do Saúde não reusa a nota
+importada ("512 kcal"). Seu placar usa os mesmos dados que os outros recebem (`Activity.scoreInput`). Peso, medidas e perfil físico nunca sobem.
+Critério: `HealthPrivacyTests` (`OutgoingCheckIn(_:activity:)` e `CKRecord(cloud:)` sem `kcal`/`meters` e com esforço 5 em atividade do Saúde).
+Fonte: `GymBros/Leagues/Leagues.swift` (`isFromHealth`, `publishableEffort`, `publishableMeters`, `publishableKcal`), `GymBros/Leagues/LeagueRemote.swift` (`OutgoingCheckIn`).
 
 **RNF-07a — Manifesto e política de privacidade.** App e widget têm `PrivacyInfo.xcprivacy` (sem rastreamento, sem dados
 coletados no modo `.mock`, `UserDefaults` com os motivos CA92.1 e 1C8F.1 no app e 1C8F.1 no widget), e o app declara
 `ITSAppUsesNonExemptEncryption = NO`. A política de privacidade fica em Ajustes > Privacidade (`GymBros/App/PrivacyPolicyView.swift`)
 e na web em `docs/privacidade.md` (https://alonsojrr14.github.io/gymbros/privacidade/), gerada a partir do mesmo texto.
-Critério: ao ligar `Backend.mode = .cloudKit` ou login real, atualizar `NSPrivacyCollectedDataTypes` e as duas versões da política antes de publicar.
+A política diz que a conta é obrigatória, que os dados são da conta e que, nesta versão, o servidor é simulado no aparelho.
+Critério: ao ligar `Backend.mode = .cloudKit`, login real ou o servidor dos dados da conta, atualizar `NSPrivacyCollectedDataTypes` (dados de
+saúde e fitness, localização, fotos, identificadores e conteúdo do usuário ligados à identidade) e as duas versões da política antes de publicar.
 Fonte: `GymBros/Resources/PrivacyInfo.xcprivacy`, `GymBrosWidget/PrivacyInfo.xcprivacy`, `GymBros/Resources/Info.plist`.
 Fonte: `GymBros/Services/Backend.swift` (`Backend.mode`, `install`), `GymBros/Services/Auth.swift` (`AuthStore`, `MockAuthBackend`), `GymBros/Models/Schema.swift` (`AppData.container`), `docs/cloudkit.md`; grep por `URLSession` sem resultados.
 
@@ -107,7 +142,7 @@ Fonte: `GymBros/Profile/ProfileView.swift` (l. 34–40, 263–267), `GymBros/Fri
 comentários, percursos, academias, corpo etc. Imagens: entram só a foto do perfil (512 px) e a capa de cada liga reduzida
 (até 640 px, JPEG 0,6, só da temporada atual); imagens dos check-ins e fotos de progresso ficam de fora. O check-in
 restaurado volta sem imagem, mas com a marca `hadPhoto`, então a pontuação nas ligas não muda. O arquivo vai para onde
-o usuário escolher (Arquivos/iCloud Drive), sem criptografia.
+o usuário escolher no Arquivos, sem criptografia. O app não sugere o iCloud Drive porque o arquivo leva dados do Apple Saúde (guideline 5.1.3(ii)).
 O estado no servidor das ligas e check-ins (`syncedAt`, `joined`) vai junto, e a restauração é atômica (falhou, nada muda).
 Critério: restaurar um backup recupera todos os registros, a foto do perfil e as capas; imagens de check-in e de progresso não voltam, e o placar das ligas fica igual; restaurar não recria ligas no servidor nem republica check-ins já enviados.
 Fonte: `GymBros/Services/Backup.swift` (`make`, `restore`, `smallCover`), `GymBros/Models/League.swift` (`LeagueCheckIn.hadPhoto`); `GymBrosTests/BackupTests.swift`.
@@ -252,7 +287,7 @@ Fonte: `pbxproj` (`developmentRegion = "pt-BR"`), `GymBros/DesignSystem/GMCalend
 `GymTestCase` salva e restaura as chaves de `UserDefaults` e os recordes manuais e usa banco em memória, para não mexer nos dados reais.
 Fonte: `pbxproj` (l. 487, 499), `GymBrosTests/TestSupport.swift`.
 
-**RNF-36 — Cobertura atual por arquivo de teste (90 testes, contados por `func test` em `GymBrosTests/`).**
+**RNF-36 — Cobertura atual por arquivo de teste (182 testes, contados por `func test` em `GymBrosTests/`).**
 
 | Arquivo | Testes | O que cobre |
 |---|---|---|
@@ -267,11 +302,14 @@ Fonte: `pbxproj` (l. 487, 499), `GymBrosTests/TestSupport.swift`.
 | `StoreTests.swift` | 2 | banco do aparelho abre com o `SchemaV1` sem ser movido, container em memória com o `AppMigrationPlan` |
 | `LeagueFlushTests.swift` | 2 | `flush` concorrente envia cada item uma vez e grava `syncedAt`; item apagado durante o envio não derruba o app |
 | `BackupTests.swift` | 2 | ida e volta do backup com `syncedAt`/`joined` das ligas e check-ins e os ajustes com tipo; backup antigo restaura ligas e check-ins como já enviados e de outra pessoa |
+| `HealthPrivacyTests.swift` | 5 | check-in de atividade do Saúde sobe sem kcal e distância (também no `CKRecord`), `healthType` sozinho conta como Saúde, distância do GPS do app sobe, seu placar igual ao que os outros calculam |
+| `AccountDeletionTests.swift` | 6 | `wipeSocial` apaga ligas, check-ins, recados, comentários e chaves sociais; excluir conta chama o servidor primeiro e apaga tudo do aparelho e a sessão do Keychain; falha no servidor não apaga nada; sem sessão nada é postado; mock libera o e-mail e volta aos amigos de exemplo |
+| `AccountSyncTests.swift` | 10 | dados sem dono adotados, sair limpa e entrar restaura (e os stores de denúncias e caixa de entrada releem depois de restaurar), troca de conta não mistura (nem o estado dos servidores simulados), dados de outra conta guardados antes de sair, excluir apaga servidor simulado, aparelho e cópias guardadas da conta, exclusão interrompida termina antes da próxima conta, falha ao excluir mantém tudo (banco em memória, suites e pastas temporárias) |
 
-Sem testes: rollback da restauração do backup, recuperação do banco, importação/escrita no Saúde, localização, widget, amigos, login (`AuthStore`), backends CloudKit e telas.
+Sem testes: rollback da restauração do backup, recuperação do banco, importação/escrita no Saúde, localização, widget, amigos, login com e-mail/Apple (`AuthStore`, só a exclusão tem teste), backends CloudKit e telas.
 **Recomendação:** testes do rollback da restauração e do `hadPhoto` no backup, da recuperação do banco e da deduplicação com o Saúde; meta mínima de cobertura nas regras de `Game`, `Training`, `Leagues` e `Backup`.
 
-**RNF-37 — Contratos de backend substituíveis.** `AuthBackend` (`signInWithApple`, `signIn`, `signUp`, `signOut`),
+**RNF-37 — Contratos de backend substituíveis.** `AuthBackend` (`signInWithApple`, `signIn`, `signUp`, `signOut`, `deleteAccount`),
 `LeagueBackend` (`fetch`, `send`, `create`, `join`, `setMembership`, `publish`, `retract`, `leave`) e `FriendsBackend`
 (`fetch`, `add`, `accept`, `decline`, `remove`, `profile`, `publish`) são protocolos `Sendable` com tipos `Codable`; as telas falam só
 com eles. `Backend.install()` escolhe mock ou CloudKit pelo interruptor `Backend.mode`; outro servidor é mais uma implementação.
@@ -305,11 +343,11 @@ só o autor apaga o próprio check-in ou recado; código de convite não dá ace
 Critério: teste de API com usuário de fora da liga recebe 403 em todos os recursos da liga.
 
 **RNF-44 — Amizade e perfil público.** `profile(id)` devolve só o que a pessoa marcou como público (RNF-13), e só para amigos ou colegas de liga.
-O perfil privado (peso, medidas, recordes, calendário completo) nunca sai do aparelho.
+O perfil privado (peso, medidas, recordes, calendário completo) nunca é mostrado a outras pessoas; vai só na cópia da conta (RNF-07).
 
 **RNF-45 — PII e fotos.** Nome, @usuário, bio, foto do perfil e fotos de check-in são dados pessoais: armazenar em ambiente
 corporativo aprovado, com criptografia em repouso, URLs de foto assinadas e com expiração, remoção de EXIF/GPS das imagens
-e exclusão de conta que apague tudo. Localização de academias e percursos permanece só no aparelho, a menos que haja consentimento explícito.
+e exclusão de conta que apague tudo. Academias e percursos vão só na cópia da conta (dita na política) e nunca são compartilhados sem consentimento explícito.
 Em desenvolvimento, usar dados sintéticos (como os do mock atual).
 
 **RNF-46 — Sincronização da caixa de saída.** Ligas, check-ins e recados ficam locais com `syncedAt = nil` até o servidor

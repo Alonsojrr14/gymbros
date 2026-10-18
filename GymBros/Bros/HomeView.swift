@@ -12,6 +12,9 @@ struct HomeView: View {
     @State private var friends = false
     @State private var logging = false
     @State private var settings = false
+    @State private var inbox = InboxStore.shared
+    @State private var inboxOpen = false
+    @State private var inboxStart: InboxRoute?
 
     var body: some View {
         NavigationStack {
@@ -26,18 +29,39 @@ struct HomeView: View {
                             .accessibilityLabel("\(snapshot.streak) dias seguidos")
                     }
                     GMIconButton(icon: "person.2.fill", label: "Amigos") { friends = true }
-                    GMIconButton(icon: "square.stack.3d.up", label: "Bros") { onDex() }
+                    GMIconButton(icon: "pawprint.fill", label: "Bros") { onDex() }
+                    GMIconButton(icon: inbox.badge > 0 ? "bell.badge.fill" : "bell.fill",
+                                 label: inbox.badge > 0 ? "Caixa de entrada, \(inbox.badge) novas" : "Caixa de entrada") {
+                        inboxStart = nil
+                        inboxOpen = true
+                    }
+                    .gmCountBadge(inbox.badge)
                     GMIconButton(icon: "gearshape", label: "Ajustes") { settings = true }
                 }
+                .onboardingTarget(.homeShortcuts, shape: .capsule)
             } content: {
                 monsterCard
                 if snapshot.stage != .egg { attributesCard }
                 GMButton("Registrar atividade", icon: "plus.circle.fill") { logging = true }
+                    .onboardingTarget(.logActivity, shape: .rounded(Theme.radiusL))
                 if !activities.isEmpty { recentCard }
             }
             .gmModal(isPresented: $logging) { LogActivityView(snapshot: snapshot) }
             .gmModal(isPresented: $settings) { SettingsView() }
             .gmModal(isPresented: $friends) { FriendsView() }
+            .gmModal(isPresented: $inboxOpen) { InboxView(start: inboxStart) }
+            // Toque numa notificação social com a caixa fechada: abre já no lugar certo
+            .onChange(of: inbox.route, initial: true) { _, r in
+                guard let r, !inboxOpen else { return }
+                inbox.route = nil
+                inboxStart = r
+                // Outra tela cheia aberta por cima: fecha antes de abrir a caixa
+                let covered = settings || friends || logging
+                settings = false
+                friends = false
+                logging = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + (covered ? 0.6 : 0)) { inboxOpen = true }
+            }
         }
     }
 
@@ -48,6 +72,7 @@ struct HomeView: View {
                 // Triste ou entediado, o monstro perde a cor
                 .saturation(mood == .triste ? 0.35 : mood == .entediado ? 0.7 : 1)
                 .frame(height: 200)
+                .onboardingTarget(.monster, shape: .rounded(Theme.radius))
 
             VStack(spacing: 4) {
                 Text(monsterName)

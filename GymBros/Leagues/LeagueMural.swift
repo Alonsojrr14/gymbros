@@ -11,9 +11,13 @@ struct LeagueMuralView: View {
     @AppStorage("trainerName") private var trainerName = ""
     @State private var text = ""
     @State private var menu: LeagueMessage?
+    @State private var moderation: ModerationRequest?
+    @State private var blocked = false
+    @State private var terms = TermsGate()
 
     private struct Line: Identifiable {
         let id: String
+        var memberID = "me"
         let name: String
         let form: MonsterForm
         let isMe: Bool
@@ -44,13 +48,16 @@ struct LeagueMuralView: View {
                 if let m = menu { context.delete(m); try? context.save() }
             }
         ])
+        .moderation($moderation)
+        .termsGate($terms)
+        .onChange(of: text) { blocked = false }
     }
 
     private var merged: [Line] {
         let remote = LeagueRemoteStore.shared.remote(league)
-        let others = remote.messages.compactMap { m -> Line? in
+        let others = ModerationStore.shared.visible(remote.messages).compactMap { m -> Line? in
             guard let who = remote.member(m.memberID) else { return nil }
-            return Line(id: m.id, name: who.name, form: who.form, isMe: false, date: m.date, text: m.text)
+            return Line(id: m.id, memberID: who.id, name: who.name, form: who.form, isMe: false, date: m.date, text: m.text)
         }
         let mine = allMessages.filter { $0.leagueUUID == league.uuid }.map {
             Line(id: $0.uuid.uuidString, name: trainerName.isEmpty ? "Você" : trainerName, form: avatar, isMe: true, date: $0.date,
@@ -60,6 +67,13 @@ struct LeagueMuralView: View {
     }
 
     private var composer: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            composerField
+            if blocked { ContentBlockedNote() }
+        }
+    }
+
+    private var composerField: some View {
         HStack(alignment: .bottom, spacing: 8) {
             MonsterSprite(form: avatar).frame(width: 36, height: 36)
             GMTextField(placeholder: "Escrever no mural…", text: $text, axis: .vertical)
@@ -81,6 +95,12 @@ struct LeagueMuralView: View {
     private func send() {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
+        guard AccessStore.shared.can(.messagesPublish) else { return }
+        guard ContentFilter.allows(t) else { blocked = true; return }
+        terms.run { publish(t) }
+    }
+
+    private func publish(_ t: String) {
         context.insert(LeagueMessage(leagueUUID: league.uuid, text: t))
         try? context.save()
         text = ""
@@ -104,7 +124,13 @@ struct LeagueMuralView: View {
                 }
                 .font(.caption2.monospacedDigit()).foregroundStyle(Theme.dim)
             }
-            .onLongPressGesture { if let m = l.mine { menu = m } }
+            .onLongPressGesture {
+                if let m = l.mine {
+                    menu = m
+                } else if !l.isMe {
+                    moderation = ModerationRequest(target: ModerationTarget(userID: l.memberID, userName: l.name, content: .message, id: l.id))
+                }
+            }
             if l.isMe { MonsterSprite(form: l.form).frame(width: 32, height: 32) } else { Spacer(minLength: 40) }
         }
     }

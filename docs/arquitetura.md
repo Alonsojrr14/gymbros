@@ -39,6 +39,8 @@ GymBros/              app (81 arquivos .swift)
   Exercises/          biblioteca de exercícios, conteúdo do wger, mapa muscular, exercício personalizado
   Leagues/            regras das ligas, contrato com o servidor, telas, mural e comentários
   Friends/            amigos, amigos ao vivo, perfil público, aba Mapa
+  Moderation/         denunciar e bloquear (contrato, ModerationStore, mock, telas)
+  Access/             RBAC: roles, permissões, matriz, AccessStore, fonte das roles, ações administrativas
   Profile/            perfil, calendário de posts, perfil físico, peso/medidas, calculadora de anilhas
   Services/           conta, backend (mock/CloudKit), backup, HealthKit, lugares de treino, rotas GPS
   Resources/          Assets.xcassets, wger.json, Info.plist, GymBros.entitlements
@@ -52,7 +54,7 @@ tools/                scripts de artes e tools/wger/build.py, que gera GymBros/R
 
 | Arquivo | Papel |
 |---|---|
-| `GymBros/App/App.swift` | `@main`, `RootView` (login × onboarding × app), `MainView` (abas, derivação do estado, widget, lembretes, sync do Saúde, cena de evolução) |
+| `GymBros/App/App.swift` | `@main`, `RootView` (login obrigatório → onboarding → app), `MainView` (abas, derivação do estado, widget, lembretes, sync do Saúde, cena de evolução) |
 | `GymBros/App/OnboardingView.swift`, `GymBros/App/SettingsView.swift` | Onboarding; Ajustes (conta, Saúde, lembretes, lugares, backup) |
 | `GymBros/App/Shortcuts.swift` | `AppShortcutsProvider` (Siri/Atalhos/Botão de Ação) |
 | `GymBros/Models/Schema.swift` | `SchemaV1` (lista dos 18 modelos), `AppMigrationPlan`, `AppData` (`container`, `recoveredCopy`, file protection, `setAside`) |
@@ -109,8 +111,16 @@ tools/                scripts de artes e tools/wger/build.py, que gera GymBros/R
 | `GymBros/Leagues/LeaguesView.swift`, `GymBros/Leagues/LeagueMural.swift`, `GymBros/Leagues/CheckInDetail.swift` | Telas de ligas, mural, detalhe/comentários do check-in |
 | `GymBros/Friends/Friends.swift`, `GymBros/Friends/FriendsLive.swift`, `GymBros/Friends/PublicProfile.swift` | Amigos (`FriendsBackend`, mock), amigos treinando no mapa (simulados), perfil público |
 | `GymBros/Friends/MapScreen.swift` | Aba Mapa |
-| `GymBros/Services/Auth.swift` | Conta: `AuthBackend`, `AuthUser`, `AuthStore` (sessão no Keychain), `Keychain` (gravar, ler e apagar itens do app), `MockAuthBackend` (e-mail/senha e Apple simulados) e `LoginView` |
-| `GymBros/Services/Backend.swift` | Interruptor `Backend.mode` (`.mock` por padrão, `.cloudKit`), `Backend.install()` e as implementações CloudKit dos três contratos (`CloudKitAuthBackend`, `CloudKitLeagueBackend`, `CloudKitFriendsBackend`) sobre o banco público (`Cloud`, `CloudType`) |
+| `GymBros/Moderation/Moderation.swift`, `GymBros/Moderation/ModerationSheets.swift` | Denunciar e bloquear: `ModerationBackend`, `ReportedContent`, `ReportReason`, `ModerationStore` (bloqueados, conteúdo oculto, fila de envio e filtros usados pelas telas), `MockModerationBackend`, o modificador `.moderation(_:)` (menu, motivo, confirmação, "obrigado") e `BlockedUsersView` |
+| `GymBros/Services/Auth.swift` | Conta: `AuthBackend`, `AuthUser`, `AuthStore` (sessão no Keychain, exclusão de conta), `Keychain` (gravar, ler e apagar itens do app), `AccountData` (chaves de usuário, cópia dos ajustes e limpeza dos dados da conta no aparelho), `MockAuthBackend` (e-mail/senha e Apple simulados) e `LoginView` (botão oficial da Apple, botão da conta de demonstração no `.mock`) |
+| `GymBros/Services/DemoAccount.swift` | Conta de demonstração da revisão da Apple (só no `.mock`): credenciais fixas e `seedIfNeeded` (entra uma vez na liga de exemplo, chamado pela aba Ligas); ver `docs/app-review.md` |
+| `GymBros/Services/AccountSync.swift` | Dados vinculados à conta: contrato `AccountDataBackend` (upload/download/delete da cópia no formato do `Backup`), `MockAccountDataBackend` (servidor simulado em arquivo), `ServerAccountDataBackend` (modo `.cloudKit`, lança erro), `AccountSync` (adoção, restauração, upload com debounce, sair e excluir) e `AccountLoadingView` |
+| `GymBros/App/SocialGate.swift` | `SocialGate`: mostra `TermsPrompt` no lugar do conteúdo social quando falta aceitar os termos; com o aceite, exige a permissão pedida (`requires:`) e mostra só um indicador enquanto as roles carregam |
+| `GymBros/Access/Access.swift` | `AppRole`, `Permission`, `PermissionScope`, `OwnedResource` (`League.isMine`), `RolePolicy.standard` (matriz), `AccessContext`, `AccessError` |
+| `GymBros/Access/AccessStore.swift` | `RoleBackend`, `AccessStore` (`can`, `authorize`, `refresh`), `MockRoleBackend`, `AdminBackend`/`TrustedServerRequired`/`AdminActions` (ações de ADMIN, dependem de servidor confiável) |
+| `GymBros/App/TermsView.swift` | Termos de uso: `Terms` (texto, versão, aceite em `UserDefaults`, `canPublish`), `TermsView`, `TermsAcceptView`, `TermsGate` + `.termsGate(_:)` (roda a ação de publicar depois do aceite) e `TermsPrompt` |
+| `GymBros/Moderation/ContentFilter.swift`, `GymBros/Moderation/BlockedTerms.swift` | Filtro de palavras puro (`ContentFilter.allows`, `match`, `publishable`) e a lista de termos; `ContentBlockedNote` é o aviso perto do campo |
+| `GymBros/Services/Backend.swift` | Interruptor `Backend.mode` (`.mock` por padrão, `.cloudKit`), `Backend.install()` e as implementações CloudKit dos quatro contratos (`CloudKitAuthBackend`, `CloudKitLeagueBackend`, `CloudKitFriendsBackend`, `CloudKitModerationBackend`) e o `CloudKitRoleBackend` (só leitura das roles) sobre o banco público (`Cloud`, `CloudType`) |
 | `GymBros/Services/Location.swift` | `GymLocation` (CLMonitor), `NotificationRouter` |
 | `GymBros/Services/Route.swift` | GPS (`RouteTracker`), `kmText`/`paceText`, telas de corrida, `GymEditorView`, `GymChooserView`, `PlaceDetector` |
 | `GymBros/Services/HealthSync.swift` | Importação/exportação de treinos no HealthKit |
@@ -139,7 +149,7 @@ O app não usa `TabView`. `MainView` (`GymBros/App/App.swift`) monta um `ZStack`
 | 3 | Mapa (badge = amigos treinando agora) | `MapScreen` |
 | 4 | Histórico | `HistoryView` |
 
-`RootView` mostra `LoginView` enquanto não há sessão (`AuthStore.isSignedIn`) e depois `OnboardingView` enquanto `@AppStorage("trainerName")` estiver vazio.
+`RootView` mostra `LoginView(required: true)` (sem botão de fechar) enquanto não houver sessão; com sessão, `AccountLoadingView` até o `AccountSync` deixar no aparelho os dados daquela conta (seção "Dados da conta"), depois `OnboardingView` enquanto `@AppStorage("trainerName")` estiver vazio e depois `MainView`. "Sair da conta" e "Excluir conta" trocam a tela por "Saindo…", limpam o aparelho e, sem sessão, o `RootView` volta ao login. O `SocialGate` (aba Ligas, Amigos, "Amigos agora" do Mapa, parte pública do perfil) só pede o aceite dos termos e a permissão da role. `postCheckIns`/`syncCheckIns` ainda conferem sessão, termos e permissão (`Terms.canPublish`), para nada ser publicado se a sessão acabar com uma tela aberta.
 
 ### Telas principais e empilhamento
 
@@ -158,6 +168,17 @@ O app não usa `TabView`. `MainView` (`GymBros/App/App.swift`) monta um `ZStack`
 | `gmPrompt(...)` | Host centralizado com `GMTextField` | Substitui `alert` com campo de texto |
 
 Detalhes que importam: o host roda a ação **depois** de fechar a camada (`close(then:)`), para permitir abrir outra tela em seguida; e `.transaction(value:)` desliga a animação do sistema só na abertura daquela camada. Não há `.sheet`, `.alert` nem `confirmationDialog` no app, e `fullScreenCover` só aparece dentro de `GymBros/DesignSystem/GMScreen.swift` e `GymBros/DesignSystem/GMSheets.swift`.
+
+### Tutorial de primeira utilização (`GymBros/Onboarding/`)
+
+Coach marks sobre a interface real, depois do cadastro do nome (`OnboardingView`), quando a `MainView` está livre (sem evolução, Dex, aviso de chegada ou banco recuperado por cima) e, na abertura automática, sem treino em andamento.
+
+- `OnboardingStep.tour`: roteiro declarativo (id, texto, alvos, aba, posição do cartão, interação). Mudar a ordem ou adicionar etapas é só editar a lista.
+- `.onboardingTarget(_:shape:)`: marca o elemento real; `OnboardingTargetRegistry` guarda o frame global (as abas escondidas não registram, via `onboardingVisible`).
+- `OnboardingCoordinator`: estado, navegação entre abas, espera o elemento aparecer (até 2 s) e pula a etapa com log (`Logger` categoria `onboarding`) se ele não existir.
+- `OnboardingOverlay`: vinheta com recorte par-ímpar (o recorte não é pintado: mostra a interface de baixo). Etapas explicativas bloqueiam toques; as de toque (`openTab`) deixam o toque passar pelo recorte.
+- Persistência em `UserDefaults`, por conta (hash do id) ou do aparelho sem conta: não apresentado, em andamento (retoma na etapa), concluído, pulado.
+- Ajustes → Como funciona → "Ver tutorial do app". Em Debug, Ajustes → Desenvolvimento ("Testar onboarding", "Mostrar na próxima abertura") e os argumentos `-onboardingReset` e `-onboardingStep <id>`; nada disso compila em Release.
 
 ## 3. Modelo de dados (SwiftData)
 
@@ -244,10 +265,10 @@ Consequência: editar ou apagar uma `Activity` recalcula tudo. As telas usam `Ga
 
 ### Ligas: `ScoreInput`, `LeagueScoring`, `LeagueBoard`
 
-- `ScoreInput` (`GymBros/Leagues/Leagues.swift`) é o mínimo para pontuar: tipo, minutos, esforço, metros, kcal. Vem de `Activity.scoreInput` (seus check-ins) ou `RemoteCheckIn.input` (dos outros).
+- `ScoreInput` (`GymBros/Leagues/Leagues.swift`) é o mínimo para pontuar: tipo, minutos, esforço, metros, kcal. Vem de `Activity.scoreInput` (seus check-ins, com os mesmos dados publicados: sem kcal/distância do Saúde e com esforço 5 nelas) ou `RemoteCheckIn.input` (dos outros).
 - `LeagueScoring.score`:
   - `pontos`: `Game.xp` da atividade; com pesos por atributo (0× a 3×), o XP é multiplicado por `Σ peso_do_tipo × peso_da_liga`.
-  - `treinos`: 1 por check-in. `minutos`: até 240. `distancia`: metros. `calorias`: `kcal` do Saúde ou `HealthSync.activeKcal` com peso de referência 70 kg.
+  - `treinos`: 1 por check-in. `minutos`: até 240. `distancia`: metros. `calorias`: `kcal` publicado ou `HealthSync.activeKcal` com peso de referência 70 kg (kcal do Saúde não sai do aparelho, então atividade do Saúde também é estimada).
 - `PhotoRule.apply`: sem foto vale igual, metade ou zero. `League.score` aplica as duas coisas.
 - `LeagueBoard` (`@MainActor`):
   - `feed`: junta seus `LeagueCheckIn` com os `RemoteCheckIn` da liga, já pontuados.
@@ -257,15 +278,25 @@ Consequência: editar ou apagar uma `Activity` recalcula tudo. As telas usam `Ga
 
 ## 5. Servidor: contratos, mock e CloudKit
 
-O app fala com o servidor só por três contratos: `AuthBackend` (`GymBros/Services/Auth.swift`), `LeagueBackend` (`GymBros/Leagues/LeagueRemote.swift`) e `FriendsBackend` (`GymBros/Friends/Friends.swift`). Quem responde é escolhido por um interruptor em `GymBros/Services/Backend.swift`: `Backend.mode` é `.mock` hoje (o Personal Team não tem iCloud) e `Backend.install()`, chamado ao abrir o app, liga os três stores ao backend escolhido. Em `.mock` não há rede; em `.cloudKit` tudo vai para o banco público do container `iCloud.com.alonsoalmeida.gymbros`. Esquema, permissões e o passo a passo para ligar estão em `docs/cloudkit.md`. A liga de exemplo (`AMIGOS`) continua simulada nos dois modos.
+O app fala com o servidor só por cinco contratos: `AuthBackend` (`GymBros/Services/Auth.swift`), `AccountDataBackend` (`GymBros/Services/AccountSync.swift`), `LeagueBackend` (`GymBros/Leagues/LeagueRemote.swift`), `FriendsBackend` (`GymBros/Friends/Friends.swift`) e `ModerationBackend` (`GymBros/Moderation/Moderation.swift`). Quem responde é escolhido por um interruptor em `GymBros/Services/Backend.swift`: `Backend.mode` é `.mock` hoje (o Personal Team não tem iCloud) e `Backend.install()`, chamado ao abrir o app, liga os cinco stores ao backend escolhido. Em `.mock` não há rede; em `.cloudKit` tudo vai para o banco público do container `iCloud.com.alonsoalmeida.gymbros`. Esquema, permissões e o passo a passo para ligar estão em `docs/cloudkit.md`. A liga de exemplo (`AMIGOS`) continua simulada nos dois modos. O mesmo interruptor liga a fonte das roles do RBAC (`RoleBackend`, só leitura; `docs/rbac.md`).
 
 ### Conta (`GymBros/Services/Auth.swift`)
 
-- `AuthBackend`: `signInWithApple`, `signIn(email:password:)`, `signUp(name:email:password:)`, `signOut`.
+- `AuthBackend`: `signInWithApple`, `signIn(email:password:)`, `signUp(name:email:password:)`, `signOut`, `deleteAccount`.
+- `AuthStore.deleteAccount(context:defaults:widget:beforeWipe:)`: servidor primeiro; só se der certo, `AccountData.wipeAll` apaga o banco inteiro (os 18 modelos), as chaves de usuário (`AccountData.userKeys`, inclusive `friendCode`, `pendingRetractions`, bloqueios, denúncias e aceite dos termos), `cloudUserID`, `publishedProfile-*` e o resumo do widget, limpa os caches de `LeagueRemoteStore`, `FriendsStore` e `ModerationStore` e apaga a sessão do Keychain. Quem chama é `AccountSync.deleteAccount`, que antes apaga a cópia da conta no servidor.
 - `AuthStore` (`@MainActor @Observable`, singleton): valida e-mail e senha (mínimo 8 caracteres), guarda o `AuthUser` (id, nome, e-mail, provedor, token) no Keychain (`Keychain`, serviço `GymBros.auth`, conta `authUser`, acessível só neste aparelho depois do primeiro desbloqueio); sessões antigas em `UserDefaults("authUser")` migram na primeira leitura. Usa o nome da conta como nome de treinador se ainda não houver um; `RootView` só passa do `LoginView` com sessão. Nenhuma senha é guardada no app.
-- `MockAuthBackend`: login simulado. "Continuar com a Apple" cria um usuário na hora, com e-mail de retransmissão; o cadastro guarda só e-mail → nome em `UserDefaults("mockAccounts")` (recusa e-mail repetido) e o login aceita qualquer senha válida, porque sem servidor não há como conferir.
-- `CloudKitAuthBackend`: a conta é a do iCloud do aparelho (`Cloud.me()`); e-mail e senha respondem `AuthError.appleOnly`.
-- Ajustes mostra a conta com o aviso "Login simulado enquanto não há servidor" e o botão de sair (não apaga dados do aparelho).
+- `MockAuthBackend`: login simulado. "Continuar com a Apple" devolve sempre o mesmo usuário neste aparelho (`mockAppleAccount`, como um Apple ID), com e-mail de retransmissão; o cadastro guarda só e-mail → nome em `UserDefaults("mockAccounts")` (recusa e-mail repetido) e o login aceita qualquer senha válida, porque sem servidor não há como conferir.
+- `MockAuthBackend.deleteAccount`: tira o e-mail de `mockAccounts` (ou esquece o usuário Apple simulado) e volta amigos e moderação simulados ao começo.
+- `CloudKitAuthBackend`: "Continuar com a Apple" abre a folha da Apple (`AppleIDAuthorization`, `ASAuthorizationAppleIDProvider`, exige a capability Sign in with Apple) e os dados ficam no id do iCloud (`Cloud.me()`); e-mail e senha respondem `AuthError.appleOnly`; `deleteAccount` apaga perfil, `Member`, `CheckIn`, `Message` e `FriendLink` de saída do usuário.
+- `LoginView` usa o `SignInWithAppleButton` oficial só como visual (o toque vai para `AuthStore`, que escolhe mock ou real pelo `Backend.mode`).
+- Ajustes mostra a conta (com o aviso "Login e servidor simulados…" no `.mock`), "Sair da conta" (salva a cópia na conta, tira os dados do aparelho e volta ao login; sem conseguir salvar, nada sai) e "Excluir conta" (confirmação destrutiva, apaga tudo na conta e no aparelho, volta ao login).
+
+### Dados da conta (`GymBros/Services/AccountSync.swift`)
+
+- Treinos, bros, rotinas, recordes, medidas, ligas e ajustes são da conta. O aparelho guarda a cópia de trabalho; a cópia da conta é um `Backup` com `accountSettings` (property list com todas as `AccountData.userKeys`) e as fotos dos check-ins.
+- `AccountDataBackend`: `upload(_:accountID:)`, `download(accountID:) -> Backup?`, `delete(accountID:)`. `MockAccountDataBackend` grava um arquivo por conta em `Application Support/MockServer/<sha256 do id>.json` (fora do SwiftData, sai junto com o app); `park`/`unpark` guardam em `<hash>.social.plist` o estado dos outros servidores simulados (`mockFriends`, `mockInbox`, `mockReports`, `mockBlocks`) ao sair e o devolvem ao entrar, para outra conta não ver amigos e mensagens da anterior. `ServerAccountDataBackend` (modo `.cloudKit`) lança `AccountSyncError.noServer`: a cópia tem dados do Apple Saúde e não pode ir para o iCloud (guideline 5.1.3(ii)); a implementação real fica para o servidor próprio (`docs/cloudkit.md`).
+- `AccountSync` (`@MainActor @Observable`): `UserDefaults("accountDataOwner")` guarda o hash da conta dona dos dados locais. `enter(user)`: se o dono é a conta, segue; se é outra, guarda uma cópia em `Application Support/AccountSync/` e limpa; se o servidor tem dados da conta, restaura (guardando antes os dados sem dono, se houver); se não tem, os dados locais sem dono (instalações de antes da conta obrigatória) passam a ser da conta e sobem. `scheduleUpload` (5 s sem mudanças, disparado por `ModelContext.didSave` e `UserDefaults.didChangeNotification` no `RootView`) e `uploadInBackground` (ao ir para segundo plano). `signOut` sobe, troca a tela, limpa (`AccountData.wipeAll` + widget, Live Activity, notificações, lugares monitorados e `PRBook`) e encerra a sessão. Depois de restaurar, `deviceReload` faz `ModerationStore`, `InboxStore`, `GymLocation` (academias monitoradas) e `PRBook` relerem o aparelho. `deleteAccount` apaga a cópia no servidor e chama `AuthStore.deleteAccount`; confirmada a exclusão, grava `accountDataPendingWipe` e `finishPendingDeletion` limpa o aparelho e as cópias da conta em `Application Support/AccountSync/` (`conta-<hash>-…`, `sem-dono-<hash>-…`). Se falhar, a conta já não existe e não há erro na tela: a limpeza roda de novo ao abrir o app (`RootView`) e antes de qualquer `enter`.
+- Contexto, `UserDefaults`, App Group, pasta das cópias e limpeza do aparelho são injetados (testes usam banco em memória, suites e pastas temporárias).
 
 ### Ligas (`GymBros/Leagues/LeagueRemote.swift`)
 
@@ -316,7 +347,7 @@ sequenceDiagram
 
 O caminho previsto é trocar `Backend.mode` para `.cloudKit` depois de configurar o iCloud (`docs/cloudkit.md`). Mesmo assim, ainda não têm contrato ou implementação:
 
-1. **Comentários e reações**: `CheckInComment` fica só no aparelho.
+1. **Comentários e reações**: `CheckInComment` não chega a outras pessoas (vai só na cópia da sua conta).
 2. **Fotos de outras pessoas**: `RemoteCheckIn.photoURL` já chega, mas as telas mostram o quadro colorido.
 3. **Foto do perfil**: não sobe.
 4. **Temporadas passadas**: a renovação é calculada em cada aparelho; o ranking de temporadas antigas só existe localmente.
@@ -363,14 +394,14 @@ O caminho previsto é trocar `Backend.mode` para `.cloudKit` depois de configura
 
 ### Backup JSON (`GymBros/Services/Backup.swift`)
 
-- `Backup.make` serializa DTOs de todos os modelos (inclusive `LeagueMessage`), um subconjunto de ajustes (`settingKeys`, com `autoWarmup`, `restNotification`, `barWeight`, os WODs agendados (`plannedWods`), metas por exercício e o perfil físico com as metas de peso e frequência de `BodyProfile.keys`) em texto e com tipo (`typedSettings`), a foto do perfil e a capa reduzida da temporada atual de cada liga; `version = 1`, campos novos opcionais para ler backups antigos.
+- `Backup.make` serializa DTOs de todos os modelos (inclusive `LeagueMessage`), um subconjunto de ajustes (`settingKeys`, com `autoWarmup`, `restNotification`, `barWeight`, os WODs agendados (`plannedWods`), metas por exercício e o perfil físico com as metas de peso e frequência de `BodyProfile.keys`) em texto e com tipo (`typedSettings`), a foto do perfil e a capa reduzida da temporada atual de cada liga; `version = 1`, campos novos opcionais para ler backups antigos. Com `account: true` (cópia da conta, `AccountSync`), leva também todas as chaves de usuário (`accountSettings`), as fotos dos check-ins e de progresso e as capas inteiras.
 - `restore` apaga todos os modelos do banco e reinsere num só `save()` (se algo falhar, `rollback()` e o banco fica como estava); check-ins voltam sem imagem, mas com `hadPhoto`. Ligas e check-ins guardam `syncedAt` (e a liga, `joined`), então o flush não recria ligas nem republica check-ins já enviados; em backups antigos (sem `hasSyncState`) tudo volta como já enviado e a liga como de outra pessoa (`joined = true`). Depois, Ajustes reinicia o monitoramento dos lugares. Exportação/importação por `fileExporter`/`fileImporter` em `GymBros/App/SettingsView.swift`.
-- Não entram no backup: imagens dos check-ins, fotos de progresso do `BodyEntry`, a sessão (`authUser`), lembretes, preferências do Saúde e de lugares, visibilidade do perfil e o estado do servidor de amigos simulado.
+- Não entram no arquivo de backup (só na cópia da conta): imagens dos check-ins, fotos de progresso do `BodyEntry`, lembretes, preferências do Saúde e de lugares e visibilidade do perfil. Em nenhum dos dois: a sessão (`authUser`) e o estado do servidor simulado.
 
 ## 7. Testes
 
 - **Como rodam**: o alvo `GymBrosTests` tem `TEST_HOST` apontando para `GymBros.app`, então os testes rodam **dentro do app instalado** no aparelho. `GymTestCase` (`GymBrosTests/TestSupport.swift`) salva e restaura chaves de `UserDefaults` (`exerciseGoals`, `deloadUntil`, `deloadSnooze` e `barCountsBar`, chave que o app não usa mais) e `PRBook.manual`, e oferece `memoryContext()` com um `ModelContainer` em memória (`Activity`, `WorkoutSession`, `LoggedSet`, `League`, `LeagueCheckIn`) separado do banco real. `StoryTests` monta um container próprio, que inclui `BodyEntry` e `RouteRecord`. `StoreTests` confere que o banco real do aparelho abre com o `SchemaV1` sem ser movido.
-- **Cobertura** (90 testes, por `func test`):
+- **Cobertura** (190 testes, por `func test`):
 
 | Arquivo | Testes | O que cobre |
 |---|---|---|
@@ -384,9 +415,16 @@ O caminho previsto é trocar `Backend.mode` para `.cloudKit` depois de configura
 | `GymBrosTests/WodImportTests.swift` | 7 | Treino do coach: seções da mensagem (aquecimento, força, WOD), formato no título, time cap em linha separada, formatos (AMRAP, EMOM/E2MOM, Tabata, For Time), linha de formato com conteúdo mantida, formato não achado, WOD agendado pendente até ter resultado |
 | `GymBrosTests/StoreTests.swift` | 2 | Banco do aparelho abre com o `SchemaV1` sem ser movido, container em memória com o `AppMigrationPlan` |
 | `GymBrosTests/LeagueFlushTests.swift` | 2 | `flush` concorrente não repete create/publish/retract/send e grava `syncedAt`; liga e check-in apagados durante o envio não derrubam o app (backend que grava as chamadas, `pendingRetractions` salvo e restaurado) |
+| `GymBrosTests/HealthPrivacyTests.swift` | 5 | Guideline 5.1.3(ii): `OutgoingCheckIn(_:activity:)` e `CKRecord(cloud:)` sem kcal/distância de atividade do Saúde (`healthUUID` ou só `healthType`), distância do GPS do app sobe, placar próprio igual ao calculado pelos outros |
+| `GymBrosTests/AccountDeletionTests.swift` | 6 | Excluir conta: `AccountData.wipeSocial` apaga ligas, check-ins, recados, comentários e chaves sociais (num `UserDefaults` de teste); `AuthStore(account:)` com conta de Keychain de teste chama o servidor antes e apaga tudo do aparelho e a sessão; falha no servidor não apaga nada; sem sessão nada é postado; `MockAuthBackend` libera o e-mail e volta aos amigos de exemplo |
+| `GymBrosTests/AccountSyncTests.swift` | 10 | Dados da conta (banco em memória, suites de `UserDefaults`, pastas temporárias): dados sem dono adotados e enviados, sair limpa banco/ajustes/widget e entrar restaura (com fotos e ajustes de qualquer tipo), troca de conta não mistura (nem amigos e mensagens simulados), dados de outro dono guardados antes de sair, stores relidos depois de restaurar (denúncias ocultas, leitura das conversas), excluir apaga servidor simulado, aparelho e cópias guardadas, exclusão interrompida termina antes da próxima conta, falha ao excluir mantém tudo |
+| `GymBrosTests/ContentFilterTests.swift` | 8 | Filtro: termos em português e inglês, acentos, maiúsculas, trocas (@, 0, 1, $), letras repetidas e separadas, palavras inocentes, termos com `*` e lista própria, cada termo da lista, `publishable`, check-in barrado não é criado nem alterado, tirar destino apaga mesmo com texto barrado |
+| `GymBrosTests/TermsTests.swift` | 4 | Aceite com versão e data, versão nova pede de novo, `TermsGate` espera o aceite, excluir conta apaga o aceite |
+| `GymBrosTests/AccessTests.swift` | 23 | RBAC: matriz exata e exaustiva, negação fora da matriz, sem privilégio de ADMIN em USER/DEVELOPER, escopo próprio, roles somadas, valores inválidos, deslogado, sem atribuição, carregando, falha da consulta, troca de conta, logout, caixa de saída/moderação/amigos sem permissão, `AdminActions` (ver `docs/rbac.md`) |
+| `GymBrosTests/DemoAccountTests.swift` | 5 | Conta de demonstração: entra na liga de exemplo uma vez (com participantes simulados), não volta depois de sair, não duplica, só ela e só no `.mock`; credenciais válidas e nome fixo no `MockAuthBackend`; `demoSeeded` é chave da conta |
 | `GymBrosTests/BackupTests.swift` | 2 | `make` -> JSON -> `restore` em banco em memória: `syncedAt`/`joined` de ligas e check-ins, `typedSettings` e foto do perfil; backup antigo (sem `hasSyncState`) volta com `syncedAt = exportedAt` e `joined = true` |
 
-- **Sem cobertura**: rollback da restauração do `Backup`, recuperação do banco, `HealthSync` (sobreposição, estimativa de esforço), `FriendsStore`, `AuthStore`/`MockAuthBackend` (só o `Keychain` tem teste), os backends CloudKit, `BodyProfile.targets`, `GymLocation`, `RouteTracker` e UI.
+- **Sem cobertura**: rollback da restauração do `Backup`, recuperação do banco, `HealthSync` (sobreposição, estimativa de esforço), `FriendsStore`, login do `AuthStore`/`MockAuthBackend` (só `Keychain` e exclusão de conta têm teste), os backends CloudKit, `BodyProfile.targets`, `GymLocation`, `RouteTracker` e UI.
 
 ## 8. Decisões e dívidas técnicas observadas
 
@@ -407,7 +445,7 @@ O caminho previsto é trocar `Backend.mode` para `.cloudKit` depois de configura
 5. **Pontos da liga sem teto diário**: o modo `pontos` usa `Game.xp` bruto, não o XP com limite diário do bro; o mesmo vale para a pontuação dos posts no perfil (`GymBros/Profile/ProfileView.swift`).
 6. **Erros engolidos**: quase todo `save`/`fetch` usa `try?`; falhas de `backend.fetch` são silenciosas e as do `flush` só ficam em `LeagueRemoteStore.lastError` (o envio para no primeiro erro e tudo segue pendente).
 7. **Exclusões em cascata manuais**: como as relações são por UUID, a limpeza fica no código: `deleteActivity` (`GymBros/Activities/ActivityDetail.swift`) apaga `WorkoutSession`, `LeagueCheckIn` com seus `CheckInComment`, `RouteRecord` e `WodResult`; sair da liga apaga check-ins, comentários e recados; "Recomeçar jornada" faz o mesmo para todas as atividades.
-8. **Backup incompleto**: imagens de check-in e fotos de progresso não entram; ajustes fora de `settingKeys` (lembretes, Saúde, lugares, visibilidade, `friendCode`) não são restaurados.
+8. **Backup incompleto**: o arquivo exportado não leva imagens de check-in, fotos de progresso nem ajustes fora de `settingKeys` (a cópia da conta leva). Com o servidor simulado, apagar o app apaga a cópia da conta junto.
 9. ~~Token da sessão em `UserDefaults`~~: corrigido, o `AuthUser` vai para o Keychain e sessões antigas migram (`testSaveOverwriteAndDelete`).
 10. **Simulação espalhada**: dados fictícios em três lugares (`FakeMember` em `GymBros/Leagues/Leagues.swift`, `FriendsLive.simulated`, diretório do `MockFriendsBackend`), mas a forma do bro de cada pessoa vem só de `FakeMember`.
 

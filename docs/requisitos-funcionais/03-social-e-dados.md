@@ -2,9 +2,9 @@
 
 ## Escopo
 
-Este documento cobre a parte social do GymBros (ligas, check-ins, mural, comentários, amigos e perfil público), a localização (lugares de treino, chegada e saída, rotas GPS e amigos ao vivo no mapa), a integração com o Apple Saúde, o backup, os ajustes, o login e o compartilhamento nos Stories. Tudo foi levantado a partir do código atual, sem inventar comportamento. Os dados do usuário ficam no aparelho (SwiftData e `UserDefaults`), e tudo o que envolve servidor passa por três contratos: `AuthBackend` (login), `LeagueBackend` (ligas, check-ins e mural) e `FriendsBackend` (amigos e perfil público). Um interruptor em `GymBros/Services/Backend.swift` (`Backend.mode`) escolhe quem responde: hoje é `.mock`, com implementações simuladas e determinísticas (`MockAuthBackend`, `MockLeagueBackend`, `MockFriendsBackend`, `FriendsLive.simulated`); em `.cloudKit`, as implementações do CloudKit já escritas (`CloudKitAuthBackend`, `CloudKitLeagueBackend`, `CloudKitFriendsBackend`) assumem, o que exige conta paga do Apple Developer (ver `docs/cloudkit.md`). A liga de exemplo `AMIGOS` continua simulada nos dois modos. Cada requisito traz uma linha **Situação**, que pode ser:
+Este documento cobre a parte social do GymBros (ligas, check-ins, mural, comentários, amigos e perfil público), a localização (lugares de treino, chegada e saída, rotas GPS e amigos ao vivo no mapa), a integração com o Apple Saúde, o backup, os ajustes, o login e o compartilhamento nos Stories. Tudo foi levantado a partir do código atual, sem inventar comportamento. Os dados do usuário são da conta: o aparelho guarda a cópia de trabalho (SwiftData e `UserDefaults`) e a cópia da conta vai para o servidor (RF-SOC-33). Tudo o que envolve servidor passa por cinco contratos: `AuthBackend` (login), `AccountDataBackend` (dados da conta), `LeagueBackend` (ligas, check-ins e mural), `FriendsBackend` (amigos e perfil público) e `ModerationBackend` (denúncias e bloqueios). Um interruptor em `GymBros/Services/Backend.swift` (`Backend.mode`) escolhe quem responde: hoje é `.mock`, com implementações simuladas e determinísticas (`MockAuthBackend`, `MockAccountDataBackend`, `MockLeagueBackend`, `MockFriendsBackend`, `MockModerationBackend`, `FriendsLive.simulated`); em `.cloudKit`, as implementações do CloudKit já escritas (`CloudKitAuthBackend`, `CloudKitLeagueBackend`, `CloudKitFriendsBackend`, `CloudKitModerationBackend`) assumem (os dados da conta ficam para um servidor próprio, `ServerAccountDataBackend`), o que exige conta paga do Apple Developer (ver `docs/cloudkit.md`). A liga de exemplo `AMIGOS` continua simulada nos dois modos. Cada requisito traz uma linha **Situação**, que pode ser:
 
-- **Local**: funciona de verdade, só no aparelho.
+- **Local**: funciona de verdade no aparelho (os dados entram na cópia da conta).
 - **Simulado**: hoje mostra dados de exemplo gerados no próprio app.
 - **Depende de servidor**: já existe o contrato ou a interface, mas só vai funcionar entre pessoas reais com `Backend.mode = .cloudKit` (ou, onde indicado, quando houver um backend que ainda não existe).
 
@@ -158,6 +158,7 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 **Descrição:** O app deve permitir publicar a mesma atividade, com título, descrição e foto, no perfil e em várias ligas de uma vez.
 **Regras:**
 - A seção "Postar em" lista "Meu perfil" e as ligas em andamento (já começaram e não acabaram), além das encerradas ou futuras em que a atividade já foi postada (para permitir tirar). Ligas que ainda não começaram não aparecem.
+- Sem os termos aceitos (ou sem permissão da role), "Postar em" não mostra destinos e nenhum check-in é criado, nem pelo fim automático do treino; editar uma atividade nessa situação não mexe nos posts já feitos. Se a sessão acabar com uma tela aberta, nada é publicado.
 - Ao registrar uma atividade, concluir um treino guiado, um WOD ou uma rota GPS, todos os destinos começam marcados: o perfil e as ligas já iniciadas e não encerradas. No botão "+" da liga, só ela começa marcada. Na edição, o que vale é o que já estava postado.
 - "Marcar todos" e "Desmarcar" alternam o conjunto completo. Sem destino, a atividade fica só no histórico.
 - Se não houver foto e algum destino cobrar foto, aparece o aviso "📷 Sem foto, o check-in não pontua em X e vale metade em Y.".
@@ -177,7 +178,7 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 - Mostra a foto em destaque com fundo desfocado ou, sem foto, o bro e o tipo. Também mostra autor, quando ("Hoje, 07:30", "Ontem, …"), lugar, título, descrição e os chips de duração, tipo, "+valor" e lugar.
 - O chip de valor mostra a unidade da liga ("+5,2 km", "+1 h 30 min"); post do perfil mostra "XP".
 - Comentários: texto não vazio, de até 4 linhas no campo de escrita. As reações rápidas são 💪 🔥 👏 😮‍💨 🏆 ❤️ e ficam salvas como comentários. Um comentário de até 3 caracteres feito só de emoji aparece em tamanho grande.
-- Cada comentário guarda o autor (`authorID`: "me" ou o `memberID` de outra pessoa, e `authorName`). Os seus aparecem com sua foto e seu nome atual; os de outras pessoas, com a inicial e o nome guardado. Comentários antigos, sem autor, contam como seus. Tocar e segurar só permite apagar os seus.
+- Cada comentário guarda o autor (`authorID`: "me" ou o `memberID` de outra pessoa, e `authorName`). Os seus aparecem com sua foto e seu nome atual; os de outras pessoas, com a inicial e o nome guardado. Comentários antigos, sem autor, contam como seus. Tocar e segurar permite apagar os seus; nos dos outros, denunciar ou bloquear quem escreveu (RF-SOC-30).
 - Menu: "Compartilhar" (foto e o texto "{título} · {tipo}, {duração} no GymBros 💪") está sempre disponível. Nos check-ins do próprio usuário também há "Editar" (abre a edição da atividade com os destinos) e "Apagar check-in" (tira o check-in desta liga e apaga os comentários dele, mas a atividade continua).
 **Critérios de aceitação:**
 - Um comentário enviado aparece na lista com o nome do usuário e a data relativa.
@@ -381,10 +382,11 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 ### RF-SOC-26 · Backup e restauração
 **Descrição:** O app deve exportar e restaurar uma cópia completa dos dados em JSON.
 **Regras:**
-- Exporta para o Arquivos ou iCloud Drive com o nome `GymBros-AAAA-MM-DD.json` (versão 1, datas ISO 8601; campos novos são opcionais, então backups antigos continuam abrindo).
+- Exporta para o Arquivos (o app não sugere o iCloud Drive, porque o arquivo leva dados do Apple Saúde) com o nome `GymBros-AAAA-MM-DD.json` (versão 1, datas ISO 8601; campos novos são opcionais, então backups antigos continuam abrindo).
 - Inclui: atividades (com distância e calorias), rotinas, sessões e séries, exercícios próprios, ligas com todas as configurações (pesos, desempate, regra de foto, times, seu time) e a capa reduzida (até 640 px, JPEG 0,6, só na temporada atual; ao restaurar, as passadas usam a mesma), bros, medidas, notas, check-ins (sem a imagem, mas com "tinha foto" e o lugar), percursos, visitas, lugares, WODs (com CAP), recordes, comentários (com autor), recados do mural, a foto do perfil (512 px) e os ajustes `trainerName`, `monsterNick`, `lastFormID`, `discovered`, `bodyGender`, `mainMonster`, `profileUsername`, `profileBio`, `exerciseGoals`, `autoWarmup`, `restNotification` e `barWeight`.
 - Os ajustes vão também com o tipo (`typedSettings`: booleano, número ou texto) e são restaurados com ele; backups antigos só têm a versão em texto. Backup sem foto do perfil mantém a atual.
-- Ficam de fora: as imagens dos check-ins e as fotos de progresso, as chaves de visibilidade do perfil, metas, o código e a lista de amigos, além das preferências de Saúde, de lugares e de lembretes.
+- Ficam de fora do arquivo: as imagens dos check-ins e as fotos de progresso, as chaves de visibilidade do perfil, metas, o código e a lista de amigos, além das preferências de Saúde, de lugares e de lembretes. Tudo isso vai na cópia da conta (RF-SOC-33); o arquivo é uma cópia extra.
+- Rodapé: "Seus dados são da sua conta e voltam quando você entra nela. O backup é uma cópia extra em arquivo…"; no `.mock`, avisa que o servidor é simulado no iPhone e que, se o app for apagado, só o backup recupera tudo.
 - Visitas de backups antigos ficam no lugar de mesmo nome; sem correspondente, ficam sem lugar (contam nas idas do mês com o nome guardado). Depois de restaurar, o monitoramento dos lugares recomeça.
 - Restaurar mostra a data e o número de atividades e pede confirmação ("Substituir tudo"): todos os dados atuais são apagados antes da restauração.
 **Critérios de aceitação:**
@@ -399,7 +401,7 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 - Nome do treinador; apelido do bro principal (vazio usa o nome da forma).
 - Lembrete diário (desligado por padrão, às 18:00), só nos dias sem treino, com a opção "Só em dias de rotina". Resumo da semana no domingo às 19h (ligado por padrão), com treinos, tempo, PRs e posição nas ligas. Notificação no fim do descanso (desligada).
 - Aquecimento automático (ligado): 3 séries a 40%, 60% e 80% da carga no primeiro exercício com carga. Não há mais o ajuste "Carga na barra": é automático pelo tipo do treino (RF-TRE-05).
-- Apple Saúde (RF-SOC-24 e RF-SOC-25), Backup (RF-SOC-26) e Conta (RF-SOC-28).
+- Apple Saúde (RF-SOC-24 e RF-SOC-25), Backup (RF-SOC-26), Conta (RF-SOC-28) e Privacidade > "Termos de uso" (RF-SOC-31) e "Usuários bloqueados" (RF-SOC-30).
 - "Recomeçar jornada" pede confirmação com o mesmo texto do rodapé: apaga as atividades e tudo ligado a elas (treinos guiados concluídos, check-ins no perfil e nas ligas com seus comentários, percursos, WODs), os bros, as conquistas já vistas, a Dex descoberta e os carinhos do widget, e devolve um ovo novo, que passa a representar o usuário nas ligas, com placar zerado. Rotinas, lugares, medidas, ligas e o nome continuam; um treino em andamento continua. As próximas importações do Saúde partem do momento atual.
 **Critérios de aceitação:**
 - Ligar um lembrete pede a permissão de notificações.
@@ -412,21 +414,31 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 ## 5. Conta e compartilhamento
 
 ### RF-SOC-28 · Login e conta
-**Descrição:** O app deve pedir login antes de qualquer outra tela e permitir sair da conta nos Ajustes.
+**Descrição:** A conta é obrigatória e os dados são dela (como no GymRats e no Strava): sem sessão, o app só mostra o login. Nos Ajustes dá para sair e excluir a conta (guidelines 5.1.1(v) e 4.8); as duas ações voltam para o login.
 **Regras:**
-- Sem conta salva, a primeira tela é o login (antes do onboarding): bro bebê animado, "GymBros", "Seus treinos chocam e evoluem um bro." e o seletor "Entrar" / "Criar conta".
+- Sem sessão, `RootView` mostra só o `LoginView` (sem X para fechar); com sessão, "Abrindo sua conta…" até os dados da conta estarem no aparelho (RF-SOC-33); depois vem o onboarding (se ainda não houver nome de treinador) e o app. Nada do app é acessível sem login.
+- O login mostra o bro bebê animado, "GymBros", "Seus treinos chocam e evoluem um bro." e o seletor "Entrar" / "Criar conta". As telas sociais só pedem o aceite dos termos e a permissão da role (`SocialGate`).
+- Quem já tinha sessão continua logado.
 - "Criar conta" pede nome, e-mail e senha; "Entrar", e-mail e senha. O e-mail perde os espaços e vai para minúsculas. Erros: "Diga seu nome.", "E-mail inválido.", "A senha precisa de pelo menos 8 caracteres." e "Já existe uma conta com esse e-mail. Entre em vez de criar.". O botão só é liberado com e-mail e senha preenchidos.
-- "Continuar com a Apple" (botão branco com o logo) é a outra opção. O rodapé avisa: "Ainda não há servidor: o login é simulado e tudo continua só neste iPhone.".
-- Login simulado (`MockAuthBackend`): qualquer senha válida entra, porque não há como conferi-la; as contas criadas guardam só e-mail e nome no aparelho (a senha nunca é guardada). A Apple simulada devolve um e-mail de retransmissão (`…@privaterelay.appleid.com`).
-- A sessão (`AuthUser`: id, nome, e-mail, provedor e token) fica no aparelho. O nome da conta vira o nome de treinador se ainda não houver um; com nome de treinador, o app pula o onboarding e abre direto a tela principal.
-- Ajustes, seção "Conta": nome (ou "Sua conta"), e-mail, ícone do provedor e "Sair da conta", que pede confirmação ("Seus treinos e bros continuam neste iPhone.") e volta para o login sem apagar nada.
+- "Continuar com a Apple" usa o botão oficial (`SignInWithAppleButton`, estilo branco, 50 pt). O toque vai para `AuthStore`: no `.mock` chama o login simulado; no `.cloudKit` abre a folha da Apple (`AppleIDAuthorization`, nome e e-mail). No `.mock` o rodapé avisa: "Ainda não há servidor: o login é simulado e os dados da conta ficam guardados neste iPhone.".
+- Login simulado (`MockAuthBackend`): qualquer senha válida entra, porque não há como conferi-la; as contas criadas guardam só e-mail e nome no aparelho (a senha nunca é guardada). A Apple simulada devolve sempre o mesmo usuário neste aparelho, com e-mail de retransmissão (`…@privaterelay.appleid.com`).
+- Conta de demonstração (revisão da Apple, só no `.mock`, inclusive no Release): o botão "Entrar com conta de demonstração" entra pelo `AuthBackend` com `revisao@gymbros.app` / `GymBros2026` (nome "Bro Revisor"); digitar essas credenciais dá no mesmo. Na primeira vez que ela abre a aba Ligas, já está na liga de exemplo (RF-SOC-04); sair da liga não a traz de volta (`demoSeeded`, chave da conta). No `.cloudKit` o botão some (`docs/app-review.md`).
+- A sessão (`AuthUser`: id, nome, e-mail, provedor e token) fica no Keychain. O nome da conta vira o nome de treinador se ainda não houver um; com nome de treinador, o app pula o onboarding e abre direto a tela principal.
+- Ajustes, seção "Conta": nome (ou "Sua conta"), e-mail, ícone do provedor, "Sair da conta" e "Excluir conta". Rodapé: "Treinos, bros e o resto do progresso são da conta: ao sair, saem do iPhone e voltam quando você entra de novo." (no `.mock`, antes, "Login e servidor simulados neste iPhone.").
+- "Sair da conta" pede confirmação ("Seus treinos, bros e o resto do progresso ficam salvos na conta e saem deste iPhone. Tudo volta quando você entrar de novo."), salva a cópia da conta e só então tira os dados do aparelho e volta ao login. Se não der para salvar, nada sai e aparece "Não deu para salvar seus dados na conta: … Nada saiu do iPhone; tente de novo.".
+- "Excluir conta" pede confirmação destrutiva: "Apaga a conta e tudo dela, na conta e neste iPhone: treinos, bros, rotinas, medidas, fotos, recordes, ligas, check-ins, recados, amizades, bloqueios e denúncias. Você volta para a tela de entrar. Não dá para desfazer.". Apaga a cópia da conta no servidor, a conta e o que ela publicou (perfil, lugar nas ligas, check-ins, recados, amizades, denúncias, bloqueios) e, no aparelho, o banco inteiro, as chaves de usuário (inclusive aceite dos termos, bloqueios e denúncias), o resumo do widget e a sessão do Keychain. Se o servidor falhar, nada é apagado do aparelho e aparece "Não deu para excluir a conta: … tente de novo.". "Recomeçar jornada" continua existindo e mantém a conta.
 - No modo CloudKit, a conta é a do iCloud do aparelho; entrar por e-mail responde "Por enquanto, entre com a Apple (usa a sua conta do iCloud)." e exigiria servidor próprio.
 **Critérios de aceitação:**
 - Senha de 7 caracteres mostra "A senha precisa de pelo menos 8 caracteres.".
 - Criar conta duas vezes com o mesmo e-mail mostra o erro de e-mail em uso.
-- Sair da conta e entrar de novo mantém atividades, bros e ligas.
+- Sair da conta tira atividades, bros, ligas e ajustes do aparelho; entrar de novo traz tudo de volta (`AccountSyncTests`).
+- Instalação nova abre no login; sem entrar, não há como chegar ao onboarding nem ao app.
+- "Sair da conta" volta para o login, sem X para fechar.
+- A conta de demonstração entra na liga de exemplo uma única vez, só no `.mock` e só ela (`DemoAccountTests`).
+- Excluir conta apaga a cópia no servidor simulado, tudo do aparelho e as cópias guardadas da conta; se a limpeza do aparelho for interrompida, ela termina ao abrir o app ou antes de outra conta entrar (`AccountSyncTests`, `AccountDeletionTests`).
+- Depois de entrar de novo, o que você denunciou continua oculto, as conversas lidas continuam lidas e as academias salvas voltam a ser monitoradas.
 **Situação:** Simulado. Sign in with Apple e iCloud exigem conta paga do Apple Developer (o Personal Team não tem).
-**Fonte:** `GymBros/Services/Auth.swift` (`AuthStore`, `MockAuthBackend`, `LoginView`, `AuthError`), `GymBros/App/App.swift` (`RootView`), `GymBros/App/SettingsView.swift`, `GymBros/Services/Backend.swift`
+**Fonte:** `GymBros/Services/Auth.swift` (`AuthStore`, `AccountData`, `MockAuthBackend`, `LoginView`, `AuthError`), `GymBros/Services/DemoAccount.swift`, `GymBros/Services/AccountSync.swift`, `GymBros/App/SocialGate.swift`, `GymBros/App/App.swift` (`RootView`), `GymBros/App/SettingsView.swift`, `GymBros/Services/Backend.swift` (`CloudKitAuthBackend`, `AppleIDAuthorization`)
 
 ### RF-SOC-29 · Compartilhar nos Stories
 **Descrição:** O app deve gerar uma arte 9:16 de qualquer atividade, com escolha de moldura e de foto, e abrir o compartilhar do iPhone.
@@ -446,6 +458,95 @@ Este documento cobre a parte social do GymBros (ligas, check-ins, mural, coment�
 - Corrida de 5 km em 25 min mostra "distância" primeiro, pace 5'00" e o trajeto.
 **Situação:** Local.
 **Fonte:** `GymBros/Activities/StoryShare.swift` (`StoryData`, `StoryComposerView`, `StoryFrame`, `WorkoutStoryCard`, `RouteDrawing`), `GymBros/Activities/ActivityDetail.swift`, `GymBros/Train/TrainView.swift`, `StoryTests.swift`
+
+---
+
+### RF-SOC-30 · Denunciar e bloquear (guideline 1.2)
+**Descrição:** O usuário deve poder denunciar conteúdo de outras pessoas e bloquear quem quiser.
+**Regras:**
+- Onde: menu ⋯ do detalhe de um check-in de outra pessoa (feed da liga e posts do perfil: "Denunciar check-in", "Denunciar foto" quando há foto, "Bloquear {nome}"), tocar e segurar um comentário ou recado do mural de outra pessoa, e menu ⋯ do perfil de outra pessoa ("Denunciar perfil", "Bloquear {nome}"). Nunca aparece no seu próprio conteúdo.
+- Denunciar pede o motivo (Ofensivo ou assédio, Nudez ou conteúdo sexual, Violência, Spam, Outro motivo) e mostra "Obrigado pela denúncia" (análise em até 24 h). O conteúdo some na hora só para quem denunciou (check-in vira "Check-in denunciado"; de quem você bloqueou, "Check-in oculto" com o caminho para desbloquear; foto some e o check-in fica; perfil mostra "Perfil denunciado").
+- Bloquear pede confirmação explicando o efeito. A pessoa some dos check-ins da liga, posts, comentários, mural, amigos, pedidos, sugestões e mapa, e a amizade é desfeita. O ranking e a pontuação da liga não mudam.
+- Ajustes > Privacidade > "Usuários bloqueados" lista quem foi bloqueado, com "Desbloquear" (a amizade não volta sozinha).
+- Excluir a conta apaga bloqueios e denúncias do aparelho e do servidor.
+**Critérios de aceitação:**
+- Denunciar um check-in o tira da lista da liga sem mudar o ranking (`ModerationTests`).
+- Sem rede, a denúncia fica na fila e é enviada depois; o conteúdo continua oculto.
+**Situação:** Simulado (`MockModerationBackend` guarda no aparelho). No CloudKit, `Report` e `Block` no banco público; a análise em 24 h depende de moderação fora do app (`docs/cloudkit.md`).
+**Fonte:** `GymBros/Moderation/Moderation.swift`, `GymBros/Moderation/ModerationSheets.swift`, `GymBros/Leagues/CheckInDetail.swift`, `GymBros/Leagues/LeagueMural.swift`, `GymBros/Friends/PublicProfile.swift`, `GymBros/App/SettingsView.swift`
+
+### RF-SOC-31 · Termos de uso e aceite (guideline 1.2)
+**Descrição:** O app deve ter termos de uso com tolerância zero para conteúdo ofensivo e usuários abusivos, e pedir o aceite no primeiro acesso.
+**Regras:**
+- Os termos explicam denúncia, bloqueio, análise em até 24 h, remoção do conteúdo e expulsão de quem o publicou. Ficam em Ajustes > Privacidade > "Termos de uso" e na web (https://alonsojrr14.github.io/gymbros/termos/, `docs/termos.md`, mesmo texto). A tela de login tem links para os termos e a política de privacidade.
+- Primeiro acesso: na tela do ovo, "Receber meu ovo" só libera com a caixa "Li e aceito os Termos de uso e a Política de privacidade" marcada (os dois abrem no próprio app). Quem já tem ovo e não aceitou a versão atual (entrou de novo na conta, versão nova) vê os termos em tela cheia antes de entrar no app (`TermsRequiredView` em `RootView`).
+- Os avisos nas telas sociais ("Aceite os termos para continuar", `TermsGate`) ficam só como proteção: com o aceite na entrada, não aparecem no uso normal.
+- O aceite fica no aparelho com a versão (`Terms.version`) e a data. Subir a versão pede o aceite de novo. Excluir a conta apaga o aceite.
+- Sem aceite nada é publicado: `postCheckIns`/`syncCheckIns` não criam nem mudam check-ins e o perfil público não sobe.
+**Critérios de aceitação:** `TermsTests` (versão, novo aceite, espera do aceite, exclusão de conta).
+**Situação:** Implementado; o aceite não vai ao servidor.
+**Fonte:** `GymBros/App/TermsView.swift`, `GymBros/App/SocialGate.swift`, `GymBros/Leagues/LeaguesView.swift`, `GymBros/Services/Auth.swift`
+
+---
+
+### RF-SOC-32 · Filtro de palavras
+**Descrição:** Texto com termos ofensivos não deve ser publicado.
+**Regras:**
+- Vale para recados, comentários (inclusive reações), título e descrição de check-ins publicados (e a observação, que vira título), nome, @usuário e bio do perfil, o apelido do bro no perfil público e o nome da liga e dos times.
+- No fim do treino guiado o título do post é o nome da rotina; barrado, aparece o campo "Título do post" para ajustar antes de salvar.
+- O filtro só impede publicar e republicar: tirar destinos de uma atividade sempre apaga os check-ins de lá, mesmo com título barrado.
+- Barrado, o texto não é enviado e aparece "Esse texto tem palavras que não são permitidas no GymBros. Ajuste e tente de novo." perto do campo. Em Ajustes > Treinador, um nome barrado mostra um aviso e sobe vazio (perfil e ligas).
+- A lista fica em `GymBros/Moderation/BlockedTerms.swift` (português e inglês). O filtro ignora acentos e maiúsculas, troca @→a, 4→a, 0→o, 1→i, !→i, 3→e, 5→s, $→s, 7→t grudados em letras, aceita letras repetidas ("merdaaa") e separadas ("p u t a") e compara palavras inteiras; `*` no fim do termo pega o que começa com ele.
+**Critérios de aceitação:** `ContentFilterTests` (variações, palavras inocentes como "computador", "Scunthorpe" e "putativo", check-in barrado não é criado nem alterado, tirar destino apaga mesmo com texto barrado).
+**Situação:** Implementado, no aparelho.
+**Fonte:** `GymBros/Moderation/ContentFilter.swift`, `GymBros/Moderation/BlockedTerms.swift`
+
+### RF-SOC-33 · Dados vinculados à conta
+**Descrição:** Treinos, atividades, bros, rotinas, recordes, medidas, fotos, lugares, ligas e ajustes pertencem à conta, não ao aparelho.
+**Regras:**
+- A cópia da conta tem o formato do backup (RF-SOC-26) mais todas as chaves de usuário, as fotos dos check-ins e de progresso e as capas das ligas. Sobe 5 s depois da última mudança (banco ou ajustes) e ao ir para segundo plano.
+- O aparelho guarda de quem são os dados locais (hash da conta). Ao entrar: se são da mesma conta, nada muda; se são de outra, viram uma cópia de segurança em `Application Support/AccountSync/` e saem; se o servidor tem dados da conta, eles voltam; se não tem, os dados locais sem dono (instalação de antes da conta obrigatória) passam a ser da conta e sobem. Nenhum dado local é apagado sem antes virar uma cópia, exceto os de uma conta excluída (que saem junto com as cópias dela).
+- Entrar com outra conta nunca mostra dados da anterior, nem amigos, mensagens, denúncias e bloqueios simulados (no `.mock`, esse estado vai para o arquivo da conta ao sair e volta ao entrar).
+- Sair e excluir: RF-SOC-28. Ao limpar o aparelho, também saem o resumo do widget no App Group (widgets recarregam), a Live Activity, as notificações agendadas e os lugares monitorados.
+- No `.mock`, o servidor é simulado: um arquivo por conta em `Application Support/MockServer/` (nome = hash da conta), fora do banco, que sai junto com o app. No `.cloudKit`, a cópia não vai para o iCloud porque tem dados do Apple Saúde (guideline 5.1.3(ii)); `ServerAccountDataBackend` responde "Os dados da conta precisam do servidor próprio do GymBros, que ainda não existe." e o login para em "Não deu para abrir sua conta" (com "Tentar de novo" e "Sair").
+**Critérios de aceitação:** `AccountSyncTests` (adoção dos dados sem dono, sair limpa e entrar restaura, troca de conta não mistura, servidores simulados por conta, dados de outra conta guardados antes de sair, stores relidos depois de restaurar, excluir apaga servidor simulado, aparelho e cópias guardadas, exclusão interrompida termina antes da próxima conta, falha ao excluir mantém tudo).
+**Situação:** Simulado (servidor no próprio aparelho). Depende de servidor próprio para valer entre aparelhos.
+**Fonte:** `GymBros/Services/AccountSync.swift`, `GymBros/Services/Auth.swift` (`AccountData`), `GymBros/Services/Backup.swift` (`make(account:)`, `accountSettings`), `GymBros/App/App.swift` (`RootView`)
+
+
+### RF-SOC-34 · Mensagens diretas (força, convite e texto)
+**Descrição:** Conversa privada entre amigos, com três tipos de mensagem além do texto: "Mandar força" (incentivo com texto opcional), convite para treinar junto (atividade, lugar e quando: agora, hoje ou amanhã num horário) e resposta ao convite ("Bora!" ou "Hoje não").
+**Regras:**
+- Só entre amigos. Dá para responder a quem já conversou com você mesmo depois de desfazer a amizade. Quem você bloqueou some das conversas e não recebe nada (`InboxError.blocked`).
+- Texto, lugar e recado passam pelo `ContentFilter`; enviar exige o aceite dos termos (`TermsGate`) e a permissão `directMessages.send`.
+- Segurar uma mensagem recebida abre denunciar (tipo `directMessage`) ou bloquear; a denunciada some na hora só para você.
+- Pontos de entrada: sino da tela inicial (caixa de entrada → Mensagens, "Nova mensagem" lista os amigos), botões "Mensagem" e "Mandar força" no perfil do amigo, "Mandar força 💪" e "Treinar junto" no card do amigo ao vivo no Mapa.
+- No `.mock`, os amigos simulados respondem em 3 a 8 s (força de volta, 75 % de chance de topar o convite, texto do jeito de cada um) e há conversas de exemplo na primeira vez (força do Bruno, convite da Ana, papo com o Diego). No `.cloudKit`, `ServerInboxBackend` responde "Mensagens diretas precisam do servidor do GymBros": conversas privadas não podem ir para o banco público do CloudKit.
+**Critérios de aceitação:** `InboxTests` (só amigos, bloqueio, denúncia, permissão, resposta ao convite).
+**Situação:** Simulado. Depende de servidor próprio (HTTPS, token da sessão, mensagens cifradas em repouso, push pelo APNs).
+**Fonte:** `GymBros/Inbox/Inbox.swift`, `GymBros/Inbox/InboxMock.swift`, `GymBros/Inbox/ConversationView.swift`, `GymBros/Friends/FriendsLive.swift`, `GymBros/Friends/PublicProfile.swift`
+
+### RF-SOC-35 · Caixa de entrada e notificações sociais
+**Descrição:** O sino da tela inicial (com contador de não lidos) abre a caixa de entrada com as abas Notificações e Mensagens.
+**Regras:**
+- Notificações reúne: reação ou comentário num check-in seu (também vira comentário no check-in), amigo que começou a treinar, pedido de amizade, força recebida, convite e resposta a convite. Separadas em "Novas" e "Anteriores"; abrir a aba marca como visto. Força, convite e pedido de amizade têm botões na própria linha (devolver força, "Bora!"/"Hoje não", aceitar/recusar).
+- O contador soma mensagens não lidas por conversa e notificações novas; força e convites contam uma vez só (nas mensagens).
+- Cada novidade vira notificação do iOS uma vez, se o tópico estiver ligado e nada estiver pausado. A primeira busca da conta só marca o histórico; itens com mais de 6 h não tocam; a conversa aberta na tela não gera notificação nem banner.
+- Ações na notificação: "Responder" (texto) nas mensagens, "Mandar força de volta" na força, "Bora!"/"Hoje não" no convite. Tocar abre a caixa de entrada na conversa ou na aba Notificações.
+- Busca a cada 45 s com o app aberto, a cada 15 s com a caixa aberta e a cada 3 s dentro de uma conversa (com servidor, viria por push).
+**Critérios de aceitação:** `InboxTests` (primeira busca não toca, nada duas vezes, tópico desligado, pausa, conversa aberta, itens antigos, não lidos).
+**Situação:** Simulado (notificações locais).
+**Fonte:** `GymBros/Inbox/Inbox.swift` (`InboxStore`), `GymBros/Inbox/InboxView.swift`, `GymBros/Inbox/NotificationPrefs.swift` (`SocialNotifier`), `GymBros/Services/Location.swift` (`NotificationRouter`), `GymBros/Bros/HomeView.swift`
+
+### RF-SOC-36 · Preferências de notificação
+**Descrição:** Ajustes → Notificações liga e desliga cada tipo: mensagens diretas, força recebida, convites, amigo começou a treinar, reações e comentários, pedidos de amizade; e, no grupo Treino, lembrete para treinar (horário e só em dias de rotina), resumo da semana, fim do descanso e chegada no lugar de treino.
+**Regras:**
+- Tópicos sociais começam ligados (`notify.<tópico>`). "Pausar todas" (`notify.paused`) silencia tudo, inclusive lembretes, resumo, descanso e chegada; o que chega continua na caixa de entrada.
+- Sem permissão do iOS, a tela mostra "Ativar notificações" (pede a permissão) ou, se negada, "Abrir Ajustes do iPhone". Ligar um tópico pede a permissão se ela ainda não foi pedida.
+- As preferências e o estado de leitura vão com a conta (`AccountData.userKeys`) e saem do aparelho ao sair.
+**Critérios de aceitação:** `InboxTests.testTopicsStartOnAndCount`, `testTopicOffAndPauseSilence`.
+**Situação:** Roda no aparelho. Com servidor, as mesmas chaves filtram o push.
+**Fonte:** `GymBros/App/SettingsPages.swift` (`NotificationSettingsPage`), `GymBros/Inbox/NotificationPrefs.swift`, `GymBros/App/App.swift`, `GymBros/Train/LiveWorkout.swift`
 
 ---
 

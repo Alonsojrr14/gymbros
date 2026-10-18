@@ -147,7 +147,7 @@ Somente SF Symbols (as imagens de exercícios são ilustrações do wger, não �
 | Yoga | `figure.yoga` |
 | Outro | `figure.mixed.cardio` |
 
-Abas (`GymBros/App/App.swift`): Treino `dumbbell.fill`, Ligas `trophy.fill`, Mapa `map.fill`, Histórico `list.bullet`; o centro é o sprite do bro. Ícones de ação recorrentes, com o rótulo do VoiceOver que `GMIconButton` dá a eles por padrão: `chevron.left` (Voltar), `xmark` (Fechar), `ellipsis` (Mais opções), `pencil` (Editar), `trash` (Apagar), `plus` (Adicionar), `gearshape` (Ajustes), `person.2.fill` (Amigos), `square.stack.3d.up` (Bros), `square.and.arrow.up` (Compartilhar).
+Abas (`GymBros/App/App.swift`): Treino `dumbbell.fill`, Ligas `trophy.fill`, Mapa `map.fill`, Histórico `list.bullet`; o centro é o sprite do bro. Ícones de ação recorrentes, com o rótulo do VoiceOver que `GMIconButton` dá a eles por padrão: `chevron.left` (Voltar), `xmark` (Fechar), `ellipsis` (Mais opções), `pencil` (Editar), `trash` (Apagar), `plus` (Adicionar), `gearshape` (Ajustes), `person.2.fill` (Amigos), `pawprint.fill` (Bros), `square.and.arrow.up` (Compartilhar).
 
 ### 2.6 Movimento
 
@@ -216,6 +216,19 @@ Não usar: aninhado em outro card (use `Theme.raised` para a camada interna).
 
 #### `GMDivider`
 Linha de 1 pt em `Theme.stroke`, entre itens de um card. Ver padrão de listas na seção 4.
+
+#### `GMIconTile`, `GMNavRow`, `GMIconToggle`, `GMCountBadge`
+
+Peças das telas de ajustes (`GymBros/DesignSystem/GMSettings.swift`). `GMIconTile` é o quadrado `Theme.radiusS` com gradiente da cor do grupo e ícone preto; cada grupo tem a sua cor (Notificações `Theme.badge`, Treino `Theme.streak`, Saúde `Theme.health`, Conta `Theme.info`, Privacidade técnica, Zona de perigo `Theme.danger`). `GMNavRow` é o label de `NavigationLink` com título, valor atual à direita e seta. `GMIconToggle` é um `GMToggle` com o quadrado à esquerda. `GMCountBadge` é o contador de não lidos; `.gmCountBadge(n)` põe o contador no canto de um `GMIconButton` (sino da tela inicial). `GMRow` aceita `tile:` para usar o quadrado colorido no lugar do fundo discreto.
+
+```swift
+NavigationLink { NotificationSettingsPage() } label: {
+    GMNavRow(icon: "bell.badge.fill", tint: Theme.badge, title: "Notificações", value: "6 de 6")
+}
+.buttonStyle(GMPress())
+```
+
+Ajustes é um índice (`SettingsView`): cartão do perfil com o bro, grupos "App", "Conta e dados" e "Ajuda", "Recomeçar jornada" e a versão. Cada assunto é uma tela `GMScreen(back: true)` empurrada no `NavigationStack` (`SettingsPages.swift`).
 
 #### `GMRow`
 Linha tocável: ícone em quadrado 34×34, título, subtítulo, conteúdo à direita (`trailing`) e `chevron` opcional. Sem `action`, é só visual.

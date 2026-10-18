@@ -193,7 +193,7 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         insideID = g.uuid
         ctx.insert(GymVisit(gym: g))
         try? ctx.save()
-        guard notifyArrival, LiveWorkout.runningSession == nil else { return }
+        guard notifyArrival, !NotificationPrefs.paused(), LiveWorkout.runningSession == nil else { return }
         pendingArrival = .now
         let routine = Self.todayTrainingName()
         notify(id: "gym-arrival", title: "Chegou na \(g.name) 💪",
@@ -250,16 +250,22 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         let start = UNNotificationAction(identifier: "START", title: "Começar treino", options: [.foreground])
-        center.setNotificationCategories([UNNotificationCategory(identifier: "ARRIVAL", actions: [start], intentIdentifiers: [])])
+        center.setNotificationCategories(Set([UNNotificationCategory(identifier: "ARRIVAL", actions: [start], intentIdentifiers: [])]
+                                             + SocialNotifier.categories))
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        // Força, convites, mensagens e reações: abre a caixa de entrada ou responde pelo botão
+        if await SocialNotifier.handle(response) { return }
         if response.notification.request.content.categoryIdentifier == "ARRIVAL" {
             await MainActor.run { NotificationCenter.default.post(name: NotificationRouter.startWorkout, object: nil) }
         }
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+        // Mensagem da conversa que está aberta na tela não aparece por cima dela
+        let peer = notification.request.content.userInfo["peer"] as? String
+        if let peer, await MainActor.run(body: { InboxStore.shared.openPeer == peer }) { return [] }
+        return [.banner, .sound]
     }
 }

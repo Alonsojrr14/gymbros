@@ -183,6 +183,8 @@ struct LiveFriendCard: View {
     @Binding var cheered: Set<String>
     var onShow: () -> Void = {}
     @State private var together = false
+    @State private var error: String?
+    @State private var terms = TermsGate()
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { ctx in
@@ -229,19 +231,38 @@ struct LiveFriendCard: View {
                 }
                 HStack(spacing: 10) {
                     let on = cheered.contains(friend.id)
-                    GMButton(on ? "Força enviada (prévia)" : "Mandar força 💪", icon: on ? "checkmark" : nil, kind: on ? .secondary : .primary) {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        withAnimation(.snappy) {
-                            if on { cheered.remove(friend.id) } else { cheered.insert(friend.id) }
+                    GMButton(on ? "Força enviada" : "Mandar força 💪", icon: on ? "checkmark" : nil, kind: on ? .secondary : .primary,
+                             enabled: !on) {
+                        send { try await InboxStore.shared.cheer(friend.id) } done: {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            withAnimation(.snappy) { _ = cheered.insert(friend.id) }
                         }
                     }
                     GMIconButton(icon: "location.fill", size: 48, label: "Ver no mapa") { onShow() }
                 }
                 if friend.isLive { togetherButton }
-                Text(cheered.contains(friend.id) || together
-                     ? "Prévia com amigos simulados: nada foi enviado. Força e convites chegam a \(friend.name) quando o app tiver servidor."
-                     : "Prévia com amigos simulados: força e convites ainda não são enviados.")
-                    .font(.caption2).foregroundStyle(Theme.dim)
+                if let error {
+                    Text(error).font(.caption2).foregroundStyle(Theme.danger)
+                } else if cheered.contains(friend.id) || together {
+                    Text("Chegou na caixa de entrada de \(friend.name). A resposta aparece no sino da tela inicial.")
+                        .font(.caption2).foregroundStyle(Theme.dim)
+                }
+            }
+        }
+        .termsGate($terms)
+    }
+
+    /// Envia pela caixa de entrada (depois do aceite dos termos) e mostra o erro no card
+    private func send(_ action: @escaping () async throws -> Void, done: @escaping () -> Void) {
+        terms.run {
+            Task {
+                do {
+                    try await action()
+                    error = nil
+                    done()
+                } catch {
+                    self.error = error.localizedDescription
+                }
             }
         }
     }
@@ -250,8 +271,10 @@ struct LiveFriendCard: View {
     private var togetherButton: some View {
         Button {
             guard !together else { return }
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-            withAnimation(.spring(duration: 0.35, bounce: 0.4)) { together = true }
+            send { try await InboxStore.shared.invite(friend.id, TrainInvite(kindRaw: friend.kind.rawValue, place: friend.place, when: nil)) } done: {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                withAnimation(.spring(duration: 0.35, bounce: 0.4)) { together = true }
+            }
         } label: {
             HStack(spacing: 12) {
                 ZStack {
@@ -263,9 +286,9 @@ struct LiveFriendCard: View {
                 }
                 .frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(together ? "Convite simulado" : "Treinar junto com \(friend.name)")
+                    Text(together ? "Convite enviado" : "Treinar junto com \(friend.name)")
                         .font(.subheadline.bold())
-                    Text(together ? "Na prévia o convite não sai do seu iPhone. Com o servidor, \(friend.name) recebe no app."
+                    Text(together ? "\(friend.name) responde pela conversa de vocês."
                                   : "Chama pra treinar junto no \(friend.place)")
                         .font(.caption).foregroundStyle(Theme.dim).lineLimit(2)
                 }

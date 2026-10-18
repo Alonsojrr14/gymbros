@@ -45,7 +45,7 @@ final class LeagueTests: GymTestCase {
         XCTAssertEqual(LeagueScoring.distancia.score(musculacao), 0)
         XCTAssertEqual(LeagueScoring.distancia.format(12_345), "12 km")
         XCTAssertEqual(LeagueScoring.distancia.format(4_260), "4,3 km")
-        // Calorias do Saúde têm prioridade sobre a estimativa
+        // Calorias informadas têm prioridade sobre a estimativa
         var real = musculacao
         real.kcal = 412.4
         XCTAssertEqual(LeagueScoring.calorias.score(real), 412)

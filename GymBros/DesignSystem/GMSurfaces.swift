@@ -54,6 +54,8 @@ struct GMDivider: View {
 struct GMRow<Trailing: View>: View {
     var icon: String?
     var iconTint: Color = .white
+    /// Quadrado colorido atrás do ícone (GMIconTile), no lugar do fundo discreto
+    var tile: Color?
     let title: String
     var subtitle: String?
     var chevron = false
@@ -62,7 +64,9 @@ struct GMRow<Trailing: View>: View {
 
     var body: some View {
         let row = HStack(spacing: 12) {
-            if let icon {
+            if let icon, let tile {
+                GMIconTile(icon: icon, tint: tile)
+            } else if let icon {
                 Image(systemName: icon)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(iconTint)
@@ -87,9 +91,9 @@ struct GMRow<Trailing: View>: View {
 }
 
 extension GMRow where Trailing == EmptyView {
-    init(icon: String? = nil, iconTint: Color = .white, title: String, subtitle: String? = nil, chevron: Bool = false,
+    init(icon: String? = nil, iconTint: Color = .white, tile: Color? = nil, title: String, subtitle: String? = nil, chevron: Bool = false,
          action: (() -> Void)? = nil) {
-        self.init(icon: icon, iconTint: iconTint, title: title, subtitle: subtitle, chevron: chevron, action: action) { EmptyView() }
+        self.init(icon: icon, iconTint: iconTint, tile: tile, title: title, subtitle: subtitle, chevron: chevron, action: action) { EmptyView() }
     }
 }
 

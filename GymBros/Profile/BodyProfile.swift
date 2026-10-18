@@ -4,7 +4,7 @@ import SwiftData
 import SwiftUI
 
 // Perfil físico (opcional): altura, idade, objetivo e experiência, mais o peso de Peso e medidas.
-// Fica só no aparelho, nunca aparece no perfil público. Serve para estimar calorias com o seu peso
+// Fica na sua conta, nunca aparece no perfil público. Serve para estimar calorias com o seu peso
 // e dar uma referência de energia, proteína e água para o objetivo.
 
 enum FitnessGoal: String, CaseIterable, Identifiable {
@@ -150,7 +150,7 @@ struct BodyProfileSection: View {
     }
 
     var body: some View {
-        GMSection("Seu corpo", footer: "Tudo opcional e só neste iPhone; nunca aparece no seu perfil público. O peso vem de Peso e medidas (ou do Apple Saúde).") {
+        GMSection("Seu corpo", footer: "Tudo opcional e nunca aparece no seu perfil público. O peso vem de Peso e medidas (ou do Apple Saúde).") {
             GMLockedRow(title: "Altura", value: height > 0 ? "\(Int(height)) cm" : "") {
                 GMDecimalField(title: "", value: Binding(get: { height > 0 ? height : nil }, set: { height = $0 ?? 0 }),
                                step: 1, unit: "cm", start: 170)

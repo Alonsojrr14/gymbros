@@ -8,7 +8,7 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
   Em Champion e Ultimate, o atributo mais treinado desde a última evolução decide o galho.
 - Anti-farm: no máximo 240 min por atividade; acima de 150 XP no dia o ganho cai para 1/3, com teto de 300 XP/dia.
 - Tudo é derivado do histórico (`GymBros/Bros/Game.swift`): apagar ou editar uma atividade recalcula a evolução.
-- Os dados ficam só no aparelho, sem conta e sem servidor.
+- Conta obrigatória (e-mail ou Apple): treinos, bros e o resto do progresso são da conta, saem do iPhone ao sair e voltam ao entrar (`GymBros/Services/AccountSync.swift`). Nesta versão o login e o servidor da conta são simulados no próprio iPhone (um arquivo por conta).
 
 ## Musculação guiada
 
@@ -50,7 +50,7 @@ O app não usa controles padrão do iOS: telas, cabeçalhos, barra de abas, bot�
 - Aba Mapa (`GymBros/Friends/MapScreen.swift`): mapa com academia e percursos, status (na academia ou a que distância), automações, frequência (visitas no mês e tempo médio) e atividades ao ar livre.
 - Lugares de treino (`GymBros/Services/Location.swift`): histórico de academias. Ao começar musculação ou WOD, o app identifica o lugar salvo em que você está ou pergunta (lugares salvos por perto, academias reais sugeridas pelo mapa da Apple, novo lugar, ou sem local). Ao chegar num lugar salvo, notificação e oferta de começar o treino do dia; ao sair, o treino daquele lugar (com mais de 10 min) é encerrado e salvo. Usa `CLMonitor` (até 20 lugares), que acorda o app em segundo plano. Atividades e check-ins guardam o lugar.
 - Corrida, caminhada e bike com GPS (`GymBros/Services/Route.swift`): percurso no mapa, distância, tempo e ritmo, com a tela bloqueada; percurso salvo e visível no histórico.
-- Tudo fica só no iPhone.
+- Lugares e percursos fazem parte dos dados da conta e não são compartilhados.
 
 ## Apple Saúde e backup
 

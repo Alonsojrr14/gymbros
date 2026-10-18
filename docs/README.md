@@ -10,6 +10,9 @@ Documentação levantada a partir do código (outubro de 2026) e atualizada depo
 | [Requisitos funcionais · Social e dados](requisitos-funcionais/03-social-e-dados.md) | `RF-SOC-01…27`: ligas, times, mural, amigos, perfil público e privado, mapa e localização, Apple Saúde, backup e ajustes |
 | [Requisitos não funcionais](requisitos-nao-funcionais.md) | `RNF-01…49`: plataforma, privacidade, segurança, desempenho, confiabilidade, usabilidade, testabilidade e o que o futuro servidor precisa atender |
 | [Backend com CloudKit](cloudkit.md) | Interruptor mock/CloudKit, esquema do banco público, permissões, caixa de saída e o que falta |
+| [Controle de acesso (RBAC)](rbac.md) | Roles `ADMIN`/`DEVELOPER`/`USER`, matriz de permissões, onde mora a atribuição, como proteger ações, garantias e limitações no CloudKit |
+| [Checklist antes de publicar](publicacao.md) | Conta e assinatura, código só de desenvolvimento, CloudKit, privacidade, build/testes e App Store |
+| [Revisão da Apple](app-review.md) | Notas para o App Review, conta de demonstração, o que é simulado e o que trocar com servidor (inclui o bloco do `PrivacyInfo`) |
 | [Design system](design-system.md) | Princípios, tokens (cores, tipografia, raios), catálogo de componentes `GM*`, padrões de tela, componentes de domínio e checklist |
 
 ## Convenções

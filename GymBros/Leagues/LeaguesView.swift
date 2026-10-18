@@ -20,24 +20,26 @@ struct LeaguesView: View {
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
         NavigationStack {
             GMScreen("Ligas", avatar: true) {
-                if leagues.filter({ !$0.isPastSeason }).isEmpty {
-                    GMEmptyState(icon: "trophy", title: "Nenhuma liga", message: "Crie uma liga e chame os amigos, ou entre com um código.")
-                }
-                ForEach(leagues.filter { !$0.isPastSeason }) { l in
-                    NavigationLink { LeagueDetailView(league: l) } label: {
-                        GMCard { LeagueRow(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, roster: roster, me: trainerName) }
+                SocialGate(requires: .leaguesRead) {
+                    if leagues.filter({ !$0.isPastSeason }).isEmpty {
+                        GMEmptyState(icon: "trophy", title: "Nenhuma liga", message: "Crie uma liga e chame os amigos, ou entre com um código.")
                     }
-                    .buttonStyle(GMPress())
-                }
-                GMSection(footer: "Cada liga é um ranking de check-ins, de qualquer atividade. Ao entrar, você escolhe quem te representa: um bro seu ou um ovo novo. Os check-ins da liga dão XP só para ele.") {
-                    GMRow(icon: "plus.circle", iconTint: Theme.accent, title: "Criar liga", chevron: true) { creating = true }
-                    GMDivider()
-                    GMRow(icon: "ticket", iconTint: Theme.accent, title: "Entrar com código", chevron: true) { joinCode = ""; joining = true }
-                    if !leagues.contains(where: { $0.code == MockLeague.code }) {
+                    ForEach(leagues.filter { !$0.isPastSeason }) { l in
+                        NavigationLink { LeagueDetailView(league: l) } label: {
+                            GMCard { LeagueRow(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, roster: roster, me: trainerName) }
+                        }
+                        .buttonStyle(GMPress())
+                    }
+                    GMSection(footer: "Cada liga é um ranking de check-ins, de qualquer atividade. Ao entrar, você escolhe quem te representa: um bro seu ou um ovo novo. Os check-ins da liga dão XP só para ele.") {
+                        GMRow(icon: "plus.circle", iconTint: Theme.accent, title: "Criar liga", chevron: true) { creating = true }
                         GMDivider()
-                        GMRow(icon: "sparkles", iconTint: Theme.accent, title: "Experimentar a liga de exemplo", chevron: true) {
-                            joinCode = MockLeague.code
-                            joining = true
+                        GMRow(icon: "ticket", iconTint: Theme.accent, title: "Entrar com código", chevron: true) { joinCode = ""; joining = true }
+                        if !leagues.contains(where: { $0.code == MockLeague.code }) {
+                            GMDivider()
+                            GMRow(icon: "sparkles", iconTint: Theme.accent, title: "Experimentar a liga de exemplo", chevron: true) {
+                                joinCode = MockLeague.code
+                                joining = true
+                            }
                         }
                     }
                 }
@@ -48,6 +50,7 @@ struct LeaguesView: View {
                 // Ligas de exemplo antigas não tinham data de fim
                 for l in leagues where l.isMock && l.end == nil { l.setDuration(days: 30) }
                 try? context.save()
+                DemoAccount.seedIfNeeded(user: AuthStore.shared.user, context: context, representative: MainMonster.id)
                 LeagueRenewal.run(context: context)
                 await LeagueRemoteStore.shared.refresh(leagues)
             }
@@ -151,7 +154,8 @@ struct LeagueDetailView: View {
             stats(total)
             GMSegmented(options: [(0, "Check-ins"), (1, "Ranking"), (2, "Mural")], selection: $tab)
             if tab == 0 {
-                timeline(feed)
+                // Só a lista esconde denunciados e bloqueados; ranking e times contam todo mundo
+                timeline(ModerationStore.shared.visible(feed))
             } else if tab == 2 {
                 LeagueMuralView(league: league, avatar: avatar)
             } else {
@@ -193,8 +197,8 @@ struct LeagueDetailView: View {
         .gmActions(isPresented: $noInvite, title: "Liga de exemplo",
                    message: "Os participantes desta liga são simulados e o código dela só existe neste iPhone, então ainda não dá para convidar ninguém. Convites chegam quando o app tiver servidor.",
                    actions: [])
-        .gmActions(isPresented: $menu, title: "\(league.emoji) \(league.name)", actions: [
-            GMAction("Editar liga", icon: "pencil") { editing = true },
+        .gmActions(isPresented: $menu, title: "\(league.emoji) \(league.name)", actions:
+            (AccessStore.shared.can(.leaguesUpdate, on: league) ? [GMAction("Editar liga", icon: "pencil") { editing = true }] : []) + [
             GMAction("Sair da liga", icon: "rectangle.portrait.and.arrow.right", destructive: true) { leaving = true },
         ])
         .gmActions(isPresented: $leaving, title: "Sair de \(league.name)?",
@@ -571,6 +575,7 @@ struct CreateLeagueView: View {
     @State private var withExamples = false
     @State private var rep: UUID? = MainMonster.id
     @State private var loaded = false
+    @State private var blocked = false
 
     /// Exemplo com o peso atual: quanto vale 1 h de corrida e de musculação, esforço 6
     private var weightsFooter: String {
@@ -589,6 +594,7 @@ struct CreateLeagueView: View {
                 confirmEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty, onConfirm: save) {
             GMSection("Nome") {
                 GMTextField(placeholder: "Nome da liga", text: $name)
+                if blocked { ContentBlockedNote() }
                 GMFlow {
                     ForEach(emojis, id: \.self) { e in
                         Button { emoji = e } label: {
@@ -681,6 +687,7 @@ struct CreateLeagueView: View {
                 }
             }
         }
+        .onChange(of: name + teams.map(\.name).joined()) { blocked = false }
         .onAppear {
             guard !loaded, let l = league else { return }
             loaded = true
@@ -700,6 +707,9 @@ struct CreateLeagueView: View {
     }
 
     private func save() {
+        let access = AccessStore.shared
+        guard league.map({ access.can(.leaguesUpdate, on: $0) }) ?? access.can(.leaguesCreate) else { return dismiss() }
+        guard ContentFilter.allows(name) && teams.allSatisfy({ ContentFilter.allows($0.name) }) else { blocked = true; return }
         let l = league ?? League(name: "", emoji: emoji, scoring: scoring, isMock: withExamples)
         l.name = name.trimmingCharacters(in: .whitespaces)
         l.emoji = emoji
@@ -779,9 +789,12 @@ struct JoinLeagueView: View {
 
 // MARK: - Check-in
 
-/// Publica a mesma atividade em uma ou mais ligas
+/// Publica a mesma atividade em uma ou mais ligas. Sem termos aceitos e permissão nada é publicado (nem depois de sair
+/// da conta, quando a sessão acabou), nem texto barrado pelo filtro. `signedIn` substitui essa checagem (testes).
 @MainActor
-func postCheckIns(activity: Activity, leagues: Set<UUID>, title: String, note: String, photo: Data?, context: ModelContext) {
+func postCheckIns(activity: Activity, leagues: Set<UUID>, title: String, note: String, photo: Data?, context: ModelContext,
+                  signedIn: Bool? = nil) {
+    guard signedIn ?? Terms.canPublish, ContentFilter.allows(title, note) else { return }
     let place = GymLocation.shared.gym(activity.gymUUID)?.name ?? GymLocation.shared.placeNow
     for id in leagues {
         let c = LeagueCheckIn(leagueUUID: id, activityUUID: activity.uuid,
@@ -792,9 +805,13 @@ func postCheckIns(activity: Activity, leagues: Set<UUID>, title: String, note: S
     LeagueRemoteStore.shared.scheduleFlush()
 }
 
-/// Deixa os check-ins da atividade exatamente nos destinos escolhidos, com o mesmo post em todos
+/// Deixa os check-ins da atividade exatamente nos destinos escolhidos, com o mesmo post em todos.
+/// Sem termos aceitos e permissão (ou sem sessão) os posts ficam como estão: nem republica nem apaga.
+/// Texto barrado pelo filtro só impede publicar e republicar; tirar destinos apaga sempre.
 @MainActor
-func syncCheckIns(activity: Activity, destinations: Set<UUID>, title: String, note: String, photo: Data?, place: String?, context: ModelContext) {
+func syncCheckIns(activity: Activity, destinations: Set<UUID>, title: String, note: String, photo: Data?, place: String?, context: ModelContext,
+                  signedIn: Bool? = nil) {
+    guard signedIn ?? Terms.canPublish else { return }
     let id = activity.uuid
     let existing = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
     let t = title.trimmingCharacters(in: .whitespaces).isEmpty ? activity.kind.name : title.trimmingCharacters(in: .whitespaces)
@@ -802,6 +819,7 @@ func syncCheckIns(activity: Activity, destinations: Set<UUID>, title: String, no
         LeagueOutbox.retract(c)
         context.delete(c)
     }
+    guard ContentFilter.allows(title, note) else { return LeagueRemoteStore.shared.scheduleFlush() }
     let kept = Set(existing.filter { destinations.contains($0.leagueUUID) }.map(\.leagueUUID))
     for c in existing where destinations.contains(c.leagueUUID) {
         c.title = t
@@ -836,28 +854,59 @@ struct LeaguePostSection: View {
     @Binding var photo: Data?
     /// Marca perfil e todas as ligas por padrão (registro de atividade e fim de treino)
     var selectAllByDefault = true
+    /// Atividade importada do Apple Saúde: avisa o que vai no post
+    var fromHealth = false
     @Query(sort: \League.joinedAt) private var allLeagues: [League]
     @State private var pick: PhotosPickerItem?
+    @AppStorage(Terms.acceptedKey) private var acceptedTerms = 0
+    @State private var terms = TermsGate()
 
     /// Ligas em andamento, mais as encerradas ou futuras em que já está postado (para poder tirar).
     /// Liga que ainda não começou não aceita check-in: ficaria fora do período e não contaria.
-    private var leagues: [League] { allLeagues.filter { ($0.hasStarted && !$0.isOver) || selected.contains($0.uuid) } }
-    private var everything: Set<UUID> { Set(leagues.filter { !$0.isOver && $0.hasStarted }.map(\.uuid)).union([ProfileFeed.id]) }
+    private var signedIn: Bool { AuthStore.shared.isSignedIn && acceptedTerms >= Terms.version && AccessStore.shared.can(.checkInsPublish) }
+    private var leagues: [League] {
+        guard signedIn else { return [] }
+        return allLeagues.filter { ($0.hasStarted && !$0.isOver) || selected.contains($0.uuid) }
+    }
+    private var everything: Set<UUID> {
+        guard signedIn else { return [] }
+        return Set(leagues.filter { !$0.isOver && $0.hasStarted }.map(\.uuid)).union([ProfileFeed.id])
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            GMSection("Postar em", footer: selected.isEmpty ? "Sem destino: a atividade fica só no seu histórico." : photoWarning,
-                      trailing: AnyView(allButton)) {
-                destination(id: ProfileFeed.id, title: "Meu perfil", subtitle: "Aparece no seu perfil público") { Avatar(size: 38) }
-                ForEach(leagues) { l in
-                    GMDivider()
-                    destination(id: l.uuid, title: l.name, subtitle: leagueSubtitle(l)) {
-                        Text(l.emoji).font(.title3).frame(width: 38, height: 38).background(Theme.raised, in: .circle)
+            if signedIn {
+                GMSection("Postar em", footer: selected.isEmpty ? "Sem destino: a atividade fica só no seu histórico." : postFooter,
+                          trailing: AnyView(allButton)) {
+                    destination(id: ProfileFeed.id, title: "Meu perfil", subtitle: "Aparece no seu perfil público") { Avatar(size: 38) }
+                    ForEach(leagues) { l in
+                        GMDivider()
+                        destination(id: l.uuid, title: l.name, subtitle: leagueSubtitle(l)) {
+                            Text(l.emoji).font(.title3).frame(width: 38, height: 38).background(Theme.raised, in: .circle)
+                        }
+                    }
+                }
+            } else if AuthStore.shared.isSignedIn && acceptedTerms >= Terms.version {
+                GMSection("Postar em") {
+                    Text(AccessStore.shared.isLoading ? "Conferindo sua conta…" : "Sua conta não pode postar agora. A atividade fica só no seu histórico.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.dim)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                GMSection("Postar em") {
+                    Text("Para postar no perfil e nas ligas, aceite os termos de uso. Sem isso, a atividade fica só no seu histórico.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.dim)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    GMButton("Ler e aceitar os termos", icon: "doc.text", kind: .secondary, small: true) {
+                        terms.run { if selectAllByDefault && selected.isEmpty { selected = everything } }
                     }
                 }
             }
             photoSection
         }
+        .termsGate($terms)
         .onAppear { if selectAllByDefault && selected.isEmpty { selected = everything } }
         .onChange(of: pick) { _, item in
             Task {
@@ -867,6 +916,12 @@ struct LeaguePostSection: View {
     }
 
     /// Aviso quando falta a foto em liga que cobra
+    private var postFooter: String? {
+        let health = fromHealth ? "Do Apple Saúde, o post leva só tipo, data e duração." : nil
+        let text = [health, photoWarning].compactMap { $0 }.joined(separator: " ")
+        return text.isEmpty ? nil : text
+    }
+
     private var photoWarning: String? {
         guard photo == nil else { return nil }
         let strict = leagues.filter { selected.contains($0.uuid) && $0.photoRule != .livre }
@@ -986,6 +1041,8 @@ struct CheckInForm: View {
     @State private var note = ""
     @State private var leagues: Set<UUID>
     @State private var photo: Data?
+    @State private var blocked = false
+    @State private var terms = TermsGate()
 
     init(preselected: Set<UUID>) {
         self.preselected = preselected
@@ -998,7 +1055,7 @@ struct CheckInForm: View {
     }
 
     var body: some View {
-        GMModal("Check-in", confirm: "Postar", confirmEnabled: !leagues.isEmpty && !(useExisting && existing == nil), onConfirm: post) {
+        GMModal("Check-in", confirm: "Postar", confirmEnabled: !leagues.isEmpty && !(useExisting && existing == nil), onConfirm: confirm) {
             GMSegmented(options: [(false, "Nova atividade"), (true, "Já registrada")], selection: $useExisting)
             if useExisting {
                 GMSection("Atividades recentes", footer: "Treinos guiados e os importados do Apple Saúde aparecem aqui.") {
@@ -1028,9 +1085,17 @@ struct CheckInForm: View {
             GMSection("Post") {
                 GMTextField(placeholder: "Título (ex.: Dia de perna 🦵)", text: $title)
                 GMTextField(placeholder: "Descrição (opcional)", text: $note, axis: .vertical)
+                if blocked { ContentBlockedNote() }
             }
             LeaguePostSection(selected: $leagues, photo: $photo, selectAllByDefault: false)
         }
+        .termsGate($terms)
+        .onChange(of: title + note) { blocked = false }
+    }
+
+    private func confirm() {
+        guard ContentFilter.allows(title, note) else { blocked = true; return }
+        terms.run(post)
     }
 
     private func post() {

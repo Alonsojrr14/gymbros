@@ -379,8 +379,8 @@
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Para gravar o percurso de corridas, caminhadas e pedaladas e marcar a sua academia.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Para saber quando você chega ou sai da academia: sugerir o treino ao chegar e encerrar o treino ao sair. A localização fica só no seu iPhone.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Para transformar seus treinos do iPhone e Apple Watch em XP para o seu bro.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Para gravar seus treinos do GymBros no Saúde e eles contarem nos anéis do Fitness.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Para transformar seus treinos do iPhone e Apple Watch em XP para o seu bro e trazer o seu peso para Peso e medidas.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Para gravar no Saúde os treinos do GymBros e a energia ativa deles, que contam nos anéis do Fitness.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
@@ -412,8 +412,8 @@
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Para gravar o percurso de corridas, caminhadas e pedaladas e marcar a sua academia.";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Para saber quando você chega ou sai da academia: sugerir o treino ao chegar e encerrar o treino ao sair. A localização fica só no seu iPhone.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Para transformar seus treinos do iPhone e Apple Watch em XP para o seu bro.";
-				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Para gravar seus treinos do GymBros no Saúde e eles contarem nos anéis do Fitness.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Para transformar seus treinos do iPhone e Apple Watch em XP para o seu bro e trazer o seu peso para Peso e medidas.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Para gravar no Saúde os treinos do GymBros e a energia ativa deles, que contam nos anéis do Fitness.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;

@@ -34,6 +34,15 @@ class GymTestCase: XCTestCase {
         return ModelContext(container)
     }
 
+    /// Conta de teste com a atribuição dada (`nil` = sem atribuição, ou seja, USER)
+    func signedInAccess(_ assignment: [String]? = nil, userID: String = "tester") async -> AccessStore {
+        let user = AuthUser(id: userID, name: "Teste", email: "teste@exemplo.com", provider: .email, token: "")
+        let access = AccessStore(currentUser: { user })
+        access.backend = MockRoleBackend(assignments: assignment.map { [userID: $0] } ?? [:])
+        await access.refresh()
+        return access
+    }
+
     /// Treino com `sets` séries iguais de um exercício
     func session(_ id: String, weight: Double, reps: [Int], target: Int, daysAgo: Int = 1, deload: Bool = false) -> SessionLog {
         SessionLog(date: .now.addingTimeInterval(-Double(daysAgo) * 86400),

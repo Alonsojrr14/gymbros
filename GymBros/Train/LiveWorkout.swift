@@ -74,7 +74,7 @@ enum LiveWorkout {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: ["rest"])
         // Notificação de fim de descanso é opcional (o Live Activity já mostra)
-        guard UserDefaults.standard.bool(forKey: "restNotification") else { return }
+        guard UserDefaults.standard.bool(forKey: "restNotification"), !NotificationPrefs.paused() else { return }
         let content = UNMutableNotificationContent()
         content.title = "Descanso acabou"
         content.body = "Bora para a próxima série 💪"

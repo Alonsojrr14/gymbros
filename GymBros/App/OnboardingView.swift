@@ -5,7 +5,12 @@ struct OnboardingView: View {
     @AppStorage("lastFormID") private var lastFormID = ""
     @State private var name = ""
     @State private var received = false
+    @State private var agreed = Terms.isAccepted()
+    @State private var terms = false
+    @State private var privacy = false
     @FocusState private var focused: Bool
+
+    private var nameOK: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
 
     var body: some View {
         ZStack {
@@ -37,6 +42,7 @@ struct OnboardingView: View {
                         .padding(.horizontal, 32)
                         // O ✓ do teclado só fecha o teclado; avançar é pelo botão
                         .onSubmit { focused = false }
+                    agreement
                 }
                 Spacer()
 
@@ -48,16 +54,49 @@ struct OnboardingView: View {
                         .background(Theme.accent, in: .rect(cornerRadius: Theme.radiusL))
                         .foregroundStyle(.black)
                 }
-                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(!nameOK || !agreed)
+                .opacity(nameOK && agreed ? 1 : 0.5)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
             }
         }
         .onAppear { focused = true }
+        .gmModal(isPresented: $terms) { TermsView() }
+        .gmModal(isPresented: $privacy) { PrivacyPolicyView() }
+    }
+
+    /// Aceite no primeiro acesso: sem ele não recebe o ovo
+    private var agreement: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Button {
+                UISelectionFeedbackGenerator().selectionChanged()
+                agreed.toggle()
+            } label: {
+                Image(systemName: agreed ? "checkmark.square.fill" : "square")
+                    .font(.title3)
+                    .foregroundStyle(agreed ? Theme.accent : Theme.dim)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Aceito os termos de uso e a política de privacidade")
+            .accessibilityValue(agreed ? "Marcado" : "Desmarcado")
+            Text("Li e aceito os [Termos de uso](gymbros://termos) e a [Política de privacidade](gymbros://privacidade), com tolerância zero para conteúdo ofensivo e abuso.")
+                .font(.footnote)
+                .foregroundStyle(Theme.dim)
+                .tint(Theme.accent)
+                .padding(.top, 12)
+                .environment(\.openURL, OpenURLAction { url in
+                    if url.host == "termos" { terms = true } else { privacy = true }
+                    return .handled
+                })
+        }
+        .padding(.horizontal, 22)
     }
 
     private func receive() {
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        guard nameOK, agreed else { return }
+        Terms.accept()
         focused = false
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         withAnimation(.spring(duration: 0.6)) { received = true }

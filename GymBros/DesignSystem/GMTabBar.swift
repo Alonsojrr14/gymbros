@@ -8,6 +8,7 @@ struct GMTabItem {
     var tag: Int
     /// Bolinha com número (ex.: amigos treinando agora)
     var badge: Int?
+    var spotlight: OnboardingTarget?
 }
 
 /// Barra de abas com o bro no meio: bolinha grande e elevada, já que ele é o centro do app
@@ -16,6 +17,7 @@ struct GMTabBar<Center: View>: View {
     let right: [GMTabItem]
     let centerTag: Int
     @Binding var selection: Int
+    var centerSpotlight: OnboardingTarget?
     @ViewBuilder var center: Center
     @Namespace private var ns
     @State private var bump = false
@@ -61,6 +63,7 @@ struct GMTabBar<Center: View>: View {
             .background {
                 if on { Capsule().fill(Theme.accent).matchedGeometryEffect(id: "tab", in: ns) }
             }
+            .onboardingTarget(item.spotlight, shape: .capsule)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(item.badge.map { $0 > 0 ? "\(item.title), \($0)" : item.title } ?? item.title)
@@ -81,6 +84,7 @@ struct GMTabBar<Center: View>: View {
             }
             .frame(width: 66, height: 66)
             .shadow(color: on ? Theme.accent.opacity(0.55) : .black.opacity(0.4), radius: on ? 14 : 8, y: 4)
+            .onboardingTarget(centerSpotlight, shape: .circle)
             .offset(y: -16)
         }
         .buttonStyle(.plain)

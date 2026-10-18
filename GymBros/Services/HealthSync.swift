@@ -15,6 +15,8 @@ enum HealthSync {
     private static let enabledKey = "healthEnabled"
     private static let lastSyncKey = "healthLastSync"
     private static let ignoredKey = "healthIgnored"
+    /// Ajustes do Saúde que são da conta (vão na cópia da conta e saem do aparelho ao sair)
+    static let defaultsKeys = [enabledKey, lastSyncKey, ignoredKey, writeKey, writeSinceKey]
 
     static var enabled: Bool {
         get { UserDefaults.standard.bool(forKey: enabledKey) }

@@ -99,6 +99,14 @@ struct OutgoingCheckIn: Codable, Sendable {
     var photo: Data?
 }
 
+extension OutgoingCheckIn {
+    /// O que sobe do check-in. De atividade do Saúde, só tipo, data e duração; kcal, distância e esforço de lá ficam no aparelho.
+    init(_ c: LeagueCheckIn, activity a: Activity) {
+        self.init(id: c.uuid, date: c.date, kindRaw: a.kindRaw, minutes: a.minutes, effort: a.publishableEffort,
+                  meters: a.publishableMeters, kcal: a.publishableKcal, title: c.title, note: c.note, hasPhoto: c.hasPhoto, photo: c.photo)
+    }
+}
+
 /// Liga como o servidor guarda: regras e times. Serve para criar e para entrar por código.
 struct LeagueDraft: Codable, Sendable {
     let uuid: UUID
@@ -148,6 +156,7 @@ final class LeagueRemoteStore {
     static let shared = LeagueRemoteStore()
 
     var backend: any LeagueBackend = MockLeagueBackend()
+    var access: AccessStore = .shared
     private(set) var cache: [LeagueKey: RemoteLeague] = [:]
     /// Último erro de sincronização (para mostrar se precisar)
     private(set) var lastError: String?
@@ -160,6 +169,12 @@ final class LeagueRemoteStore {
         let key = league.key
         if let r = cache[key] { return r }
         return backend(for: key) is MockLeagueBackend ? MockLeagueBackend.build(key) : .empty
+    }
+
+    /// Esquece o que veio do servidor (conta excluída)
+    func reset() {
+        cache = [:]
+        lastError = nil
     }
 
     func refresh(_ leagues: [League]) async {
@@ -186,8 +201,9 @@ final class LeagueRemoteStore {
         let leagues = ((try? context.fetch(FetchDescriptor<League>())) ?? []).filter { !$0.isMock }
         let keys = Dictionary(leagues.map { ($0.uuid, $0.key) }, uniquingKeysWith: { a, _ in a })
         let monsters = (try? context.fetch(FetchDescriptor<Monster>())) ?? []
-        let name = UserDefaults.standard.string(forKey: "trainerName") ?? ""
-        let newLeagues = leagues.filter { $0.syncedAt == nil && !$0.isPastSeason }.map { l in
+        let name = ContentFilter.publishable(UserDefaults.standard.string(forKey: "trainerName") ?? "")
+        // Sem permissão, fica pendente. Retirar o que é seu nunca é bloqueado.
+        let newLeagues = leagues.filter { $0.syncedAt == nil && !$0.isPastSeason && canSync($0) }.map { l in
             let last = monsters.first { $0.uuid == l.monsterUUID }?.lastFormID ?? ""
             let form = last.isEmpty ? MonsterForm.egg.id : last
             return (id: l.uuid, draft: l.joined ? nil : l.draft, key: l.key,
@@ -195,17 +211,18 @@ final class LeagueRemoteStore {
         }
 
         let activities = Dictionary(((try? context.fetch(FetchDescriptor<Activity>())) ?? []).map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
-        let pending = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.syncedAt == nil }))) ?? []
+        let pending = access.can(.checkInsPublish)
+            ? (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.syncedAt == nil }))) ?? [] : []
         let checkIns = Dictionary(grouping: pending, by: \.leagueUUID).compactMap { leagueID, list -> (key: LeagueKey, out: [OutgoingCheckIn])? in
             guard let key = leagueID == ProfileFeed.id ? .profileFeed : keys[leagueID] else { return nil }
             return (key, list.compactMap { c in
                 guard let a = activities[c.activityUUID] else { return nil }
-                return OutgoingCheckIn(id: c.uuid, date: c.date, kindRaw: a.kindRaw, minutes: a.minutes, effort: a.effort,
-                                       meters: a.meters, kcal: a.kcal, title: c.title, note: c.note, hasPhoto: c.hasPhoto, photo: c.photo)
+                return OutgoingCheckIn(c, activity: a)
             })
         }
 
-        let msgs = (try? context.fetch(FetchDescriptor<LeagueMessage>(predicate: #Predicate { $0.syncedAt == nil }))) ?? []
+        let msgs = access.can(.messagesPublish)
+            ? (try? context.fetch(FetchDescriptor<LeagueMessage>(predicate: #Predicate { $0.syncedAt == nil }))) ?? [] : []
         let messages = Dictionary(grouping: msgs, by: \.leagueUUID).compactMap { leagueID, list -> (key: LeagueKey, out: [OutgoingMessage])? in
             guard let key = keys[leagueID] else { return nil }
             return (key, list.map { OutgoingMessage(id: $0.uuid, date: $0.date, text: $0.text) })
@@ -242,6 +259,11 @@ final class LeagueRemoteStore {
             lastError = error.localizedDescription
         }
         try? context.save()
+    }
+
+    /// Lugar na liga; quem criou também publica as regras
+    private func canSync(_ league: League) -> Bool {
+        access.can(.leaguesJoin) && (league.joined || access.can(.leaguesCreate) && access.can(.leaguesUpdate, on: league))
     }
 
     private var flushTask: Task<Void, Never>?

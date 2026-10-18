@@ -1,219 +1,210 @@
 import SwiftData
 import SwiftUI
-import UserNotifications
 import WidgetKit
 
+/// Índice dos Ajustes: cartão do perfil e grupos que levam às telas de cada assunto (SettingsPages.swift)
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @AppStorage("trainerName") private var trainerName = ""
-    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
-    @AppStorage("lastFormID") private var lastFormID = ""
-    @AppStorage("discovered") private var discovered = ""
-    @State private var confirmReset = false
-    @AppStorage("remindersOn") private var remindersOn = false
-    @AppStorage("reminderMinute") private var reminderMinute = 18 * 60
-    @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
-    @AppStorage("restNotification") private var restNotification = false
-    @AppStorage("weeklySummary") private var weeklySummary = true
+    @AppStorage(NotificationPrefs.pausedKey) private var notificationsPaused = false
     @AppStorage("autoWarmup") private var autoWarmup = true
+    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
+    @State private var confirmReset = false
     @State private var confirmSignOut = false
-    @State private var healthOn = HealthSync.enabled
-    @State private var healthWrite = HealthSync.writeEnabled
-    @State private var healthStatus: String?
-    @State private var syncing = false
-    @State private var exportDoc: BackupDocument?
-    @State private var exporting = false
-    @State private var importing = false
-    @State private var pendingRestore: Backup?
-    @State private var backupMessage: String?
-    @State private var privacy = false
+    @State private var signOutError: String?
+    @State private var auth = AuthStore.shared
+    @State private var access = AccessStore.shared
+    @State private var moderation = ModerationStore.shared
+    @State private var permission = NotificationPermission.shared
 
     var body: some View {
-        GMModal("Ajustes") {
-            GMSection("Treinador") {
-                GMTextField(placeholder: "Seu nome", text: $trainerName, capitalization: .words)
-            }
-            GMSection("Bro principal", footer: "Vazio usa o nome da forma atual.") {
-                GMTextField(placeholder: "Apelido", text: Binding(
-                    get: { mainMonster?.name ?? "" },
-                    set: { mainMonster?.name = $0 }
-                ), capitalization: .words)
-            }
-            GMSection("Lembretes", footer: "Seu bro te chama no horário escolhido, só nos dias em que você ainda não treinou.") {
-                GMToggle(title: "Lembrete para treinar", isOn: $remindersOn)
-                    .onChange(of: remindersOn) { _, on in
-                        if on { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in } }
-                    }
-                if remindersOn {
-                    GMDivider()
-                    GMTimeField(date: Binding(
-                        get: { Calendar.current.date(byAdding: .minute, value: reminderMinute, to: Calendar.current.startOfDay(for: .now))! },
-                        set: { let c = Calendar.current.dateComponents([.hour, .minute], from: $0); reminderMinute = (c.hour ?? 18) * 60 + (c.minute ?? 0) }
-                    ))
-                    GMDivider()
-                    GMToggle(title: "Só em dias de rotina", isOn: $reminderRoutineOnly)
-                }
-                GMDivider()
-                GMToggle(title: "Resumo da semana", subtitle: "Domingo às 19h: treinos, tempo, PRs e sua posição nas ligas", isOn: $weeklySummary)
-                    .onChange(of: weeklySummary) { _, on in
-                        if on { UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in } }
-                    }
-                GMDivider()
-                GMToggle(title: "Notificação no fim do descanso",
-                         subtitle: "O Live Activity já mostra o descanso; ligue só se quiser o alerta também", isOn: $restNotification)
-            }
-            GMSection("Aquecimento", footer: "Ao começar uma rotina, o primeiro exercício com carga ganha 3 séries leves (40 %, 60 % e 80 % da carga). Elas não contam para recordes, progressão nem volume. No menu ⋯ de cada exercício dá para adicionar ou tirar.") {
-                GMToggle(title: "Aquecimento automático", isOn: $autoWarmup)
-            }
+        NavigationStack {
+            GMScreen("Ajustes", close: true, bottomInset: 40) {
+                NavigationLink { ProfileSettingsPage() } label: { hero }
+                    .buttonStyle(GMPress())
 
-            if HealthSync.available {
-                GMSection("Apple Saúde", footer: "Corridas, caminhadas, vôlei e outros treinos do iPhone ou Apple Watch viram atividades automaticamente ao abrir o app (na primeira vez, os últimos \(HealthSync.firstImportDays) dias). Treinos que coincidem com algo já registrado aqui não contam duas vezes. Gravando, o que você registra aqui (musculação, WOD, corrida…) vai para o Saúde com calorias estimadas e conta nos anéis do Fitness.") {
-                    GMToggle(title: "Importar treinos do Saúde", isOn: $healthOn)
-                        .onChange(of: healthOn) { _, on in Task { await toggleHealth(on) } }
-                    if healthOn {
-                        GMButton(syncing ? "Sincronizando…" : "Sincronizar agora", icon: "arrow.triangle.2.circlepath",
-                                 kind: .secondary, small: true, enabled: !syncing) { Task { await syncNow() } }
+                group("App") {
+                    link(NotificationSettingsPage()) {
+                        GMNavRow(icon: "bell.badge.fill", tint: Theme.badge, title: "Notificações", value: notificationsValue,
+                                 valueTint: permission.denied ? Theme.warning : Theme.dim)
                     }
                     GMDivider()
-                    GMToggle(title: "Gravar treinos no Saúde", subtitle: "Daqui para frente; conta nos anéis", isOn: $healthWrite)
-                        .onChange(of: healthWrite) { _, on in Task { await toggleWrite(on) } }
-                    if let healthStatus {
-                        Text(healthStatus).font(.footnote).foregroundStyle(Theme.dim)
+                    link(TrainingSettingsPage()) {
+                        GMNavRow(icon: "dumbbell.fill", tint: Theme.streak, title: "Treino", value: autoWarmup ? "Aquecimento ligado" : nil)
+                    }
+                    if HealthSync.available {
+                        GMDivider()
+                        link(HealthSettingsPage()) {
+                            GMNavRow(icon: "heart.fill", tint: Theme.health, title: "Apple Saúde", value: HealthSync.enabled ? "Importando" : "Desligado")
+                        }
                     }
                 }
-            }
 
-            GMSection("Backup", footer: "Os dados ficam só neste iPhone. Exporte de vez em quando e guarde no Arquivos ou iCloud Drive: se o app for apagado, é assim que você recupera tudo.") {
-                GMRow(icon: "square.and.arrow.up", title: "Exportar backup", chevron: true) { export() }
-                GMDivider()
-                GMRow(icon: "square.and.arrow.down", title: "Restaurar backup", chevron: true) { importing = true }
-                if let backupMessage {
-                    Text(backupMessage).font(.footnote).foregroundStyle(Theme.dim)
-                }
-            }
-
-            if let user = AuthStore.shared.user {
-                GMSection("Conta", footer: "Login simulado enquanto não há servidor. Sair não apaga nada deste iPhone.") {
-                    GMRow(icon: user.provider == .apple ? "apple.logo" : "envelope", title: user.name.isEmpty ? "Sua conta" : user.name,
-                          subtitle: user.email)
+                group("Conta e dados") {
+                    if let user = auth.user {
+                        link(AccountSettingsPage()) {
+                            GMNavRow(icon: "person.crop.circle.fill", tint: Theme.info, title: "Conta",
+                                     value: user.provider == .apple ? "Apple" : "E-mail")
+                        }
+                        GMDivider()
+                    }
+                    link(BackupSettingsPage()) {
+                        GMNavRow(icon: "externaldrive.fill", tint: Attribute.resistencia.color, title: "Backup")
+                    }
                     GMDivider()
-                    GMRow(icon: "rectangle.portrait.and.arrow.right", iconTint: Theme.danger, title: "Sair da conta") { confirmSignOut = true }
+                    link(PrivacySettingsPage()) {
+                        GMNavRow(icon: "hand.raised.fill", tint: Attribute.tecnica.color, title: "Privacidade",
+                                 value: moderation.blocked.isEmpty ? nil : "\(moderation.blocked.count) bloqueado\(moderation.blocked.count == 1 ? "" : "s")")
+                    }
                 }
-            }
 
-            GMSection(footer: Self.resetText + " Rotinas, lugares, medidas e seu nome continuam.") {
-                GMRow(icon: "arrow.counterclockwise", iconTint: Theme.danger, title: "Recomeçar jornada") { confirmReset = true }
-            }
-            GMSection("Privacidade", footer: "Seus dados ficam neste iPhone. Sem anúncios e sem rastreamento.") {
-                GMRow(icon: "hand.raised", title: "Política de privacidade", chevron: true) { privacy = true }
-            }
-            GMSection("Como funciona") {
-                Text("Cada atividade rende XP pela duração, tipo e esforço, e soma em Força, Resistência, Agilidade e Técnica. Acima de 150 XP no mesmo dia o ganho cai, com teto de 300 por dia. Nas evoluções para Champion e Ultimate, o atributo que você mais treinou na fase decide a forma.")
-                    .font(.footnote)
-                    .foregroundStyle(Theme.dim)
+                group("Ajuda") {
+                    link(HowItWorksPage()) {
+                        GMNavRow(icon: "questionmark", tint: Attribute.agilidade.color, title: "Como funciona")
+                    }
+                    GMDivider()
+                    Button {
+                        OnboardingCoordinator.shared.requestStart()
+                        dismiss()
+                    } label: {
+                        GMNavRow(icon: "sparkles", tint: Theme.accent, title: "Ver tutorial do app")
+                    }
+                    .buttonStyle(GMPress())
+                    if showsDiagnostics {
+                        GMDivider()
+                        link(DiagnosticsSettingsPage { dismiss() }) {
+                            GMNavRow(icon: "ladybug.fill", tint: .gray, title: "Diagnóstico")
+                        }
+                    }
+                }
+
+                GMSection(footer: Self.resetText + " Rotinas, lugares, medidas e seu nome continuam.") {
+                    GMRow(icon: "arrow.counterclockwise", iconTint: Theme.danger, tile: Theme.danger, title: "Recomeçar jornada") { confirmReset = true }
+                }
+
+                if auth.user != nil {
+                    GMSection(footer: signOutError) {
+                        GMRow(icon: "rectangle.portrait.and.arrow.right", tile: Theme.warning, title: "Sair da conta") { confirmSignOut = true }
+                    }
+                }
+
+                footer
             }
         }
-        .gmModal(isPresented: $privacy) { PrivacyPolicyView() }
-        .gmActions(isPresented: $confirmSignOut, title: "Sair da conta?", message: "Seus treinos e bros continuam neste iPhone.",
-                   actions: [GMAction("Sair", icon: "rectangle.portrait.and.arrow.right", destructive: true) {
-                       Task { await AuthStore.shared.signOut() }
-                   }])
+        .task { await permission.refresh() }
         .gmActions(isPresented: $confirmReset, title: "Recomeçar a jornada?",
                    message: Self.resetText + " Não dá para desfazer.",
                    actions: [GMAction("Recomeçar", icon: "arrow.counterclockwise", destructive: true, action: reset)])
-        .gmActions(isPresented: Binding(get: { pendingRestore != nil }, set: { if !$0 { pendingRestore = nil } }),
-                   title: "Restaurar backup?", message: restoreTitle,
-                   actions: pendingRestore.map { b in [GMAction("Substituir tudo", icon: "square.and.arrow.down", destructive: true) {
-                       do {
-                           try b.restore(into: context)
-                           backupMessage = "Backup restaurado: \(b.activities.count) atividades."
-                           // Os lugares mudaram: volta a monitorar os restaurados
-                           if GymLocation.shared.insideGym == nil { GymLocation.shared.insideID = nil }
-                           GymLocation.shared.startMonitoring()
-                       } catch {
-                           backupMessage = "Falha ao restaurar: \(error.localizedDescription)"
-                       }
-                       pendingRestore = nil
-                   }] } ?? [])
-        .fileExporter(isPresented: $exporting, document: exportDoc, contentType: .json,
-                      defaultFilename: "GymBros-\(Date.now.formatted(.iso8601.year().month().day()))") { result in
-            if case .success = result { backupMessage = "Backup salvo." }
-        }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
-            do {
-                let url = try result.get()
-                let scoped = url.startAccessingSecurityScopedResource()
-                defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                pendingRestore = try Backup.decoder.decode(Backup.self, from: Data(contentsOf: url))
-            } catch {
-                backupMessage = "Não consegui ler o arquivo: \(error.localizedDescription)"
-            }
-        }
+        .gmActions(isPresented: $confirmSignOut, title: "Sair da conta?", message: Self.signOutText,
+                   actions: [GMAction("Sair", icon: "rectangle.portrait.and.arrow.right", destructive: true) { Task { await signOut() } }])
     }
 
-    private var restoreTitle: String {
-        guard let b = pendingRestore else { return "" }
-        return "De \(b.exportedAt.formatted(date: .abbreviated, time: .shortened)), com \(b.activities.count) atividades. Isso substitui todos os dados atuais."
-    }
-
-    private func export() {
+    private func signOut() async {
         do {
-            exportDoc = BackupDocument(data: try Backup.encoder.encode(Backup.make(context: context)))
-            exporting = true
+            try await AccountSync.shared.signOut()
         } catch {
-            backupMessage = "Falha ao exportar: \(error.localizedDescription)"
+            signOutError = "Não deu para salvar seus dados na conta: \(error.localizedDescription) Nada saiu do iPhone; tente de novo."
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
     }
 
-    private func toggleHealth(_ on: Bool) async {
-        guard on else {
-            HealthSync.enabled = false
-            healthStatus = "Desligado. O que já foi importado continua."
-            return
-        }
-        do {
-            try await HealthSync.requestAccess()
-            HealthSync.enabled = true
-            await syncNow()
-        } catch {
-            healthOn = false
-            healthStatus = "Não consegui acesso ao Saúde: \(error.localizedDescription)"
-        }
-    }
-
-    private func toggleWrite(_ on: Bool) async {
-        guard on else {
-            HealthSync.writeEnabled = false
-            healthStatus = "Não grava mais. O que já foi para o Saúde continua lá."
-            return
-        }
-        do {
-            try await HealthSync.requestWrite()
-            HealthSync.writeEnabled = true
-            healthStatus = "Pronto: os próximos treinos registrados aqui vão para o Saúde."
-        } catch {
-            healthWrite = false
-            healthStatus = "Não consegui permissão para gravar: \(error.localizedDescription)"
-        }
-    }
-
-    private func syncNow() async {
-        syncing = true
-        defer { syncing = false }
-        do {
-            let r = try await HealthSync.sync(context: context)
-            var parts = [r.imported.isEmpty ? "Nenhum treino novo" : "\(r.imported.count) treino(s) importado(s)"]
-            if r.skippedOverlap > 0 { parts.append("\(r.skippedOverlap) já registrado(s) aqui") }
-            healthStatus = parts.joined(separator: ", ") + ". Se esperava algo, confira em Ajustes do iPhone → Saúde → Acesso a Dados → GymBros."
-        } catch {
-            healthStatus = "Falha ao sincronizar: \(error.localizedDescription)"
-        }
-    }
+    // MARK: Peças
 
     private var mainMonster: Monster? {
         monsters.first { $0.uuid == MainMonster.id } ?? monsters.first { $0.isStarter }
     }
+
+    /// Você e seu bro, em destaque; abre "Perfil e bro"
+    private var hero: some View {
+        let form = mainMonster.map { MonsterForm.byID($0.lastFormID) ?? .egg } ?? .egg
+        let nameOK = ContentFilter.allows(trainerName)
+        return HStack(spacing: 14) {
+            Avatar(size: 62)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(trainerName.isEmpty ? "Treinador" : trainerName)
+                    .gmFont(22, weight: .heavy, design: .rounded, relativeTo: .title2)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                if !nameOK {
+                    Label("Nome não permitido", systemImage: "exclamationmark.triangle.fill").font(.caption.bold()).foregroundStyle(Theme.danger)
+                } else if let email = auth.user?.email, !email.isEmpty {
+                    Text(email).font(.caption).foregroundStyle(Theme.dim).lineLimit(1)
+                }
+                HStack(spacing: 6) {
+                    Text(mainMonster?.displayName(form) ?? form.name).font(.caption.bold())
+                    Text("·").foregroundStyle(Theme.dim)
+                    Text(form.stage.name).font(.caption).foregroundStyle(Theme.dim)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(Theme.raised, in: .capsule)
+            }
+            Spacer(minLength: 0)
+            MonsterSprite(form: form).frame(width: 64, height: 64)
+            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            ZStack(alignment: .topTrailing) {
+                Theme.card
+                Circle().fill(Theme.accent.opacity(0.22)).frame(width: 220).blur(radius: 60).offset(x: 70, y: -90)
+            }
+            .clipShape(.rect(cornerRadius: Theme.radius))
+        }
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Theme.accent.opacity(0.25), lineWidth: 1))
+        .foregroundStyle(.white)
+        .contentShape(Rectangle())
+    }
+
+    private func group<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        GMSection(title) { content() }
+    }
+
+    private func link<D: View, L: View>(_ destination: D, @ViewBuilder label: () -> L) -> some View {
+        NavigationLink { destination } label: { label() }.buttonStyle(GMPress())
+    }
+
+    private var footer: some View {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = info?["CFBundleVersion"] as? String ?? ""
+        return VStack(spacing: 4) {
+            Text("GymBros").gmFont(15, weight: .black, design: .rounded, relativeTo: .subheadline).foregroundStyle(Theme.accent)
+            Text("Versão \(version)\(build.isEmpty ? "" : " (\(build))")").font(.caption2).foregroundStyle(Theme.dim)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+    }
+
+    private var notificationsValue: String {
+        if permission.denied { return "Desligadas no iPhone" }
+        if notificationsPaused { return "Pausadas" }
+        return "\(NotificationPrefs.enabledCount()) de \(NotificationTopic.allCases.count)"
+    }
+
+    private var showsDiagnostics: Bool {
+        #if DEBUG
+        true
+        #else
+        access.can(.diagnosticsRead)
+        #endif
+    }
+
+    // MARK: Textos (também usados nas telas de Conta e Backup)
+
+    static var accountFooter: String {
+        (Backend.mode == .mock ? "Login e servidor simulados neste iPhone. " : "")
+            + "Treinos, bros e o resto do progresso são da conta: ao sair, saem do iPhone e voltam quando você entra de novo."
+    }
+
+    static var backupFooter: String {
+        "Seus dados são da sua conta e voltam quando você entra nela. O backup é uma cópia extra em arquivo: guarde no Arquivos, no próprio iPhone. Ele inclui dados do Apple Saúde, por isso não sugerimos o iCloud Drive."
+            + (Backend.mode == .mock ? " Nesta versão o servidor é simulado neste iPhone: se o app for apagado, só o backup recupera tudo." : "")
+    }
+
+    static let signOutText = "Seus treinos, bros e o resto do progresso ficam salvos na conta e saem deste iPhone. Tudo volta quando você entrar de novo."
+
+    static let deleteAccountText = "Apaga a conta e tudo dela, na conta e neste iPhone: treinos, bros, rotinas, medidas, fotos, recordes, ligas, check-ins, recados, mensagens, amizades, bloqueios e denúncias. Você volta para a tela de entrar. Não dá para desfazer."
 
     /// O que "Recomeçar jornada" faz (mesmo texto no rodapé e na confirmação)
     static let resetText = "Apaga as atividades e tudo ligado a elas (treinos guiados, check-ins no perfil e nas ligas, percursos, WODs), os bros, as conquistas já vistas e os carinhos do widget, e devolve um ovo novo. Você continua nas ligas, agora representado pelo ovo novo e com placar zerado."

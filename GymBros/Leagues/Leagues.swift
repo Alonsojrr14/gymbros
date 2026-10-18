@@ -12,17 +12,25 @@ struct ScoreInput {
     var kind: ActivityKind
     var minutes: Int
     var effort: Int
-    /// Distância (GPS ou Apple Saúde), quando houver
+    /// Distância do GPS do app, quando houver
     var meters: Double? = nil
-    /// Calorias ativas do Apple Saúde, quando houver
+    /// Calorias informadas no check-in; sem elas, estima com o peso de referência
     var kcal: Double? = nil
 }
 
 extension Activity {
-    /// Sem calorias do Saúde, estima com o seu peso (perfil físico) em vez do peso de referência
+    /// Importada do Apple Saúde: kcal, distância e o esforço derivado delas não saem do aparelho (guideline 5.1.3)
+    var isFromHealth: Bool { healthUUID != nil || healthType != nil }
+    /// Esforço que pode ser publicado: o do Saúde vem das kcal de lá, então sobe o neutro
+    var publishableEffort: Int { isFromHealth ? 5 : effort }
+    /// Distância que pode ser publicada (só a do GPS do app)
+    var publishableMeters: Double? { isFromHealth ? nil : meters }
+    /// Calorias que podem ser publicadas (nunca as do Apple Saúde)
+    var publishableKcal: Double? { isFromHealth ? nil : kcal }
+
+    /// Mesmos dados que os outros participantes recebem, para o placar ser igual em todos os aparelhos
     var scoreInput: ScoreInput {
-        ScoreInput(kind: kind, minutes: minutes, effort: effort, meters: meters,
-                   kcal: kcal ?? HealthSync.activeKcal(kind: kind, minutes: minutes, effort: effort, weight: BodyProfile.weightForEstimates))
+        ScoreInput(kind: kind, minutes: minutes, effort: publishableEffort, meters: publishableMeters, kcal: publishableKcal)
     }
 }
 
@@ -359,7 +367,7 @@ struct FeedItem: Identifiable {
     let kind: ActivityKind
     let minutes: Int
     let score: Int
-    let photo: Data?
+    var photo: Data?
     var place: String? = nil
     var hasPhoto = false
     var effort = 5

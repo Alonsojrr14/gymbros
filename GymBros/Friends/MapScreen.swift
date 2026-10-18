@@ -33,7 +33,7 @@ struct MapScreen: View {
             } content: {
                 bigMap
                 if needsAlways { permissionBanner }
-                friendsSection
+                SocialGate(requires: .friendsRead) { friendsSection }
                 monthStats
                 outdoorSection
                 gymSection

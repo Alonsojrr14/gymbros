@@ -57,7 +57,11 @@ struct ProfileView: View {
             } content: {
                 header.frame(maxWidth: .infinity)
                 GMSegmented(options: [(0, "Público"), (1, "Privado")], selection: $tab)
-                if tab == 0 { publicPart } else { privatePart }
+                if tab == 0 {
+                    SocialGate(requires: .profileUpdate) { publicPart }
+                } else {
+                    privatePart
+                }
             }
             .overlay(alignment: .bottomTrailing) {
                 GMFloatingButton(label: "Registrar atividade") { logging = true }
@@ -237,17 +241,25 @@ extension ProfileView {
     }
 }
 
-/// Nome, @usuário, bio e o que aparece para os outros
+/// Nome, @usuário, bio e o que aparece para os outros. Nome, @usuário e bio só valem ao salvar:
+/// passam pelo filtro de palavras e, com conta, pelo aceite dos termos.
 struct EditProfileView: View {
-    @AppStorage("trainerName") private var name = ""
-    @AppStorage("profileUsername") private var username = ""
-    @AppStorage("profileBio") private var bio = ""
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("trainerName") private var savedName = ""
+    @AppStorage("profileUsername") private var savedUsername = ""
+    @AppStorage("profileBio") private var savedBio = ""
     @AppStorage("publicMonster") private var showMonster = true
     @AppStorage("publicStats") private var showStats = true
     @AppStorage("publicAchievements") private var showAchievements = true
+    @State private var name = ""
+    @State private var username = ""
+    @State private var bio = ""
+    @State private var loaded = false
+    @State private var blocked = false
+    @State private var terms = TermsGate()
 
     var body: some View {
-        GMModal("Editar perfil") {
+        GMModal("Editar perfil", confirm: "Salvar", onConfirm: save) {
             GMSection("Perfil público", footer: "A foto você troca tocando nela, no topo do perfil.") {
                 GMTextField(placeholder: "Seu nome", text: $name, capitalization: .words)
                 GMTextField(placeholder: "@usuário", text: Binding(
@@ -255,6 +267,7 @@ struct EditProfileView: View {
                     set: { username = $0.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "." } }
                 ), capitalization: .never)
                 GMTextField(placeholder: "Bio (ex.: Rato de academia desde 2019)", text: $bio, axis: .vertical)
+                if blocked { ContentBlockedNote() }
             }
             GMSection("O que aparece para os outros",
                       footer: "Foto, nome, @usuário, bio e os posts do perfil sempre aparecem. Peso, medidas, recordes, metas, notas e as atividades que você não postou ficam sempre privados.") {
@@ -265,6 +278,26 @@ struct EditProfileView: View {
                 GMToggle(title: "Conquistas", isOn: $showAchievements)
             }
         }
+        .termsGate($terms)
+        .onChange(of: name + username + bio) { blocked = false }
+        .onAppear {
+            guard !loaded else { return }
+            loaded = true
+            name = savedName
+            username = savedUsername
+            bio = savedBio
+        }
+    }
+
+    private func save() {
+        guard ContentFilter.allows(name, username, bio) else { blocked = true; return }
+        let write = {
+            savedName = name
+            savedUsername = username
+            savedBio = bio
+            dismiss()
+        }
+        terms.run(write)
     }
 }
 

@@ -5,7 +5,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Cópia completa dos dados em JSON: atividades, rotinas, treinos, exercícios próprios e ajustes
-struct Backup: Codable {
+struct Backup: Codable, Sendable {
     var version = 1
     var exportedAt = Date.now
     var settings: [String: String]
@@ -23,10 +23,13 @@ struct Backup: Codable {
     struct BodyDTO: Codable {
         var uuid: UUID, date: Date, weight: Double?, waist: Double?, chest: Double?, arm: Double?, thigh: Double?, hip: Double?
         var healthUUID: String?
+        /// Só na cópia da conta
+        var photoFront: Data? = nil, photoSide: Data? = nil
     }
 
     struct NoteDTO: Codable {
         var exerciseID: String, text: String
+        var updated: Date? = nil
     }
     var checkIns: [CheckInDTO]? = nil
     var routes: [RouteDTO]? = nil
@@ -49,6 +52,8 @@ struct Backup: Codable {
     var profilePhoto: Data? = nil
     /// Ligas e check-ins trazem o estado no servidor (`syncedAt`, `joined`); backups antigos não
     var hasSyncState: Bool? = nil
+    /// Só na cópia da conta: todas as chaves de usuário (`AccountData.userKeys`) em property list, com qualquer tipo
+    var accountSettings: Data? = nil
 
     struct CommentDTO: Codable {
         var uuid: UUID, itemID: String, text: String, date: Date
@@ -90,6 +95,8 @@ struct Backup: Codable {
         var uuid: UUID, leagueUUID: UUID, activityUUID: UUID, title: String, note: String, date: Date
         var hadPhoto: Bool? = nil, place: String? = nil
         var syncedAt: Date? = nil
+        /// Só na cópia da conta
+        var photo: Data? = nil
     }
 
     struct ActivityDTO: Codable {
@@ -97,6 +104,7 @@ struct Backup: Codable {
         var healthUUID: String?, source: String?, monsterUUID: UUID?
         var gymUUID: UUID?
         var meters: Double? = nil, kcal: Double? = nil
+        var healthType: Int? = nil, healthWritten: String? = nil
     }
 
     struct MonsterDTO: Codable {
@@ -119,6 +127,7 @@ struct Backup: Codable {
         var sets: [SetDTO]
         var superset: String? = nil
         var deload: Bool? = nil
+        var gymUUID: UUID? = nil, currentExerciseID: String? = nil, restEnd: Date? = nil, restTotal: Int? = nil, placeAsked: Bool? = nil
     }
 
     struct SetDTO: Codable {
@@ -154,16 +163,16 @@ struct Backup: Codable {
         }
     }
 
+    /// `account`: cópia da conta (todas as chaves de usuário e as fotos dos check-ins), em vez do arquivo de backup
     @MainActor
-    static func make(context: ModelContext) throws -> Backup {
-        let d = UserDefaults.standard
-        return Backup(
+    static func make(context: ModelContext, defaults d: UserDefaults = .standard, account: Bool = false) throws -> Backup {
+        Backup(
             settings: Dictionary(uniqueKeysWithValues: settingKeys.compactMap { k in d.string(forKey: k).map { (k, $0) } }),
             typedSettings: Dictionary(uniqueKeysWithValues: settingKeys.compactMap { k in Setting(d.object(forKey: k)).map { (k, $0) } }),
             activities: try context.fetch(FetchDescriptor<Activity>()).map {
                 ActivityDTO(uuid: $0.uuid, kind: $0.kindRaw, date: $0.date, minutes: $0.minutes, effort: $0.effort,
                             note: $0.note, healthUUID: $0.healthUUID, source: $0.source, monsterUUID: $0.monsterUUID, gymUUID: $0.gymUUID,
-                            meters: $0.meters, kcal: $0.kcal)
+                            meters: $0.meters, kcal: $0.kcal, healthType: $0.healthType, healthWritten: $0.healthWrittenUUID)
             },
             routines: try context.fetch(FetchDescriptor<Routine>()).map { r in
                 RoutineDTO(uuid: r.uuid, name: r.name, weekdays: r.weekdaysRaw, order: r.order, items: r.sortedItems.map {
@@ -175,7 +184,8 @@ struct Backup: Codable {
                            effort: s.effort, activityUUID: s.activityUUID, sets: s.orderedSets.map {
                     SetDTO(exerciseID: $0.exerciseID, exerciseOrder: $0.exerciseOrder, index: $0.index, weight: $0.weight,
                            reps: $0.reps, targetReps: $0.targetReps, rest: $0.rest, done: $0.done, warmup: $0.warmup)
-                }, superset: s.supersetRaw, deload: s.isDeload)
+                }, superset: s.supersetRaw, deload: s.isDeload, gymUUID: s.gymUUID, currentExerciseID: s.currentExerciseID,
+                   restEnd: s.restEnd, restTotal: s.restTotal, placeAsked: s.placeAsked)
             },
             customExercises: try context.fetch(FetchDescriptor<CustomExercise>()).map {
                 CustomDTO(uuid: $0.uuid, name: $0.name, group: $0.groupRaw, equipment: $0.equipment, type: $0.typeRaw, notes: $0.notes)
@@ -184,19 +194,21 @@ struct Backup: Codable {
                 LeagueDTO(uuid: $0.uuid, name: $0.name, emoji: $0.emoji, scoring: $0.scoringRaw, start: $0.start, code: $0.code,
                           isMock: $0.isMock, joinedAt: $0.joinedAt, monsterUUID: $0.monsterUUID, end: $0.end, autoRenew: $0.autoRenew, season: $0.season, seriesID: $0.seriesID, nextUUID: $0.nextUUID,
                           weights: $0.weightsRaw, tieBreak: $0.tieBreakRaw, photoRule: $0.photoRuleRaw, teams: $0.teamsRaw, myTeamID: $0.myTeamID,
-                          cover: $0.isPastSeason ? nil : $0.cover.flatMap { smallCover($0) }, syncedAt: $0.syncedAt, joined: $0.joined)
+                          cover: account ? $0.cover : $0.isPastSeason ? nil : $0.cover.flatMap { smallCover($0) },
+                          syncedAt: $0.syncedAt, joined: $0.joined)
             },
             monsters: try context.fetch(FetchDescriptor<Monster>()).map {
                 MonsterDTO(uuid: $0.uuid, name: $0.name, createdAt: $0.createdAt, isStarter: $0.isStarter, lastFormID: $0.lastFormID, speciesID: $0.speciesID)
             },
             body: try context.fetch(FetchDescriptor<BodyEntry>()).map {
                 BodyDTO(uuid: $0.uuid, date: $0.date, weight: $0.weight, waist: $0.waist, chest: $0.chest, arm: $0.arm,
-                        thigh: $0.thigh, hip: $0.hip, healthUUID: $0.healthUUID)
+                        thigh: $0.thigh, hip: $0.hip, healthUUID: $0.healthUUID,
+                        photoFront: account ? $0.photoFront : nil, photoSide: account ? $0.photoSide : nil)
             },
-            notes: try context.fetch(FetchDescriptor<ExerciseNote>()).map { NoteDTO(exerciseID: $0.exerciseID, text: $0.text) },
+            notes: try context.fetch(FetchDescriptor<ExerciseNote>()).map { NoteDTO(exerciseID: $0.exerciseID, text: $0.text, updated: $0.updated) },
             checkIns: try context.fetch(FetchDescriptor<LeagueCheckIn>()).map {
                 CheckInDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, activityUUID: $0.activityUUID, title: $0.title, note: $0.note, date: $0.date,
-                           hadPhoto: $0.hasPhoto, place: $0.place, syncedAt: $0.syncedAt)
+                           hadPhoto: $0.hasPhoto, place: $0.place, syncedAt: $0.syncedAt, photo: account ? $0.photo : nil)
             },
             routes: try context.fetch(FetchDescriptor<RouteRecord>()).map {
                 RouteDTO(uuid: $0.uuid, activityUUID: $0.activityUUID, kind: $0.kindRaw, start: $0.start, seconds: $0.seconds,
@@ -223,7 +235,8 @@ struct Backup: Codable {
                 MessageDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, text: $0.text, date: $0.date, syncedAt: $0.syncedAt)
             },
             profilePhoto: d.data(forKey: "profilePhoto"),
-            hasSyncState: true
+            hasSyncState: true,
+            accountSettings: account ? AccountData.settings(d) : nil
         )
     }
 
@@ -237,7 +250,7 @@ struct Backup: Codable {
 
     /// Substitui todos os dados atuais pelos do backup; se algo falhar, nada muda
     @MainActor
-    func restore(into context: ModelContext) throws {
+    func restore(into context: ModelContext, defaults d: UserDefaults = .standard) throws {
         defer { PRBook.reload() }
         do {
             try replaceAll(in: context)
@@ -247,16 +260,20 @@ struct Backup: Codable {
             throw error
         }
 
-        let d = UserDefaults.standard
-        for k in Backup.settingKeys { d.set(typedSettings?[k]?.value ?? settings[k], forKey: k) }
+        if let accountSettings {
+            AccountData.apply(accountSettings, to: d)
+        } else {
+            for k in Backup.settingKeys { d.set(typedSettings?[k]?.value ?? settings[k], forKey: k) }
+        }
         // Backup sem foto do perfil (antigo) mantém a atual
         if let profilePhoto { d.set(profilePhoto, forKey: "profilePhoto") }
         // Backups antigos não têm a coleção de monstros
         Roster.ensureStarter(context: context)
     }
 
+    /// Todos os modelos do banco, na ordem em que podem sair
     @MainActor
-    private func replaceAll(in context: ModelContext) throws {
+    static func deleteAll(in context: ModelContext) throws {
         try context.delete(model: LoggedSet.self)
         try context.delete(model: WorkoutSession.self)
         try context.delete(model: RoutineItem.self)
@@ -275,6 +292,11 @@ struct Backup: Codable {
         try context.delete(model: Gym.self)
         try context.delete(model: PersonalRecord.self)
         try context.delete(model: CheckInComment.self)
+    }
+
+    @MainActor
+    private func replaceAll(in context: ModelContext) throws {
+        try Backup.deleteAll(in: context)
 
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
@@ -285,6 +307,8 @@ struct Backup: Codable {
             act.gymUUID = a.gymUUID
             act.meters = a.meters
             act.kcal = a.kcal
+            act.healthType = a.healthType
+            act.healthWrittenUUID = a.healthWritten
             context.insert(act)
         }
         for r in routines {
@@ -307,6 +331,11 @@ struct Backup: Codable {
             session.supersetRaw = s.superset ?? ""
             session.isDeload = s.deload ?? false
             session.activityUUID = s.activityUUID
+            session.gymUUID = s.gymUUID
+            session.currentExerciseID = s.currentExerciseID
+            session.restEnd = s.restEnd
+            if let restTotal = s.restTotal { session.restTotal = restTotal }
+            session.placeAsked = s.placeAsked ?? false
             context.insert(session)
             for x in s.sets {
                 let set = LoggedSet(exerciseID: x.exerciseID, exerciseOrder: x.exerciseOrder, index: x.index,
@@ -356,9 +385,15 @@ struct Backup: Codable {
             e.uuid = b.uuid
             e.waist = b.waist; e.chest = b.chest; e.arm = b.arm; e.thigh = b.thigh; e.hip = b.hip
             e.healthUUID = b.healthUUID
+            e.photoFront = b.photoFront
+            e.photoSide = b.photoSide
             context.insert(e)
         }
-        for n in notes ?? [] { context.insert(ExerciseNote(exerciseID: n.exerciseID, text: n.text)) }
+        for n in notes ?? [] {
+            let note = ExerciseNote(exerciseID: n.exerciseID, text: n.text)
+            if let updated = n.updated { note.updated = updated }
+            context.insert(note)
+        }
         for m in monsters ?? [] {
             let mon = Monster(name: m.name, isStarter: m.isStarter)
             mon.uuid = m.uuid
@@ -414,7 +449,7 @@ struct Backup: Codable {
             context.insert(r)
         }
         for c in checkIns ?? [] {
-            let ci = LeagueCheckIn(leagueUUID: c.leagueUUID, activityUUID: c.activityUUID, title: c.title, note: c.note, date: c.date, photo: nil)
+            let ci = LeagueCheckIn(leagueUUID: c.leagueUUID, activityUUID: c.activityUUID, title: c.title, note: c.note, date: c.date, photo: c.photo)
             ci.uuid = c.uuid
             ci.hadPhoto = c.hadPhoto ?? false
             ci.place = c.place

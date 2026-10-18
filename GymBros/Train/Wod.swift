@@ -500,6 +500,7 @@ struct WodResultForm: View {
     @State private var note = ""
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
+    @State private var blocked = false
 
     var body: some View {
         GMModal("Resultado", confirm: "Salvar", onConfirm: save) {
@@ -523,13 +524,21 @@ struct WodResultForm: View {
                 GMToggle(title: "RX", isOn: $rx)
             }
             GMSection { GMEffortPicker(value: $effort) }
-            GMSection("Observação") { GMTextField(placeholder: "Carga usada, adaptações…", text: $note, axis: .vertical) }
+            GMSection("Observação") {
+                GMTextField(placeholder: "Carga usada, adaptações…", text: $note, axis: .vertical)
+                if blocked { ContentBlockedNote() }
+            }
             LeaguePostSection(selected: $leagues, photo: $photo)
         }
         .onAppear { roundsDone = rounds }
+        .onChange(of: note) { blocked = false }
     }
 
     private func save() {
+        if !leagues.isEmpty && !ContentFilter.allows(note) {
+            blocked = true
+            return
+        }
         let r = WodResult(wodID: wod.id, wodName: wod.name, formatName: wod.format.name)
         switch wod.format {
         case .forTime:

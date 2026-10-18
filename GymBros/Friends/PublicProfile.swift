@@ -51,16 +51,18 @@ extension PublicProfile {
         return .init(checkIns: posted.count, activeDays: days.count, leagues: leagues.filter { !$0.isPastSeason }.count)
     }
 
-    /// O seu perfil público, respeitando o que você escondeu em "O que aparece para os outros"
+    /// O seu perfil público, respeitando o que você escondeu em "O que aparece para os outros".
+    /// Texto barrado pelo filtro de palavras sobe vazio (o apelido do bro volta ao nome da forma).
     @MainActor
     static func mine(roster: Roster, activities: [Activity], checkIns: [LeagueCheckIn], leagues: [League], unlocked: [Achievement]) -> PublicProfile {
         let d = UserDefaults.standard
         func shows(_ key: String) -> Bool { d.object(forKey: key) == nil || d.bool(forKey: key) }
+        func text(_ key: String) -> String { ContentFilter.publishable(d.string(forKey: key) ?? "") }
         let s = roster.mainSnapshot
+        let broName = ContentFilter.publishable(roster.main?.displayName(s.form) ?? "")
         return PublicProfile(
-            id: "me", name: d.string(forKey: "trainerName") ?? "", username: d.string(forKey: "profileUsername") ?? "",
-            bio: d.string(forKey: "profileBio") ?? "",
-            bro: shows("publicMonster") ? .init(name: roster.main?.displayName(s.form) ?? s.form.name, formID: s.form.id, level: s.level, progress: s.progress) : nil,
+            id: "me", name: text("trainerName"), username: text("profileUsername"), bio: text("profileBio"),
+            bro: shows("publicMonster") ? .init(name: broName.isEmpty ? s.form.name : broName, formID: s.form.id, level: s.level, progress: s.progress) : nil,
             stats: shows("publicStats") ? stats(activities: activities, checkIns: checkIns, leagues: leagues) : nil,
             achievements: shows("publicAchievements") ? unlocked.map { .init(title: $0.title, symbol: $0.symbol) } : nil)
     }
@@ -161,6 +163,11 @@ struct FriendProfileView: View {
     @Query(sort: \League.joinedAt) private var leagues: [League]
     @State private var menu = false
     @State private var confirmRemove = false
+    @State private var moderation: ModerationRequest?
+    @State private var mod = ModerationStore.shared
+    @State private var chatting = false
+    @State private var cheered = false
+    @State private var terms = TermsGate()
 
     private var live: LiveFriend? { FriendsLive.simulated.first { $0.id == friend.id && $0.isLive } }
 
@@ -170,13 +177,18 @@ struct FriendProfileView: View {
         ScrollView {
             VStack(spacing: 18) {
                 header(profile)
-                if let profile {
+                if store.friendIDs.contains(friend.id) { friendActions }
+                if mod.isHidden(.profile, friend.id) {
+                    GMEmptyState(icon: "flag", title: "Perfil denunciado",
+                                 message: "Você não vê mais o conteúdo deste perfil. " + ModerationStore.reviewNote)
+                } else if let profile {
                     if profile.bro != nil || profile.stats != nil || !(profile.achievements ?? []).isEmpty {
                         GMCard { PublicProfileCard(profile: profile, showHeader: false) }
                     }
                     commonLeagues
-                    GMSection("Posts · \(profile.posts.count)", footer: profile.posts.isEmpty ? "\(friend.name) ainda não postou nada no perfil." : nil) {
-                        PostsCalendar(posts: feed(profile))
+                    let posts = mod.visible(feed(profile))
+                    GMSection("Posts · \(posts.count)", footer: posts.isEmpty ? "\(friend.name) ainda não postou nada no perfil." : nil) {
+                        PostsCalendar(posts: posts)
                     }
                 } else {
                     ProgressView().padding(.top, 40)
@@ -199,9 +211,7 @@ struct FriendProfileView: View {
         .toolbar(.hidden, for: .navigationBar)
         }
         .task { await store.loadProfile(friend.id) }
-        .gmActions(isPresented: $menu, title: friend.name, actions: [
-            GMAction("Desfazer amizade", icon: "person.badge.minus", destructive: true) { confirmRemove = true }
-        ])
+        .gmActions(isPresented: $menu, title: friend.name, actions: menuActions)
         .gmActions(isPresented: $confirmRemove, title: "Desfazer amizade com \(friend.name)?",
                    message: "Vocês continuam nas mesmas ligas.", actions: [
             GMAction("Desfazer amizade", icon: "person.badge.minus", destructive: true) {
@@ -209,6 +219,19 @@ struct FriendProfileView: View {
                 dismiss()
             }
         ])
+        .moderation($moderation) { dismiss() }
+        .termsGate($terms)
+        .gmModal(isPresented: $chatting) { NavigationStack { ConversationView(peerID: friend.id) } }
+    }
+
+    private var menuActions: [GMAction] {
+        var list: [GMAction] = []
+        if store.friendIDs.contains(friend.id) {
+            list.append(GMAction("Desfazer amizade", icon: "person.badge.minus", destructive: true) { confirmRemove = true })
+        }
+        let target = ModerationTarget(userID: friend.id, userName: friend.name, content: mod.isHidden(.profile, friend.id) ? nil : .profile,
+                                      id: friend.id)
+        return list + target.actions { moderation = $0 }
     }
 
     private func header(_ p: PublicProfile?) -> some View {
@@ -225,6 +248,24 @@ struct FriendProfileView: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    /// Conversa e força direto do perfil (só entre amigos)
+    private var friendActions: some View {
+        HStack(spacing: 10) {
+            GMButton("Mensagem", icon: "bubble.left.fill", kind: .secondary) { chatting = true }
+            GMButton(cheered ? "Força enviada" : "Mandar força", icon: cheered ? "checkmark" : "bolt.heart.fill", enabled: !cheered) {
+                terms.run {
+                    Task {
+                        do {
+                            try await InboxStore.shared.cheer(friend.id)
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            withAnimation(.snappy) { cheered = true }
+                        } catch {}
+                    }
+                }
+            }
+        }
     }
 
     /// Ligas suas em que a pessoa também está

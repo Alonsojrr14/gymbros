@@ -27,6 +27,7 @@ struct LogActivityView: View {
     @Query(sort: \Gym.createdAt) private var gyms: [Gym]
 
     @State private var loaded = false
+    @State private var blocked = false
 
     /// XP desta atividade e o estágio de antes de cada bro que vai evoluir com ela. Os donos seguem a
     /// regra do Roster com os destinos marcados agora; na edição, a versão antiga sai da conta
@@ -69,6 +70,7 @@ struct LogActivityView: View {
             GMSection("Quando") {
                 GMDateTimePicker(date: $date)
                 GMTextField(placeholder: "Observação (opcional)", text: $note)
+                if blocked && editing == nil { ContentBlockedNote() }
             }
 
             GMCard { previewView }
@@ -76,11 +78,12 @@ struct LogActivityView: View {
             if editing == nil {
                 LeaguePostSection(selected: $leagues, photo: $photo)
             } else {
-                LeaguePostSection(selected: $leagues, photo: $photo, selectAllByDefault: false)
+                LeaguePostSection(selected: $leagues, photo: $photo, selectAllByDefault: false, fromHealth: editing?.isFromHealth ?? false)
                 if !leagues.isEmpty {
                     GMSection("Post", footer: "Vale para todos os destinos marcados. Tirar um destino apaga o check-in de lá.") {
                         GMTextField(placeholder: "Título (ex.: Dia de perna 🦵)", text: $postTitle)
                         GMTextField(placeholder: "Descrição (opcional)", text: $postNote, axis: .vertical)
+                        if blocked { ContentBlockedNote() }
                         GMDivider()
                         GMRow(icon: "mappin.and.ellipse", iconTint: place == nil ? Theme.dim : Theme.accent,
                               title: place ?? "Sem local", subtitle: "Onde foi", chevron: true) { choosingPlace = true }
@@ -91,6 +94,7 @@ struct LogActivityView: View {
         .gmActions(isPresented: $choosingPlace, title: "Onde foi?", actions:
             gyms.map { g in GMAction(g.name, icon: "dumbbell.fill") { place = g.name } }
             + [GMAction("Sem local", icon: "xmark") { place = nil }])
+        .onChange(of: note + postTitle + postNote) { blocked = false }
         .onAppear {
             // Só na primeira vez: não pode desfazer o que a pessoa já mudou na tela
             guard !loaded, let a = editing else { return }
@@ -109,7 +113,7 @@ struct LogActivityView: View {
                 photo = posts.compactMap(\.photo).first
                 place = first.place
             } else {
-                postTitle = a.note
+                postTitle = a.isFromHealth ? "" : a.note
                 place = GymLocation.shared.gym(a.gymUUID)?.name
             }
         }
@@ -145,6 +149,12 @@ struct LogActivityView: View {
     }
 
     private func save() {
+        // A observação vira o título do check-in
+        let posted = editing == nil ? [note] : [postTitle, postNote]
+        if !leagues.isEmpty && !posted.allSatisfy({ ContentFilter.allows($0) }) {
+            blocked = true
+            return
+        }
         if let a = editing {
             a.kindRaw = kind.rawValue
             a.date = date

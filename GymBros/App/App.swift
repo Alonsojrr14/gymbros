@@ -16,6 +16,9 @@ struct GymBrosApp: App {
         PRBook.reload()
         // Mock ou CloudKit (Backend.mode)
         Backend.install()
+        #if DEBUG
+        OnboardingCoordinator.shared.applyLaunchArguments()
+        #endif
     }
 
     var body: some Scene {
@@ -29,18 +32,42 @@ struct GymBrosApp: App {
     }
 }
 
+/// A conta vem antes de tudo: os dados no aparelho são sempre os da conta que entrou (AccountSync)
 struct RootView: View {
     @AppStorage("trainerName") private var trainerName = ""
+    @AppStorage(Terms.acceptedKey) private var acceptedTerms = 0
     @State private var auth = AuthStore.shared
+    @State private var sync = AccountSync.shared
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
-        if !auth.isSignedIn {
-            LoginView()
-        } else if trainerName.isEmpty {
-            OnboardingView()
-        } else {
-            MainView()
+        Group {
+            if !auth.isSignedIn {
+                LoginView(required: true)
+            } else if !sync.isReady(for: auth.user?.id) {
+                AccountLoadingView()
+            } else if trainerName.isEmpty {
+                OnboardingView()
+            } else if acceptedTerms < Terms.version {
+                // Conta que já tinha ovo, entrou de novo ou termos com versão nova: aceite antes de entrar
+                TermsRequiredView()
+            } else {
+                MainView()
+            }
         }
+        // Login, logout e troca de conta: as roles da sessão anterior deixam de valer na hora
+        .task(id: auth.user?.id) {
+            await AccessStore.shared.refresh()
+            try? await sync.finishPendingDeletion()
+            if let user = auth.user { await sync.enter(user) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave).receive(on: DispatchQueue.main)) { _ in
+            sync.scheduleUpload()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: DispatchQueue.main)) { _ in
+            sync.scheduleUpload()
+        }
+        .onChange(of: phase) { _, p in if p == .background { sync.uploadInBackground() } }
     }
 }
 
@@ -71,6 +98,8 @@ struct MainView: View {
     @AppStorage("reminderMinute") private var reminderMinute = 18 * 60
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
     @AppStorage("weeklySummary") private var weeklySummary = true
+    @AppStorage(NotificationPrefs.pausedKey) private var notificationsPaused = false
+    @State private var inbox = InboxStore.shared
     /// Observado só para redesenhar quando "Tornar principal" muda o principal
     @AppStorage(MainMonster.key) private var mainMonster = ""
     /// Fila de cenas: dois bros evoluindo juntos aparecem um depois do outro
@@ -82,6 +111,7 @@ struct MainView: View {
     @State private var recovered = AppData.recoveredCopy != nil
     /// A Dex abre pela tela do bro (saiu da barra para o bro ficar no centro)
     @State private var dex = false
+    @State private var tour = OnboardingCoordinator.shared
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var phase
 
@@ -108,13 +138,17 @@ struct MainView: View {
             page(3) { MapScreen() }
             page(4) { HistoryView(snapshot: history, activities: activities) }
         }
-        .onChange(of: tab, initial: true) { _, t in visited.insert(t) }
+        .onChange(of: tab, initial: true) { _, t in
+            visited.insert(t)
+            tour.tabDidChange(to: MainTab(rawValue: t))
+        }
         .overlay(alignment: .bottom) {
-            GMTabBar(left: [GMTabItem(icon: "dumbbell.fill", title: "Treino", tag: 1),
-                            GMTabItem(icon: "trophy.fill", title: "Ligas", tag: 2)],
-                     right: [GMTabItem(icon: "map.fill", title: "Mapa", tag: 3, badge: FriendsLive.liveCount),
-                             GMTabItem(icon: "list.bullet", title: "Histórico", tag: 4)],
-                     centerTag: 0, selection: $tab) {
+            GMTabBar(left: [GMTabItem(icon: "dumbbell.fill", title: "Treino", tag: 1, spotlight: .trainTab),
+                            GMTabItem(icon: "trophy.fill", title: "Ligas", tag: 2, spotlight: .leaguesTab)],
+                     right: [GMTabItem(icon: "map.fill", title: "Mapa", tag: 3, badge: FriendsLive.liveCount,
+                                       spotlight: .mapTab),
+                             GMTabItem(icon: "list.bullet", title: "Histórico", tag: 4, spotlight: .historyTab)],
+                     centerTag: 0, selection: $tab, centerSpotlight: .broTab) {
                 MonsterSprite(form: s.form)
             }
             .ignoresSafeArea(.keyboard)
@@ -126,10 +160,18 @@ struct MainView: View {
         .task(id: monsters.map { roster.snapshot($0.uuid).form.id + $0.uuid.uuidString }.joined()) { check(roster) }
         .task(id: phase) {
             guard phase == .active else { return }
-            // Caixa de saída (ligas, check-ins, recados) e o seu perfil público para o servidor
-            await LeagueRemoteStore.shared.flush(context: context)
-            await FriendsStore.shared.publish(PublicProfile.mine(roster: roster, activities: activities, checkIns: checkIns,
-                                                                 leagues: leagues, unlocked: achievements.filter(\.unlocked)))
+            // Caixa de saída (ligas, check-ins, recados, denúncias e bloqueios) e o seu perfil público para o servidor;
+            // o perfil só depois do aceite dos termos. A sessão pode ter acabado enquanto a tela saía.
+            if AuthStore.shared.isSignedIn {
+                await AccessStore.shared.refresh()
+                await LeagueRemoteStore.shared.flush(context: context)
+                await ModerationStore.shared.refresh()
+                await InboxStore.shared.refresh(context: context)
+                if Terms.isAccepted() {
+                    await FriendsStore.shared.publish(PublicProfile.mine(roster: roster, activities: activities, checkIns: checkIns,
+                                                                         leagues: leagues, unlocked: achievements.filter(\.unlocked)))
+                }
+            }
             // Peso mais recente para as estimativas de calorias (perfil físico)
             BodyProfile.remember(weight: ((try? context.fetch(FetchDescriptor<BodyEntry>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? [])
                 .compactMap(\.weight).first)
@@ -145,7 +187,7 @@ struct MainView: View {
         }
         .task(id: achievements.filter(\.unlocked).map(\.id)) { announce(achievements) }
         // Widget e lembretes acompanham qualquer mudança relevante
-        .task(id: "\(s.totalXP)|\(s.lastActivity?.timeIntervalSince1970 ?? 0)|\(routineKey)|\(remindersOn)|\(reminderMinute)|\(reminderRoutineOnly)|\(weeklySummary)|\(mainName)|\(phase == .active)") {
+        .task(id: "\(s.totalXP)|\(s.lastActivity?.timeIntervalSince1970 ?? 0)|\(routineKey)|\(remindersOn)|\(reminderMinute)|\(reminderRoutineOnly)|\(weeklySummary)|\(notificationsPaused)|\(mainName)|\(phase == .active)") {
             publish(s, companion: companion)
         }
         .overlay(alignment: .top) {
@@ -160,7 +202,34 @@ struct MainView: View {
                     .onTapGesture { withAnimation { self.banner = nil } }
             }
         }
+        .overlay { OnboardingOverlay() }
+        .animation(.easeInOut(duration: 0.25), value: tour.isActive)
+        .onChange(of: AuthStore.shared.user?.id, initial: true) { _, id in tour.setAccount(id) }
+        .onDisappear { tour.suspend() }
+        .onChange(of: tour.current?.id) {
+            guard let t = tour.current?.tab, tab != t.rawValue else { return }
+            withAnimation(.spring(duration: 0.3)) { tab = t.rawValue }
+        }
+        // Tutorial: só com a tela principal livre (sem cena de evolução, avisos ou a Dex por cima)
+        // e, na abertura automática, sem treino em andamento
+        .task(id: "\(tour.startRequested)|\(AuthStore.shared.user?.id ?? "")|\(recovered)|\(arrivalPrompt)|\(evolutions.isEmpty)|\(dex)|\(phase == .active)") {
+            guard phase == .active else { return }
+            try? await Task.sleep(for: .milliseconds(800))
+            guard !Task.isCancelled else { return }
+            let running = (try? context.fetchCount(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end == nil }))) ?? 0
+            tour.startIfEligible(modalOpen: recovered || arrivalPrompt || !evolutions.isEmpty || dex, busy: running > 0)
+        }
         .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.startWorkout)) { _ in tab = 1 }
+        // Força, convites e mensagens chegam mesmo com a caixa de entrada fechada (com servidor, por push)
+        .task(id: phase) {
+            guard phase == .active else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(45))
+                if AuthStore.shared.isSignedIn { await InboxStore.shared.refresh(context: context) }
+            }
+        }
+        // Toque numa notificação social: a caixa de entrada abre pela tela inicial
+        .onChange(of: inbox.route) { _, r in if r != nil { tab = 0 } }
         // Widget "Treino do dia": gymbros://start abre o treino em andamento ou começa a rotina de hoje
         .onOpenURL { url in
             guard url.scheme == "gymbros", url.host == "start" else { return }
@@ -195,6 +264,7 @@ struct MainView: View {
                 .opacity(tab == i ? 1 : 0)
                 .allowsHitTesting(tab == i)
                 .accessibilityHidden(tab != i)
+                .environment(\.onboardingVisible, tab == i)
         }
     }
 
@@ -262,10 +332,10 @@ struct MainView: View {
                    updated: .now, lastEvolution: s.evolutions.last?.date, lastEvolutionName: s.evolutions.last?.form.name,
                    lastEvolutionHatch: s.evolutions.last?.form.stage == .baby).save()
         WidgetBridge.reload()
-        Reminders.schedule(enabled: remindersOn, minuteOfDay: reminderMinute, onlyRoutineDays: reminderRoutineOnly,
+        Reminders.schedule(enabled: remindersOn && !notificationsPaused, minuteOfDay: reminderMinute, onlyRoutineDays: reminderRoutineOnly,
                            routines: routinesByWeekday, name: companion.name, streak: s.streak,
                            trainedToday: companion.trainedToday, isEgg: s.stage == .egg)
-        WeeklySummary.schedule(enabled: weeklySummary, trainer: trainerName)
+        WeeklySummary.schedule(enabled: weeklySummary && !notificationsPaused, trainer: trainerName)
         Task { await HealthSync.exportPending(context: context) }
     }
 

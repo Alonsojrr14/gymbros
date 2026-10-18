@@ -96,7 +96,7 @@ struct GMIconButton: View {
         case "ellipsis": "Mais opções"
         case "gearshape", "gearshape.fill": "Ajustes"
         case "person.2.fill", "person.2": "Amigos"
-        case "square.stack.3d.up": "Bros"
+        case "pawprint.fill", "square.stack.3d.up": "Bros"
         case "plus": "Adicionar"
         case "pencil": "Editar"
         case "trash": "Apagar"

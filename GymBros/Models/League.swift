@@ -205,7 +205,7 @@ final class LeagueMessage {
     }
 }
 
-/// Comentário (ou reação) num check-in de liga. Por enquanto fica só neste aparelho.
+/// Comentário (ou reação) num check-in de liga. Por enquanto não chega a outras pessoas (vai só na cópia da conta).
 @Model
 final class CheckInComment {
     var uuid: UUID = UUID()

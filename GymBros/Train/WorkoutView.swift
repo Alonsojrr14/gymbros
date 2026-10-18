@@ -755,6 +755,8 @@ struct FinishWorkoutView: View {
     @State private var updateRoutine = false
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
+    @State private var postTitle: String?
+    @State private var blocked = false
 
     private var minutes: Int { max(Int(Date.now.timeIntervalSince(session.start) / 60), 1) }
 
@@ -817,6 +819,12 @@ struct FinishWorkoutView: View {
             }
             GMSection { GMEffortPicker(value: $effort) }
             LeaguePostSection(selected: $leagues, photo: $photo)
+            if postTitle != nil && !leagues.isEmpty {
+                GMSection("Título do post") {
+                    GMTextField(placeholder: "Título (ex.: Dia de perna 🦵)", text: Binding(get: { postTitle ?? "" }, set: { postTitle = $0 }))
+                    if blocked { ContentBlockedNote() }
+                }
+            }
             GMSection(footer: done.isEmpty ? "Marque ao menos uma série feita para salvar." : nil) {
                 HStack {
                     Text("+\(xp) XP").font(.title2.weight(.heavy).monospacedDigit()).foregroundStyle(Theme.accent)
@@ -831,6 +839,7 @@ struct FinishWorkoutView: View {
                 }
             }
         }
+        .onChange(of: postTitle) { blocked = false }
     }
 
     /// XP do treino e o estágio de antes de cada bro que vai evoluir. O XP vai para os bros das ligas marcadas
@@ -885,11 +894,17 @@ struct FinishWorkoutView: View {
     }
 
     private func save() {
+        let title = postTitle ?? session.title
+        if !leagues.isEmpty && !ContentFilter.allows(title) {
+            if postTitle == nil { postTitle = title }
+            blocked = true
+            return
+        }
         let activity = Activity(kind: .musculacao, date: session.start, minutes: minutes, effort: effort, note: session.title)
         activity.gymUUID = session.gymUUID
         context.insert(activity)
         let summary = records.isEmpty ? "" : "🏆 " + records.joined(separator: " · ")
-        postCheckIns(activity: activity, leagues: leagues, title: session.title, note: summary, photo: photo, context: context)
+        postCheckIns(activity: activity, leagues: leagues, title: title, note: ContentFilter.publishable(summary), photo: photo, context: context)
         if updateRoutine, let r = routine, !session.routineChanges(r).isEmpty { session.apply(to: r, context: context) }
         session.end = .now
         session.effort = effort

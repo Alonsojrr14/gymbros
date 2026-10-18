@@ -16,6 +16,10 @@ struct CheckInDetailView: View {
     @State private var confirmDelete = false
     @State private var reacting = false
     @State private var commentMenu: CheckInComment?
+    @State private var moderation: ModerationRequest?
+    @State private var mod = ModerationStore.shared
+    @State private var blocked = false
+    @State private var terms = TermsGate()
     @FocusState private var typing: Bool
 
     private var mine: LeagueCheckIn? { item.isMe ? checkIns.first { $0.uuid.uuidString == item.id } : nil }
@@ -23,26 +27,44 @@ struct CheckInDetailView: View {
     /// Dados atuais (o check-in pode ter sido editado depois de aberto)
     private var title: String { mine?.title ?? item.title }
     private var note: String { mine?.note ?? item.note }
-    private var photo: Data? { item.isMe ? mine?.photo : item.photo }
+    private var photo: Data? { item.isMe ? mine?.photo : mod.isHidden(.photo, item.id) ? nil : item.photo }
+    /// Denunciado por você ou de alguém que você bloqueou
+    private var gone: Bool { !item.isMe && (mod.isHidden(.checkIn, item.id) || mod.isBlocked(item.memberID)) }
+    private var target: ModerationTarget { ModerationTarget(userID: item.memberID, userName: item.name, content: .checkIn, id: item.id) }
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    hero
-                    VStack(alignment: .leading, spacing: 14) {
-                        author
-                        Text(title).gmFont(26, weight: .heavy, design: .rounded, relativeTo: .title)
-                        if !note.isEmpty { Text(note).font(.body).foregroundStyle(.white.opacity(0.85)) }
-                        chips
-                        if !comments.isEmpty { commentList }
-                    }
-                    .padding(.horizontal, 16)
+            if gone {
+                HStack {
+                    GMIconButton(icon: "chevron.left", label: "Voltar") { dismiss() }
+                    Spacer()
                 }
-                .padding(.bottom, 24)
+                .padding(16)
+                if mod.isBlocked(item.memberID) {
+                    GMEmptyState(icon: "hand.raised.slash", title: "Check-in oculto",
+                                 message: "Você bloqueou \(item.name.isEmpty ? "esta pessoa" : item.name). Para ver de novo, desbloqueie em Ajustes > Privacidade.")
+                } else {
+                    GMEmptyState(icon: "flag", title: "Check-in denunciado", message: "Você não vê mais este check-in. " + ModerationStore.reviewNote)
+                }
+                Spacer()
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        hero
+                        VStack(alignment: .leading, spacing: 14) {
+                            author
+                            Text(title).gmFont(26, weight: .heavy, design: .rounded, relativeTo: .title)
+                            if !note.isEmpty { Text(note).font(.body).foregroundStyle(.white.opacity(0.85)) }
+                            chips
+                            if !visibleComments.isEmpty { commentList }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    .padding(.bottom, 24)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                composer
             }
-            .scrollDismissesKeyboard(.interactively)
-            composer
         }
         .background(Theme.bg.ignoresSafeArea())
         .gmActions(isPresented: $menu, title: title, actions: menuActions)
@@ -67,7 +89,12 @@ struct CheckInDetailView: View {
                            try? context.save()
                        }
                    ] } ?? [])
+        .moderation($moderation) { dismiss() }
+        .termsGate($terms)
+        .onChange(of: text) { blocked = false }
     }
+
+    private var visibleComments: [CheckInComment] { mod.visible(comments) }
 
     private var menuActions: [GMAction] {
         var list = [GMAction("Compartilhar", icon: "square.and.arrow.up") { share() }]
@@ -76,6 +103,13 @@ struct CheckInDetailView: View {
                 list.append(GMAction("Editar", icon: "pencil") { editing = a })
             }
             list.append(GMAction("Apagar check-in", icon: "trash", destructive: true) { confirmDelete = true })
+        } else if !item.isMe {
+            var actions = target.actions { moderation = $0 }
+            if item.hasPhoto && !mod.isHidden(.photo, item.id) {
+                let photo = ModerationTarget(userID: item.memberID, userName: item.name, content: .photo, id: item.id)
+                actions.insert(GMAction("Denunciar foto", icon: "photo") { moderation = ModerationRequest(target: photo, step: .report) }, at: 1)
+            }
+            list += actions
         }
         return list
     }
@@ -158,7 +192,7 @@ struct CheckInDetailView: View {
     private var commentList: some View {
         VStack(alignment: .leading, spacing: 12) {
             GMDivider()
-            ForEach(comments) { c in
+            ForEach(visibleComments) { c in
                 HStack(alignment: .top, spacing: 10) {
                     if c.isMine { Avatar(size: 32) } else { PersonAvatar(name: c.authorName, size: 32) }
                     VStack(alignment: .leading, spacing: 2) {
@@ -171,14 +205,22 @@ struct CheckInDetailView: View {
                     Spacer()
                 }
                 .contentShape(Rectangle())
-                // Só dá para apagar o que é seu
-                .onLongPressGesture { if c.isMine { commentMenu = c } }
+                // O seu dá para apagar; o dos outros, denunciar ou bloquear quem escreveu
+                .onLongPressGesture {
+                    if c.isMine {
+                        commentMenu = c
+                    } else {
+                        moderation = ModerationRequest(target: ModerationTarget(userID: c.authorID, userName: c.authorName, content: .comment,
+                                                                                 id: c.uuid.uuidString))
+                    }
+                }
             }
         }
     }
 
     private var composer: some View {
         VStack(spacing: 10) {
+            if blocked { ContentBlockedNote() }
             if reacting {
                 HStack {
                     ForEach(["💪", "🔥", "👏", "😮‍💨", "🏆", "❤️"], id: \.self) { e in
@@ -226,10 +268,14 @@ struct CheckInDetailView: View {
     private func send(_ raw: String) {
         let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
-        context.insert(CheckInComment(itemID: item.id, text: t))
-        try? context.save()
-        if raw == text { text = "" }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        guard AccessStore.shared.can(.commentsCreate) else { return }
+        guard ContentFilter.allows(t) else { blocked = true; return }
+        terms.run {
+            context.insert(CheckInComment(itemID: item.id, text: t))
+            try? context.save()
+            if raw == text { text = "" }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
     }
 
     private func isEmojiOnly(_ s: String) -> Bool {

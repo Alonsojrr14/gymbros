@@ -45,6 +45,7 @@ struct TrainView: View {
                         card(title: s.title, subtitle: "Em andamento desde \(s.start.formatted(date: .omitted, time: .shortened))",
                              action: "Continuar") { active = s }
                     }
+                    .onboardingTarget(.trainToday, shape: .rounded(Theme.radius))
                 } else {
                     let todays = routines.filter { $0.weekdays.contains(today) }
                     GMSection(todays.isEmpty ? "Hoje" : "Hoje · \(Date.now.formatted(.dateTime.weekday(.wide)))") {
@@ -66,6 +67,7 @@ struct TrainView: View {
                         }
                         GMRow(icon: "plus", iconTint: Theme.accent, title: "Treino livre", subtitle: "Monte na hora", chevron: true) { start(nil) }
                     }
+                    .onboardingTarget(.trainToday, shape: .rounded(Theme.radius))
                 }
 
                 GMSection("Minhas rotinas") {

@@ -47,6 +47,7 @@ final class LeagueFlushTests: GymTestCase {
         let backend = RecordingLeagueBackend()
         let store = LeagueRemoteStore()
         store.backend = backend
+        store.access = await signedInAccess()
 
         let first = Task { await store.flush(context: ctx) }
         let second = Task { await store.flush(context: ctx) }
@@ -83,6 +84,7 @@ final class LeagueFlushTests: GymTestCase {
             })
         let store = LeagueRemoteStore()
         store.backend = backend
+        store.access = await signedInAccess()
 
         await store.flush(context: ctx)
 

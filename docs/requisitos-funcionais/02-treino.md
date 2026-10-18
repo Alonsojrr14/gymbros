@@ -458,7 +458,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 **Descrição:** O app deve guardar dados opcionais do corpo e, com eles, dar uma referência diária de calorias, proteína e água.  
 **Regras de negócio:**
 - Fica no topo de Metas: "Seu corpo" (altura em cm, ano de nascimento com a idade calculada, sexo e, se há peso, peso com IMC) e "Objetivo e experiência" (Ganhar massa, Ganhar força, Emagrecer, Condicionamento, Saúde; Iniciante, Intermediário, Avançado, com a descrição da faixa no rodapé). Tudo opcional ("Não informar") e editado pelo lápis (`GMLockedRow`); o ano é digitado sem separador de milhar.
-- Só no aparelho, nunca no perfil público; entra no backup junto com as metas (`BodyProfile.keys`).
+- Fica na conta (cópia da conta, RF-SOC-33), nunca no perfil público; entra no backup junto com as metas (`BodyProfile.keys`).
 - O peso vem de Peso e medidas (RF-TRE-35) e é guardado como o último peso conhecido.
 - "Referência do dia" aparece com altura, ano de nascimento, objetivo e peso: gasto = metabolismo basal (Mifflin-St Jeor: 10 × peso + 6,25 × altura − 5 × idade, +5 homem / −161 mulher) × fator de atividade pelos treinos por semana das últimas 4 semanas (< 1: 1,2; < 3: 1,375; < 5,5: 1,55; senão 1,725).
 - Para o objetivo: +300 kcal em Ganhar massa, −400 kcal em Emagrecer, gasto nos demais; o déficit nunca passa de 20 % do gasto. Proteína em g/kg: 1,6–2,2 (massa, força), 1,8–2,4 (emagrecer), 1,2–1,6 (condicionamento, saúde). Água: 35 ml/kg.
