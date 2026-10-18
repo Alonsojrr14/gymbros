@@ -1,6 +1,6 @@
 # Backend com CloudKit
 
-O app fala com o servidor só por três contratos: `AuthBackend` (`Auth.swift`), `LeagueBackend` (`LeagueRemote.swift`) e `FriendsBackend` (`Friends.swift`). Quem responde é escolhido em `GymMonsters/Backend.swift`:
+O app fala com o servidor só por três contratos: `AuthBackend` (`GymBros/Services/Auth.swift`), `LeagueBackend` (`GymBros/Leagues/LeagueRemote.swift`) e `FriendsBackend` (`GymBros/Friends/Friends.swift`). Quem responde é escolhido em `GymBros/Services/Backend.swift`:
 
 ```swift
 static let mode: BackendMode = .mock   // .cloudKit quando o app tiver iCloud
@@ -17,7 +17,7 @@ A liga de exemplo (`AMIGOS`) continua simulada nos dois modos.
 ## Ligar o CloudKit
 
 1. Conta paga do Apple Developer (o Personal Team não tem iCloud nem Sign in with Apple).
-2. Xcode → alvo GymMonsters → Signing & Capabilities → **+ iCloud** → marcar **CloudKit** → container `iCloud.com.alonsoalmeida.gymmonsters` (o mesmo de `Backend.containerID`). Isso adiciona ao `GymMonsters.entitlements` as chaves `com.apple.developer.icloud-container-identifiers` e `com.apple.developer.icloud-services`.
+2. Xcode → alvo GymBros → Signing & Capabilities → **+ iCloud** → marcar **CloudKit** → container `iCloud.com.alonsoalmeida.gymbros` (o mesmo de `Backend.containerID`). Isso adiciona ao `GymBros.entitlements` as chaves `com.apple.developer.icloud-container-identifiers` e `com.apple.developer.icloud-services`.
 3. Criar o esquema abaixo no CloudKit Dashboard (ambiente Development), com índices e permissões.
 4. Trocar `Backend.mode` para `.cloudKit`, rodar no aparelho com uma conta do iCloud e testar com duas contas.
 5. Antes de publicar: **Deploy Schema Changes** para Production.

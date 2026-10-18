@@ -8,8 +8,8 @@ Uso (na raiz do repo, depois do build.py e do everkinetic.py): python3 -I tools/
 import json, os, re, subprocess, time, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-JSON = os.path.join(ROOT, "GymMonsters", "wger.json")
-ASSETS = os.path.join(ROOT, "GymMonsters", "Assets.xcassets", "Wger")
+JSON = os.path.join(ROOT, "GymBros", "Resources", "wger.json")
+ASSETS = os.path.join(ROOT, "GymBros", "Resources", "Assets.xcassets", "Wger")
 OK = re.compile(r"^(Public domain|CC0|CC BY(-SA)? [0-9.]+)$", re.I)
 
 PICKS = {

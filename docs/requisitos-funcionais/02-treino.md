@@ -13,7 +13,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - "Treinos recentes" mostra os 10 últimos treinos concluídos.
 
 **Critérios de aceitação:** Com uma rotina marcada para segunda, abrir o app numa segunda exibe essa rotina em "Hoje · segunda-feira"; com uma sessão aberta, não é possível começar outra pela seção "Hoje" nem pelo menu da rotina.  
-**Fonte:** `GymMonsters/TrainView.swift`
+**Fonte:** `GymBros/Train/TrainView.swift`
 ### RF-TRE-02 — Criar, editar e apagar rotinas
 **Descrição:** O app deve permitir criar rotinas com nome, dias da semana e lista ordenada de exercícios.  
 **Regras de negócio:**
@@ -26,7 +26,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Menu da rotina na lista: "Começar agora" (só sem treino em andamento), "Editar" e "Apagar rotina", que pede confirmação ("Apagar <nome>?" · "Os treinos já feitos com ela continuam no histórico.").
 
 **Critérios de aceitação:** Alterações são salvas ao sair da tela de edição; remover um item renumera a ordem dos restantes.  
-**Fonte:** `GymMonsters/RoutineEditView.swift`, `GymMonsters/TrainView.swift`, `GymMonsters/Training.swift`
+**Fonte:** `GymBros/Train/RoutineEditView.swift`, `GymBros/Train/TrainView.swift`, `GymBros/Models/Training.swift`
 ### RF-TRE-03 — Modelos prontos
 **Descrição:** O app deve instalar conjuntos de rotinas prontas com um toque.  
 **Regras de negócio:**
@@ -35,7 +35,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Descanso de cada item: 120 s se o grupo muscular é "pesado" (costas, quadríceps, posterior, glúteos, panturrilha) e o item tem 4 séries ou mais; senão 90 s.
 
 **Critério de aceitação:** Instalar "ABC" cria 3 rotinas; o agachamento (quadríceps, 4×8) fica com 120 s de descanso.  
-**Fonte:** `GymMonsters/Training.swift` (`RoutineTemplate`), `GymMonsters/TrainView.swift` (`TemplatesView`)
+**Fonte:** `GymBros/Train/Progression.swift` (`RoutineTemplate`), `GymBros/Train/TrainView.swift` (`TemplatesView`)
 
 ## 2. Treino guiado
 ### RF-TRE-04 — Começar um treino
@@ -46,7 +46,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Ao chegar na academia (notificação), o app abre o treino em andamento ou começa a primeira rotina do dia. Pede permissão de notificações ao começar.
 
 **Critério de aceitação:** Começar uma rotina com 4×8 de supino gera 4 séries com a carga e as reps sugeridas e o descanso da rotina.  
-**Fonte:** `GymMonsters/LiveWorkout.swift` (`startSession`), `GymMonsters/TrainView.swift`, `GymMonsters/WorkoutView.swift`
+**Fonte:** `GymBros/Train/LiveWorkout.swift` (`startSession`), `GymBros/Train/TrainView.swift`, `GymBros/Train/WorkoutView.swift`
 ### RF-TRE-05 — Registro de séries
 **Descrição:** O app deve exibir um cartão por exercício em que a pessoa ajusta carga e reps e marca cada série como feita.  
 **Regras de negócio:**
@@ -61,7 +61,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - A tela mantém o aparelho aceso e mostra o cronômetro desde o início; "minimizar" fecha a tela sem encerrar o treino.
 
 **Critérios de aceitação:** Marcar 8 reps numa série com meta 10 destaca a série em laranja; fechar e reabrir o app mantém o treino e as séries marcadas.  
-**Fonte:** `GymMonsters/WorkoutView.swift` (`exerciseCard`, `SetRow`), `GymMonsters/Exercises.swift` (`weightIncludesBar(in:)`, `weightUnit(in:)`, `WorkoutSession.isCrossfit`), `GymMonstersTests/NamesAndBarTests.swift` (`testBarWeightFollowsWorkoutType`)
+**Fonte:** `GymBros/Train/WorkoutView.swift` (`exerciseCard`, `SetRow`), `GymBros/Exercises/Exercises.swift` (`weightIncludesBar(in:)`, `weightUnit(in:)`, `WorkoutSession.isCrossfit`), `GymBrosTests/NamesAndBarTests.swift` (`testBarWeightFollowsWorkoutType`)
 ### RF-TRE-06 — Menu do exercício no treino
 **Descrição:** O app deve oferecer, por exercício, ações de apoio durante o treino.  
 **Regras de negócio:**
@@ -73,7 +73,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - "Remover exercício" pede confirmação ("Remover <exercício>?" · "As séries dele neste treino, feitas ou não, saem do treino.") e então apaga as séries e desfaz o elo de superset dele.
 
 **Critério de aceitação:** Uma nota salva aparece no próximo treino com o mesmo exercício; cancelar a confirmação de remover mantém as séries.  
-**Fonte:** `GymMonsters/WorkoutView.swift` (`exerciseActions`), `GymMonsters/Body.swift` (`ExerciseNote`)
+**Fonte:** `GymBros/Train/WorkoutView.swift` (`exerciseActions`), `GymBros/Models/Body.swift` (`ExerciseNote`)
 ### RF-TRE-07 — Adicionar exercício e descartar treino
 **Descrição:** O app deve permitir adicionar exercícios a qualquer treino e descartar o treino inteiro.  
 **Regras de negócio:**
@@ -82,7 +82,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Descartar pede confirmação ("Descartar este treino? Nada dele será salvo."), apaga a sessão, cancela o descanso, desliga o modo fone e encerra o Live Activity.
 
 **Critério de aceitação:** Treino vazio mostra "Treino vazio — Toque em + Exercício, aqui embaixo, para começar.".  
-**Fonte:** `GymMonsters/WorkoutView.swift`
+**Fonte:** `GymBros/Train/WorkoutView.swift`
 ### RF-TRE-40 — Remover e duplicar série
 **Descrição:** O app deve permitir remover ou duplicar uma série específica durante o treino.  
 **Regras de negócio:**
@@ -92,7 +92,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Remover apaga a série sem confirmação e renumera as que ficam. Se era a última série do exercício, o menu avisa "Remover série (o exercício sai do treino)", e o exercício sai junto, desfazendo o elo de superset.
 
 **Critério de aceitação:** Remover a série 2 de 4 deixa as séries numeradas 1, 2 e 3; duplicar a série 1 cria uma série 2 igual e não marcada.  
-**Fonte:** `GymMonsters/WorkoutView.swift` (`setActions`, `removeSet`, `duplicateSet`, `SetRow`)
+**Fonte:** `GymBros/Train/WorkoutView.swift` (`setActions`, `removeSet`, `duplicateSet`, `SetRow`)
 
 ## 3. Progressão, deload e aquecimento
 ### RF-TRE-08 — Histórico usado na progressão
@@ -104,7 +104,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Uma sessão é "sucesso" quando todas as séries de trabalho foram feitas com reps ≥ meta.
 
 **Critério de aceitação:** Treino feito em semana de deload não altera a sugestão do treino seguinte; 30×10, 50×10, 70×10, 70×10 conta só as duas séries de 70.  
-**Fonte:** `GymMonsters/Training.swift` (`WorkoutSession.log`, `SessionLog`, `Progression.suggest`, `Progression.workSets`, `Progression.rampShare`), `GymMonstersTests/ProgressionTests.swift` (`testManualRampIsNotWork`, `testPyramidCloseToTopCountsAsWork`)
+**Fonte:** `GymBros/Models/Training.swift` (`WorkoutSession.log`), `GymBros/Train/Progression.swift` (`SessionLog`, `Progression.suggest`, `Progression.workSets`, `Progression.rampShare`), `GymBrosTests/ProgressionTests.swift` (`testManualRampIsNotWork`, `testPyramidCloseToTopCountsAsWork`)
 ### RF-TRE-09 — Sugestão de carga sem objetivo (reps fixas)
 **Descrição:** O app deve sugerir carga e reps de cada exercício a partir do último treino em que ele apareceu.  
 **Regras de negócio:**
@@ -119,7 +119,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - A rampa da última vez volta como séries de aquecimento (só as com carga menor que a sugerida) e a razão da sugestão diz "As séries leves (30, 50 kg) contam como aquecimento." O aquecimento automático (RF-TRE-12) substitui a rampa, não soma.
 
 **Critérios de aceitação:** Agachamento 30, 50, 70, 70 numa rotina de 4 séries → sugere 75 kg em 2 séries pesadas, com 30 e 50 como aquecimento; 70×10, 70×7 numa rotina de 3 séries → 70 kg em 3 séries. Supino 4×8 com 60 kg feito por completo → próximo treino sugere 62,5 kg × 8; agachamento com barra falhado 3 vezes em 100 kg → sugere 90 kg; cadeira extensora e leg press sobem de 2,5 kg.  
-**Fonte:** `GymMonsters/Training.swift` (`Progression.suggest`), `GymMonsters/PR.swift` (`PRBook.workingWeight`), `GymMonsters/Exercises.swift` (`increment`), `GymMonsters/LiveWorkout.swift`, `GymMonstersTests/ProgressionTests.swift` (`testFiveKiloStepOnlyForBarbellInHeavyGroups`, `testManualRampIsNotWork`, `testLoadAndSetsDoNotRiseTogether`)
+**Fonte:** `GymBros/Train/Progression.swift` (`Progression.suggest`), `GymBros/Train/PR.swift` (`PRBook.workingWeight`), `GymBros/Exercises/Exercises.swift` (`increment`), `GymBros/Train/LiveWorkout.swift`, `GymBrosTests/ProgressionTests.swift` (`testFiveKiloStepOnlyForBarbellInHeavyGroups`, `testManualRampIsNotWork`, `testLoadAndSetsDoNotRiseTogether`)
 ### RF-TRE-10 — Objetivo por exercício (dupla progressão)
 **Descrição:** O app deve permitir escolher, para exercícios com carga, um objetivo que define faixa de reps, regra de progressão e descanso.  
 **Regras de negócio:**
@@ -129,7 +129,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Também é escolhido no detalhe do exercício; fica guardado por exercício e entra no backup.
 
 **Critério de aceitação:** Supino reto em Hipertrofia, 3×12 completas com 40 kg → próxima sugestão 42,5 kg × 8.  
-**Fonte:** `GymMonsters/Training.swift` (`TrainingGoal`), `GymMonsters/WorkoutView.swift` (`setGoal`), `GymMonsters/ExerciseStatsView.swift`, `GymMonsters/Backup.swift`
+**Fonte:** `GymBros/Train/Progression.swift` (`TrainingGoal`), `GymBros/Train/WorkoutView.swift` (`setGoal`), `GymBros/Train/ExerciseStatsView.swift`, `GymBros/Services/Backup.swift`
 ### RF-TRE-11 — Semana de deload
 **Descrição:** O app deve sugerir uma semana mais leve após várias semanas seguidas de treino e aplicá-la às rotinas.  
 **Regras de negócio:**
@@ -139,7 +139,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Em deload, cada prescrição usa 70 % da carga sugerida (arredondada ao incremento) e max(1, arredondamento de 2/3 das séries); a sessão fica marcada como deload. A regra (`Deload.apply`) vale para os itens da rotina, para exercícios adicionados no treino e para o exercício que entra numa troca (que herda as séries já reduzidas).
 
 **Critério de aceitação:** Item 3×10 com 100 kg em deload vira 2 séries de 70 kg; exercício adicionado num treino de deload também entra com 70 % e 2 séries.  
-**Fonte:** `GymMonsters/Training.swift` (`Deload.apply`), `GymMonsters/LiveWorkout.swift`, `GymMonsters/WorkoutView.swift` (`add`, `swap`), `GymMonsters/TrainView.swift` (`deloadCard`), `GymMonstersTests/ProgressionTests.swift` (`testDeloadAppliesToAnyPrescription`)
+**Fonte:** `GymBros/Train/Progression.swift` (`Deload.apply`), `GymBros/Train/LiveWorkout.swift`, `GymBros/Train/WorkoutView.swift` (`add`, `swap`), `GymBros/Train/TrainView.swift` (`deloadCard`), `GymBrosTests/ProgressionTests.swift` (`testDeloadAppliesToAnyPrescription`)
 ### RF-TRE-12 — Aquecimento
 **Descrição:** O app deve gerar séries de aquecimento antes da carga de trabalho.  
 **Regras de negócio:**
@@ -150,7 +150,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Aquecimento não conta para progressão, recordes, volume nem mapa muscular, nem nas séries feitas/total da conclusão, de "Treinos recentes" e do Live Activity (`workSets`, `doneWorkSets`, `volume`).
 
 **Critério de aceitação:** Trabalho de 100 kg (incremento 2,5) gera 40 × 10, 60 × 6 e 80 × 3.  
-**Fonte:** `GymMonsters/Training.swift` (`Progression.warmup`, `WorkoutSession.workSets`), `GymMonsters/LiveWorkout.swift`, `GymMonsters/WorkoutView.swift`, `GymMonsters/SettingsView.swift`, `GymMonstersTests/WorkoutTests.swift` (`testWarmupStaysOutOfTotalsEverywhere`)
+**Fonte:** `GymBros/Train/Progression.swift` (`Progression.warmup`), `GymBros/Models/Training.swift` (`WorkoutSession.workSets`), `GymBros/Train/LiveWorkout.swift`, `GymBros/Train/WorkoutView.swift`, `GymBros/App/SettingsView.swift`, `GymBrosTests/WorkoutTests.swift` (`testWarmupStaysOutOfTotalsEverywhere`)
 ### RF-TRE-13 — Superséries
 **Descrição:** O app deve encadear exercícios em superset, sem descanso entre eles.  
 **Regras de negócio:**
@@ -159,7 +159,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - O cartão mostra "Superset i/n · descanso depois de <último do bloco>". Elos da rotina são copiados para a sessão ao começar.
 
 **Critério de aceitação:** Bloco A+B: marcar A não inicia descanso e destaca B; marcar B inicia o descanso.  
-**Fonte:** `GymMonsters/Training.swift` (`group`, `advance`), `GymMonsters/WorkoutView.swift`, `GymMonsters/RoutineEditView.swift`
+**Fonte:** `GymBros/Models/Training.swift` (`group`, `advance`), `GymBros/Train/WorkoutView.swift`, `GymBros/Train/RoutineEditView.swift`
 ### RF-TRE-14 — Trocar exercício (aparelho ocupado)
 **Descrição:** O app deve trocar as séries pendentes de um exercício por outro do mesmo grupo muscular.  
 **Regras de negócio:**
@@ -168,7 +168,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Se o antigo já tinha séries feitas, o novo entra logo depois dele; se nenhuma, ocupa o lugar. Nos dois casos, se o antigo estava em superset com o próximo, é o novo que herda o elo e o antigo sai do bloco.
 
 **Critério de aceitação:** Trocar supino reto após 1 de 4 séries mantém a série feita e cria 3 séries do novo exercício logo abaixo; num bloco supino + barra, a troca parcial deixa o novo em superset com a barra e o supino fora do bloco.  
-**Fonte:** `GymMonsters/SwapExercise.swift` (`ranked`), `GymMonsters/Training.swift` (`WorkoutSession.swapPending`), `GymMonsters/WorkoutView.swift` (`swap`), `GymMonstersTests/WorkoutTests.swift` (`testPartialSwapInSupersetDoesNotLinkOldToNew`, `testFullSwapTakesThePlaceAndTheLink`), `GymMonstersTests/ProgressionTests.swift` (`testSwapAlternativesPutSameEquipmentFirst`)
+**Fonte:** `GymBros/Train/SwapExercise.swift` (`ranked`), `GymBros/Models/Training.swift` (`WorkoutSession.swapPending`), `GymBros/Train/WorkoutView.swift` (`swap`), `GymBrosTests/WorkoutTests.swift` (`testPartialSwapInSupersetDoesNotLinkOldToNew`, `testFullSwapTakesThePlaceAndTheLink`), `GymBrosTests/ProgressionTests.swift` (`testSwapAlternativesPutSameEquipmentFirst`)
 
 ## 4. Descanso e controles fora da tela
 ### RF-TRE-15 — Timer de descanso
@@ -181,7 +181,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Notificação "Descanso acabou / Bora para a próxima série 💪" só com Ajustes → "Notificação no fim do descanso" ligado (desligado por padrão).
 
 **Critério de aceitação:** Com notificação ligada e o app em segundo plano, a notificação chega no fim do descanso; pular ou concluir o treino cancela a pendente.  
-**Fonte:** `GymMonsters/LiveWorkout.swift` (`startRest`, `cancelRest`), `GymMonsters/WorkoutView.swift` (`restBar`, `watchRest`), `GymMonsters/SettingsView.swift`
+**Fonte:** `GymBros/Train/LiveWorkout.swift` (`startRest`, `cancelRest`), `GymBros/Train/WorkoutView.swift` (`restBar`, `watchRest`), `GymBros/App/SettingsView.swift`
 ### RF-TRE-16 — Live Activity, Siri e Atalhos
 **Descrição:** O app deve mostrar o treino na tela bloqueada/Dynamic Island e aceitar "Série feita" e "Pular descanso" fora do app.  
 **Regras de negócio:**
@@ -191,7 +191,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Sem treino: "Nenhum treino em andamento."; atalhos por voz: "Série feita no GymBros", "Pular descanso no GymBros" etc.
 
 **Critério de aceitação:** Marcar série pelo Live Activity com o app fechado inicia o descanso e atualiza a tela do app ao reabrir.  
-**Fonte:** `GymMonsters/LiveWorkout.swift`, `Shared/WorkoutIntents.swift`, `GymMonsters/Shortcuts.swift`
+**Fonte:** `GymBros/Train/LiveWorkout.swift`, `Shared/WorkoutIntents.swift`, `GymBros/App/Shortcuts.swift`
 ### RF-TRE-17 — Modo fone
 **Descrição:** O app deve permitir controlar o treino pelo play/pause do fone, com respostas faladas.  
 **Regras de negócio:**
@@ -203,7 +203,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Desliga ao concluir ou descartar o treino.
 
 **Critério de aceitação:** Com o celular bloqueado, apertar play no fone marca a série e o app fala a confirmação.  
-**Fonte:** `GymMonsters/HeadphoneControl.swift` (`TenSecondCue`), `GymMonsters/WorkoutView.swift`, `GymMonstersTests/WorkoutTests.swift` (`testTenSecondCueSpeaksOncePerRest`)
+**Fonte:** `GymBros/Train/HeadphoneControl.swift` (`TenSecondCue`), `GymBros/Train/WorkoutView.swift`, `GymBrosTests/WorkoutTests.swift` (`testTenSecondCueSpeaksOncePerRest`)
 
 ## 5. Concluir treino e histórico
 ### RF-TRE-18 — Tela de conclusão
@@ -216,7 +216,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - "Salvar" só habilitado com ao menos uma série de trabalho feita ("Marque ao menos uma série feita para salvar.").
 
 **Critério de aceitação:** Treino só com aquecimentos marcados não pode ser salvo.  
-**Fonte:** `GymMonsters/WorkoutView.swift` (`FinishWorkoutView`)
+**Fonte:** `GymBros/Train/WorkoutView.swift` (`FinishWorkoutView`)
 ### RF-TRE-19 — Salvar treino e atualizar rotina
 **Descrição:** O app deve registrar o treino como atividade de musculação e, se pedido, atualizar a rotina de origem.  
 **Regras de negócio:**
@@ -225,7 +225,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Ao salvar: encerra a sessão, cancela a notificação de descanso, encerra o Live Activity e desliga o modo fone.
 
 **Critério de aceitação:** Adicionar um exercício no treino e ligar o toggle faz a rotina passar a conter esse exercício com as séries/reps/descanso feitos.  
-**Fonte:** `GymMonsters/WorkoutView.swift` (`save`), `GymMonsters/Training.swift` (`WorkoutSession.routineChanges`, `apply(to:context:)`)
+**Fonte:** `GymBros/Train/WorkoutView.swift` (`save`), `GymBros/Models/Training.swift` (`WorkoutSession.routineChanges`, `apply(to:context:)`)
 ### RF-TRE-20 — Encerramento automático
 **Descrição:** O app deve poder encerrar e salvar o treino sem a tela de conclusão (ex.: ao sair da academia), com os mesmos padrões do "Salvar" da conclusão.  
 **Regras de negócio:**
@@ -236,7 +236,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Devolve "<título>: <duração>, N séries. +X XP pro seu bro." e, se houver oferta, " A rotina <nome> mudou: abra a aba Treino para atualizar.".
 
 **Critério de aceitação:** O treino encerrado automaticamente aparece em "Treinos recentes", no perfil e nas ligas em andamento; com a rotina alterada, a aba Treino oferece atualizar.  
-**Fonte:** `GymMonsters/LiveWorkout.swift` (`autoFinish`), `GymMonsters/Training.swift` (`Progression.estimatedEffort`, `PendingRoutineUpdate`), `GymMonsters/TrainView.swift` (`pendingRoutineCard`), `GymMonstersTests/ProgressionTests.swift` (`testAutoFinishEffortIsAverageOfRecentWorkouts`)
+**Fonte:** `GymBros/Train/LiveWorkout.swift` (`autoFinish`), `GymBros/Train/Progression.swift` (`Progression.estimatedEffort`, `PendingRoutineUpdate`), `GymBros/Train/TrainView.swift` (`pendingRoutineCard`), `GymBrosTests/ProgressionTests.swift` (`testAutoFinishEffortIsAverageOfRecentWorkouts`)
 ### RF-TRE-21 — Treinos recentes e correção de séries
 **Descrição:** O app deve listar treinos concluídos e permitir corrigir séries e apagar treinos.  
 **Regras de negócio:**
@@ -245,7 +245,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - "Apagar treino" avisa "O XP desse treino também sai do bro." e apaga também a atividade gerada.
 
 **Critério de aceitação:** Corrigir a carga de uma série passada muda a sugestão do próximo treino.  
-**Fonte:** `GymMonsters/TrainView.swift` (`SessionRow`, `SessionDetailView`, `deleteSession`)
+**Fonte:** `GymBros/Train/TrainView.swift` (`SessionRow`, `SessionDetailView`, `deleteSession`)
 
 ## 6. Recordes e 1RM
 ### RF-TRE-22 — 1RM estimado
@@ -254,7 +254,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - 1RM = carga × (1 + reps/30), só com carga > 0 e 1 a 12 reps; com 1 rep, a própria carga; acima de 12 reps não estima.
 
 **Critério de aceitação:** 100 kg × 5 → ~116,7 kg; 60 kg × 15 → sem 1RM.  
-**Fonte:** `GymMonsters/Training.swift` (`Progression.oneRM`)
+**Fonte:** `GymBros/Train/Progression.swift` (`Progression.oneRM`)
 ### RF-TRE-23 — Recordes no treino
 **Descrição:** O app deve apontar recordes batidos ao concluir o treino.  
 **Regras de negócio:**
@@ -262,7 +262,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Por exercício, um recorde, na ordem: "maior carga, X kg"; senão "1RM estimado X kg" (maior que o anterior + 0,01); senão, se nunca houve carga, "N reps".
 
 **Critério de aceitação:** Primeira vez num exercício não gera recorde.  
-**Fonte:** `GymMonsters/Training.swift` (`Progression.records`)
+**Fonte:** `GymBros/Train/Progression.swift` (`Progression.records`)
 ### RF-TRE-24 — Meus PRs e sessão de PR
 **Descrição:** O app deve mostrar a melhor marca de cada exercício e permitir registrar PRs à mão.  
 **Regras de negócio:**
@@ -272,7 +272,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - PRs manuais alimentam a primeira sugestão de carga (RF-TRE-09) e a comparação de recordes.
 
 **Critério de aceitação:** Registrar 100 kg × 5 de supino faz o primeiro treino de supino 3×8 sugerir 82,5 kg (116,7 ÷ 1,267 × 0,92 = 84,7, arredondado para baixo); 60 kg × 15 supera 70 kg × 5 (conta como 60 × 12 ≈ 84 contra 81,7).  
-**Fonte:** `GymMonsters/PR.swift` (`best`, `beats`), `GymMonsters/Training.swift` (`Progression.strength`), `GymMonstersTests/ProgressionTests.swift` (`testBestMarkDoesNotMixOneRMWithRawLoad`)
+**Fonte:** `GymBros/Train/PR.swift` (`best`, `beats`), `GymBros/Train/Progression.swift` (`Progression.strength`), `GymBrosTests/ProgressionTests.swift` (`testBestMarkDoesNotMixOneRMWithRawLoad`)
 ### RF-TRE-25 — Exercícios e recordes
 **Descrição:** O app deve listar os exercícios já treinados com a melhor marca.  
 **Regras de negócio:**
@@ -280,7 +280,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Acessível pela aba Treino e pelo atalho "Recordes" do perfil privado.
 
 **Critério de aceitação:** Sem treinos: "Sem recordes ainda — Conclua um treino guiado para ver seus recordes aqui.".  
-**Fonte:** `GymMonsters/ExerciseStatsView.swift` (`ExerciseStatsList`), `GymMonsters/ProfileView.swift`
+**Fonte:** `GymBros/Train/ExerciseStatsView.swift` (`ExerciseStatsList`), `GymBros/Profile/ProfileView.swift`
 ### RF-TRE-26 — Detalhe do exercício (histórico de cargas)
 **Descrição:** O app deve mostrar a evolução de um exercício em gráfico e lista.  
 **Regras de negócio:**
@@ -290,14 +290,14 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - "Melhor 1RM estimado" usa só séries de até 12 reps e PRs; calculadora de 12, 10, 8, 5 e 3 reps arredondada ao incremento do exercício (`Progression.repTable`); lista de PRs registrados e histórico por data.
 
 **Critério de aceitação:** Com melhor 1RM de 100 kg, a calculadora mostra 5×85 nos dois passos e 12×72,5 (passo 2,5) ou 12×70 (passo 5).  
-**Fonte:** `GymMonsters/ExerciseStatsView.swift` (`ExerciseDetailView`), `GymMonsters/Training.swift` (`Progression.repTable`), `GymMonstersTests/ProgressionTests.swift` (`testRepCalculatorRoundsToExerciseIncrement`)
+**Fonte:** `GymBros/Train/ExerciseStatsView.swift` (`ExerciseDetailView`), `GymBros/Train/Progression.swift` (`Progression.repTable`), `GymBrosTests/ProgressionTests.swift` (`testRepCalculatorRoundsToExerciseIncrement`)
 
 ## 7. Biblioteca de exercícios
 ### RF-TRE-27 — Catálogo e busca
 **Descrição:** O app deve oferecer uma biblioteca pesquisável de exercícios.  
 **Regras de negócio:**
 - 262 exercícios embutidos: 78 da biblioteca original (instruções em português), 150 extras (dos quais 42 de CrossFit) e 34 que vieram só do wger (`WgerLibrary.newExercises`). Fotos e instruções do free-exercise-db foram removidas (copiavam o bodybuilding.com, sem uso comercial); nomes e músculos continuam.
-- Imagens, vídeos e instruções ficam em `GymMonsters/wger.json`, com autor, licença e link por item, de três origens: 237 exercícios com dados, 227 com imagem embutida no app (funciona sem internet), 33 com vídeo e 180 com instruções (20 em português, 160 em inglês).
+- Imagens, vídeos e instruções ficam em `GymBros/Resources/wger.json`, com autor, licença e link por item, de três origens: 237 exercícios com dados, 227 com imagem embutida no app (funciona sem internet), 33 com vídeo e 180 com instruções (20 em português, 160 em inglês).
   - wger (`tools/wger/build.py`): 152 exercícios; 128 com imagem, todos os vídeos e 146 das instruções. CC BY-SA 3.0/4.0 ou CC0; imagens marcadas como geradas por IA no wger ficam de fora.
   - Everkinetic (`tools/wger/everkinetic.py`, CC BY-SA 4.0, de Greg Priday): ilustrações para 55 exercícios que o wger não ilustra, mais as instruções de 34 deles.
   - Wikimedia Commons (`tools/wger/commons.py`): fotos e ilustrações escolhidas à mão para 44 exercícios que nenhuma das duas cobre, quase todos de CrossFit; domínio público, CC0, CC BY 2.0/3.0 e CC BY-SA 2.0/3.0/4.0.
@@ -309,7 +309,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - O seletor termina com "Imagens: wger, Everkinetic e Commons · créditos", que abre a tela de créditos (RF-TRE-39).
 
 **Critério de aceitação:** Buscar "Polia" lista os exercícios com esse equipamento.  
-**Fonte:** `GymMonsters/Exercises.swift`, `GymMonsters/ExerciseExtra.swift`, `GymMonsters/Wger.swift` (`WgerLibrary`), `GymMonsters/wger.json`, `GymMonsters/RoutineEditView.swift` (`ExercisePicker`, `ExerciseThumb`), `tools/wger/build.py`, `tools/wger/everkinetic.py`, `tools/wger/commons.py`, `CREDITOS.md`
+**Fonte:** `GymBros/Exercises/Exercises.swift`, `GymBros/Exercises/ExerciseExtra.swift`, `GymBros/Exercises/Wger.swift` (`WgerLibrary`), `GymBros/Resources/wger.json`, `GymBros/Train/RoutineEditView.swift` (`ExercisePicker`, `ExerciseThumb`), `tools/wger/build.py`, `tools/wger/everkinetic.py`, `tools/wger/commons.py`, `CREDITOS.md`
 ### RF-TRE-28 — Detalhe "como fazer"
 **Descrição:** O app deve mostrar como executar cada exercício.  
 **Regras de negócio:**
@@ -319,7 +319,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Mapa de músculos: principais com intensidade 1,0 e auxiliares 0,45, listados por nome; nota pessoal e descrição do personalizado; botão "Créditos e licenças" nos exercícios com dados do wger.
 
 **Critério de aceitação:** Exercício com instruções do wger em inglês, no iOS 17, exibe o texto em inglês com o crédito; exercício sem imagem não mostra a área de fotos.  
-**Fonte:** `GymMonsters/MuscleViews.swift` (`ExerciseInfoView`, `TranslateSteps`), `GymMonsters/Wger.swift` (`ExercisePhotos`, `CreditLine`, `WgerVideoView`), `GymMonsters/ExerciseInstructions.swift`, `GymMonsters/ExerciseMuscles.swift`
+**Fonte:** `GymBros/Exercises/MuscleViews.swift` (`ExerciseInfoView`, `TranslateSteps`), `GymBros/Exercises/Wger.swift` (`ExercisePhotos`, `CreditLine`, `WgerVideoView`), `GymBros/Exercises/ExerciseInstructions.swift`, `GymBros/Exercises/ExerciseMuscles.swift`
 ### RF-TRE-29 — Exercícios personalizados
 **Descrição:** O app deve permitir criar, editar e apagar exercícios próprios.  
 **Regras de negócio:**
@@ -329,7 +329,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Apagar pede confirmação; "O histórico de treinos com ele continua salvo.". Depois de apagado, aparece no histórico, recordes, Live Activity e modo fone como "Exercício personalizado" (nunca o id `custom-…`).
 
 **Critério de aceitação:** O botão Salvar fica desabilitado com nome vazio.  
-**Fonte:** `GymMonsters/CustomExercise.swift`, `GymMonsters/MuscleViews.swift`, `GymMonsters/Exercises.swift` (`Exercise.name`), `GymMonstersTests/ProgressionTests.swift` (`testCustomExerciseNameResolves`)
+**Fonte:** `GymBros/Models/CustomExercise.swift`, `GymBros/Exercises/CustomExerciseForm.swift`, `GymBros/Exercises/MuscleViews.swift`, `GymBros/Exercises/Exercises.swift` (`Exercise.name`), `GymBrosTests/ProgressionTests.swift` (`testCustomExerciseNameResolves`)
 
 ### RF-TRE-39 — Créditos e licenças
 **Descrição:** O app deve creditar o conteúdo de terceiros numa tela própria.  
@@ -339,7 +339,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Seções MuscleMap (MIT, Copyright (c) 2026 Melih Colpan), vídeos do YouTube (de seus autores) e Bros (artes e textos próprios).
 
 **Critério de aceitação:** Todo autor que aparece numa linha de crédito de imagem, vídeo ou texto aparece também na tela de créditos.  
-**Fonte:** `GymMonsters/Wger.swift` (`CreditsView`, `WgerLibrary.allCredits`, `WgerLibrary.sourceName`), `CREDITOS.md`
+**Fonte:** `GymBros/Exercises/Wger.swift` (`CreditsView`, `WgerLibrary.allCredits`, `WgerLibrary.sourceName`), `CREDITOS.md`
 
 ## 8. Mapa muscular e volume
 ### RF-TRE-30 — Mapa muscular
@@ -350,7 +350,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Também aparece na edição de rotina, na conclusão do treino e no detalhe do exercício.
 
 **Critério de aceitação:** Com todos os 15 músculos treinados: "Você treinou todos os grupos no período. 💪".  
-**Fonte:** `GymMonsters/MuscleViews.swift`
+**Fonte:** `GymBros/Exercises/MuscleViews.swift`
 ### RF-TRE-31 — Volume semanal por músculo
 **Descrição:** O app deve comparar as séries semanais de cada grupo com a faixa de 10–20.  
 **Regras de negócio:**
@@ -359,7 +359,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Navegação para semanas anteriores; não avança além da atual. Cabeçalho "N séries · X de 11 grupos na faixa".
 
 **Critério de aceitação:** 12 séries de peito na semana aparecem como "na faixa".  
-**Fonte:** `GymMonsters/WeeklyVolume.swift`
+**Fonte:** `GymBros/Train/WeeklyVolume.swift`
 
 ## 9. CrossFit / WOD
 ### RF-TRE-32 — Benchmarks e WOD livre
@@ -371,7 +371,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Lista mostra o recorde de cada benchmark e os 10 últimos resultados; detalhe mostra recorde e histórico.
 
 **Critério de aceitação:** Abrir "Fran" mostra "21-15-9", "For Time" e limite de 10 min.  
-**Fonte:** `GymMonsters/Wod.swift`
+**Fonte:** `GymBros/Train/Wod.swift`
 ### RF-TRE-33 — Cronômetro do WOD
 **Descrição:** O app deve cronometrar o WOD com avisos sonoros e contador de rodadas.  
 **Regras de negócio:**
@@ -381,7 +381,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Sair depois de começar pede confirmação ("O tempo não será salvo.").
 
 **Critério de aceitação:** AMRAP de 20 min abre o resultado automaticamente aos 20:00.  
-**Fonte:** `GymMonsters/Wod.swift` (`WodTimerView`), `GymMonsters/LiveWorkout.swift` (`LiveWod`)
+**Fonte:** `GymBros/Train/Wod.swift` (`WodTimerView`), `GymBros/Train/LiveWorkout.swift` (`LiveWod`)
 ### RF-TRE-34 — Resultado do WOD
 **Descrição:** O app deve registrar o resultado e gerar uma atividade de crossfit.  
 **Regras de negócio:**
@@ -391,7 +391,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Atividade de crossfit com minutos = max(segundos ativos/60, 1), data no início real do WOD (contando as pausas) e nota "<WOD> · <resultado>".
 
 **Critério de aceitação:** Fran em 5:30 aparece como recorde "5:30 RX" se for o menor tempo; um CAP com 80 reps nunca supera um tempo de 9:50.  
-**Fonte:** `GymMonsters/Wod.swift` (`WodResultForm`, `WodResult.capped`, `WodTimerView.FinishedWod`), `GymMonstersTests/WorkoutTests.swift` (`testForTimeCapIsNotAFinishTime`)
+**Fonte:** `GymBros/Train/Wod.swift` (`WodResultForm`, `WodTimerView.FinishedWod`), `GymBros/Models/WodResult.swift` (`WodResult.capped`), `GymBrosTests/WorkoutTests.swift` (`testForTimeCapIsNotAFinishTime`)
 
 ## 10. Peso, medidas e anilhas
 ### RF-TRE-35 — Peso e medidas
@@ -405,7 +405,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Registros editáveis e apagáveis; apagar pede confirmação ("Apagar o registro de <data>?" · "Peso, medidas e fotos desse dia saem do app.").
 
 **Critério de aceitação:** Importar duas vezes seguidas mostra "Nada novo no Saúde." na segunda.  
-**Fonte:** `GymMonsters/BodyTrackerView.swift`, `GymMonsters/Body.swift`
+**Fonte:** `GymBros/Profile/BodyTrackerView.swift`, `GymBros/Models/Body.swift`
 ### RF-TRE-36 — Calculadora de anilhas
 **Descrição:** O app deve calcular as anilhas de cada lado para uma carga total.  
 **Regras de negócio:**
@@ -414,7 +414,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Carga menor ou igual à barra: mensagens específicas.
 
 **Critério de aceitação:** 100 kg com barra de 20 → 40 kg por lado: "1 de 25 kg + 1 de 15 kg".  
-**Fonte:** `GymMonsters/BodyTrackerView.swift` (`PlateCalculatorView`), `GymMonsters/Body.swift` (`Plates`)
+**Fonte:** `GymBros/Profile/BodyTrackerView.swift` (`PlateCalculatorView`), `GymBros/Profile/BodyTools.swift` (`Plates`)
 
 ## 11. Perfil privado: metas e estatísticas
 ### RF-TRE-37 — Metas
@@ -427,7 +427,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - A tela Metas abre com o perfil físico (RF-TRE-41) antes das metas.
 
 **Critério de aceitação:** 4 atividades na semana com meta 4 mostram o anel completo com check; rolar a tela sem tocar no lápis não altera nenhuma meta.  
-**Fonte:** `GymMonsters/ProfileView.swift` (`GoalsView`), `GymMonsters/DesignSystem.swift` (`GMLockedRow`)
+**Fonte:** `GymBros/Profile/ProfileView.swift` (`GoalsView`), `GymBros/DesignSystem/GMFields.swift` (`GMLockedRow`)
 ### RF-TRE-38 — Estatísticas
 **Descrição:** O app deve mostrar estatísticas de todas as atividades.  
 **Regras de negócio:**
@@ -436,7 +436,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Perfil privado mostra também atividades, dias ativos, duração total e atalhos Recordes, Estatísticas, Metas e Peso.
 
 **Critério de aceitação:** Dias futuros da semana atual ficam vazios no mapa de calor.  
-**Fonte:** `GymMonsters/ProfileView.swift` (`ProfileStatsView`, `privatePart`)
+**Fonte:** `GymBros/Profile/ProfileView.swift` (`ProfileStatsView`, `privatePart`)
 ### RF-TRE-41 — Perfil físico e referência nutricional
 **Descrição:** O app deve guardar dados opcionais do corpo e, com eles, dar uma referência diária de calorias, proteína e água.  
 **Regras de negócio:**
@@ -449,4 +449,4 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Calorias estimadas de atividades sem o peso do Apple Saúde usam o último peso do perfil (`BodyProfile.weightForEstimates`) em vez de um peso fixo.
 
 **Critério de aceitação:** 80 kg, 180 cm, 30 anos, homem, 4 treinos por semana e objetivo Ganhar massa → gasto ≈ 2.759 kcal, para o objetivo ≈ 3.059 kcal, proteína 128–176 g e água 2,8 L; sem altura, a seção pede os dados.  
-**Fonte:** `GymMonsters/BodyProfile.swift` (`BodyProfile`, `BodyProfileSection`, `FitnessGoal`, `Experience`), `GymMonsters/ProfileView.swift` (`GoalsView`), `GymMonsters/HealthSync.swift`
+**Fonte:** `GymBros/Profile/BodyProfile.swift` (`BodyProfile`, `BodyProfileSection`, `FitnessGoal`, `Experience`), `GymBros/Profile/ProfileView.swift` (`GoalsView`), `GymBros/Services/HealthSync.swift`

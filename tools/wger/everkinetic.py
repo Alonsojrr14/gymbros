@@ -10,8 +10,8 @@ Usa dist/png e, para alguns exercícios, src/images-png-unknown (mesmos desenhos
 import json, os, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-JSON = os.path.join(ROOT, "GymMonsters", "wger.json")
-ASSETS = os.path.join(ROOT, "GymMonsters", "Assets.xcassets", "Wger")
+JSON = os.path.join(ROOT, "GymBros", "Resources", "wger.json")
+ASSETS = os.path.join(ROOT, "GymBros", "Resources", "Assets.xcassets", "Wger")
 LICENSE = {"license": "CC BY-SA 4.0", "licenseURL": "https://creativecommons.org/licenses/by-sa/4.0/", "author": "Everkinetic"}
 SOURCE = "https://github.com/everkinetic/data"
 

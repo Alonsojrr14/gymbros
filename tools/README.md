@@ -34,4 +34,4 @@ swift folha.swift .work/folha.png .work/raw/*.png   # revise: confira se cada ar
 - Para refazer uma arte, apague o arquivo dela em `.work/raw` e rode `gerar.mjs` de novo; o Ultimate híbrido usa o Champion gerado como referência, então refaça os dois juntos.
 - O ChatGPT guarda o rascunho da caixa entre conversas: o `gerar.mjs` limpa a caixa e confere que a conversa tem só o prompt daquele arquivo antes de baixar. Mesmo assim, revise a folha.
 - Ultimates têm aura: o `instalar.sh` recorta só o fundo liso ligado às bordas (`FLOOD=1`), porque o recorte do Vision apaga a aura.
-- `.work/` e a cópia do perfil (`~/Library/Caches/gymmonsters-chrome`) ficam fora do git.
+- `.work/` e a cópia do perfil (`~/Library/Caches/gymbros-chrome`) ficam fora do git.

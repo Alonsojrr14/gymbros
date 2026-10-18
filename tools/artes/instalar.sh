@@ -13,11 +13,11 @@ for f in $WORK/raw/*.png(N); do
     if [[ $b == *ultimate_* ]]; then FLOOD=1 .work/recortar-final $f $WORK/final/$b.png $n $WORK/live/$b.png 96
     else .work/recortar-final $f $WORK/final/$b.png $n $WORK/live/$b.png 96; fi
   fi
-  for A in $ROOT/GymMonsters/Assets.xcassets $ROOT/GymMonstersWidget/Assets.xcassets; do
+  for A in $ROOT/GymBros/Resources/Assets.xcassets $ROOT/GymBrosWidget/Assets.xcassets; do
     d=$A/sprite_$b.imageset; mkdir -p $d; cp $WORK/final/$b.png $d/$b.png
     echo "{\"images\":[{\"filename\":\"$b.png\",\"idiom\":\"universal\"}],\"info\":{\"author\":\"xcode\",\"version\":1}}" > $d/Contents.json
   done
-  d=$ROOT/GymMonstersWidget/Assets.xcassets/sprite_${b}_live.imageset; mkdir -p $d; cp $WORK/live/$b.png $d/sprite_${b}_live.png
+  d=$ROOT/GymBrosWidget/Assets.xcassets/sprite_${b}_live.imageset; mkdir -p $d; cp $WORK/live/$b.png $d/sprite_${b}_live.png
   echo "{\"images\":[{\"filename\":\"sprite_${b}_live.png\",\"idiom\":\"universal\"}],\"info\":{\"author\":\"xcode\",\"version\":1},\"properties\":{\"compression-type\":\"lossless\"}}" > $d/Contents.json
 done
 echo "instaladas: $(ls $WORK/raw/*.png(N) | wc -l | tr -d ' ')"

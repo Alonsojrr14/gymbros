@@ -86,7 +86,7 @@ struct WidgetData: Codable {
         lastEvolution.map { date.timeIntervalSince($0) < 86400 } ?? false
     }
 
-    static let appGroup = "group.com.alonsoalmeida.gymmonsters"
+    static let appGroup = "group.com.alonsoalmeida.gymbros"
     private static let key = "widgetData"
 
     static var defaults: UserDefaults? { UserDefaults(suiteName: appGroup) }

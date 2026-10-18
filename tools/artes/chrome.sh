@@ -2,7 +2,7 @@
 # Abre o Chrome com uma CÓPIA do seu perfil (para entrar já logado no ChatGPT) e depuração na porta 9333.
 # O Chrome não permite automação no perfil original. A cópia tem seus cookies: fica fora do repositório
 # e é apagada com ./chrome.sh --apagar.  Uso: ./chrome.sh [perfil, padrão Default] | --apagar
-COPIA=~/Library/Caches/gymmonsters-chrome
+COPIA=~/Library/Caches/gymbros-chrome
 if [[ $1 == --apagar ]]; then
   pkill -f "user-data-dir=$COPIA"; sleep 2; rm -rf $COPIA; echo "cópia do perfil apagada"; exit 0
 fi

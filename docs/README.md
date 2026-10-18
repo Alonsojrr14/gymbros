@@ -25,7 +25,7 @@ A primeira versão destes documentos listava bugs e pendências encontrados no c
 ### Corrigido
 
 **Jogo e bros**
-- A espécie sai da atividade com mais da metade dos minutos que chocaram o ovo (`Hatch.swift`); toda atividade do app e do Apple Saúde tem um animal e mistura sem atividade principal (ou "Outro") choca Coelho, então "Zoológico completo" e "Dex completa" são possíveis; um bro que volta a ser ovo perde a espécie gravada.
+- A espécie sai da atividade com mais da metade dos minutos que chocaram o ovo (`GymBros/Bros/Hatch.swift`); toda atividade do app e do Apple Saúde tem um animal e mistura sem atividade principal (ou "Outro") choca Coelho, então "Zoológico completo" e "Dex completa" são possíveis; um bro que volta a ser ovo perde a espécie gravada.
 - A prévia de XP (registrar atividade e concluir treino) usa os bros das ligas marcadas, pela mesma regra do `Roster`, e avisa quando mais de um bro vai chocar ou evoluir.
 - "Últimas atividades", Histórico e o aviso de importação do Saúde mostram o mesmo XP (o maior entre os bros que receberam a atividade).
 - Dois bros evoluindo juntos entram numa fila de cenas, uma depois da outra.
@@ -55,7 +55,7 @@ A primeira versão destes documentos listava bugs e pendências encontrados no c
 - O banco não derruba mais o app: se não abrir, o arquivo é guardado ao lado, o app abre com um banco novo e avisa como voltar pelo backup. O banco tem file protection (`completeUntilFirstUserAuthentication`).
 - Cache de snapshot (`Game.cachedSnapshot`) evita recalcular o histórico a cada render.
 - Textos de tamanho próprio passaram a usar `gmFont` (acompanha o Dynamic Type); botões só com ícone têm rótulo do VoiceOver.
-- 77 testes (eram 43).
+- 83 testes (eram 43).
 
 **Design system**
 - Cores em `Shared/Theme.swift` (app e widget), com tokens semânticos no lugar de `.orange`, `.yellow`, `.cyan`, `.pink` e da cor fixa do vídeo.
@@ -69,9 +69,9 @@ A primeira versão destes documentos listava bugs e pendências encontrados no c
 - No modo Calorias, os seus check-ins usam as calorias do Saúde e os simulados sempre a estimativa com 70 kg.
 - Backup em JSON sem criptografia, com localização, medidas corporais e perfil físico; fotos de check-in e de progresso continuam fora. Lembretes, preferências do Saúde e de lugares e a visibilidade do perfil também não entram.
 - Servidor: login, ligas (criar, entrar, check-ins, times, recados) e amigos com perfil público já têm contrato e implementação CloudKit, mas `Backend.mode` segue `.mock` (login simulado, sem rede) até o app ter iCloud. Comentários, foto do perfil, fotos de outras pessoas e amigos ao vivo ainda não sobem (`cloudkit.md`).
-- Sem `VersionedSchema`/`SchemaMigrationPlan`: a recuperação evita o travamento, mas uma migração que falhe ainda começa o app do zero (com o arquivo antigo guardado).
+- Schema versionado só no `SchemaV1`: a próxima mudança de modelo precisa de um `SchemaV2` e um estágio no `AppMigrationPlan`, ou a migração que falhar ainda começa o app do zero (com o arquivo antigo guardado).
 - Foto do perfil em `UserDefaults`; Dynamic Type ainda com tamanhos fixos em ícones, emojis e widgets.
 - Design: cores do sistema na escala de esforço e nas rotas do mapa, `GMRangeCalendar` com grade própria e alguns cards montados à mão com os tokens.
 
 **Migração para a conta corporativa (não feita)**
-- Bundle IDs (`com.alonsoalmeida.gymmonsters*`), App Group e time de assinatura `5UV7WAAAL2` continuam na conta pessoal. Antes de publicar ou ligar um servidor, migrar para a conta corporativa (o App Group muda junto e exige migrar os dados do widget). Credenciais do futuro servidor ficam em cofre ou gerenciador de segredos, nunca no código ou em texto puro.
+- Bundle IDs (`com.alonsoalmeida.gymbros*`), App Group e time de assinatura `5UV7WAAAL2` continuam na conta pessoal. Antes de publicar ou ligar um servidor, migrar para a conta corporativa (o App Group muda junto e exige migrar o banco SwiftData, que está no container do grupo, e os dados do widget). Credenciais do futuro servidor ficam em cofre ou gerenciador de segredos, nunca no código ou em texto puro.

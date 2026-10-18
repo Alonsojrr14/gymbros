@@ -1,0 +1,583 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AC0000000000000000000010 /* MuscleMap in Frameworks */ = {isa = PBXBuildFile; productRef = AC0000000000000000000011 /* MuscleMap */; };
+		AC000000000000000000002B /* GymBrosWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AC0000000000000000000020 /* GymBrosWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AC000000000000000000002C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AC000000000000000000000A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AC0000000000000000000024;
+			remoteInfo = GymBrosWidget;
+		};
+		AC0000000000000000000037 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AC000000000000000000000A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AC0000000000000000000006;
+			remoteInfo = GymBros;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		AC0000000000000000000029 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AC000000000000000000002B /* GymBrosWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		AC0000000000000000000001 /* GymBros.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GymBros.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC0000000000000000000020 /* GymBrosWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GymBrosWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC0000000000000000000030 /* GymBrosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GymBrosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		AC0000000000000000000022 /* Exceptions for "GymBrosWidget" folder in "GymBrosWidget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = AC0000000000000000000024 /* GymBrosWidget */;
+		};
+		AC000000000000000000002F /* Exceptions for "GymBros" folder in "GymBros" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Resources/Info.plist,
+			);
+			target = AC0000000000000000000006 /* GymBros */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		AC0000000000000000000021 /* GymBrosWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AC0000000000000000000022 /* Exceptions for "GymBrosWidget" folder in "GymBrosWidget" target */,
+			);
+			path = GymBrosWidget;
+			sourceTree = "<group>";
+		};
+		AC0000000000000000000023 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		AC0000000000000000000002 /* GymBros */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				AC000000000000000000002F /* Exceptions for "GymBros" folder in "GymBros" target */,
+			);
+			path = GymBros;
+			sourceTree = "<group>";
+		};
+		AC0000000000000000000031 /* GymBrosTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = GymBrosTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AC0000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC0000000000000000000010 /* MuscleMap in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC0000000000000000000027 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC0000000000000000000032 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AC0000000000000000000004 = {
+			isa = PBXGroup;
+			children = (
+				AC0000000000000000000002 /* GymBros */,
+				AC0000000000000000000021 /* GymBrosWidget */,
+				AC0000000000000000000023 /* Shared */,
+				AC0000000000000000000031 /* GymBrosTests */,
+				AC0000000000000000000005 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		AC0000000000000000000005 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AC0000000000000000000001 /* GymBros.app */,
+				AC0000000000000000000020 /* GymBrosWidget.appex */,
+				AC0000000000000000000030 /* GymBrosTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AC0000000000000000000006 /* GymBros */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AC0000000000000000000007 /* Build configuration list for PBXNativeTarget "GymBros" */;
+			buildPhases = (
+				AC0000000000000000000008 /* Sources */,
+				AC0000000000000000000003 /* Frameworks */,
+				AC0000000000000000000009 /* Resources */,
+				AC0000000000000000000029 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AC000000000000000000002A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AC0000000000000000000002 /* GymBros */,
+				AC0000000000000000000023 /* Shared */,
+			);
+			name = GymBros;
+			packageProductDependencies = (
+				AC0000000000000000000011 /* MuscleMap */,
+			);
+			productName = GymBros;
+			productReference = AC0000000000000000000001 /* GymBros.app */;
+			productType = "com.apple.product-type.application";
+		};
+		AC0000000000000000000024 /* GymBrosWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AC0000000000000000000025 /* Build configuration list for PBXNativeTarget "GymBrosWidget" */;
+			buildPhases = (
+				AC0000000000000000000026 /* Sources */,
+				AC0000000000000000000027 /* Frameworks */,
+				AC0000000000000000000028 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AC0000000000000000000021 /* GymBrosWidget */,
+				AC0000000000000000000023 /* Shared */,
+			);
+			name = GymBrosWidget;
+			packageProductDependencies = (
+			);
+			productName = GymBrosWidget;
+			productReference = AC0000000000000000000020 /* GymBrosWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		AC0000000000000000000035 /* GymBrosTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AC0000000000000000000038 /* Build configuration list for PBXNativeTarget "GymBrosTests" */;
+			buildPhases = (
+				AC0000000000000000000033 /* Sources */,
+				AC0000000000000000000032 /* Frameworks */,
+				AC0000000000000000000034 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AC0000000000000000000036 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AC0000000000000000000031 /* GymBrosTests */,
+			);
+			name = GymBrosTests;
+			packageProductDependencies = (
+			);
+			productName = GymBrosTests;
+			productReference = AC0000000000000000000030 /* GymBrosTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AC000000000000000000000A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					AC0000000000000000000006 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					AC0000000000000000000024 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					AC0000000000000000000035 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = AC0000000000000000000006;
+					};
+				};
+			};
+			buildConfigurationList = AC000000000000000000000B /* Build configuration list for PBXProject "GymBros" */;
+			developmentRegion = "pt-BR";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				"pt-BR",
+				en,
+				Base,
+			);
+			mainGroup = AC0000000000000000000004;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AC0000000000000000000012 /* XCRemoteSwiftPackageReference "MuscleMap" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = AC0000000000000000000005 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AC0000000000000000000006 /* GymBros */,
+				AC0000000000000000000024 /* GymBrosWidget */,
+				AC0000000000000000000035 /* GymBrosTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AC0000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC0000000000000000000028 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC0000000000000000000034 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AC0000000000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC0000000000000000000026 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AC0000000000000000000033 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AC000000000000000000002A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AC0000000000000000000024 /* GymBrosWidget */;
+			targetProxy = AC000000000000000000002C /* PBXContainerItemProxy */;
+		};
+		AC0000000000000000000036 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AC0000000000000000000006 /* GymBros */;
+			targetProxy = AC0000000000000000000037 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AC000000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AC000000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AC000000000000000000000E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = GymBros/Resources/GymBros.entitlements;
+				INFOPLIST_FILE = GymBros/Resources/Info.plist;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 5UV7WAAAL2;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = GymBros;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Para gravar o percurso de corridas, caminhadas e pedaladas e marcar a sua academia.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Para saber quando você chega ou sai da academia: sugerir o treino ao chegar e encerrar o treino ao sair. A localização fica só no seu iPhone.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Para transformar seus treinos do iPhone e Apple Watch em XP para o seu bro.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Para gravar seus treinos do GymBros no Saúde e eles contarem nos anéis do Fitness.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alonsoalmeida.gymbros;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AC000000000000000000000F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = GymBros/Resources/GymBros.entitlements;
+				INFOPLIST_FILE = GymBros/Resources/Info.plist;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 5UV7WAAAL2;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = GymBros;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Para gravar o percurso de corridas, caminhadas e pedaladas e marcar a sua academia.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Para saber quando você chega ou sai da academia: sugerir o treino ao chegar e encerrar o treino ao sair. A localização fica só no seu iPhone.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Para transformar seus treinos do iPhone e Apple Watch em XP para o seu bro.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Para gravar seus treinos do GymBros no Saúde e eles contarem nos anéis do Fitness.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alonsoalmeida.gymbros;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		AC000000000000000000002D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = GymBrosWidget/GymBrosWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5UV7WAAAL2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GymBrosWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = GymBros;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alonsoalmeida.gymbros.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AC000000000000000000002E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = GymBrosWidget/GymBrosWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5UV7WAAAL2;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GymBrosWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = GymBros;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alonsoalmeida.gymbros.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		AC0000000000000000000039 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5UV7WAAAL2;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alonsoalmeida.gymbros.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GymBros.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GymBros";
+			};
+			name = Debug;
+		};
+		AC000000000000000000003A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5UV7WAAAL2;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alonsoalmeida.gymbros.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GymBros.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GymBros";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AC0000000000000000000007 /* Build configuration list for PBXNativeTarget "GymBros" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC000000000000000000000E /* Debug */,
+				AC000000000000000000000F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AC000000000000000000000B /* Build configuration list for PBXProject "GymBros" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC000000000000000000000C /* Debug */,
+				AC000000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AC0000000000000000000025 /* Build configuration list for PBXNativeTarget "GymBrosWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC000000000000000000002D /* Debug */,
+				AC000000000000000000002E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AC0000000000000000000038 /* Build configuration list for PBXNativeTarget "GymBrosTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC0000000000000000000039 /* Debug */,
+				AC000000000000000000003A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AC0000000000000000000012 /* XCRemoteSwiftPackageReference "MuscleMap" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/melihcolpan/MuscleMap.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AC0000000000000000000011 /* MuscleMap */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AC0000000000000000000012 /* XCRemoteSwiftPackageReference "MuscleMap" */;
+			productName = MuscleMap;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = AC000000000000000000000A /* Project object */;
+}

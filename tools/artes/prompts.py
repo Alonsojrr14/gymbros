@@ -5,7 +5,7 @@ import re, os, glob, json
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-ASSETS = f"{ROOT}/GymMonstersWidget/Assets.xcassets"
+ASSETS = f"{ROOT}/GymBrosWidget/Assets.xcassets"
 WORK = os.environ.get("ARTES_WORK", f"{HERE}/.work")
 RAW = f"{WORK}/raw"
 

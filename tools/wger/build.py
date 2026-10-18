@@ -2,15 +2,15 @@
 """Monta a base de exercícios a partir do wger (wger.de), com licença e autor de cada item.
 
 Uso: python3 -I tools/wger/build.py   (na raiz do repo)
-Gera GymMonsters/wger.json e as imagens em GymMonsters/Assets.xcassets/Wger/.
+Gera GymBros/Resources/wger.json e as imagens em GymBros/Resources/Assets.xcassets/Wger/.
 Conteúdo do wger: CC-BY-SA 3/4 ou CC0, por item. Só entram imagens não geradas por IA.
 """
 import html, json, os, re, sys, urllib.request
 
 API = "https://wger.de/api/v2"
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-OUT_JSON = os.path.join(ROOT, "GymMonsters", "wger.json")
-OUT_ASSETS = os.path.join(ROOT, "GymMonsters", "Assets.xcassets", "Wger")
+OUT_JSON = os.path.join(ROOT, "GymBros", "Resources", "wger.json")
+OUT_ASSETS = os.path.join(ROOT, "GymBros", "Resources", "Assets.xcassets", "Wger")
 
 # Nosso exercício → exercício do wger
 MAP = {
@@ -138,10 +138,12 @@ def main():
             os.makedirs(folder, exist_ok=True)
             ext = img["image"].rsplit(".", 1)[-1].lower()
             src = (img.get("thumbnails") or {}).get("medium") or img["image"]
-            file = f"{name}.{'png' if src.endswith('png') else ext}"
+            data = get(src)
+            kind = "png" if data[:4] == b"\x89PNG" else "jpg" if data[:3] == b"\xff\xd8\xff" else ext
+            file = f"{name}.{kind}"
             path = os.path.join(folder, file)
             if not os.path.exists(path):
-                open(path, "wb").write(get(src))
+                open(path, "wb").write(data)
             json.dump({"images": [{"idiom": "universal", "filename": file}], "info": {"author": "xcode", "version": 1}},
                       open(os.path.join(folder, "Contents.json"), "w"))
             entry["images"].append({"asset": name, "source": img["image"], **lic(img)})
