@@ -228,7 +228,7 @@ NavigationLink { NotificationSettingsPage() } label: {
 .buttonStyle(GMPress())
 ```
 
-Ajustes é um índice (`SettingsView`): cartão do perfil com o bro, grupos "App", "Conta e dados" e "Ajuda", "Recomeçar jornada" e a versão. Cada assunto é uma tela `GMScreen(back: true)` empurrada no `NavigationStack` (`SettingsPages.swift`).
+Ajustes é um índice (`SettingsView`): cartão do perfil com o bro, grupos "App", "Conta e dados" e "Ajuda", "Recomeçar jornada" (só em builds de desenvolvimento) e a versão. Cada assunto é uma tela `GMScreen(back: true)` empurrada no `NavigationStack` (`SettingsPages.swift`).
 
 #### `GMRow`
 Linha tocável: ícone em quadrado 34×34, título, subtítulo, conteúdo à direita (`trailing`) e `chevron` opcional. Sem `action`, é só visual.

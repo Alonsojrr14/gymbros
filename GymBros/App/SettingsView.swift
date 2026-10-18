@@ -79,9 +79,11 @@ struct SettingsView: View {
                     }
                 }
 
-                GMSection(footer: Self.resetText + " Rotinas, lugares, medidas e seu nome continuam.") {
+                #if DEBUG
+                GMSection {
                     GMRow(icon: "arrow.counterclockwise", iconTint: Theme.danger, tile: Theme.danger, title: "Recomeçar jornada") { confirmReset = true }
                 }
+                #endif
 
                 if auth.user != nil {
                     GMSection(footer: signOutError) {
@@ -206,7 +208,7 @@ struct SettingsView: View {
 
     static let deleteAccountText = "Apaga a conta e tudo dela, na conta e neste iPhone: treinos, bros, rotinas, medidas, fotos, recordes, ligas, check-ins, recados, mensagens, amizades, bloqueios e denúncias. Você volta para a tela de entrar. Não dá para desfazer."
 
-    /// O que "Recomeçar jornada" faz (mesmo texto no rodapé e na confirmação)
+    /// O que "Recomeçar jornada" faz (mostrado na confirmação)
     static let resetText = "Apaga as atividades e tudo ligado a elas (treinos guiados, check-ins no perfil e nas ligas, percursos, WODs), os bros, as conquistas já vistas e os carinhos do widget, e devolve um ovo novo. Você continua nas ligas, agora representado pelo ovo novo e com placar zerado."
 
     private func reset() {

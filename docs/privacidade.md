@@ -41,7 +41,7 @@ Vídeos de exercícios são carregados do site wger.de quando você abre um dele
 
 ## Sair, backup e exclusão
 
-"Sair da conta" salva os seus dados na conta e depois os tira do iPhone. O backup é uma cópia extra num arquivo que você exporta e guarda onde quiser; o app não envia cópias a ninguém. "Excluir conta", em Ajustes > Conta, apaga a conta e tudo dela, na conta e no iPhone: perfil, check-ins, recados, mensagens, ligas, amigos, denúncias, bloqueios, aceite dos termos, treinos, bros, rotinas, medidas, fotos e o resto do progresso. "Recomeçar jornada" apaga só as atividades e os bros e mantém a conta. Nesta versão, apagar o app também apaga o servidor simulado e, com ele, os dados da conta: exporte um backup antes.
+"Sair da conta" salva os seus dados na conta e depois os tira do iPhone. O backup é uma cópia extra num arquivo que você exporta e guarda onde quiser; o app não envia cópias a ninguém. "Excluir conta", em Ajustes > Conta, apaga a conta e tudo dela, na conta e no iPhone: perfil, check-ins, recados, mensagens, ligas, amigos, denúncias, bloqueios, aceite dos termos, treinos, bros, rotinas, medidas, fotos e o resto do progresso. Nesta versão, apagar o app também apaga o servidor simulado e, com ele, os dados da conta: exporte um backup antes.
 
 ## Crianças
 
