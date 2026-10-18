@@ -97,7 +97,7 @@ enum LiveWorkout {
     }
 
     /// "✓ Série feita": marca a próxima série do exercício atual e começa o descanso.
-    /// Devolve a frase de confirmação (Siri, Botão de Ação, fone).
+    /// Devolve a frase de confirmação (Siri, Botão de Ação).
     @discardableResult
     static func completeNextSet() async -> String {
         guard let s = running(), let id = currentExercise(s) else { return "Nenhum treino em andamento." }
@@ -112,7 +112,6 @@ enum LiveWorkout {
         if rest { startRest(s, seconds: set.rest) } else { cancelRest(s) }
         try? AppData.container.mainContext.save()
         await refresh(s)
-        HeadphoneControl.shared.refresh()
         var msg = "\(Exercise.name(id)): \(set.warmup ? "aquecimento" : "série \(number) de \(same.count)") feita." + (rest ? " Descanso de \(spoken(set.rest))." : "")
         if let next = s.currentExerciseID, next != id { msg += rest ? " Próximo: \(Exercise.name(next))." : " Superset: agora \(Exercise.name(next))." }
         if s.sets.allSatisfy(\.done) { msg = "Última série feita! Treino completo, é só concluir no app." }
@@ -125,7 +124,6 @@ enum LiveWorkout {
         cancelRest(s)
         try? AppData.container.mainContext.save()
         await refresh(s)
-        HeadphoneControl.shared.refresh()
         let st = state(for: s)
         return st.exerciseDone ? "Descanso pulado." : "Bora: \(st.exercise), série \(st.setNumber) de \(st.setCount), \(st.setText)."
     }

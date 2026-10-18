@@ -58,6 +58,13 @@ nenhuma senha é guardada. Todos os dados ficam no SwiftData local e em `UserDef
 (exige iCloud, ainda não configurado), sobe para o banco público do CloudKit só o que é compartilhado: perfil público,
 ligas, seu lugar nelas, check-ins postados e recados; peso, medidas, perfil físico, recordes, metas e atividades não postadas nunca sobem.
 Critério: com `.mock`, nenhum uso de `URLSession` nem chamada ao CloudKit, e o app funciona completo sem rede depois do login.
+
+**RNF-07a — Manifesto e política de privacidade.** App e widget têm `PrivacyInfo.xcprivacy` (sem rastreamento, sem dados
+coletados no modo `.mock`, `UserDefaults` com os motivos CA92.1 e 1C8F.1 no app e 1C8F.1 no widget), e o app declara
+`ITSAppUsesNonExemptEncryption = NO`. A política de privacidade fica em Ajustes > Privacidade (`GymBros/App/PrivacyPolicyView.swift`)
+e na web em `docs/privacidade.md` (https://alonsojrr14.github.io/gymbros/privacidade/), gerada a partir do mesmo texto.
+Critério: ao ligar `Backend.mode = .cloudKit` ou login real, atualizar `NSPrivacyCollectedDataTypes` e as duas versões da política antes de publicar.
+Fonte: `GymBros/Resources/PrivacyInfo.xcprivacy`, `GymBrosWidget/PrivacyInfo.xcprivacy`, `GymBros/Resources/Info.plist`.
 Fonte: `GymBros/Services/Backend.swift` (`Backend.mode`, `install`), `GymBros/Services/Auth.swift` (`AuthStore`, `MockAuthBackend`), `GymBros/Models/Schema.swift` (`AppData.container`), `docs/cloudkit.md`; grep por `URLSession` sem resultados.
 
 **RNF-08 — Tráfego de rede limitado a conteúdo público.** As únicas saídas de rede são: vídeo de demonstração do wger
@@ -184,10 +191,10 @@ Critério: com 21 academias salvas, só as 20 mais recentes são monitoradas.
 Fonte: `GymBros/Services/Location.swift` (l. 148, 170, 204–221); `UIBackgroundModes` = `location` em `Info.plist`.
 
 **RNF-26 — Execução em segundo plano durante o treino.** Percurso GPS com a tela bloqueada
-(`allowsBackgroundLocationUpdates`), modo fone que toca silêncio para receber os comandos do fone
-(`UIBackgroundModes` = `audio`), timer de descanso por notificação local e Live Activity. A tela não apaga durante treino e WOD.
+(`allowsBackgroundLocationUpdates`), timer de descanso por notificação local e Live Activity. O modo fone só fala
+com o app aberto e não toca áudio em segundo plano. A tela não apaga durante treino e WOD.
 Fonte: `Info.plist`; `GymBros/Services/Route.swift` (l. 57–60), `GymBros/Train/HeadphoneControl.swift`, `GymBros/Train/LiveWorkout.swift` (l. 236), `GymBros/Train/WorkoutView.swift` (l. 170), `GymBros/Train/Wod.swift` (l. 281).
-**Recomendação:** documentar para a revisão da App Store o uso de `audio` (modo fone) e de `location` (percurso e automações).
+**Recomendação:** documentar para a revisão da App Store o uso de `location` (percurso e automações); tirar `audio` de `UIBackgroundModes`, que não é mais usado.
 
 **RNF-27 — Consistência ao editar ou apagar.** Toda a evolução é recalculada do histórico; editar ou apagar uma
 atividade muda XP, estágio e rankings sem migração de estado.
@@ -236,7 +243,7 @@ Fonte: `GymBros/DesignSystem/DesignSystem.swift` (`gmFont`, `GMScaledFont`), `Gy
 **RNF-34 — Idioma pt-BR e formatação.** Região de desenvolvimento `pt-BR`; textos escritos direto em português
 (sem `.strings`/`.xcstrings`); datas formatadas com `Locale("pt_BR")` ("Hoje", "Ontem", "seg, 3 de março");
 voz do modo fone em pt-BR. Números internos de configuração usam `en_US_POSIX` para serialização estável.
-Fonte: `pbxproj` (`developmentRegion = "pt-BR"`), `GymBros/DesignSystem/GMCalendar.swift` (l. 20), `GymBros/Train/HeadphoneControl.swift` (l. 105), `GymBros/Models/League.swift` (l. 85).
+Fonte: `pbxproj` (`developmentRegion = "pt-BR"`), `GymBros/DesignSystem/GMCalendar.swift` (l. 20), `GymBros/Train/HeadphoneControl.swift` (l. 61), `GymBros/Models/League.swift` (l. 85).
 **Recomendação:** extrair os textos para String Catalog antes de suportar outro idioma.
 
 ## 7. Manutenibilidade e testabilidade

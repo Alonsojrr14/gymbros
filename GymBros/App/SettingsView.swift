@@ -27,6 +27,7 @@ struct SettingsView: View {
     @State private var importing = false
     @State private var pendingRestore: Backup?
     @State private var backupMessage: String?
+    @State private var privacy = false
 
     var body: some View {
         GMModal("Ajustes") {
@@ -104,12 +105,16 @@ struct SettingsView: View {
             GMSection(footer: Self.resetText + " Rotinas, lugares, medidas e seu nome continuam.") {
                 GMRow(icon: "arrow.counterclockwise", iconTint: Theme.danger, title: "Recomeçar jornada") { confirmReset = true }
             }
+            GMSection("Privacidade", footer: "Seus dados ficam neste iPhone. Sem anúncios e sem rastreamento.") {
+                GMRow(icon: "hand.raised", title: "Política de privacidade", chevron: true) { privacy = true }
+            }
             GMSection("Como funciona") {
                 Text("Cada atividade rende XP pela duração, tipo e esforço, e soma em Força, Resistência, Agilidade e Técnica. Acima de 150 XP no mesmo dia o ganho cai, com teto de 300 por dia. Nas evoluções para Champion e Ultimate, o atributo que você mais treinou na fase decide a forma.")
                     .font(.footnote)
                     .foregroundStyle(Theme.dim)
             }
         }
+        .gmModal(isPresented: $privacy) { PrivacyPolicyView() }
         .gmActions(isPresented: $confirmSignOut, title: "Sair da conta?", message: "Seus treinos e bros continuam neste iPhone.",
                    actions: [GMAction("Sair", icon: "rectangle.portrait.and.arrow.right", destructive: true) {
                        Task { await AuthStore.shared.signOut() }

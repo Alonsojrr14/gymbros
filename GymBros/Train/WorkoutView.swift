@@ -94,8 +94,8 @@ struct WorkoutView: View {
         .gmModal(isPresented: $finishing) {
             FinishWorkoutView(session: session, history: history) { dismiss() }
         }
-        .gmActions(isPresented: $headphoneInfo, title: "Controlar pelo fone?",
-                   message: "O play/pause do fone vai marcar a série (ou pular o descanso) e o app fala no fone o que aconteceu, mesmo com o celular bloqueado. Para isso o GymBros assume o áudio: a música de outro app pausa enquanto o modo estiver ligado.",
+        .gmActions(isPresented: $headphoneInfo, title: "Avisos no fone?",
+                   message: "Com o app aberto, o GymBros fala no fone o aviso de 10 segundos e o fim do descanso, abaixando a música só enquanto fala. Com a tela bloqueada, marque a série pela Live Activity ou pelos controles.",
                    actions: [GMAction("Ligar modo fone", icon: "headphones") {
                        headphoneInfoSeen = true
                        toggleHeadphones()
@@ -134,7 +134,6 @@ struct WorkoutView: View {
         // Live Activity acompanha qualquer mudança do treino
         .task(id: LiveWorkout.state(for: session)) {
             await LiveWorkout.refresh(session)
-            HeadphoneControl.shared.refresh()
         }
         // Descanso marcado pelo Live Activity: acompanha o fim aqui também
         .task(id: session.restEnd) { await watchRest() }
@@ -185,7 +184,7 @@ struct WorkoutView: View {
                     .foregroundStyle(Theme.accent)
             }
             Spacer()
-            // Modo fone: play/pause do fone marca a série
+            // Modo fone: avisos do descanso falados no fone
             GMIconButton(icon: headphones ? "airpods.gen3" : "headphones", tint: headphones ? Theme.accent : .white, label: headphones ? "Desligar modo fone" : "Ligar modo fone") {
                 if headphones { toggleHeadphones() } else if headphoneInfoSeen { toggleHeadphones() } else { headphoneInfo = true }
             }

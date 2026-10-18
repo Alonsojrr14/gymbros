@@ -92,7 +92,7 @@ tools/                scripts de artes e tools/wger/build.py, que gera GymBros/R
 | `GymBros/Train/Progression.swift` | `PendingRoutineUpdate`, `SetLog`/`SessionLog`, `Deload`, `TrainingGoal`, `Suggestion`, `Progression`, modelos de rotina (`RoutineTemplate`) |
 | `GymBros/Train/TrainView.swift`, `GymBros/Train/RoutineEditView.swift`, `GymBros/Train/WorkoutView.swift`, `GymBros/Train/SwapExercise.swift` | Aba Treino, edição de rotina, treino guiado, troca de exercício |
 | `GymBros/Train/LiveWorkout.swift` | `LiveWorkout` (estado, descanso, Live Activity), `LiveWod`, `WodCounter` |
-| `GymBros/Train/HeadphoneControl.swift` | "Modo fone": play/pause do fone marca série, fala no fone (AVAudio + AVSpeech) |
+| `GymBros/Train/HeadphoneControl.swift` | "Modo fone": fala no fone os avisos do descanso (AVSpeech; sessão de áudio ativa só durante a fala) |
 | `GymBros/Train/ExerciseStatsView.swift`, `GymBros/Train/WeeklyVolume.swift` | Estatísticas por exercício, volume semanal |
 | `GymBros/Train/PR.swift` | `PRBook`, `PRBookView`, `PRSessionView` |
 | `GymBros/Train/Wod.swift` | Benchmarks, cronômetros For Time/AMRAP/EMOM/Tabata, `clock`, telas de WOD e de resultado |

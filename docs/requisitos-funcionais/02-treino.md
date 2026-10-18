@@ -193,16 +193,16 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 **Critério de aceitação:** Marcar série pelo Live Activity com o app fechado inicia o descanso e atualiza a tela do app ao reabrir.  
 **Fonte:** `GymBros/Train/LiveWorkout.swift`, `Shared/WorkoutIntents.swift`, `GymBros/App/Shortcuts.swift`
 ### RF-TRE-17 — Modo fone
-**Descrição:** O app deve permitir controlar o treino pelo play/pause do fone, com respostas faladas.  
+**Descrição:** O app deve falar no fone os avisos do descanso.  
 **Regras de negócio:**
-- Na primeira vez explica que a música de outro app pausa enquanto o modo estiver ligado; depois liga direto.
-- Play, pause, play/pause e próxima faixa: em descanso, pulam o descanso; fora dele, marcam a série (RF-TRE-16).
+- Na primeira vez explica que os avisos saem com o app aberto, que a música de outro app só abaixa enquanto fala e que, com a tela bloqueada, a série se marca pela Live Activity ou pelos controles (RF-TRE-16); depois liga direto.
+- O app não toca áudio fora da fala: a sessão de áudio (`.playback`, `.spokenAudio`, `.duckOthers`) liga a cada fala e é devolvida com `.notifyOthersOnDeactivation` ao terminar.
+- Os botões do fone não controlam o treino e o app não aparece no "tocando agora".
 - Fala em pt-BR ("×" lido como "por"): ao ligar, "Dez segundos" antes do fim do descanso e "Descanso acabou. <exercício>, série n, <carga>".
 - "Dez segundos" sai uma vez por descanso, mesmo que o laço (≈1 s) pule o segundo 10 exato, e só se o descanso foi visto com mais de 10 s restantes (não fala em descanso curto nem depois de um −15 s que já caiu abaixo de 10). Um +15 s cria um descanso novo e um novo aviso.
-- O "tocando agora" mostra exercício (ou "Descanso") e "Série n de m · <série>".
 - Desliga ao concluir ou descartar o treino.
 
-**Critério de aceitação:** Com o celular bloqueado, apertar play no fone marca a série e o app fala a confirmação.  
+**Critério de aceitação:** Com o app aberto e música tocando em outro app, o fim do descanso é falado no fone com a música abaixada, que volta ao volume normal depois da fala.  
 **Fonte:** `GymBros/Train/HeadphoneControl.swift` (`TenSecondCue`), `GymBros/Train/WorkoutView.swift`, `GymBrosTests/WorkoutTests.swift` (`testTenSecondCueSpeaksOncePerRest`)
 
 ## 5. Concluir treino e histórico
