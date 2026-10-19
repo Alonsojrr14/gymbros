@@ -12,7 +12,7 @@ A Apple proíbe guardar dados do HealthKit no iCloud. Por isso a sincronização
 - **Opção A — servidor próprio** (recomendada): o snapshot vai inteiro, com o consentimento já pedido na permissão do Saúde, sem uso para publicidade e sem repasse a terceiros.
 - **Opção B — CloudKit sem os campos do Saúde**: sobe só o que o app calculou (XP, minutos, esforço, kcal estimada pelo app, distância do GPS do próprio app). Ao restaurar num aparelho novo, as atividades vindas do Saúde voltam pela reimportação do `HealthSync`, não pelo iCloud.
 
-O mesmo vale para check-ins e perfil público: calorias e distância do Saúde nunca são publicados (já tratado na publicação das ligas).
+O mesmo vale para check-ins e perfil público: calorias e distância do Saúde nunca são publicados (já tratado na publicação das ligas, `OutgoingCheckIn`). O X1 segue a mesma regra: o valor que cada lado informa (`Duels.myValue`) usa `Activity.duelActivity`, com os dados publicáveis (esforço 5, sem distância e com as calorias estimadas nas atividades do Saúde).
 
 ## Não enviar para a App Store com o social simulado
 
@@ -24,8 +24,11 @@ A auditoria de 18/10/2026 concluiu que um build com `Backend.mode = .mock` é re
 - [ ] Capabilities: iCloud/CloudKit (se usado) e Sign in with Apple. O botão da Apple só aparece com `Backend.mode == .cloudKit` (`GymBros/Services/Auth.swift`).
 - [ ] Implementar `AccountDataBackend` real seguindo a decisão acima.
 - [ ] Trocar `Backend.mode` para o modo real em `GymBros/Services/Backend.swift`.
-- [ ] Esquema do CloudKit (`docs/cloudkit.md`) ou API do servidor próprio.
+- [ ] Esquema do CloudKit (`docs/cloudkit.md`, inclusive `Duel`, `League.swiss` e `Member.joinedAt`) ou API do servidor próprio.
+- [x] X1: valor informado sem distância e calorias do Saúde (`docs/cloudkit.md` → "Checklist do que falta no servidor (X1)").
 - [ ] Fila de moderação: denúncias analisadas e conteúdo removido em até 24 h (guideline 1.2). O texto mostrado ao denunciar vem de `ModerationStore.reviewNote` e passa a prometer as 24 h sozinho fora do `.mock`.
 - [ ] `PrivacyInfo.xcprivacy`: preencher `NSPrivacyCollectedDataTypes` (bloco pronto em `docs/app-review.md`).
-- [ ] Atualizar a política de privacidade e os termos de uso (app e `docs/`) antes de publicar.
+- [ ] Atualizar a política de privacidade e os termos de uso (app e `docs/`) antes de publicar. Hoje nenhum dos dois cita o X1 (nome, bro e o total na métrica vão para o adversário e para o servidor). As coordenadas da academia no convite para treinar junto (`TrainInvite.latitude`/`longitude`) já estão na política (Localização) e nos termos (O que você publica), versão 2.
 - [ ] App Store Connect: rótulos de privacidade iguais ao manifesto.
+- [ ] Música ("Mostrar o que estou ouvindo", `GymBros/Music/Music.swift`): enviar `MusicShareStore.current` junto com o status ao vivo e mostrar em `LiveFriend.music`. Declarar no manifesto e nos rótulos (uso do app / outros dados de uso, vinculado à conta, para funcionalidade).
+- [ ] Spotify: registrar o app no Spotify for Developers (redirect `gymbros://spotify`), preencher `SpotifyNowPlaying.clientID` e implementar o login PKCE e `GET /me/player/currently-playing` (escopo `user-read-currently-playing`). Conferir o limite do modo de desenvolvimento do Spotify e pedir o acesso ampliado antes de abrir para todos.

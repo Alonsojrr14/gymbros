@@ -106,6 +106,8 @@ struct RouteRunView: View {
     @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var finishing = false
     @State private var confirmQuit = false
+    /// Id deste percurso para a escolha do ao vivo
+    @State private var liveID = UUID().uuidString
 
     init(kind: ActivityKind) {
         self.kind = kind
@@ -126,6 +128,7 @@ struct RouteRunView: View {
                 .ignoresSafeArea()
 
                 GMCard(padding: 18) { VStack(spacing: 14) {
+                    LiveShareChip(workoutID: liveID)
                     HStack {
                         stat(clock(secs), "tempo")
                         stat(kmText(tracker.meters), "distância")
@@ -158,6 +161,7 @@ struct RouteRunView: View {
         }
         .onDisappear {
             tracker.stop()
+            LiveShare.end(liveID)
             UIApplication.shared.isIdleTimerDisabled = false
         }
         .gmActions(isPresented: $confirmQuit, title: "Sair sem salvar?", message: "O percurso será descartado.", actions: [
@@ -188,7 +192,7 @@ struct RouteFinishView: View {
 
     var body: some View {
         let secs = tracker.elapsed()
-        GMModal("\(tracker.kind.name) concluída", confirm: "Salvar", onConfirm: save) {
+        GMModal("\(tracker.kind.name) concluída", confirm: "Salvar", confirmEnabled: hasPostDestination(leagues), onConfirm: save) {
             if tracker.coords.count > 1 {
                 RouteMap(coords: tracker.coords).frame(height: 220).clipShape(.rect(cornerRadius: Theme.radiusL))
             }
@@ -225,6 +229,7 @@ struct RouteFinishView: View {
         route.meters = tracker.meters
         route.points = RouteRecord.encode(tracker.coords)
         context.insert(route)
+        ActivitySplits.stamp(activity, context: context)
         postCheckIns(activity: activity, leagues: leagues, title: "\(tracker.kind.name) · \(kmText(tracker.meters))", note: "", photo: photo, context: context)
         try? context.save()
         UINotificationFeedbackGenerator().notificationOccurred(.success)

@@ -15,6 +15,10 @@ struct InboxView: View {
     @State private var composing = false
     @State private var done: Set<String> = []
     @State private var error: String?
+    @State private var terms = TermsGate()
+    @State private var duelsOpen = false
+    /// X1 aceito daqui com mais de um bro chocado: escolhe quem luta, como na tela do X1
+    @State private var choosingFighter: InboxEvent?
 
     init(start: InboxRoute? = nil) {
         if case .conversation(let id) = start {
@@ -57,6 +61,16 @@ struct InboxView: View {
                 try? await Task.sleep(for: .seconds(15))
             }
         }
+        .termsGate($terms)
+        .gmSheet(isPresented: Binding(get: { choosingFighter != nil }, set: { if !$0 { choosingFighter = nil } })) { close in
+            if let e = choosingFighter {
+                FighterChoice(title: "Quem vai lutar?", confirm: "Aceitar X1") { id in
+                    close()
+                    sendDuelAnswer(e, accept: true, monster: id)
+                }
+            }
+        }
+        .gmModal(isPresented: $duelsOpen) { DuelsView() }
         .onChange(of: tab) { old, _ in if old == .activity { store.markActivitySeen() } }
         .onDisappear { if tab == .activity { store.markActivitySeen() } }
         .onChange(of: store.route) { _, r in
@@ -111,6 +125,7 @@ struct InboxView: View {
     private func open(_ e: InboxEvent) {
         switch e.kind {
         case .cheer, .invite, .inviteReply, .liveStart: path = [e.actorID]
+        case .duelChallenge, .duelAccepted, .duelDeclined, .duelExpired, .duelResult: duelsOpen = true
         default: break
         }
     }
@@ -120,7 +135,10 @@ struct InboxView: View {
             switch action {
             case .cheer: try await store.cheer(e.actorID)
             case .accept, .decline:
-                if e.kind == .friendRequest {
+                if e.kind == .duelChallenge {
+                    answerDuel(e, accept: action == .accept)
+                    return
+                } else if e.kind == .friendRequest {
                     if action == .accept { await friends.accept(e.actorID) } else { await friends.decline(e.actorID) }
                 } else if let id = e.targetID, let m = store.message(id) {
                     try await store.reply(to: m, accepted: action == .accept)
@@ -131,6 +149,30 @@ struct InboxView: View {
             error = nil
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    /// X1 é conteúdo das ligas: aceitar ou recusar só depois do aceite dos termos
+    private func answerDuel(_ e: InboxEvent, accept: Bool) {
+        terms.run {
+            if accept && DuelStore.shared.fighters().count > 1 {
+                choosingFighter = e
+            } else {
+                sendDuelAnswer(e, accept: accept, monster: nil)
+            }
+        }
+    }
+
+    private func sendDuelAnswer(_ e: InboxEvent, accept: Bool, monster: UUID?) {
+        Task {
+            do {
+                try await store.answerDuel(e, accept: accept, monster: monster)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                withAnimation(.snappy) { _ = done.insert(e.id) }
+                error = nil
+            } catch {
+                self.error = error.localizedDescription
+            }
         }
     }
 
@@ -198,6 +240,11 @@ struct InboxEventRow: View {
         case .cheer: "mandou força pra você 💪"
         case .invite: "te chamou pra treinar junto"
         case .inviteReply: event.accepted == true ? "topou treinar junto 🤝" : "não vai poder dessa vez"
+        case .duelChallenge: "te desafiou para um X1 ⚔️"
+        case .duelAccepted: "aceitou seu X1 ⚔️ · valendo por 24 h"
+        case .duelDeclined: "recusou seu X1"
+        case .duelExpired: "não respondeu seu X1 a tempo"
+        case .duelResult: "· X1 encerrado"
         }
     }
 
@@ -207,6 +254,8 @@ struct InboxEventRow: View {
         case .comment: "“\(event.text)” · \(event.detail)"
         case .cheer: event.text
         case .invite: event.detail + (event.text.isEmpty ? "" : "\n\(event.text)")
+        case .duelResult: event.text.isEmpty ? event.detail : "\(event.text)\n\(event.detail)"
+        case .duelChallenge, .duelAccepted, .duelDeclined, .duelExpired: event.detail
         default: ""
         }
     }
@@ -227,6 +276,17 @@ struct InboxEventRow: View {
                 HStack(spacing: 8) {
                     GMButton("Bora! 🤝", full: false, small: true) { act(.accept) }
                     GMButton("Hoje não", kind: .secondary, full: false, small: true) { act(.decline) }
+                }
+            }
+        case .duelChallenge:
+            if let a = event.accepted {
+                doneLabel(a ? "Você aceitou" : event.text == "expirou" ? "Expirou" : "Você recusou")
+            } else if done {
+                doneLabel("Respondido")
+            } else {
+                HStack(spacing: 8) {
+                    GMButton("Aceitar ⚔️", full: false, small: true) { act(.accept) }
+                    GMButton("Recusar", kind: .secondary, full: false, small: true) { act(.decline) }
                 }
             }
         case .friendRequest:

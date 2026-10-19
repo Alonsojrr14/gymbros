@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Pixel art do monstro, sem suavização. `hidden` mostra só a silhueta (Dex).
+/// Pixel art do monstro, sem suavização. `hidden` mostra só a silhueta (BroBook).
 struct MonsterSprite: View {
     let form: MonsterForm
     var hidden = false

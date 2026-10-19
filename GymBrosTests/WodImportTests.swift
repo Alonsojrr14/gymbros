@@ -88,3 +88,88 @@ final class WodImportTests: GymTestCase {
         XCTAssertTrue(WodPlan.all().isEmpty)
     }
 }
+
+/// Print exportado do app do box (Tecnofit): tudo em maiúsculas, blocos com descanso, zeros à esquerda e erros de digitação
+final class WodBoxExportTests: GymTestCase {
+    private let tecnofit = """
+        WOD 19/10/2026
+        WOD 1
+        TIME CAP 15'
+        AMRAP 3'
+        5 WALL BALL
+        7 KETTLEBELL SWING (1KB)
+        9 PUSH UP
+        REST 2'
+        AMRAP 3'
+        03 DEVIL PRESS (2DB)
+        06 AVANÇO COM DUMBEL
+        9 AIR SQUAT
+        REST 2'
+        AMRAP 3'
+        5 BURPEERS
+        7 BICEPS (2DB)
+        9 REMADA COSTA (2DB)
+        TECNOFIT
+        """
+
+    func testBlocksAndLines() {
+        let d = WodParser.parse(tecnofit)
+        XCTAssertEqual(d.format, .amrap(minutes: 13))
+        XCTAssertFalse(d.guessed)
+        XCTAssertTrue(d.parts.isEmpty)
+        XCTAssertEqual(d.lines, ["AMRAP 3'", "5 Wall ball", "7 Kettlebell swing (1 KB)", "9 Push up", "Descanso 2'",
+                                 "AMRAP 3'", "3 Devil press (2 DB)", "6 Avanço com dumbbell", "9 Air squat", "Descanso 2'",
+                                 "AMRAP 3'", "5 Burpees", "7 Biceps (2 DB)", "9 Remada costa (2 DB)"])
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: d.day!)
+        XCTAssertEqual([c.year, c.month, c.day], [2026, 10, 19])
+    }
+
+    func testMovementsIdentified() {
+        let d = WodParser.parse(tecnofit)
+        XCTAssertEqual(WodMovements.ids(d.lines), ["cf-wall-ball", "kettlebell-swing", "flexao", "cf-devil-press", "afundo",
+                                                   "agachamento-livre-corpo", "burpee", "rosca-alternada", "remada-curvada-halter"])
+    }
+
+    func testIdentifyVariants() {
+        XCTAssertEqual(WodMovements.identify("21 KB swings 24/16kg"), ["kettlebell-swing"])
+        XCTAssertEqual(WodMovements.identify("10 Thrusters + 10 pull-ups"), ["thruster", "cf-kipping-pull-up"])
+        XCTAssertEqual(WodMovements.identify("15 T2B"), ["cf-toes-to-bar"])
+        XCTAssertEqual(WodMovements.identify("5 squat cleans 60/40"), ["cf-squat-clean"])
+        XCTAssertEqual(WodMovements.identify("10 box jump over"), ["cf-box-jump-over"])
+        XCTAssertEqual(WodMovements.identify("400m run"), ["esteira"])
+        XCTAssertEqual(WodMovements.identify("10 flexões de braço"), ["flexao"])
+        XCTAssertEqual(WodMovements.identify("Descanso 2'"), [])
+    }
+
+    func testEveryAliasExists() {
+        XCTAssertEqual(WodMovements.allIDs.filter { Exercise.byID($0) == nil }, [])
+    }
+
+    func testDateIgnoresLoads() {
+        XCTAssertNil(WodParser.date(in: "10 wall balls 9/6kg"))
+        XCTAssertNotNil(WodParser.date(in: "Treino sexta 17/10"))
+    }
+
+    /// Dois prints da mesma tela do app do box, escolhidos de baixo para cima
+    func testMergeScreenshots() {
+        let bottom = ["11:45", "Wod - 19/10/2026", "TIME CAP 10'", "5 - 4 - 3 - 2 - 1/REPS", "DURANTE 10' A CADA 2'", "2 REPS",
+                      "PUSH JERKS", "COMEÇANDO COM A CARGA ENCONTRADA", "Metcon", "WOD 1", "TIME CAP 15'", "AMRAP 3'", "5 WALL BALL",
+                      "7 KETTLEBELL SWING (1KB)", "9 PUSH UP", "REST 2'", "AMRAP 3'", "03 DEVIL PRESS (2DB)", "06 AVANÇO COM DUMBEL",
+                      "9 AIR SQUAT", "REST 2'", "AMRAP 3'", "5 BURPEERS", "7 BICEPS (2DB)", "9 REMADA COSTA (2DB)", "Ações", "Check-In", "0", "0", "0"]
+        let top = ["CROSS", "Wod - 19/10/2026", "Warmup", "AQUECIMENTO MMSS/II", "AQUECIMENTO ESPECÍFICO", "DL / SHOUD, APENAS BARRA - 3X-8",
+                   "Skill", "FORÇA (DEADLIFT)", "A CADA 2,00", "5 REPS- ?", "5 REPS- ?", "PROGRESSÃO DE CARGA", "LPO (powerlifting)",
+                   "ENCONTRAR CARGA PRA SHOUDER", "TIME CAP 10'", "5 - 4 - 3 - 2 - 1/REPS", "DURANTE 10' A CADA 2'", "2 REPS", "PUSH JERKS",
+                   "COMEÇANDO COM A CARGA ENCONTRADA", "Metcon", "WOD 1 Check-In", "0", "0", "0"]
+        let merged = WodOCR.merge([bottom, top].map { $0.filter { $0.range(of: "^\\d{1,2}:\\d{2}$", options: .regularExpression) == nil } })
+        XCTAssertEqual(merged.filter { $0 == "PUSH JERKS" }.count, 1)
+        XCTAssertEqual(merged.filter { $0 == "Wod - 19/10/2026" }.count, 1)
+        let d = WodParser.parse(merged.joined(separator: "\n"))
+        XCTAssertEqual(d.format, .amrap(minutes: 13))
+        XCTAssertEqual(d.parts.map(\.title), ["Aquecimento", "Força (Deadlift)", "LPO (Powerlifting)"])
+        XCTAssertEqual(d.parts[2].lines.first, "Encontrar carga pra shoulder")
+        XCTAssertEqual(d.parts.last?.lines.last, "Começando com a carga encontrada")
+        XCTAssertEqual(d.lines.first, "AMRAP 3'")
+        XCTAssertEqual(d.lines.last, "9 Remada costa (2 DB)")
+        XCTAssertEqual(Calendar.current.component(.day, from: d.day!), 19)
+    }
+}

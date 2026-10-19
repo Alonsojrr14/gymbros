@@ -49,6 +49,7 @@ struct GMScreen<Content: View, Trailing: View>: View {
     @ViewBuilder var trailing: Trailing
     @ViewBuilder var content: Content
     @Environment(\.dismiss) private var dismiss
+    @State private var tour = OnboardingCoordinator.shared
 
     init(_ title: String, subtitle: String? = nil, back: Bool = false, avatar: Bool = false, close: Bool = false, large: Bool = true,
          bottomInset: CGFloat = 100,
@@ -77,13 +78,19 @@ struct GMScreen<Content: View, Trailing: View>: View {
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 16).padding(.bottom, 8)
                     .lineLimit(2)
             }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) { content }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 4)
-                    .padding(.bottom, bottomInset)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) { content }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
+                        .padding(.bottom, bottomInset)
+                }
+                .scrollDismissesKeyboard(.immediately)
+                .onChange(of: tour.scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(.snappy) { proxy.scrollTo(OnboardingScroll.id(target), anchor: .center) }
+                }
             }
-            .scrollDismissesKeyboard(.immediately)
         }
         .background(Theme.bg.ignoresSafeArea())
         .gmKeyboardDone()

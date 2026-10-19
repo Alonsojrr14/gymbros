@@ -3,7 +3,7 @@
 ```mermaid
 flowchart LR
     O[🥚 Ovo<br/>0 XP] -->|60 XP| G[Gymbro<br/>Bebê]
-    G -->|300 XP| C[Cutebro<br/>Rookie]
+    G -->|300 XP| C[Cutebro<br/>Novato]
     C -->|1200 XP · Força| HF[Halterobro]
     C -->|1200 XP · Resistência| MR[Maratobro]
     C -->|1200 XP · Agilidade| SA[Saltabro]
@@ -12,8 +12,8 @@ flowchart LR
     HF & MR & SA & ZE -->|3600 XP · Resistência| FO[Fôlegobro]
     HF & MR & SA & ZE -->|3600 XP · Agilidade| RE[Relampabro]
     HF & MR & SA & ZE -->|3600 XP · Técnica| ME[Mestrebro]
-    C -.->|1200 XP · dois atributos quase empatados| HC[Champion híbrido<br/>Crossbro · Golpebro · Arrancobro<br/>Chuteirabro · Nadobro · Gingabro]
-    HF & MR & SA & ZE & HC -.->|3600 XP · dois atributos quase empatados| HU[Ultimate híbrido<br/>Hércubro · Titãbro · Olimpibro<br/>Tufãobro · Marébro · Piruetabro]
+    C -.->|1200 XP · dois atributos quase empatados| HC[Atleta híbrido<br/>Crossbro · Golpebro · Arrancobro<br/>Chuteirabro · Nadobro · Gingabro]
+    HF & MR & SA & ZE & HC -.->|3600 XP · dois atributos quase empatados| HU[Lenda híbrida<br/>Hércubro · Titãbro · Olimpibro<br/>Tufãobro · Marébro · Piruetabro]
     HC -->|3600 XP · um atributo| TR & FO & RE & ME
 ```
 
@@ -25,11 +25,11 @@ Linha cheia: forma normal (o atributo mais treinado). Pontilhada: forma híbrida
 |---|---|---|
 | Ovo | 0 | <img src="GymBros/Resources/Assets.xcassets/sprite_egg.imageset/egg.png" width="80"> |
 | Bebê | 60 | <img src="GymBros/Resources/Assets.xcassets/sprite_baby.imageset/baby.png" width="80"><br>Gymbro |
-| Rookie | 300 | <img src="GymBros/Resources/Assets.xcassets/sprite_rookie.imageset/rookie.png" width="80"><br>Cutebro |
+| Novato | 300 | <img src="GymBros/Resources/Assets.xcassets/sprite_rookie.imageset/rookie.png" width="80"><br>Cutebro |
 
-## Galhos (Champion → Ultimate)
+## Galhos (Atleta → Lenda)
 
-| Atributo | Champion · 1200 XP | Ultimate · 3600 XP |
+| Atributo | Atleta · 1200 XP | Lenda · 3600 XP |
 |---|---|---|
 | 💪 Força | <img src="GymBros/Resources/Assets.xcassets/sprite_champion_forca.imageset/champion_forca.png" width="90"><br>Halterobro | <img src="GymBros/Resources/Assets.xcassets/sprite_ultimate_forca.imageset/ultimate_forca.png" width="90"><br>Trebobro |
 | ❤️ Resistência | <img src="GymBros/Resources/Assets.xcassets/sprite_champion_resistencia.imageset/champion_resistencia.png" width="90"><br>Maratobro | <img src="GymBros/Resources/Assets.xcassets/sprite_ultimate_resistencia.imageset/ultimate_resistencia.png" width="90"><br>Fôlegobro |
@@ -38,9 +38,9 @@ Linha cheia: forma normal (o atributo mais treinado). Pontilhada: forma híbrida
 
 ## Formas híbridas
 
-Quando os **dois atributos mais treinados** da fase ficam quase empatados (o segundo com pelo menos 90% do primeiro), o bro vira a forma híbrida da dupla: mistura as duas roupas e o corpo dos dois treinos. No Ultimate híbrido, uma aura com as duas cores envolve o bro.
+Quando os **dois atributos mais treinados** da fase ficam quase empatados (o segundo com pelo menos 90% do primeiro), o bro vira a forma híbrida da dupla: mistura as duas roupas e o corpo dos dois treinos. Na Lenda híbrida, uma aura com as duas cores envolve o bro.
 
-| Dupla | Champion · 1200 XP | Ultimate · 3600 XP |
+| Dupla | Atleta · 1200 XP | Lenda · 3600 XP |
 |---|---|---|
 | 💪 Força + ❤️ Resistência | <img src="GymBros/Resources/Assets.xcassets/sprite_champion_forca_resistencia.imageset/champion_forca_resistencia.png" width="90"><br>Crossbro | <img src="GymBros/Resources/Assets.xcassets/sprite_ultimate_forca_resistencia.imageset/ultimate_forca_resistencia.png" width="90"><br>Hércubro |
 | 💪 Força + ⚡ Agilidade | <img src="GymBros/Resources/Assets.xcassets/sprite_champion_forca_agilidade.imageset/champion_forca_agilidade.png" width="90"><br>Golpebro | <img src="GymBros/Resources/Assets.xcassets/sprite_ultimate_forca_agilidade.imageset/ultimate_forca_agilidade.png" width="90"><br>Titãbro |
@@ -51,10 +51,10 @@ Quando os **dois atributos mais treinados** da fase ficam quase empatados (o seg
 
 ## Como o galho é escolhido
 
-- Ao chegar em **Champion** (1200 XP), vence o atributo que você mais treinou **desde que virou Rookie**.
-- Ao chegar em **Ultimate** (3600 XP), vence o atributo mais treinado **durante a fase Champion**. Dá para trocar de linha: um Halterobro que passou a fase correndo vira Fôlegobro.
+- Ao chegar em **Atleta** (1200 XP), vence o atributo que você mais treinou **desde que virou Novato**.
+- Ao chegar em **Lenda** (3600 XP), vence o atributo mais treinado **durante a fase Atleta**. Dá para trocar de linha: um Halterobro que passou a fase correndo vira Fôlegobro.
 - Empate fica com a ordem Força → Resistência → Agilidade → Técnica.
-- **Híbrido:** nas duas viradas, se o segundo atributo da fase tiver pelo menos 90% do primeiro, sai a forma híbrida da dupla em vez da normal (ex.: quem passa a fase jogando futebol, metade Resistência e metade Agilidade, vira Chuteirabro). Também dá para entrar ou sair do híbrido no Ultimate: um Crossbro que passou a fase só correndo vira Fôlegobro.
+- **Híbrido:** nas duas viradas, se o segundo atributo da fase tiver pelo menos 90% do primeiro, sai a forma híbrida da dupla em vez da normal (ex.: quem passa a fase jogando futebol, metade Resistência e metade Agilidade, vira Chuteirabro). Também dá para entrar ou sair do híbrido na Lenda: um Crossbro que passou a fase só correndo vira Fôlegobro.
 - Crossfit sozinho já tende a híbrido (40% Força, 40% Resistência): quem só faz crossfit vira Crossbro e depois Hércubro.
 
 ## Atividade → atributos
@@ -74,11 +74,11 @@ Quando os **dois atributos mais treinados** da fase ficam quase empatados (o seg
 | Yoga | | | | 100% |
 | Outro | 25% | 25% | 25% | 25% |
 
-XP de cada atividade = duração × gasto típico (MET) × esforço; acima de 150 XP no dia rende 1/3, com teto de 300 XP/dia. Treinando todo dia, o Champion chega em ~5 semanas e o Ultimate em ~3–4 meses.
+XP de cada atividade = duração × gasto típico (MET) × esforço; acima de 150 XP no dia rende 1/3, com teto de 300 XP/dia. Treinando todo dia, o Atleta chega em ~5 semanas e a Lenda em ~3–4 meses.
 
 ## Espécies
 
-A espécie é decidida quando o ovo choca (60 XP, de 1 a 4 treinos), pela **atividade** dos treinos que o chocaram: a atividade com **mais da metade dos minutos** treinados no ovo define o animal. Sem atividade principal (uma mistura) ou com "Outro", nasce o **Coelho**. Os minutos contam, não o XP: senão a corrida, que rende quase o dobro de XP por minuto, venceria a musculação. Urso e Rato dividem musculação e crossfit; o sorteio entre os dois é fixo pelo id do bro. Depois de nascer, a espécie fica gravada no bro. A forma (Champion, Ultimate, híbrido) continua saindo dos atributos.
+A espécie é decidida quando o ovo choca (60 XP, de 1 a 4 treinos), pela **atividade** dos treinos que o chocaram: a atividade com **mais da metade dos minutos** treinados no ovo define o animal. Sem atividade principal (uma mistura) ou com "Outro", nasce o **Coelho**. Os minutos contam, não o XP: senão a corrida, que rende quase o dobro de XP por minuto, venceria a musculação. Urso e Rato dividem musculação e crossfit; o sorteio entre os dois é fixo pelo id do bro. Depois de nascer, a espécie fica gravada no bro. A forma (Atleta, Lenda, híbrido) continua saindo dos atributos.
 
 | Espécie | Atividades no app | No Apple Saúde (tipo exato do treino) |
 |---|---|---|
@@ -94,7 +94,7 @@ Treinos importados do Apple Saúde usam o tipo exato (tênis vira Esquilo, golfe
 
 Para incluir uma espécie (`Species.all` em `GymBros/Bros/Game.swift`): id, nome, nomes das 10 formas e dos 12 híbridos, as atividades em `GymBros/Bros/Hatch.swift` e as artes `sprite_<id>_<forma>` no app e no widget.
 
-| Espécie | Nasce de | Bebê → Rookie | Champions (Força / Resistência / Agilidade / Técnica) | Ultimates |
+| Espécie | Nasce de | Bebê → Novato | Atletas (Força / Resistência / Agilidade / Técnica) | Lendas |
 |---|---|---|---|---|
 | Coelho | Outro ou mistura | Gymbro → Cutebro | Halterobro / Maratobro / Saltabro / Zenbro | Trebobro / Fôlegobro / Relampabro / Mestrebro |
 | Urso | Musculação, Crossfit | Pelucibro → Ursabro | Supinobro / Trilhabro / Rolabro / Sumobro | Grizzlibro / Montanhabro / Avalanchebro / Kodiabro |
@@ -111,7 +111,7 @@ Cada espécie também tem as 12 formas híbridas, cada uma com nome próprio: ne
 
 ### Galeria dos híbridos
 
-**Champions**
+**Atletas**
 
 | Espécie | Força + Resistência | Força + Agilidade | Força + Técnica | Resistência + Agilidade | Resistência + Técnica | Agilidade + Técnica |
 |---|---|---|---|---|---|---|
@@ -124,7 +124,7 @@ Cada espécie também tem as 12 formas híbridas, cada uma com nome próprio: ne
 | Gato | <img src="GymBros/Resources/Assets.xcassets/sprite_gato_champion_forca_resistencia.imageset/gato_champion_forca_resistencia.png" width="48"><br>Miaufitbro | <img src="GymBros/Resources/Assets.xcassets/sprite_gato_champion_forca_agilidade.imageset/gato_champion_forca_agilidade.png" width="48"><br>Unhadabro | <img src="GymBros/Resources/Assets.xcassets/sprite_gato_champion_forca_tecnica.imageset/gato_champion_forca_tecnica.png" width="48"><br>Pumabro | <img src="GymBros/Resources/Assets.xcassets/sprite_gato_champion_resistencia_agilidade.imageset/gato_champion_resistencia_agilidade.png" width="48"><br>Gatunobro | <img src="GymBros/Resources/Assets.xcassets/sprite_gato_champion_resistencia_tecnica.imageset/gato_champion_resistencia_tecnica.png" width="48"><br>Molhadobro | <img src="GymBros/Resources/Assets.xcassets/sprite_gato_champion_agilidade_tecnica.imageset/gato_champion_agilidade_tecnica.png" width="48"><br>Muretabro |
 | Coruja | <img src="GymBros/Resources/Assets.xcassets/sprite_coruja_champion_forca_resistencia.imageset/coruja_champion_forca_resistencia.png" width="48"><br>Madrugabro | <img src="GymBros/Resources/Assets.xcassets/sprite_coruja_champion_forca_agilidade.imageset/coruja_champion_forca_agilidade.png" width="48"><br>Bicadabro | <img src="GymBros/Resources/Assets.xcassets/sprite_coruja_champion_forca_tecnica.imageset/coruja_champion_forca_tecnica.png" width="48"><br>Mochobro | <img src="GymBros/Resources/Assets.xcassets/sprite_coruja_champion_resistencia_agilidade.imageset/coruja_champion_resistencia_agilidade.png" width="48"><br>Revoadabro | <img src="GymBros/Resources/Assets.xcassets/sprite_coruja_champion_resistencia_tecnica.imageset/coruja_champion_resistencia_tecnica.png" width="48"><br>Martimbro | <img src="GymBros/Resources/Assets.xcassets/sprite_coruja_champion_agilidade_tecnica.imageset/coruja_champion_agilidade_tecnica.png" width="48"><br>Plumabro |
 
-**Ultimates**
+**Lendas**
 
 | Espécie | Força + Resistência | Força + Agilidade | Força + Técnica | Resistência + Agilidade | Resistência + Técnica | Agilidade + Técnica |
 |---|---|---|---|---|---|---|

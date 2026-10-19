@@ -10,6 +10,14 @@ enum OnboardingTarget: String, CaseIterable {
     case monster, logActivity, homeShortcuts
     case trainTab, leaguesTab, mapTab, historyTab, broTab
     case trainToday
+
+    /// Fica na barra de abas, que é a única coisa que pode cobrir os outros alvos
+    var isInTabBar: Bool {
+        switch self {
+        case .trainTab, .leaguesTab, .mapTab, .historyTab, .broTab: true
+        default: false
+        }
+    }
 }
 
 /// Formato do recorte, acompanhando o formato real do elemento

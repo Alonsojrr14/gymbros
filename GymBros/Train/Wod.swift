@@ -107,6 +107,11 @@ struct WodListView: View {
         GMScreen("WODs", subtitle: "CrossFit: benchmarks e cronômetro", back: true) {
             GMButton("WOD livre (monte o seu)", icon: "timer", kind: .secondary) { custom = true }
             GMButton("Importar treino do coach", icon: "doc.on.clipboard", kind: .secondary) { importing = true }
+            NavigationLink { WodTimelineView() } label: {
+                GMRow(icon: "clock.arrow.circlepath", iconTint: Theme.accent, title: "Meus WODs", subtitle: "Linha do tempo", chevron: true)
+                    .padding(12).background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+            }
+            .buttonStyle(GMPress())
             ForEach(["Girls", "Heróis"], id: \.self) { cat in
                 GMSection(cat) {
                     let list = Wod.benchmarks.filter { $0.category == cat }
@@ -226,6 +231,8 @@ struct WodTimerView: View {
     @State private var gymID: UUID?
     @State private var choosingPlace = false
     @State private var placeAsked = false
+    /// Id deste treino para a escolha do ao vivo
+    @State private var liveID = UUID().uuidString
 
     private func elapsed(_ now: Date) -> TimeInterval {
         guard let startedAt else { return 0 }
@@ -247,14 +254,17 @@ struct WodTimerView: View {
                     Spacer()
                     Color.clear.frame(width: 40, height: 40)
                 }
-                Button { choosingPlace = true } label: {
-                    Label(GymLocation.shared.gym(gymID)?.name ?? (placeAsked ? "Sem local" : "Onde você está?"), systemImage: "mappin.and.ellipse")
-                        .font(.caption.bold())
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(gymID != nil ? Theme.accent.opacity(0.18) : Theme.raised, in: .capsule)
-                        .foregroundStyle(gymID != nil ? Theme.accent : .white)
+                HStack(spacing: 8) {
+                    Button { choosingPlace = true } label: {
+                        Label(GymLocation.shared.gym(gymID)?.name ?? (placeAsked ? "Sem local" : "Onde você está?"), systemImage: "mappin.and.ellipse")
+                            .font(.caption.bold()).lineLimit(1)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(gymID != nil ? Theme.accent.opacity(0.18) : Theme.raised, in: .capsule)
+                            .foregroundStyle(gymID != nil ? Theme.accent : .white)
+                    }
+                    .buttonStyle(GMPress())
+                    LiveShareChip(workoutID: liveID)
                 }
-                .buttonStyle(GMPress())
                 if !wod.lines.isEmpty {
                     GMCard { ForEach(wod.lines, id: \.self) { Text($0).font(.subheadline.weight(.semibold)) } }
                 }
@@ -289,6 +299,7 @@ struct WodTimerView: View {
             }
         }
         .onDisappear {
+            LiveShare.end(liveID)
             UIApplication.shared.isIdleTimerDisabled = false
             WorkoutIntentBridge.addRound = nil
             Task { await LiveWod.end() }
@@ -503,7 +514,7 @@ struct WodResultForm: View {
     @State private var blocked = false
 
     var body: some View {
-        GMModal("Resultado", confirm: "Salvar", onConfirm: save) {
+        GMModal("Resultado", confirm: "Salvar", confirmEnabled: hasPostDestination(leagues), onConfirm: save) {
             GMCard {
                 Text(wod.name).font(.title2.weight(.heavy))
                 switch wod.format {
@@ -556,6 +567,7 @@ struct WodResultForm: View {
         context.insert(activity)
         r.activityUUID = activity.uuid
         context.insert(r)
+        ActivitySplits.stamp(activity, context: context)
         postCheckIns(activity: activity, leagues: leagues, title: "\(wod.name) · \(r.text)\(rx ? " RX" : "")", note: note, photo: photo, context: context)
         try? context.save()
         UINotificationFeedbackGenerator().notificationOccurred(.success)

@@ -27,6 +27,16 @@ final class InboxTests: GymTestCase {
         store.friendRequests = { [] }
         store.friendIDs = { ["bruno", "ana"] }
         store.notify = { [weak self] in self?.notified.append($0) }
+        store.duelNotices = { [weak self] in self?.duels ?? [] }
+    }
+
+    private var duels: [DuelNotice] = []
+
+    private func duel(_ id: String, iChallenged: Bool, phase: DuelPhase, accepted: Date? = nil, score: DuelScore? = nil) -> DuelNotice {
+        let created = Date.now.addingTimeInterval(-3600)
+        return DuelNotice(id: id, opponent: DuelPerson(id: "bruno", name: "Bruno", formID: ""), iChallenged: iChallenged, metric: .treinos,
+                          phase: phase, createdAt: created, acceptedAt: accepted, endsAt: accepted?.addingTimeInterval(86400),
+                          expiresAt: created.addingTimeInterval(86400), score: score)
     }
 
     override func tearDown() async throws {
@@ -151,6 +161,46 @@ final class InboxTests: GymTestCase {
             XCTFail("Sem permissão")
         } catch {}
         XCTAssertTrue(backend.sent.isEmpty)
+    }
+
+    // MARK: X1
+
+    func testDuelEventsFollowWhoChallenged() {
+        let now = Date.now
+        let list = InboxStore.events(from: [
+            duel("recebido", iChallenged: false, phase: .pending(expires: now.addingTimeInterval(3600))),
+            duel("aceito", iChallenged: true, phase: .active(ends: now.addingTimeInterval(3600)), accepted: now.addingTimeInterval(-60)),
+            duel("recusado-meu", iChallenged: true, phase: .declined),
+            duel("recusado-por-mim", iChallenged: false, phase: .declined),
+            duel("expirado-meu", iChallenged: true, phase: .expired),
+            duel("fim", iChallenged: false, phase: .finished(ended: now.addingTimeInterval(-10)), accepted: now.addingTimeInterval(-90000),
+                 score: DuelScore(mine: 3, theirs: 1)),
+        ], firstSeen: { _ in now })
+        let kinds = Dictionary(grouping: list, by: { $0.targetID ?? "" }).mapValues { Set($0.map(\.kind)) }
+        XCTAssertEqual(kinds["recebido"], [.duelChallenge])
+        XCTAssertNil(list.first { $0.targetID == "recebido" }?.accepted, "Pendente: botões na linha")
+        XCTAssertEqual(kinds["aceito"], [.duelAccepted])
+        XCTAssertEqual(kinds["recusado-meu"], [.duelDeclined])
+        XCTAssertEqual(kinds["recusado-por-mim"], [.duelChallenge], "Quem recusou não é avisado da recusa")
+        XCTAssertEqual(list.first { $0.targetID == "recusado-por-mim" }?.accepted, false)
+        XCTAssertEqual(kinds["expirado-meu"], [.duelExpired])
+        XCTAssertEqual(kinds["fim"], [.duelChallenge, .duelResult])
+        XCTAssertTrue(list.allSatisfy { $0.topic == .duels })
+    }
+
+    func testDuelNotifiesOnceAndRespectsTopic() async {
+        await store.refresh()
+        duels = [duel("d1", iChallenged: false, phase: .pending(expires: .now.addingTimeInterval(3600)))]
+        await store.refresh()
+        XCTAssertEqual(notified.map(\.id), ["x1-recebido-d1"])
+        XCTAssertEqual(store.unreadActivity, 1)
+        await store.refresh()
+        XCTAssertEqual(notified.count, 1)
+
+        defaults.set(false, forKey: NotificationTopic.duels.key)
+        duels.append(duel("d2", iChallenged: false, phase: .pending(expires: .now.addingTimeInterval(3600))))
+        await store.refresh()
+        XCTAssertEqual(notified.count, 1, "Tópico X1 desligado")
     }
 
     // MARK: Preferências

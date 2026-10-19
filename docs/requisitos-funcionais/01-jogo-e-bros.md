@@ -1,6 +1,6 @@
 # Requisitos funcionais 01: jogo e bros
 
-**Escopo.** Este documento descreve, por engenharia reversa do código do app GymBros (SwiftUI + SwiftData, iOS 17), o núcleo de jogo: como uma atividade física é registrada e convertida em XP, como o XP se distribui em atributos, como o bro choca, evolui e escolhe galhos (inclusive híbridos) e espécies, a coleção de bros (principal, apelido, ovo adotado por liga), humor e frases do companheiro, conquistas, Dex, tela inicial, cena de evolução, histórico/edição/exclusão de atividades, lembretes, widgets, Live Activities, atalhos e compartilhamento em Stories. Ficam fora: regras de pontuação das ligas, treino guiado/progressão de carga, WOD, GPS, Apple Saúde e backup (tratados em outros documentos), exceto onde tocam o jogo. Todos os números citados vêm do código; o estado do jogo é sempre recalculado a partir do histórico de atividades (nada além do log é persistido para XP e evolução).
+**Escopo.** Este documento descreve, por engenharia reversa do código do app GymBros (SwiftUI + SwiftData, iOS 17), o núcleo de jogo: como uma atividade física é registrada e convertida em XP, como o XP se distribui em atributos (tabela da categoria ou divisão calculada para cada treino), como o bro choca, evolui e escolhe galhos (inclusive híbridos) e espécies, o tutorial de primeira utilização, a coleção de bros (Box, principal, apelido, ovo adotado por liga), humor e frases do companheiro, conquistas, BroBook e ficha de cada forma, tela inicial, cena de evolução, histórico/edição/exclusão de atividades, lembretes, widgets, Live Activities, atalhos e compartilhamento em Stories. Ficam fora: regras de pontuação das ligas, treino guiado/progressão de carga, WOD, GPS, Apple Saúde e backup (tratados em outros documentos), exceto onde tocam o jogo. Todos os números citados vêm do código; o estado do jogo é sempre recalculado a partir do histórico de atividades (para XP e evolução, só o log e a divisão de atributos gravada por atividade, RF-JOG-40, são persistidos).
 
 ---
 
@@ -9,16 +9,20 @@
 ### RF-JOG-01: Registrar atividade manualmente
 O app deve permitir registrar uma atividade informando tipo, duração, esforço, data/hora e observação opcional.
 - **Regras de negócio**
-  - 12 tipos: Musculação, Crossfit, Corrida, Caminhada, Bike, Natação, Vôlei, Futebol, Lutas, Dança, Yoga, Outro (grade de 4 colunas).
+  - O tipo é o tipo exato de treino do Apple Saúde (`WorkoutType`, 80 tipos em 10 seções, como "Academia e funcional", "Esportes com bola" e "Raquete"), gravado em `Activity.healthType`. Grade de 4 colunas com 7 atalhos e "Todas": os atalhos são os tipos mais frequentes nas últimas 60 atividades salvas somados às 10 escolhas recentes (`recentWorkoutTypes`); os 12 tipos clássicos completam a grade. Um tipo escolhido fora dos atalhos ocupa a última casa. "Todas" abre a lista completa por seção, com busca por nome e apelidos ("futsal", "padel", "jiu-jitsu"…).
+  - A categoria do jogo (`ActivityKind`, 12: Musculação, Crossfit, Corrida, Caminhada, Bike, Natação, Vôlei, Futebol, Lutas, Dança, Yoga, Outro) sai do tipo (`HealthSync.kind(for:)`; tipo sem categoria vira Outro) e continua decidindo MET, espécie e ligas. Listas e detalhe mostram o nome e o ícone do tipo exato (`typeName`, `typeSymbol`).
   - Valores iniciais: Musculação, 60 min, esforço 6, data/hora atual.
   - Duração por stepper de 5 a 240 min, passo de 5, com atalhos de 30, 45, 60 e 90 min.
   - Esforço de 1 (bem leve) a 10 (no limite). Rótulos: ≤3 Leve, 4–6 Moderado, 7–8 Intenso, 9–10 Máximo.
+  - Só em atividade nova, a seção "Treino feito" deixa informar uma rotina, um treino livre ou um WOD feito sem o treino guiado (`ManualWorkoutSection`; regras em `02-treino.md`). Rotina troca o tipo para Musculação; WOD troca para Crossfit e, se o formato tiver duração, ajusta os minutos. Sem observação, o treino informado vira o título.
   - A atividade nova guarda o bro principal do momento (`monsterUUID`) como dono padrão do XP.
-  - Por padrão, ficam marcados como destino o perfil e todas as ligas ativas e já iniciadas (ver RF-JOG-18 sobre o efeito no XP).
+  - Por padrão, ficam marcados como destino o perfil e todas as ligas ativas e já iniciadas (ver RF-JOG-18 sobre o efeito no XP). Com sessão, termos aceitos e permissão de publicar (`Terms.canPublish`), "Salvar" exige ao menos um destino (`hasPostDestination`).
+  - Ao salvar, a divisão do XP entre atributos é calculada e gravada (RF-JOG-40).
 - **Critérios de aceitação**
   - Ao salvar, a atividade aparece no histórico e o feedback háptico de sucesso é emitido.
   - Não é possível escolher duração fora de 5–240 min pelo formulário.
-- **Fonte:** `GymBros/Activities/LogActivityView.swift`, `GymBros/Models/Activity.swift`, `GymBros/Leagues/LeaguesView.swift` (`LeaguePostSection`)
+  - Escolher "Basquete" grava a categoria Futebol, e o histórico mostra "Basquete".
+- **Fonte:** `GymBros/Activities/LogActivityView.swift`, `GymBros/Activities/WorkoutTypes.swift` (`WorkoutType`, `ActivityTypePicker`, `WorkoutTypeList`), `GymBros/Activities/ManualWorkout.swift`, `GymBros/Services/HealthSync.swift` (`kind(for:)`), `GymBros/Models/Activity.swift`, `GymBros/Leagues/LeaguesView.swift` (`LeaguePostSection`, `hasPostDestination`), `GymBrosTests/WorkoutTypeTests.swift`
 
 ### RF-JOG-02: Fórmula de XP por atividade
 O app deve calcular o XP bruto de uma atividade por duração × MET do tipo × intensidade do esforço.
@@ -50,13 +54,13 @@ O app deve mostrar, antes de salvar, o XP que a atividade vai render, a divisão
 - **Regras de negócio**
   - Os donos do XP seguem a mesma regra do RF-JOG-18 aplicada aos destinos marcados no momento (`Roster.owners`): representantes das ligas marcadas; sem liga, o principal (na criação) ou o dono gravado na atividade (na edição).
   - Para cada dono, o cálculo usa o histórico dele, retirando a versão antiga na edição. Com vários donos, o "+N XP" mostrado é o maior entre eles (como nas listas).
-  - Exibe "+N XP" e, para cada atributo do tipo, "+round(N × peso)".
+  - Exibe "+N XP" e, para cada atributo da divisão, "+round(N × peso)". A divisão é a mesma conta do RF-JOG-40 com o que está na tela (tipo exato, minutos, esforço e o "Treino feito", com descanso de 90 s por série); na edição, sem mudar o tipo exato, os minutos e o esforço, vale a divisão já gravada (trocar Futebol → Basquete recalcula a prévia, como o salvar).
   - Se algum dono sobe de estágio: "Isso vai fazer o ovo chocar! 🥚" / "Isso vai fazer os ovos chocarem! 🥚" (só ovos) ou "Isso vai fazer seu bro evoluir! ✨" / "Isso vai fazer seus bros evoluírem! ✨".
   - A mesma prévia (XP e aviso de evolução) aparece na conclusão do treino guiado, com os destinos marcados lá.
 - **Critérios de aceitação**
   - Editar uma atividade não soma o treino duas vezes na pré-visualização.
   - Marcar só uma liga representada por um ovo novo mostra o XP e o choco desse ovo, não do principal.
-- **Fonte:** `GymBros/Activities/LogActivityView.swift` (`preview`, `previewView`), `GymBros/Train/WorkoutView.swift` (`FinishWorkoutView.preview`), `GymBros/Bros/Monsters.swift` (`Roster.owners`)
+- **Fonte:** `GymBros/Activities/LogActivityView.swift` (`split`, `preview`, `previewView`), `GymBros/Train/WorkoutView.swift` (`FinishWorkoutView.preview`), `GymBros/Bros/Monsters.swift` (`Roster.owners`)
 
 ### RF-JOG-05: Nível do bro
 O app deve exibir um nível derivado do XP total.
@@ -80,28 +84,30 @@ O app deve calcular a sequência atual e a melhor sequência de dias com ativida
 
 ### RF-JOG-07: Distribuição em atributos
 O app deve distribuir o XP ganho de cada atividade entre Força, Resistência, Agilidade e Técnica.
-- **Regras de negócio** (pesos somam 1): Musculação F 0,8 / T 0,2; Crossfit F 0,4 / R 0,4 / A 0,2; Corrida R 0,8 / A 0,2; Caminhada R 1; Bike R 0,8 / F 0,2; Natação R 0,6 / T 0,4; Vôlei A 0,6 / T 0,4; Futebol A 0,5 / R 0,5; Lutas A 0,4 / T 0,3 / F 0,3; Dança A 0,5 / T 0,5; Yoga T 1; Outro 0,25 cada.
+- **Regras de negócio**
+  - Cada atividade usa a divisão gravada para ela (RF-JOG-40); sem divisão gravada (atividades de antes do cálculo), usa a tabela fixa da categoria (`ActivityRecord.split`).
+  - Tabela fixa (pesos somam 1): Musculação F 0,8 / T 0,2; Crossfit F 0,4 / R 0,4 / A 0,2; Corrida R 0,8 / A 0,2; Caminhada R 1; Bike R 0,8 / F 0,2; Natação R 0,6 / T 0,4; Vôlei A 0,6 / T 0,4; Futebol A 0,5 / R 0,5; Lutas A 0,4 / T 0,3 / F 0,3; Dança A 0,5 / T 0,5; Yoga T 1; Outro 0,25 cada.
   - O app mantém atributos da fase (zerados a cada evolução), atributos totais da vida e atributos do choco (os da fase de ovo).
-- **Critérios de aceitação:** a tela inicial mostra os atributos da fase; o histórico mostra a distribuição percentual da vida.
-- **Fonte:** `GymBros/Bros/Game.swift` (`ActivityKind.weights`, `Snapshot`)
+- **Critérios de aceitação:** a tela inicial mostra os atributos da fase; o histórico e o resumo do bro em "Meus bros" mostram os atributos da vida; uma atividade com divisão gravada só de Técnica não soma nada em Força.
+- **Fonte:** `GymBros/Bros/Game.swift` (`ActivityKind.weights`, `ActivityRecord.weights`, `ActivityRecord.split`, `Game.snapshot`, `Snapshot`), `GymBros/Models/Activity.swift` (`record`), `GymBrosTests/AttributeSplitTests.swift` (`testGameUsesStoredSplit`)
 
 ### RF-JOG-08: Estágios por XP total
 O app deve evoluir o bro por limiares de XP total acumulado.
-- **Regras de negócio:** Ovo 0 → Bebê 60 → Rookie 300 → Champion 1200 → Ultimate 3600. Ultimate é a forma final. A data da evolução é a data da atividade que cruzou o limiar.
+- **Regras de negócio:** Ovo 0 → Bebê 60 → Novato 300 → Atleta 1200 → Lenda 3600. Lenda é a forma final. A data da evolução é a data da atividade que cruzou o limiar.
 - **Critérios de aceitação**
-  - A barra de progresso vai de 0 a 1 entre o limiar atual e o próximo; no Ultimate fica cheia e mostra "forma final".
+  - A barra de progresso vai de 0 a 1 entre o limiar atual e o próximo; na Lenda fica cheia e mostra "forma final".
   - Texto de faltante: "faltam N XP para chocar" (ovo) ou "faltam N XP para evoluir".
   - Apagar ou editar atividades recalcula o estágio, podendo regredir.
 - **Fonte:** `GymBros/Bros/Game.swift` (`Stage`, `Snapshot.progress`, `xpToNext`), `GymBros/Bros/HomeView.swift`
 
 ### RF-JOG-09: Galho da evolução (atributo dominante)
-O app deve escolher a forma de Champion e Ultimate pelo atributo mais treinado desde a última evolução.
+O app deve escolher a forma de Atleta e Lenda pelo atributo mais treinado desde a última evolução.
 - **Regras de negócio**
-  - Só Champion e Ultimate têm galho; Bebê e Rookie são únicos.
+  - Só Atleta e Lenda têm galho; Bebê e Novato são únicos.
   - Dominante = maior atributo da fase; empate resolvido pela ordem Força → Resistência → Agilidade → Técnica.
-  - Ao evoluir, os atributos da fase são zerados; um bro pode mudar de galho entre Champion e Ultimate.
+  - Ao evoluir, os atributos da fase são zerados; um bro pode mudar de galho entre Atleta e Lenda.
   - Se uma única atividade cruza mais de um limiar, a fase nova ainda está vazia: o galho (e os atributos do choco) usam os atributos da fase anterior.
-- **Critérios de aceitação:** com a fase Rookie dominada por corrida, o Champion é o de Resistência; uma atividade que leva do Rookie direto ao Ultimate não nasce sem galho.
+- **Critérios de aceitação:** com a fase Novato dominada por corrida, o Atleta é o de Resistência; uma atividade que leva do Novato direto à Lenda não nasce sem galho.
 - **Fonte:** `GymBros/Bros/Game.swift` (`Game.snapshot`, `Game.branch`, `Game.dominant`), `EVOLUCAO.md`
 
 ### RF-JOG-10: Formas híbridas
@@ -109,16 +115,37 @@ O app deve gerar uma forma híbrida quando os dois atributos mais treinados da f
 - **Regras de negócio**
   - Híbrido quando o 2º atributo ≥ 90% do 1º (`hybridRatio = 0,9`) e o 1º > 0.
   - 6 duplas × 2 estágios = 12 híbridos por espécie; a dupla é sempre ordenada F, R, A, T.
-  - Cada híbrido de cada espécie tem nome próprio e único no jogo (96 nomes, nenhum repete outra forma nem leva a espécie no fim). No Coelho (Champion / Ultimate): F+R Crossbro / Hércubro; F+A Golpebro / Titãbro; F+T Arrancobro / Olimpibro; R+A Chuteirabro / Tufãobro; R+T Nadobro / Marébro; A+T Gingabro / Piruetabro. Lista completa no `HIBRIDOS.md`.
+  - Cada híbrido de cada espécie tem nome próprio e único no jogo (96 nomes, nenhum repete outra forma nem leva a espécie no fim). No Coelho (Atleta / Lenda): F+R Crossbro / Hércubro; F+A Golpebro / Titãbro; F+T Arrancobro / Olimpibro; R+A Chuteirabro / Tufãobro; R+T Nadobro / Marébro; A+T Gingabro / Piruetabro. Lista completa no `HIBRIDOS.md`.
   - Sem arte no app, o bro usa a forma normal do atributo dominante.
-- **Critérios de aceitação:** atributos da fase F=100 e R=90 geram Crossbro; F=100 e R=89 geram o Champion de Força.
+- **Critérios de aceitação:** atributos da fase F=100 e R=90 geram Crossbro; F=100 e R=89 geram o Atleta de Força.
 - **Fonte:** `GymBros/Bros/Game.swift` (`MonsterForm`, `Species.names`, `Species.hybridKeys`), `GymBros/Bros/Monsters.swift` (`resolve`), `HIBRIDOS.md`
 
 ### RF-JOG-11: Tendência de forma
 O app deve indicar na tela inicial em que forma o bro tende a evoluir.
 - **Regras de negócio:** exibe "tende a virar {forma}" somente quando o próximo estágio tem galho e há atributos na fase; a forma considera a espécie e o fallback de arte do híbrido.
-- **Critérios de aceitação:** no Bebê não aparece; no Rookie com treinos aparece; no Ultimate não aparece.
+- **Critérios de aceitação:** no Bebê não aparece; no Novato com treinos aparece; na Lenda não aparece.
 - **Fonte:** `GymBros/Bros/Game.swift` (`Snapshot.nextForm`), `GymBros/Bros/HomeView.swift`
+
+### RF-JOG-40: Divisão de atributos calculada para cada treino
+O app deve calcular, ao salvar cada atividade, como o XP dela se divide entre os atributos, a partir do que foi treinado, e gravar essa divisão.
+- **Regras de negócio**
+  - Calculada uma vez por atividade (`ActivitySplits.stamp`) em todos os caminhos que criam atividade: registro manual e edição, conclusão do treino guiado (inclusive o encerramento automático), WOD, percurso com GPS, check-in de liga com atividade nova e importação do Apple Saúde. Fica gravada por id no `UserDefaults` (`activitySplits`), fora do SwiftData: mudar as regras depois não reescreve atividades antigas; editar uma atividade recalcula a dela.
+  - Ponto de partida: a tabela do tipo exato do Apple Saúde quando existe (`AttributeSplit.health`; ex.: basquete A 0,5 / R 0,3 / T 0,2, pilates T 0,6 / F 0,4, escalada F 0,5 / T 0,4 / R 0,1, golfe T 1); senão, a tabela da categoria (RF-JOG-07).
+  - Com detalhe do treino ligado à atividade, a divisão vira 25% ponto de partida + 75% detalhe:
+    - Treino com séries: média das séries de trabalho feitas (aquecimento fica de fora), cada uma pelo padrão do exercício: técnico (snatch, clean, jerk, HSPU, muscle-up, pistol…) T 0,6 / F 0,25 / A 0,15; pliométrico (saltos, burpee, double-under) A 0,6 / R 0,25 / F 0,15; cardio (esteira, remo, bike, corda) R 0,8 / A 0,2; carregar peso F 0,55 / R 0,45; isometria (exercício por tempo) T 0,5 / R 0,3 / F 0,2; peso do corpo até 10 reps F 0,55 / T 0,3 / R 0,15, acima R 0,5 / F 0,3 / T 0,2; carga livre ou máquina pela faixa de reps (≤5, 6–12, 13–20, >20), indo de Força para Resistência, com Técnica 0,15 no peso livre e 0,05 na máquina/polia/Smith. Descanso de 1 a 45 s leva 25% para Resistência.
+    - WOD: 60% movimentos (reconhecidos na lista do WOD ou no texto, `WodMovements.ids`) + 40% formato; sem movimento reconhecido, só o formato. EMOM F 0,4 / T 0,3 / R 0,3; Tabata A 0,5 / R 0,5; AMRAP e For Time com cap de 15 min ou mais R 0,6 / F 0,2 / A 0,2, de até 8 min A 0,4 / F 0,3 / R 0,3, entre os dois (e For Time sem cap) R 0,4 / F 0,3 / A 0,3.
+  - Duração e esforço: a partir de 75 min, leva para Resistência min(25%, (minutos − 60) / 240); sem séries nem WOD, até 25 min com esforço ≥ 8 leva 12% para Força (musculação) ou Agilidade (demais); esforço ≤ 3 leva 10% para Técnica (exceto caminhada).
+  - Ritmo, com distância ≥ 300 m: corrida com pace abaixo de 4:30/km +25% Agilidade (abaixo de 5:30, +10%) e 15 km ou mais +15% Resistência; caminhada a 6,5 km/h ou mais +10% Agilidade e 12 km ou mais +10% Força; bike a 30 km/h ou mais +15% Agilidade e 60 km ou mais +10% Resistência; natação abaixo de 2:00/100 m +10% Técnica e +10% Agilidade, 2.000 m ou mais +15% Resistência.
+  - "Levar X% para um atributo" tira dos outros na proporção de cada um (`shift`). No fim, a divisão soma 1, descarta fatias abaixo de 3%, usa duas casas e o resto do arredondamento vai para o maior (`tidy`).
+  - A divisão gravada entra no backup (campo `attributes` de cada atividade); "Recomeçar jornada" apaga todas. Sair ou excluir a conta zera `activitySplits` (`AccountData.wipeAll`), restaurar um backup só troca a divisão depois de salvar o banco, e apagar uma atividade apaga a entrada dela (`deleteActivity`).
+  - **Recomendação:** apagar a entrada junto com a atividade e incluir `activitySplits` na limpeza de saída da conta.
+- **Critérios de aceitação**
+  - Atividade sem detalhe, sem tipo do Saúde, de 50 min e esforço 6 mantém a tabela da categoria.
+  - Agachamento 4×3 dá mais de 80% de Força; cadeira flexora 4×20 com 40 s de descanso dá mais Resistência que Força; snatch 4×2 dá mais de 35% de Técnica.
+  - Corrida de 5 km em 20 min dá mais de 40% de Agilidade; 18 km em 110 min, mais de 85% de Resistência.
+  - AMRAP de 12 min com HSPU, pistol e toes-to-bar dá mais de 25% de Técnica; For Time de 30 min com remo e esteira, mais de 60% de Resistência.
+  - Basquete (categoria Futebol) tem Técnica; pilates (categoria Yoga) tem Força.
+- **Fonte:** `GymBros/Bros/AttributeSplit.swift` (`AttributeSplit`, `ActivitySplits`), `GymBros/Bros/Game.swift` (`ActivityRecord.split`), `GymBros/Models/Activity.swift` (`record`), `GymBros/Activities/LogActivityView.swift`, `GymBros/Services/Backup.swift`, `GymBros/App/SettingsView.swift`, `GymBrosTests/AttributeSplitTests.swift`
 
 ---
 
@@ -146,10 +173,26 @@ O app deve, no primeiro acesso, pedir o nome do treinador e entregar um ovo.
 - **Regras de negócio**
   - Enquanto `trainerName` estiver vazio, o app mostra o onboarding no lugar da tela principal.
   - Passo 1: "Todo treinador começa com um ovo. Como você se chama?" com campo de nome; botão "Receber meu ovo" desabilitado com nome em branco.
-  - Passo 2: "Este ovo é seu!" com explicação; "Começar a jornada" grava o nome (sem espaços nas pontas).
+  - Se os termos ainda não foram aceitos, o passo 1 mostra o aceite (`LegalConsent`): uma caixa por documento, "Li e concordo com os Termos de uso" e "Li e concordo com a Política de privacidade", com o nome do documento como link que abre o texto. "Receber meu ovo" só habilita com as duas marcadas, e tocar nele grava o aceite (`Terms.accept()`). Quem já aceitou não vê as caixas.
+  - Passo 2: "Este ovo é seu!" com explicação e "Continuar".
+  - Passo 3: "Treine ao vivo com os amigos": explica que, durante um treino, os amigos veem no mapa onde você está treinando, a atividade e o exercício atual, e que fora do treino nada é compartilhado; chave "Compartilhar treino ao vivo" ligada por padrão ("Dá para mudar em cada treino, no chip \"Ao vivo\", ou em Mapa > Ajustes."). "Começar a jornada" grava a escolha (`LiveShare.key`) e o nome (sem espaços nas pontas).
   - Ao entrar na tela principal, o app garante um bro inicial (`isStarter`) e o define como principal; ligas sem representante válido passam a ser representadas por ele.
-- **Critérios de aceitação:** nome só com espaços não avança; após "Começar a jornada" a tela inicial mostra o ovo com 0 XP.
-- **Fonte:** `GymBros/App/OnboardingView.swift`, `GymBros/App/App.swift` (`RootView`), `GymBros/Bros/Monsters.swift` (`ensureStarter`)
+- **Critérios de aceitação:** nome só com espaços não avança; sem marcar os dois documentos não avança; após "Começar a jornada" a tela inicial mostra o ovo com 0 XP; sem mexer na chave do passo 3, o treino ao vivo fica ligado.
+- **Fonte:** `GymBros/App/OnboardingView.swift`, `GymBros/App/TermsView.swift` (`LegalConsent`, `Terms`), `GymBros/Friends/LiveShare.swift`, `GymBros/App/App.swift` (`RootView`), `GymBros/Bros/Monsters.swift` (`ensureStarter`)
+
+### RF-JOG-41: Tutorial de primeira utilização
+O app deve, depois do nome do treinador, apresentar um tutorial que destaca os elementos reais da interface, um por etapa.
+- **Regras de negócio**
+  - 9 etapas, nesta ordem (`OnboardingStep.tour`): o bro (Início), "Registrar atividade", aba Treino (só avança quando a aba abre), o treino de hoje (na aba Treino), aba Ligas, abas Mapa e Histórico juntas, o bro da barra (só avança quando volta ao Início), os atalhos do cabeçalho (Amigos, Bros, caixa de entrada, Ajustes) e "Bora treinar!", sem destaque.
+  - Abre sozinho quando a tela principal está livre (sem cena de evolução, BroBook, aviso ou banco recuperado por cima) e sem treino em andamento. O estado é por conta (hash do id da conta na chave `onboardingTour`): não apresentado, em andamento numa etapa (retoma dela na próxima abertura), concluído ou dispensado. Trocar de conta interrompe sem marcar nada.
+  - Cada etapa navega até a aba dela, espera 350 ms o layout assentar e até 2 s o elemento aparecer; sem elemento visível, pula a etapa (no sentido em que estava indo) e registra em log o motivo.
+  - Um elemento de tela que fica embaixo da barra de abas (com 16 pt de folga acima dela, por causa do bro do centro) não é destacado. Para não perder a etapa, a tela com rolagem (`GMScreen`) rola o primeiro alvo que não é da barra até o centro (`scrollTarget`).
+  - Reabrir: Ajustes → grupo "Ajuda" → "Ver tutorial do app" (fecha os Ajustes e começa do início mesmo se concluído ou com treino em andamento).
+- **Critérios de aceitação**
+  - Com "Registrar atividade" atrás da barra de abas, a etapa só destaca o botão depois de ele rolar para cima da barra; as abas da barra são destacadas normalmente.
+  - Ao chegar na etapa "registrar", a tela pede para rolar até o botão; pular o tutorial limpa o pedido.
+  - Fechar o app na etapa 4 e abrir de novo retoma na etapa 4.
+- **Fonte:** `GymBros/Onboarding/OnboardingStep.swift` (`tour`, `OnboardingTarget.isInTabBar`), `GymBros/Onboarding/OnboardingCoordinator.swift` (`startIfEligible`, `scrollTarget`, `OnboardingPersistence`), `GymBros/Onboarding/SpotlightTarget.swift` (`OnboardingTargetRegistry.spotlight`, `tabBar`, `OnboardingScroll`), `GymBros/Onboarding/SpotlightOverlay.swift`, `GymBros/DesignSystem/GMScreen.swift`, `GymBros/DesignSystem/GMTabBar.swift`, `GymBros/App/SettingsView.swift`, `GymBrosTests/OnboardingTests.swift`
 
 ---
 
@@ -162,20 +205,24 @@ O app deve manter um bro principal, exibido na tela inicial, na barra de abas e 
   - O principal recebe o XP das atividades que não foram postadas em nenhuma liga (o perfil não conta como liga).
   - O dono padrão é gravado na atividade ao criá-la; trocar o principal depois não move atividades antigas.
   - A tela principal observa a chave `mainMonster`: trocar o principal atualiza na hora a tela inicial, a barra de abas e o widget.
-- **Critérios de aceitação:** em "Meus bros", "Tornar principal" aparece só para quem não é o principal e o bro passa a exibir o selo "principal".
+- **Critérios de aceitação:** em "Meus bros", o botão "Principal" do bro selecionado aparece só para quem não é o principal; depois de tocado, o bro passa a exibir o selo "Principal" no resumo e a estrela na casa da Box.
 - **Fonte:** `GymBros/Bros/Monsters.swift` (`MainMonster`, `Roster`, `MyBrosList`), `GymBros/App/App.swift` (`MainView`)
 
 ### RF-JOG-15: Apelido
 O app deve permitir dar apelido a cada bro.
-- **Regras de negócio:** apelido vazio usa o nome da forma atual; espaços nas pontas são removidos; enquanto ovo, o nome exibido é sempre "Ovo". O apelido do principal também é editável em Ajustes.
+- **Regras de negócio:** em "Meus bros", o botão "Apelido" do bro selecionado abre o diálogo "Apelido" ("Vazio usa o nome da forma atual."); apelido vazio usa o nome da forma atual; espaços nas pontas são removidos; enquanto ovo, o nome exibido é sempre "Ovo". Com apelido (e fora do ovo), o resumo mostra também o nome da forma. O apelido do principal também é editável em Ajustes.
 - **Critérios de aceitação:** apagar o apelido volta a mostrar o nome da forma.
 - **Fonte:** `GymBros/Models/Monster.swift` (`displayName`), `GymBros/Bros/Monsters.swift` (`MyBrosList`), `GymBros/App/SettingsView.swift`
 
-### RF-JOG-16: Lista "Meus bros"
-O app deve listar todos os bros com estado e ligas que representam, na aba "Meus bros" da tela Bros (RF-JOG-23).
-- **Regras de negócio:** ordem por data de criação; cada card mostra sprite animado, nome, "Ovo · N XP para chocar" ou "{Estágio} · Nível N · X XP", barra de progresso e "Liga: …" ou "Não representa nenhuma liga". Toque abre ações (Tornar principal, Dar apelido).
-- **Critérios de aceitação:** não há ação de apagar bro.
-- **Fonte:** `GymBros/Bros/Monsters.swift` (`MyBrosList`)
+### RF-JOG-16: "Meus bros" (Box e resumo do bro)
+O app deve mostrar todos os bros numa Box de casas e, embaixo, o resumo do bro selecionado, na aba "Meus bros" da tela Bros (RF-JOG-23).
+- **Regras de negócio**
+  - Box: cabeçalho "Box" com a contagem ("1 bro", "N bros"); grade de 4 colunas em ordem de criação, sempre com fileiras cheias e no mínimo 12 casas (as vazias, tracejadas, lembram que dá para ter mais). Cada casa mostra o sprite, o nome e "Ovo" ou "Nv N"; estrela no principal; emoji da primeira liga que o bro representa.
+  - Começa selecionado o principal; tocar numa casa seleciona o bro (vibração de seleção), com fundo e contorno na cor do atributo do galho.
+  - Resumo do selecionado: bro animado, nome com selo "Principal", nome da forma se tiver apelido, "Ovo · N XP para chocar" ou "{Estágio} · Nível N · X XP", barra de progresso na cor do atributo; barras dos 4 atributos da vida relativas ao maior (só se ele já treinou algo); ligas que representa ou "Não representa nenhuma liga"; botões "Principal" (RF-JOG-14), "Apelido" (RF-JOG-15) e "BroBook", que abre a ficha da forma atual dele (RF-JOG-42).
+  - Rodapé: o principal aparece na tela inicial e nos widgets e recebe o XP das atividades sem liga; cada liga dá XP só ao bro que representa você nela; ovos novos vêm de entrar numa liga.
+- **Critérios de aceitação:** não há ação de apagar bro; com 13 bros a Box tem 16 casas.
+- **Fonte:** `GymBros/Bros/Monsters.swift` (`MyBrosList`: `box`, `slot`, `summary`, `attributes`)
 
 ### RF-JOG-17: Representante por liga e ovo adotado
 O app deve, ao entrar numa liga, pedir quem representa o jogador: um bro existente ou um ovo novo.
@@ -222,13 +269,14 @@ O app deve exibir uma frase do bro de acordo com o humor e o contexto.
 ### RF-JOG-21: Tela inicial do bro
 O app deve ter uma tela inicial centrada no bro principal.
 - **Regras de negócio**
-  - Cabeçalho "Olá, {nome}", selo de sequência (🔥 N, lido como "N dias seguidos" no VoiceOver) quando > 0, botões Amigos, Bros e Ajustes.
+  - Cabeçalho "Olá, {nome}" com a bolinha do perfil, selo de sequência (🔥 N, lido como "N dias seguidos" no VoiceOver) quando > 0, botões Amigos, Bros, caixa de entrada (sino com contador de novas) e Ajustes.
   - Card do bro: balão com emoji do humor, bro animado, nome, estágio · atributo do galho · Nível · humor (os três últimos só fora do ovo), barra e XP. No ovo: "Registre seu primeiro treino para aquecer o ovo." (0 XP) ou "Ele está se mexendo… continue treinando!".
   - Card "Treinos desta fase" (fora do ovo): barras dos 4 atributos proporcionais ao maior.
-  - Botão "Registrar atividade" e card "Últimas atividades" com as 3 mais recentes (toque abre o detalhe), com o mesmo XP do Histórico (RF-JOG-18).
+  - Botão "Registrar atividade", card "X1" (`DuelHomeCard`, regras em RF-SOC-38 de `03-social-e-dados.md`) e card "Últimas atividades" com as 3 mais recentes (toque abre o detalhe), com nome e ícone do tipo exato e o mesmo XP do Histórico (RF-JOG-18).
+  - O card "X1" aparece sempre: com desafio esperando resposta ou X1 valendo, mostra até 3 linhas ("Ver mais N" abre a tela X1); sem nenhum, convida a desafiar ("Ninguém no X1 com você agora…"), com atalho para até 4 amigos e o botão "Desafiar alguém". O cabeçalho mostra o retrospecto "NV · NE · ND" quando há X1 encerrado.
   - A barra de abas tem o bro no centro (Início), Treino, Ligas, Mapa e Histórico.
 - **Critérios de aceitação:** sem atividades, o card de recentes não aparece.
-- **Fonte:** `GymBros/Bros/HomeView.swift`, `GymBros/App/App.swift`
+- **Fonte:** `GymBros/Bros/HomeView.swift`, `GymBros/Duels/DuelViews.swift` (`DuelHomeCard`), `GymBros/App/App.swift`
 
 ---
 
@@ -247,38 +295,59 @@ O app deve exibir em tela cheia uma cena quando qualquer bro da coleção sobe d
 
 ---
 
-## 9. Tela "Bros": Meus bros, Dex e Conquistas
+## 9. Tela "Bros": Meus bros, BroBook e Conquistas
 
 ### RF-JOG-23: Navegação da tela Bros
-O app deve abrir, pelo botão Bros da tela inicial, uma tela modal com as abas "Meus bros", "Dex" e "Conquistas".
-- **Regras de negócio:** o título acompanha a aba; subtítulos: "Seu principal e os que te representam nas ligas"; "N de M formas descobertas"; "N de M desbloqueadas".
-- **Fonte:** `GymBros/Bros/DexView.swift`, `GymBros/App/App.swift`
+O app deve abrir, pelo botão Bros da tela inicial, uma tela modal "Bros" com as abas "Meus bros", "BroBook" e "Conquistas".
+- **Regras de negócio**
+  - Título fixo "Bros", com voltar; o subtítulo acompanha a aba: "Seu principal e os que te representam nas ligas", "Todas as formas de todas as espécies" e "Marcas que você já bateu e as que faltam".
+  - Acima das abas, um card com o bro principal animado dentro de um anel com o progresso do BroBook, "N % do BroBook", "N de M formas", "N de M espécies chocadas" e "N de M conquistas".
+- **Fonte:** `GymBros/Bros/DexView.swift` (`hero`, `subtitle`), `GymBros/App/App.swift`
 
 ### RF-JOG-24: Descoberta de formas
 O app deve registrar como descoberta toda forma alcançada por qualquer bro.
 - **Regras de negócio:** o ovo é sempre descoberto; descobertas são cumulativas (não somem ao apagar atividades). Total = ovo + formas de cada espécie pronta (10 normais + híbridos com arte) = 177 hoje.
 - **Fonte:** `GymBros/App/App.swift` (`check`), `GymBros/Bros/DexView.swift` (`allForms`)
 
-### RF-JOG-25: Dex por espécie
+### RF-JOG-25: BroBook por espécie
 O app deve exibir a árvore de evolução de cada espécie.
 - **Regras de negócio**
-  - Seletor horizontal com todas as espécies: bebê (silhueta se não descoberto), "vistos/total", ícone da primeira atividade da espécie; espécie sem arte mostra "?" e "Em breve" e não é selecionável. A árvore diz de onde a espécie nasce (ex.: "Nasce quando o ovo choca com musculação ou crossfit"); o Coelho, "com \"Outro\" ou com treinos variados, sem atividade principal".
-  - Árvore: Ovo → Bebê → Rookie; um galho por atributo (Champion → Ultimate); seção "Formas híbridas" se a espécie tiver alguma arte híbrida, com uma linha por dupla cujo Champion híbrido tenha arte.
-  - Forma não descoberta: silhueta e "???"; cada nó mostra estágio e limiar de XP; a forma atual do principal fica destacada.
-  - "Revelar todas" mostra tudo sem contar como descoberta (preferência salva).
-- **Fonte:** `GymBros/Bros/DexView.swift`
+  - Seletor horizontal com as espécies prontas (`isReady`, hoje as 8): bebê (silhueta se não descoberto), nome, barra e "vistos/total" (barra dourada com a espécie completa).
+  - Cabeçalho da espécie: nome, de onde nasce (ex.: "Nasce quando o ovo choca com musculação ou crossfit (e parecidos no Apple Saúde)"; o Coelho, "com \"Outro\" ou com treinos variados, sem atividade principal"), "vistos/total" e as atividades que a chocam.
+  - Árvore: "Começo" (Ovo → Bebê → Novato); "Galhos", um por atributo (Atleta → Lenda); "Formas híbridas" se a espécie tiver alguma arte híbrida, com uma linha por dupla cujo Atleta híbrido tenha arte.
+  - Forma não descoberta: silhueta e "???"; cada nó mostra "{Estágio} · N XP" ("início" no ovo); a forma atual do principal fica destacada com o selo "VOCÊ". Tocar num nó abre a ficha da forma (RF-JOG-42).
+  - Chip "Revelar todas" / "Revelando" mostra tudo sem contar como descoberta (preferência salva em `dexRevealAll`).
+- **Fonte:** `GymBros/Bros/DexView.swift` (`speciesPicker`, `tree`, `node`)
 
 ### RF-JOG-26: Conquistas
 O app deve avaliar 28 conquistas e exibi-las em grade.
 - **Regras de negócio**
   - Atividades: 1, 10, 50, 100; 5 tipos diferentes; uma de ≥120 min; antes das 7h; a partir das 21h; 1 importada do Saúde.
-  - Estágio (do bro mais evoluído): chocar, Rookie, Champion, Ultimate; 2 bros no Ultimate.
+  - Estágio (do bro mais evoluído): chocar, Novato, Atleta, Lenda; 2 bros na Lenda.
   - Melhor sequência: 3, 7, 30 dias.
   - Treino guiado: 10 treinos; 1 e 25 recordes; 10 t e 100 t de volume (peso × reps das séries feitas); todos os músculos do mapa numa janela de 7 dias.
-  - Espécies chocadas: 2, 4 e todas as do catálogo (hoje 8); Dex: 25 formas e todas. Como toda espécie nasce de alguma atividade e o Coelho nasce de "Outro" ou de treinos variados (RF-JOG-12), todas são alcançáveis.
+  - Espécies chocadas: 2, 4 e todas as do catálogo (hoje 8); BroBook: 25 formas e todas. Como toda espécie nasce de alguma atividade e o Coelho nasce de "Outro" ou de treinos variados (RF-JOG-12), todas são alcançáveis.
   - Grade ordenada por desbloqueadas e depois por progresso; bloqueadas com barra de progresso e opacidade 0,7.
   - Ao desbloquear, banner "Conquista: {título}" ou "N conquistas novas!" por 4 s (toque fecha); cada conquista é anunciada uma vez.
 - **Fonte:** `GymBros/Bros/Companion.swift` (`Achievements`), `GymBros/App/App.swift` (`announce`), `GymBros/Bros/DexView.swift`
+
+### RF-JOG-42: Ficha da forma no BroBook
+O app deve mostrar a ficha de uma forma (arte, tipos, números, descrição, como conseguir e linha evolutiva) quando o jogador toca nela.
+- **Regras de negócio**
+  - Abre num painel de meia altura que expande para tela cheia, por um nó da árvore do BroBook (com o bro principal como referência) ou pelo botão "BroBook" do resumo em "Meus bros" (com o bro selecionado como referência).
+  - Topo: arte animada (silhueta se não descoberta), número "Nº 000" pela posição da forma no catálogo do BroBook (`DexView.allForms`; o ovo é o 000) e botão "Fechar".
+  - Nome (ou "???") e pílulas dos atributos da forma (uma, ou duas no híbrido); "Ovo" no ovo; não descoberta mostra "???" e "Ainda não descoberta", e a espécie também aparece como "???".
+  - Três números: Espécie ("—" no ovo), Fase e "XP para chegar" (limiar do estágio).
+  - Se o bro de referência está nesta forma: "Seu bro está nesta forma · nível N · faltam X XP para evoluir" ("para chocar" no ovo) com barra de progresso, ou "· forma final"; se já passou por ela: "Seu bro passou por aqui em {data}".
+  - Descrição por estágio; no Atleta e na Lenda, uma frase por atributo da forma. Não descoberta: "Você ainda não encontrou esta forma. Treine para descobrir quem ela é."
+  - "Como conseguir": ovo choca com 60 XP; bebê choca com 60 XP quando os treinos do ovo são das atividades da espécie (o Coelho, variados ou "Outro"); Novato evolui do bebê com 300 XP, com qualquer treino; Atleta evolui do Novato e Lenda de qualquer Atleta, no limiar do estágio, "se {atributo} for o atributo mais treinado" ou, no híbrido, "se {A} e {B} forem os atributos mais treinados, quase empatados (até 10% de diferença)", desde a última evolução. Chips "Treinos que chocam" no bebê (as atividades da espécie, sem Outro) ou "Treinos que mais ajudam" no Atleta e na Lenda (categorias, sem Outro, cuja soma dos pesos fixos de RF-JOG-07 nos atributos da forma é pelo menos 0,3, da maior para a menor); ovo e Novato não têm chips.
+  - "Evolução": "Vem de" ↓ a forma (selo "ESTA") ↓ "Pode virar" ("· depende do que você treinar" quando há mais de uma). Galhos de um atributo primeiro e híbridos com arte num bloco à parte ("Híbridos · dois atributos quase empatados"). O ovo pode virar o bebê de cada espécie pronta; a Lenda vem de qualquer Atleta da espécie (inclusive híbridos com arte). Cada linha diz a condição (início; espécie e até 3 atividades; "Novato · 300 XP"; atributos e XP) e, tocada, troca a ficha para aquela forma no mesmo painel.
+  - Formas não descobertas seguem em silhueta e "???" também nas linhas; "Revelar todas" (RF-JOG-25) vale para a ficha.
+- **Critérios de aceitação**
+  - A ficha do Novato vem do bebê e pode virar o Atleta de Força; a Lenda de Técnica vem (entre outros) do Atleta de Força e não vira nada.
+  - O ovo pode virar tantos bebês quantas espécies prontas existirem.
+  - O Atleta de Força diz "Força for o atributo mais treinado" e tem Musculação como primeiro treino que mais ajuda; a Lenda híbrida de Força e Técnica cita "Força e Técnica".
+- **Fonte:** `GymBros/Bros/DexEntryView.swift` (`DexEntryView`, `DexEntry`), `GymBros/Bros/DexView.swift` (`node`, `allForms`), `GymBros/Bros/Monsters.swift` (`MyBrosList`), `GymBrosTests/DexEntryTests.swift`
 
 ---
 
@@ -288,19 +357,19 @@ O app deve avaliar 28 conquistas e exibi-las em grade.
 O app deve listar todas as atividades agrupadas por dia, da mais recente para a mais antiga.
 - **Regras de negócio**
   - Resumo: número de atividades, tempo total ("N h" com horas inteiras a partir de 60 min, senão "N min"), XP total e distribuição % dos atributos da vida.
-  - Linha: ícone, tipo, duração · esforço · data, destinos (👤 Perfil, ligas, 📍 local), coração se veio do Saúde, "+N XP".
+  - Linha: ícone e nome do tipo exato (RF-JOG-01), duração · esforço · data, destinos (👤 Perfil, ligas, 📍 local), coração se veio do Saúde, "+N XP".
   - Vazio: "Nenhuma atividade ainda".
 - **Fonte:** `GymBros/Activities/HistoryView.swift`, `GymBros/Bros/HomeView.swift` (`ActivityRow`)
 
 ### RF-JOG-28: Detalhe da atividade
 O app deve mostrar o detalhe de uma atividade.
-- **Regras de negócio:** foto do check-in; título (do post, da observação ou o tipo); data/hora; XP; duração; esforço "N/10 · rótulo"; local; origem Apple Saúde; percurso (se houver); "Publicado em" (perfil primeiro, depois ligas na ordem de entrada, "Liga encerrada" ou "+valor" com unidade, já com pesos e regra de foto da liga, ex.: "+12,4 km", "+3 treinos"); séries do treino guiado vinculado. O lápis tem rótulo "Editar atividade".
+- **Regras de negócio:** cabeçalho com o nome do tipo exato; foto do check-in; título (do post, da observação ou o nome do tipo exato) com o ícone do tipo; data/hora; XP; duração; esforço "N/10 · rótulo"; local; origem Apple Saúde; percurso (se houver); "Publicado em" (perfil primeiro, depois ligas na ordem de entrada, "Liga encerrada" ou "+valor" com unidade, já com pesos e regra de foto da liga, ex.: "+12,4 km", "+3 treinos"); séries do treino guiado vinculado. O lápis tem rótulo "Editar atividade".
 - **Fonte:** `GymBros/Activities/ActivityDetail.swift`, `GymBros/Leagues/Leagues.swift` (`League.score`, `LeagueScoring.format`)
 
 ### RF-JOG-29: Editar atividade
 O app deve permitir editar tipo, duração, esforço, data, observação e destinos de uma atividade.
-- **Regras de negócio:** campos carregados uma única vez; destinos atuais vêm marcados (sem marcar tudo); com destinos, seção "Post" com título, descrição e local; tirar um destino apaga o check-in de lá; se a atividade tinha sido gravada no Saúde, a gravação é apagada para ser refeita. Recalcula XP e evolução.
-- **Fonte:** `GymBros/Activities/LogActivityView.swift`
+- **Regras de negócio:** campos carregados uma única vez (o tipo exato gravado, ou o equivalente da categoria); a seção "Treino feito" não aparece na edição; destinos atuais vêm marcados (sem marcar tudo); com destinos, seção "Post" com título, descrição e local; tirar um destino apaga o check-in de lá; se a atividade tinha sido gravada no Saúde, a gravação é apagada para ser refeita. Ao salvar, grava o tipo exato, recalcula a divisão de atributos (RF-JOG-40), o XP e a evolução.
+- **Fonte:** `GymBros/Activities/LogActivityView.swift`, `GymBros/Bros/AttributeSplit.swift` (`ActivitySplits.stamp`)
 
 ### RF-JOG-30: Apagar atividade
 O app deve permitir apagar uma atividade com confirmação.

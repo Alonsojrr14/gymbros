@@ -1,6 +1,6 @@
 # Backend com CloudKit
 
-O app fala com o servidor só por contratos: `AuthBackend` (`GymBros/Services/Auth.swift`), `AccountDataBackend` (`GymBros/Services/AccountSync.swift`), `LeagueBackend` (`GymBros/Leagues/LeagueRemote.swift`), `FriendsBackend` (`GymBros/Friends/Friends.swift`) e `ModerationBackend` (`GymBros/Moderation/Moderation.swift`). Quem responde é escolhido em `GymBros/Services/Backend.swift`:
+O app fala com o servidor só por contratos: `AuthBackend` (`GymBros/Services/Auth.swift`), `AccountDataBackend` (`GymBros/Services/AccountSync.swift`), `LeagueBackend` (`GymBros/Leagues/LeagueRemote.swift`), `FriendsBackend` (`GymBros/Friends/Friends.swift`), `ModerationBackend` (`GymBros/Moderation/Moderation.swift`), `InboxBackend` (`GymBros/Inbox/Inbox.swift`) e `DuelBackend` (`GymBros/Duels/DuelStore.swift`). Quem responde é escolhido em `GymBros/Services/Backend.swift`:
 
 ```swift
 static let mode: BackendMode = .mock   // .cloudKit quando o app tiver iCloud
@@ -13,6 +13,8 @@ static let mode: BackendMode = .mock   // .cloudKit quando o app tiver iCloud
 | `FriendsBackend` | `MockFriendsBackend`: pessoas simuladas | `CloudKitFriendsBackend` |
 | `ModerationBackend` | `MockModerationBackend`: denúncias e bloqueios guardados no aparelho | `CloudKitModerationBackend`: registros `Report` e `Block` |
 | `AccountDataBackend` | `MockAccountDataBackend`: servidor simulado, um arquivo por conta em `Application Support/MockServer/` | `ServerAccountDataBackend`: lança erro (servidor próprio a definir; ver "Dados da conta") |
+| `InboxBackend` | `MockInboxBackend`: amigos simulados respondem mensagens, força e convites | `ServerInboxBackend`: lança `InboxError.needsServer` (conversas privadas não vão para o banco público) |
+| `DuelBackend` | `MockDuelBackend`: X1 com pessoas simuladas, guardado no aparelho (`mockDuels`) | `CloudKitDuelBackend`: registros `Duel` |
 | `RoleBackend` (`GymBros/Access/AccessStore.swift`) | `MockRoleBackend`: sem atribuição, todo mundo é `USER` | `CloudKitRoleBackend`: lê `RoleAssignment` (só leitura) |
 
 A liga de exemplo (`AMIGOS`) continua simulada nos dois modos. A conta de demonstração da revisão (`DemoAccount`) só existe no `.mock` e não cria tipo de registro; com servidor, a conta demo precisa existir de verdade nele (`docs/app-review.md`).
@@ -33,20 +35,23 @@ Todos os ids de usuário são o `recordName` do usuário do iCloud (`CKContainer
 | Tipo | Nome do registro | Campos | Índices |
 |---|---|---|---|
 | `Profile` | id do usuário | `name`, `username`, `bio` (String), `friendCode` (String), `broFormID` (String), `public` (String, JSON com bro, números e conquistas; partes escondidas não vão) | `friendCode` Queryable |
-| `League` | código da liga | `code`, `owner`, `name`, `emoji`, `scoring`, `weights`, `tieBreak`, `photoRule`, `teams` (String), `start`, `end` (Date), `autoRenew` (Int64) | `recordName` Queryable |
-| `Member` | `<código>-<usuário>` | `league`, `user`, `name`, `formID`, `teamID` (String) | `league`, `user` Queryable |
+| `League` | código da liga | `code`, `owner`, `name`, `emoji`, `scoring`, `weights`, `tieBreak`, `photoRule`, `swiss` (critério da rodada suíça; ausente = `pontos`), `teams` (String), `start`, `end` (Date), `autoRenew` (Int64) | `recordName` Queryable |
+| `Member` | `<código>-<usuário>` | `league`, `user`, `name`, `formID`, `teamID` (String), `joinedAt` (Date: dia em que entrou, para a rodada suíça; ausente = `creationDate`) | `league`, `user` Queryable |
 | `CheckIn` | uuid do check-in | `league` (código, ou `profile` para posts do perfil), `user`, `date`, `kind`, `minutes`, `effort` (5 em atividade do Apple Saúde), `meters` (só GPS do app), `kcal` (nunca do Apple Saúde), `title`, `note`, `hasPhoto`, `photo` (Asset) | `league`, `user` Queryable; `date` Queryable e Sortable |
 | `Message` | uuid do recado | `league`, `user`, `date`, `text` | `league`, `user` Queryable; `date` Sortable |
 | `FriendLink` | `<de>-><para>` | `from`, `to` (String) | `from`, `to` Queryable |
 | `Report` | `report-<eu>-<tipo>:<id>` | `user` (quem denunciou), `kind` (`checkIn`, `comment`, `message`, `profile`, `photo`), `contentID`, `author`, `authorName`, `reason` (`offensive`, `sexual`, `violence`, `spam`, `other`), `date` | `user` Queryable; `date` Queryable e Sortable (fila da moderação) |
 | `Block` | `block-<eu>-><bloqueado>` | `user`, `blocked`, `name` (String), `date` | `user` Queryable |
+| `Duel` | desafio: `duel-<uuid>`; resposta: `duel-<uuid>-answer-<id>`; valor: `duel-<uuid>-score-<aleatório>` (nome guardado no aparelho em `duelScoreRecords`). Na leitura só vale o registro cujo `creatorUserRecordID` é o `user` | `kind` (`challenge`, `answer` ou `score`), `user` (quem escreveu), `date`; no desafio `name`, `formID`, `opponent`, `opponentName`, `opponentFormID` e `metric`; na resposta `duel`, `answer` (`accepted`/`declined`) e, ao aceitar, `formID` (bro que vai lutar); no valor `duel` e `value` (Int64) | `kind`, `user`, `opponent`, `duel`, `date` Queryable |
 | `RoleAssignment` | `role-<usuário>` | `roles` (String List: `USER`, `DEVELOPER`, `ADMIN`) | nenhum (lido pelo nome) |
+
+X1 não tem liga: quem desafia cria o desafio, quem foi desafiado cria a resposta e cada lado escreve o próprio valor, cada um no próprio registro. Datas valem pelo `creationDate`; a resposta só conta se `user` for o `opponent`. O app busca os desafios dos últimos 30 dias em que é `user` ou `opponent` (duas consultas, o CloudKit não tem OR) e os registros `duel IN [...]`. O valor informado é um agregado das atividades (`Duels.myValue`), que hoje soma também distância e calorias vindas do Apple Saúde; gravado no banco público, isso contraria a guideline 5.1.3(ii) e a política de privacidade. **Recomendação:** antes de ligar o CloudKit, calcular o valor só com os dados publicáveis (os mesmos do `CheckIn`) ou levar o X1 para o servidor próprio. "Um X1 aberto por par" é checado no aparelho (de quem desafia e de quem aceita). "Não desafiar quem te bloqueou" só existe no servidor simulado: no CloudKit, `Block` não é legível por outras contas, então o desafio é gravado e fica escondido só do lado de quem bloqueou (`DuelStore.duels` tira os bloqueados). Com as permissões padrão (World: Read), qualquer instalação lê os `Duel` (nomes, bros, métrica e valores); para restringir, seria preciso servidor próprio ou zonas compartilhadas.
 
 Amizade é um vínculo em cada direção: pedir é criar `eu->você`, aceitar é criar o de volta, desfazer é apagar o seu. Assim ninguém precisa escrever registro de outra pessoa.
 
 ### Excluir conta
 
-`CloudKitAuthBackend.deleteAccount` consulta por `user == <eu>` em `Member`, `CheckIn` (ligas e posts do perfil), `Message`, `Report` e `Block`, por `from == <eu>` em `FriendLink`, e apaga tudo junto com o `Profile` (nome do registro = id do usuário), em lotes de 300. Por isso `user` precisa ser Queryable em `Member`, `CheckIn`, `Message`, `Report` e `Block`. Com a permissão Creator: Write, o usuário só consegue apagar o que criou. Depois o app apaga os dados sociais do aparelho e a sessão.
+`CloudKitAuthBackend.deleteAccount` consulta por `user == <eu>` em `Member`, `CheckIn` (ligas e posts do perfil), `Message`, `Report`, `Block` e `Duel`, por `from == <eu>` em `FriendLink`, e apaga tudo junto com o `Profile` (nome do registro = id do usuário), em lotes de 300. Por isso `user` precisa ser Queryable em `Member`, `CheckIn`, `Message`, `Report`, `Block` e `Duel`. Os desafios, respostas e valores de outras pessoas nos seus X1 continuam (são delas). Com a permissão Creator: Write, o usuário só consegue apagar o que criou. Depois o app apaga os dados sociais do aparelho e a sessão.
 
 ## Permissões (Security Roles)
 
@@ -67,6 +72,8 @@ Tudo o que é seu fica no aparelho e sobe depois (`LeagueRemoteStore.flush`, cha
 - `LeagueOutbox`: check-ins já publicados e depois apagados aqui.
 - `LeagueMessage.syncedAt == nil`: recados do mural.
 - Perfil público: publicado ao abrir o app, só se mudou (`FriendsStore.publish`).
+
+X1 não passa pela caixa de saída: desafiar e responder gravam na hora (sem rede, a tela mostra o erro e nada fica pendente), e o seu valor é reenviado a cada atualização da lista enquanto mudar (`DuelStore.refresh`, até 1 h depois do fim).
 
 Sem rede ou sem iCloud, nada se perde: fica pendente e tenta de novo.
 
@@ -96,8 +103,8 @@ Até a decisão, `ServerAccountDataBackend` lança `AccountSyncError.noServer` e
 - Fotos de outras pessoas: o `RemoteCheckIn.photoURL` (CKAsset) já vem, mas as telas ainda mostram o quadro colorido; falta carregar a imagem.
 - Foto do perfil não sobe.
 - Renovação de temporada: hoje cada aparelho calcula a sua; com servidor, check-ins da temporada são filtrados por data (`start`), o que já funciona, mas o ranking de temporadas passadas só existe no aparelho.
-- Treino ao vivo no mapa (amigos treinando agora) segue simulado.
-- Notificações push (novo check-in, pedido de amizade): `CKQuerySubscription`.
+- Treino ao vivo no mapa (amigos treinando agora) segue simulado, inclusive a música dos amigos. A música que você ouve (`MusicShareStore.current`) só é lida no aparelho; quando o status ao vivo subir, ela vai junto (`docs/servidor-real.md`).
+- Notificações push (novo check-in, pedido de amizade, desafio de X1): `CKQuerySubscription`. Desafio recebido já vai para a caixa de entrada (`InboxStore`), por enquanto buscando de tempos em tempos.
 - Login com e-mail exige servidor próprio; no modo CloudKit só a conta Apple/iCloud existe.
 
 ## Moderação (denunciar e bloquear, guideline 1.2)
@@ -117,6 +124,15 @@ Até a decisão, `ServerAccountDataBackend` lança `AccountSyncError.noServer` e
 - [ ] Aceite dos termos: hoje só no aparelho (`termsAcceptedVersion` e `termsAcceptedAt`). Para ter registro de quem aceitou qual versão, gravar um campo `termsVersion` (Int) e `termsAcceptedAt` (Date) no `Profile` (ou um tipo `TermsAcceptance`, Creator: Read/Write, sem World: Read) e recusar publicações sem aceite no servidor.
 - [ ] Expulsão: suspender ou excluir a conta de quem violar os termos exige servidor ou ação administrativa no Dashboard (apagar `Profile`, `Member`, `CheckIn` e `Message` do autor).
 
+## Checklist do que falta no servidor (X1)
+
+- [ ] Criar `Duel` no Dashboard com os índices da tabela (`kind`, `user`, `opponent`, `duel`, `date` Queryable).
+- [x] Tirar do valor informado a distância e as calorias do Apple Saúde (`Activity.duelActivity` usa os dados publicáveis).
+- [x] Ignorar registros `Duel` que não foram criados pela pessoa do campo `user` (`creatorUserRecordID`) e usar nome aleatório no valor, para ninguém forjar nem travar o do outro.
+- [ ] Notificar o desafio, a resposta e o resultado por push (`CKQuerySubscription` em `opponent == <eu>` e em `duel`); hoje a caixa de entrada busca de tempos em tempos.
+- [ ] Recusar no servidor desafio para quem bloqueou quem desafia (exige servidor que leia `Block`).
+- [ ] Decidir se os valores são conferidos no servidor: hoje cada lado informa o próprio número e o outro confia.
+
 ## Checklist do que falta no servidor (roles)
 
 - [ ] Criar `RoleAssignment` no Dashboard com as permissões acima e as atribuições de `ADMIN`/`DEVELOPER` (cada uma listando também `USER`).
@@ -125,7 +141,7 @@ Até a decisão, `ServerAccountDataBackend` lança `AccountSyncError.noServer` e
 ## Checklist do que falta no servidor (conta)
 
 - [ ] Capability Sign in with Apple no alvo (conta paga) e teste da folha da Apple no aparelho.
-- [ ] Índice `user` Queryable em `Member` e `Message` (e já existente em `CheckIn`) antes de testar "Excluir conta".
+- [ ] Índice `user` Queryable em `Member`, `Message` e `Duel` (e já existente em `CheckIn`) antes de testar "Excluir conta".
 - [ ] Vínculos `FriendLink` criados por outras pessoas para o usuário excluído (`<outro>-><eu>`) não podem ser apagados por ele: hoje somem da vista porque o `Profile` não existe mais; limpeza de verdade exige servidor ou função administrativa.
 - [ ] Ligas criadas pelo usuário (`League.owner`) continuam para os outros participantes, sem dono. Decidir se passam para outro membro ou se são apagadas.
 - [ ] Revogar o token do Sign in with Apple ao excluir a conta (`POST https://appleid.apple.com/auth/revoke`) exige servidor com a chave .p8 guardada num cofre/gerenciador de segredos (nunca no app).

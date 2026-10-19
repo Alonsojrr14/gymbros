@@ -133,6 +133,50 @@ struct TrainingSettingsPage: View {
 
 // MARK: - Apple Saúde
 
+struct MusicSettingsPage: View {
+    @State private var store = MusicShareStore.shared
+    @State private var on = MusicShareStore.shared.sharing
+
+    var body: some View {
+        GMScreen("Música", back: true, bottomInset: 40) {
+            GMSection(footer: "Enquanto você treina ao vivo, seus amigos veem a música que está tocando. Só a música atual: nada do seu histórico ou da sua biblioteca é enviado. Desligado, nada é lido.") {
+                GMIconToggle(icon: "music.note", tint: Theme.health, title: "Mostrar o que estou ouvindo", isOn: $on)
+                    .onChange(of: on) { _, v in
+                        Task {
+                            await store.setSharing(v)
+                            if on != store.sharing { on = store.sharing }
+                        }
+                    }
+            }
+            if store.availableSources.count > 1 {
+                GMSection("Serviço") {
+                    ForEach(store.availableSources) { s in
+                        GMRow(icon: s == store.source ? "checkmark.circle.fill" : "circle", title: s.name) {
+                            Task { await store.setSource(s) }
+                        }
+                    }
+                }
+            }
+            if store.sharing {
+                GMSection("Agora", footer: Backend.mode == .mock ? "Nesta versão sem servidor, só você vê; os amigos veem quando o app tiver servidor." : nil) {
+                    Label(store.current?.line ?? "Nada tocando no \(store.source.name)", systemImage: "headphones")
+                        .font(.subheadline)
+                        .foregroundStyle(store.current == nil ? Theme.dim : .white)
+                }
+            }
+            if let m = store.message {
+                Text(m).font(.footnote).foregroundStyle(Theme.warning).padding(.horizontal, 4)
+            }
+        }
+        .task {
+            while !Task.isCancelled {
+                await store.refresh()
+                try? await Task.sleep(for: .seconds(5))
+            }
+        }
+    }
+}
+
 struct HealthSettingsPage: View {
     @Environment(\.modelContext) private var context
     @State private var healthOn = HealthSync.enabled
@@ -338,6 +382,13 @@ struct PrivacySettingsPage: View {
                 GMDivider()
                 GMRow(icon: "doc.text.fill", tile: Attribute.tecnica.color, title: "Termos de uso", chevron: true) { terms = true }
             }
+            GMSection(footer: "Desligado por padrão. Ligado, só a música que está tocando aparece para os amigos enquanto você treina ao vivo.") {
+                NavigationLink { MusicSettingsPage() } label: {
+                    GMNavRow(icon: "music.note", tint: Theme.health, title: "Mostrar o que estou ouvindo",
+                             value: MusicShareStore.shared.sharing ? "Ligado" : "Desligado")
+                }
+                .buttonStyle(GMPress())
+            }
             GMSection(footer: "Quem você bloqueia não aparece em feeds, mural, comentários, amigos, mapa e mensagens, e não te gera notificação.") {
                 GMRow(icon: "hand.raised.slash.fill", tile: Theme.danger, title: "Usuários bloqueados",
                       subtitle: moderation.blocked.isEmpty ? nil : "\(moderation.blocked.count)", chevron: true) { blockedList = true }
@@ -359,7 +410,7 @@ struct HowItWorksPage: View {
                     .font(.subheadline).foregroundStyle(.white.opacity(0.85))
             }
             GMSection("Evolução") {
-                Text("Nas evoluções para Champion e Ultimate, o atributo que você mais treinou na fase decide a forma.")
+                Text("Nas evoluções para Atleta e Lenda, o atributo que você mais treinou na fase decide a forma.")
                     .font(.subheadline).foregroundStyle(.white.opacity(0.85))
             }
             GMSection("Amigos") {

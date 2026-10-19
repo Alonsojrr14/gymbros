@@ -198,7 +198,7 @@ struct PRSessionView: View {
                         .font(.caption).foregroundStyle(Theme.dim)
                 }
                 Spacer()
-                if w > 0, r > 0, isNew { GMBadge(text: "🏆 novo PR") }
+                if w > 0, r > 0, isNew { GMBadge(text: "🏆 Novo PR") }
                 if only == nil {
                     Button { ids.removeAll { $0 == id } } label: { Image(systemName: "xmark").font(.caption.bold()).foregroundStyle(Theme.dim) }
                         .buttonStyle(GMPress())

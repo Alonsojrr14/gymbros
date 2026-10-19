@@ -75,7 +75,8 @@ struct GMSheetCard<Content: View>: View {
         .padding(.bottom, 24)
         .frame(maxWidth: .infinity)
         .background(Theme.card, in: UnevenRoundedRectangle(topLeadingRadius: Theme.radiusXL, topTrailingRadius: Theme.radiusXL))
-        .ignoresSafeArea(edges: .bottom)
+        // Só a borda de baixo da tela: com o teclado aberto, a folha sobe junto e o campo fica visível
+        .ignoresSafeArea(.container, edges: .bottom)
     }
 }
 

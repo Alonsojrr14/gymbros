@@ -56,6 +56,8 @@ final class OnboardingCoordinator {
     private(set) var locating = false
     /// Pedido explícito (Ajustes): começa do início mesmo se já concluído
     private(set) var startRequested = false
+    /// Alvo que a tela com rolagem deve trazer para o centro (fora da barra de abas)
+    private(set) var scrollTarget: OnboardingTarget?
     @ObservationIgnored var settleDelay: Duration = .milliseconds(350)
     @ObservationIgnored var locateTimeout: Duration = .seconds(2)
     @ObservationIgnored private var locateTask: Task<Void, Never>?
@@ -141,6 +143,7 @@ final class OnboardingCoordinator {
         locateTask?.cancel()
         locateTask = nil
         locating = false
+        scrollTarget = nil
         index = nil
     }
 
@@ -167,6 +170,7 @@ final class OnboardingCoordinator {
             return
         }
         locating = true
+        scrollTarget = step.targets.first { !$0.isInTabBar }
         locateTask = Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: settleDelay)

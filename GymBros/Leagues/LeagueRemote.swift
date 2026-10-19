@@ -29,6 +29,8 @@ struct RemoteMember: Codable, Hashable, Identifiable, Sendable {
     /// `MonsterForm.id` do bro que representa a pessoa na liga
     let formID: String
     var teamID: String?
+    /// Quando entrou na liga; nil = desde o início
+    var joinedAt: Date?
 
     var form: MonsterForm { MonsterForm.byID(formID) ?? .egg }
 }
@@ -121,6 +123,8 @@ struct LeagueDraft: Codable, Sendable {
     let start: Date
     let end: Date?
     let autoRenew: Bool
+    /// Critério da rodada suíça; nil = liga de antes do suíço (mais pontos no dia)
+    var swiss: String? = nil
 }
 
 /// Como você aparece numa liga
@@ -128,6 +132,8 @@ struct Membership: Codable, Sendable {
     let name: String
     let formID: String
     let teamID: String?
+    /// Dia em que entrou: a rodada suíça só pareia a pessoa a partir dele
+    var joinedAt: Date?
 }
 
 protocol LeagueBackend: Sendable {
@@ -162,7 +168,7 @@ final class LeagueRemoteStore {
     private(set) var lastError: String?
 
     /// A liga de exemplo é sempre simulada, mesmo com servidor ligado
-    private func backend(for key: LeagueKey) -> any LeagueBackend { key.isMock ? MockLeagueBackend() : backend }
+    func backend(for key: LeagueKey) -> any LeagueBackend { key.isMock ? MockLeagueBackend() : backend }
 
     /// O que já se sabe da liga. Sem resposta ainda, o exemplo é calculado na hora (para não piscar vazio).
     func remote(_ league: League) -> RemoteLeague {
@@ -207,7 +213,7 @@ final class LeagueRemoteStore {
             let last = monsters.first { $0.uuid == l.monsterUUID }?.lastFormID ?? ""
             let form = last.isEmpty ? MonsterForm.egg.id : last
             return (id: l.uuid, draft: l.joined ? nil : l.draft, key: l.key,
-                    membership: Membership(name: name, formID: form, teamID: l.myTeamID))
+                    membership: Membership(name: name, formID: form, teamID: l.myTeamID, joinedAt: l.swissJoinedAt))
         }
 
         let activities = Dictionary(((try? context.fetch(FetchDescriptor<Activity>())) ?? []).map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
@@ -336,6 +342,7 @@ extension League {
         weightsRaw = d.weights
         tieBreakRaw = d.tieBreak
         photoRuleRaw = d.photoRule
+        swissRaw = d.swiss ?? SwissCriterion.pontos.rawValue
         teamsRaw = d.teams
         end = d.end
         autoRenew = d.autoRenew
@@ -344,7 +351,7 @@ extension League {
 
     var draft: LeagueDraft {
         LeagueDraft(uuid: seriesKey, code: code, name: name, emoji: emoji, scoring: scoringRaw, weights: weightsRaw, tieBreak: tieBreakRaw,
-                    photoRule: photoRuleRaw, teams: teamsRaw, start: start, end: end, autoRenew: autoRenew)
+                    photoRule: photoRuleRaw, teams: teamsRaw, start: start, end: end, autoRenew: autoRenew, swiss: swissRaw)
     }
 }
 

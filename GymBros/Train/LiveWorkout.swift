@@ -168,6 +168,7 @@ enum LiveWorkout {
         s.end = .now
         s.effort = effort
         s.activityUUID = activity.uuid
+        ActivitySplits.stamp(activity, context: ctx)
         // Não dá para perguntar agora: guarda a oferta de atualizar a rotina para a aba Treino
         var routineNote = ""
         if let id = s.routineUUID,

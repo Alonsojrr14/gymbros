@@ -228,4 +228,28 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(c.persistence.state, .notPresented)
     }
     #endif
+
+    func testTargetUnderTabBarIsNotHighlightedUntilScrolledAbove() {
+        registry.tabBar = CGRect(x: 14, y: 760, width: 362, height: 70)
+        registry.update(.logActivity, .init(frame: CGRect(x: 16, y: 770, width: 358, height: 50), shape: .rounded(14)))
+        XCTAssertNil(registry.spotlight(for: [.logActivity]))
+        registry.update(.logActivity, .init(frame: CGRect(x: 16, y: 500, width: 358, height: 50), shape: .rounded(14)))
+        XCTAssertNotNil(registry.spotlight(for: [.logActivity]))
+    }
+
+    func testTabBarTargetsIgnoreTheBarItself() {
+        registry.tabBar = CGRect(x: 14, y: 760, width: 362, height: 70)
+        registry.update(.trainTab, .init(frame: CGRect(x: 20, y: 770, width: 60, height: 50), shape: .capsule))
+        XCTAssertNotNil(registry.spotlight(for: [.trainTab]))
+    }
+
+    func testStepAsksToScrollToItsScreenTarget() {
+        let c = coordinator()
+        c.startIfEligible(modalOpen: false, busy: false)
+        c.next()
+        XCTAssertEqual(c.current?.id, "registrar")
+        XCTAssertEqual(c.scrollTarget, .logActivity)
+        c.skip()
+        XCTAssertNil(c.scrollTarget)
+    }
 }

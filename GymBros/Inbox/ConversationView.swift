@@ -11,6 +11,7 @@ struct ConversationView: View {
     @State private var error: String?
     @State private var blockedWord = false
     @State private var inviting = false
+    @State private var dueling = false
     @State private var menu = false
     @State private var profile: RemoteFriend?
     @State private var moderation: ModerationRequest?
@@ -70,6 +71,9 @@ struct ConversationView: View {
             }
         }
         .gmActions(isPresented: $menu, title: peer.name, actions: menuActions)
+        .gmSheet(isPresented: $dueling) { close in
+            DuelComposer(opponent: DuelPerson(id: peer.id, name: peer.name, formID: peer.formID)) { close() }
+        }
         .gmModal(item: $profile) { FriendProfileView(friend: $0) }
         .moderation($moderation) { dismiss() }
         .termsGate($terms)
@@ -135,6 +139,7 @@ struct ConversationView: View {
             HStack(spacing: 8) {
                 quick("Mandar força", icon: "bolt.heart.fill", tint: Theme.accent) { run { try await store.cheer(peerID) } }
                 quick("Treinar junto", icon: "figure.2", tint: Attribute.agilidade.color) { inviting = true }
+                quick("X1", icon: "bolt.shield.fill", tint: Theme.trophy) { dueling = true }
                 Spacer()
             }
             HStack(spacing: 10) {
@@ -290,7 +295,19 @@ private struct MessageView: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    if !inv.place.isEmpty { Label(inv.place, systemImage: "mappin.and.ellipse") }
+                    if let url = inv.mapsURL {
+                        Link(destination: url) {
+                            Label {
+                                HStack(spacing: 6) {
+                                    Text(inv.place).underline()
+                                    Text("Ver no mapa").foregroundStyle(color)
+                                }
+                            } icon: { Image(systemName: "mappin.and.ellipse") }
+                        }
+                        .tint(.white)
+                    } else if !inv.place.isEmpty {
+                        Label(inv.place, systemImage: "mappin.and.ellipse")
+                    }
                     Label(inv.whenText, systemImage: "clock")
                 }
                 .font(.caption.weight(.semibold))
@@ -342,13 +359,17 @@ struct InviteComposer: View {
     var suggestedPlace: String?
     let send: (TrainInvite, String) -> Void
 
-    enum When: Hashable { case now, today, tomorrow }
+    enum When: Hashable { case now, today, tomorrow, other }
 
     @State private var kind: ActivityKind = .musculacao
     @State private var place = ""
+    @State private var gym: Gym?
     @State private var when: When = .now
+    @State private var day = Calendar.current.date(byAdding: .day, value: 2, to: .now) ?? .now
     @State private var time = Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
     @State private var note = ""
+
+    private let gyms = GymLocation.shared.gyms
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -360,26 +381,63 @@ struct InviteComposer: View {
                     }
                 }
             }
+            if !gyms.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(gyms) { g in
+                            GMChip(title: g.name, icon: "mappin.and.ellipse", selected: gym?.uuid == g.uuid) { pick(g) }
+                        }
+                    }
+                }
+            }
             GMTextField(placeholder: "Onde? (academia, parque…)", text: $place, capitalization: .words)
-            GMSegmented(options: [(When.now, "Agora"), (When.today, "Hoje"), (When.tomorrow, "Amanhã")], selection: $when)
+            GMChoiceChips(options: [(When.now, "Agora"), (When.today, "Hoje"), (When.tomorrow, "Amanhã"), (When.other, "Outro dia")], selection: $when)
+            if when == .other { GMDateField(date: $day, limitToNow: false, minDate: .now) }
             if when != .now { GMTimeField(date: $time) }
+            if isPast {
+                Label("Esse horário já passou", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.bold()).foregroundStyle(Theme.warning)
+            }
             GMTextField(placeholder: "Recado (opcional)", text: $note)
             if !ContentFilter.allows(place, note) { ContentBlockedNote() }
-            GMButton("Enviar convite", icon: "paperplane.fill", enabled: ContentFilter.allows(place, note)) {
-                send(TrainInvite(kindRaw: kind.rawValue, place: place.trimmingCharacters(in: .whitespaces), when: date), note)
+            GMButton("Enviar convite", icon: "paperplane.fill", enabled: ContentFilter.allows(place, note) && !isPast) {
+                let trimmed = place.trimmingCharacters(in: .whitespaces)
+                let pinned = gym.flatMap { $0.name == trimmed ? $0 : nil }
+                send(TrainInvite(kindRaw: kind.rawValue, place: trimmed, when: date,
+                                 latitude: pinned?.latitude, longitude: pinned?.longitude), note)
             }
+        }
+        .onChange(of: place) { _, new in
+            if let g = gym, g.name != new.trimmingCharacters(in: .whitespaces) { gym = nil }
         }
         .onAppear {
             if let suggestedKind { kind = suggestedKind }
-            place = suggestedPlace ?? GymLocation.shared.insideGym?.name ?? ""
+            if let suggestedPlace {
+                place = suggestedPlace
+                gym = gyms.first { $0.name == suggestedPlace }
+            } else if let inside = GymLocation.shared.insideGym {
+                pick(inside)
+            }
         }
     }
 
+    private func pick(_ g: Gym) {
+        gym = g
+        place = g.name
+    }
+
+    private var isPast: Bool { date.map { $0 < .now } ?? false }
+
     private var date: Date? {
-        guard when != .now else { return nil }
         let cal = Calendar.current
-        let day = when == .today ? Date.now : cal.date(byAdding: .day, value: 1, to: .now) ?? .now
+        let base: Date
+        switch when {
+        case .now: return nil
+        case .today: base = .now
+        case .tomorrow: base = cal.date(byAdding: .day, value: 1, to: .now) ?? .now
+        case .other: base = day
+        }
         let c = cal.dateComponents([.hour, .minute], from: time)
-        return cal.date(bySettingHour: c.hour ?? 19, minute: c.minute ?? 0, second: 0, of: day)
+        return cal.date(bySettingHour: c.hour ?? 19, minute: c.minute ?? 0, second: 0, of: base)
     }
 }

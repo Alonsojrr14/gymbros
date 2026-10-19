@@ -6,7 +6,7 @@ permalink: /termos/
 
 # Termos de uso do GymBros
 
-Atualizados em 18 de outubro de 2026.
+Atualizados em 19 de outubro de 2026.
 
 ## Resumo
 
@@ -30,7 +30,7 @@ Toda denúncia é analisada em até 24 horas. Conteúdo que viola estes termos �
 
 ## O que você publica
 
-Você é responsável pelo que publica e precisa ter direito de usar as fotos e os textos que envia. O que você publica aparece para quem participa das suas ligas e para os seus amigos. Dá para apagar posts, recados e comentários a qualquer momento, ou a conta inteira em Ajustes > Conta.
+Você é responsável pelo que publica e precisa ter direito de usar as fotos e os textos que envia. O que você publica aparece para quem participa das suas ligas e para os seus amigos. Com o treino ao vivo ligado (o padrão), você aceita que os seus amigos vejam onde você está treinando enquanto o treino durar; dá para desligar em cada treino, no chip "Ao vivo", ou em Mapa > Ajustes. Ao convidar um amigo para treinar junto numa academia salva, você aceita enviar a ele o nome e a localização (coordenadas) dessa academia. Dá para apagar posts, recados e comentários a qualquer momento, ou a conta inteira em Ajustes > Conta.
 
 ## Saúde
 

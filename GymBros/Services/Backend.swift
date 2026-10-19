@@ -12,7 +12,7 @@ import UIKit
 //   2. Troque `mode` para `.cloudKit`.
 //   3. Crie o esquema no CloudKit Dashboard (docs/cloudkit.md: tipos de registro, índices e permissões).
 // Nada mais muda: as telas falam só com os contratos (AuthBackend, LeagueBackend, FriendsBackend, ModerationBackend,
-// AccountDataBackend).
+// AccountDataBackend, InboxBackend, DuelBackend).
 //
 // O que o modo `.cloudKit` ainda não cobre:
 //   - Excluir conta apaga só os registros que você criou: vínculos de amizade de outras pessoas para você e ligas
@@ -51,6 +51,7 @@ enum Backend {
             ModerationStore.shared.backend = MockModerationBackend()
             AccountSync.shared.backend = MockAccountDataBackend()
             InboxStore.shared.backend = MockInboxBackend()
+            DuelStore.shared.backend = MockDuelBackend()
             #if DEBUG
             AccessStore.shared.backend = MockRoleBackend(assignments: DevAccount.assignments)
             #else
@@ -64,6 +65,7 @@ enum Backend {
             AccessStore.shared.backend = CloudKitRoleBackend()
             AccountSync.shared.backend = ServerAccountDataBackend()
             InboxStore.shared.backend = ServerInboxBackend()
+            DuelStore.shared.backend = CloudKitDuelBackend()
         }
     }
 }
@@ -85,6 +87,9 @@ enum Cloud {
         UserDefaults.standard.set(id, forKey: userKey)
         return id
     }
+
+    /// Seu id, se já foi buscado alguma vez (sem rede)
+    static var knownID: String? { UserDefaults.standard.string(forKey: userKey) }
 
     static func forgetMe() { UserDefaults.standard.removeObject(forKey: userKey) }
 
@@ -133,7 +138,7 @@ enum CloudError: LocalizedError {
 /// Tipos de registro do banco público (esquema em docs/cloudkit.md)
 enum CloudType {
     static let profile = "Profile", league = "League", member = "Member", checkIn = "CheckIn",
-               message = "Message", friendLink = "FriendLink", report = "Report", block = "Block"
+               message = "Message", friendLink = "FriendLink", report = "Report", block = "Block", duel = "Duel"
     /// Liga reservada aos posts do perfil
     static let profileFeed = "profile"
 }
@@ -167,7 +172,8 @@ struct CloudKitAuthBackend: AuthBackend {
         async let links = Cloud.query(CloudType.friendLink, NSPredicate(format: "from == %@", me))
         async let reports = Cloud.query(CloudType.report, byUser)
         async let blocks = Cloud.query(CloudType.block, byUser)
-        let records = try await members + checkIns + messages + links + reports + blocks
+        async let duels = Cloud.query(CloudType.duel, byUser)
+        let records = try await members + checkIns + messages + links + reports + blocks + duels
         let names = records.map(\.recordID.recordName) + [me]
         for start in stride(from: 0, to: names.count, by: 300) {
             try await Cloud.delete(Array(names[start..<min(start + 300, names.count)]))
@@ -244,7 +250,8 @@ struct CloudKitLeagueBackend: LeagueBackend {
         var teams = league.teams.map { RemoteTeam(id: $0.id, name: $0.name) }
         let remoteMembers = others.map { r in
             RemoteMember(id: r["user"] as? String ?? r.recordID.recordName, name: r["name"] as? String ?? "",
-                         formID: r["formID"] as? String ?? MonsterForm.egg.id, teamID: r["teamID"] as? String)
+                         formID: r["formID"] as? String ?? MonsterForm.egg.id, teamID: r["teamID"] as? String,
+                         joinedAt: r["joinedAt"] as? Date ?? r.creationDate)
         }
         for m in remoteMembers { if let t = teams.firstIndex(where: { $0.id == m.teamID }) { teams[t].memberIDs.append(m.id) } }
         let end = league.end ?? .distantFuture
@@ -283,6 +290,7 @@ struct CloudKitLeagueBackend: LeagueBackend {
         r["weights"] = league.weights
         r["tieBreak"] = league.tieBreak
         r["photoRule"] = league.photoRule
+        r["swiss"] = league.swiss
         r["teams"] = league.teams
         r["start"] = league.start
         r["end"] = league.end
@@ -296,7 +304,8 @@ struct CloudKitLeagueBackend: LeagueBackend {
                            scoring: r["scoring"] as? String ?? LeagueScoring.pontos.rawValue, weights: r["weights"] as? String ?? "",
                            tieBreak: r["tieBreak"] as? String ?? LeagueTieBreak.primeiro.rawValue,
                            photoRule: r["photoRule"] as? String ?? PhotoRule.livre.rawValue, teams: r["teams"] as? String ?? "",
-                           start: start, end: r["end"] as? Date, autoRenew: (r["autoRenew"] as? Int ?? 0) == 1)
+                           start: start, end: r["end"] as? Date, autoRenew: (r["autoRenew"] as? Int ?? 0) == 1,
+                           swiss: r["swiss"] as? String)
     }
 
     func setMembership(_ membership: Membership, in league: LeagueKey) async throws {
@@ -307,6 +316,7 @@ struct CloudKitLeagueBackend: LeagueBackend {
         r["name"] = membership.name
         r["formID"] = membership.formID
         r["teamID"] = membership.teamID
+        r["joinedAt"] = membership.joinedAt
         _ = try await Cloud.save([r])
     }
 
@@ -336,6 +346,114 @@ struct CloudKitLeagueBackend: LeagueBackend {
         let me = try await Cloud.me()
         let mine = try await Cloud.query(CloudType.checkIn, NSPredicate(format: "league == %@ AND user == %@", leagueRef(league), me))
         try await Cloud.delete(mine.map(\.recordID.recordName) + ["\(leagueRef(league))-\(me)"])
+    }
+}
+
+// MARK: - X1
+
+/// X1 entre quaisquer duas pessoas, sem liga. Cada lado escreve só o próprio registro `Duel`:
+/// quem desafia cria `duel-<uuid>` (kind `challenge`), quem foi desafiado cria `duel-<uuid>-answer-<id>` (kind `answer`)
+/// e cada um informa o próprio valor em `duel-<uuid>-score-<aleatório>` (kind `score`). Datas vêm do `creationDate`.
+/// O campo `user` é escrito por quem grava, então só vale o registro cujo criador (`creatorUserRecordID`) é ele mesmo:
+/// ninguém responde nem informa valor no lugar do outro. O nome do valor é aleatório (guardado no aparelho) para
+/// ninguém conseguir criar antes o registro do outro e travar o envio dele.
+struct CloudKitDuelBackend: DuelBackend {
+    private static let scoreNamesKey = "duelScoreRecords"
+
+    /// O registro foi criado por `user` (o CloudKit devolve `__defaultOwner__` nos registros que você mesmo criou)
+    private static func written(by user: String, _ r: CKRecord, me: String) -> Bool {
+        guard let creator = r.creatorUserRecordID?.recordName else { return false }
+        return creator == user || (creator == CKCurrentUserDefaultName && user == me)
+    }
+
+    func duels(now: Date) async throws -> [RemoteDuel] {
+        let me = try await Cloud.me()
+        let since = now.addingTimeInterval(-30 * 86_400) as NSDate
+        async let sent = Cloud.query(CloudType.duel, NSPredicate(format: "kind == %@ AND user == %@ AND date >= %@", "challenge", me, since))
+        async let received = Cloud.query(CloudType.duel, NSPredicate(format: "kind == %@ AND opponent == %@ AND date >= %@", "challenge", me, since))
+        let challenges = try await sent + received
+        guard !challenges.isEmpty else { return [] }
+        let ids = challenges.map(\.recordID.recordName)
+        let extras = try await Cloud.query(CloudType.duel, NSPredicate(format: "duel IN %@", ids))
+        return challenges.compactMap { r -> RemoteDuel? in
+            guard let from = r["user"] as? String, let to = r["opponent"] as? String, from != to,
+                  Self.written(by: from, r, me: me),
+                  let metric = (r["metric"] as? String).flatMap(DuelMetric.init(rawValue:)) else { return nil }
+            let id = r.recordID.recordName
+            var d = RemoteDuel(id: id,
+                               challenger: DuelPerson(id: from, name: r["name"] as? String ?? "", formID: r["formID"] as? String ?? MonsterForm.egg.id),
+                               challenged: DuelPerson(id: to, name: r["opponentName"] as? String ?? "",
+                                                      formID: r["opponentFormID"] as? String ?? MonsterForm.egg.id),
+                               metric: metric, createdAt: r.creationDate ?? r["date"] as? Date ?? now)
+            // Só o que cada um escreveu por si; com mais de um, vale a primeira resposta e o valor mais recente
+            var scoredAt: [String: Date] = [:]
+            for e in extras.sorted(by: { ($0.creationDate ?? .distantPast) < ($1.creationDate ?? .distantPast) })
+            where e["duel"] as? String == id {
+                guard let u = e["user"] as? String, Self.written(by: u, e, me: me) else { continue }
+                switch e["kind"] as? String {
+                case "answer" where u == to && d.answer == nil:
+                    d.answer = (e["answer"] as? String).flatMap(DuelAnswer.init(rawValue:))
+                    d.answeredAt = e.creationDate ?? e["date"] as? Date
+                    if let f = e["formID"] as? String { d.challenged.formID = f }
+                case "score" where d.involves(u):
+                    let at = e.modificationDate ?? e.creationDate ?? .distantPast
+                    if at >= scoredAt[u, default: .distantPast] {
+                        d.reported[u] = e["value"] as? Int ?? 0
+                        scoredAt[u] = at
+                    }
+                default: break
+                }
+            }
+            return d
+        }
+    }
+
+    func challenge(_ opponent: DuelPerson, from me: DuelPerson, metric: DuelMetric, now: Date) async throws -> RemoteDuel {
+        let my = try await Cloud.me()
+        guard opponent.id != my else { throw DuelRefusal.yourself }
+        let id = "duel-\(UUID().uuidString)"
+        let r = CKRecord(recordType: CloudType.duel, recordID: CKRecord.ID(recordName: id))
+        r["kind"] = "challenge"
+        r["user"] = my
+        r["name"] = me.name
+        r["formID"] = me.formID
+        r["opponent"] = opponent.id
+        r["opponentName"] = opponent.name
+        r["opponentFormID"] = opponent.formID
+        r["metric"] = metric.rawValue
+        r["date"] = now
+        _ = try await Cloud.save([r])
+        return RemoteDuel(id: id, challenger: DuelPerson(id: my, name: me.name, formID: me.formID), challenged: opponent, metric: metric, createdAt: now)
+    }
+
+    func respond(to duelID: String, accept: Bool, as person: DuelPerson, now: Date) async throws {
+        let me = try await Cloud.me()
+        let r = CKRecord(recordType: CloudType.duel, recordID: CKRecord.ID(recordName: "\(duelID)-answer-\(me)"))
+        r["kind"] = "answer"
+        r["user"] = me
+        r["duel"] = duelID
+        r["answer"] = (accept ? DuelAnswer.accepted : .declined).rawValue
+        // Bro que vai lutar (quem desafiou só sabia o seu bro principal)
+        if accept { r["formID"] = person.formID }
+        r["date"] = now
+        _ = try await Cloud.save([r])
+    }
+
+    func report(_ value: Int, for duelID: String, now: Date) async throws {
+        let me = try await Cloud.me()
+        var names = UserDefaults.standard.dictionary(forKey: Self.scoreNamesKey) as? [String: String] ?? [:]
+        let name = names[duelID] ?? "\(duelID)-score-\(UUID().uuidString)"
+        if names[duelID] == nil {
+            names[duelID] = name
+            UserDefaults.standard.set(names, forKey: Self.scoreNamesKey)
+        }
+        let r = await Cloud.record(CloudType.duel, name)
+        r["kind"] = "score"
+        r["user"] = me
+        r["duel"] = duelID
+        r["value"] = value
+        r["date"] = now
+        _ = try await Cloud.save([r])
     }
 }
 

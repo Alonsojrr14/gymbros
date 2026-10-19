@@ -378,7 +378,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = GymBros;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Para gravar o percurso de corridas, caminhadas e pedaladas e marcar a sua academia.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Para saber quando você chega ou sai da academia: sugerir o treino ao chegar e encerrar o treino ao sair. A localização fica só no seu iPhone.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Para saber quando você chega ou sai da academia: sugerir o treino ao chegar e encerrar o treino ao sair. Durante um treino, se você ligar o treino ao vivo, seus amigos veem onde você está treinando.";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Para mostrar aos seus amigos a música que está tocando enquanto você treina, se você ligar essa opção.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Para transformar seus treinos do iPhone e Apple Watch em XP para o seu bro e trazer o seu peso para Peso e medidas.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Para gravar no Saúde os treinos do GymBros e a energia ativa deles, que contam nos anéis do Fitness.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -411,7 +412,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = GymBros;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Para gravar o percurso de corridas, caminhadas e pedaladas e marcar a sua academia.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Para saber quando você chega ou sai da academia: sugerir o treino ao chegar e encerrar o treino ao sair. A localização fica só no seu iPhone.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Para saber quando você chega ou sai da academia: sugerir o treino ao chegar e encerrar o treino ao sair. Durante um treino, se você ligar o treino ao vivo, seus amigos veem onde você está treinando.";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Para mostrar aos seus amigos a música que está tocando enquanto você treina, se você ligar essa opção.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Para transformar seus treinos do iPhone e Apple Watch em XP para o seu bro e trazer o seu peso para Peso e medidas.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Para gravar no Saúde os treinos do GymBros e a energia ativa deles, que contam nos anéis do Fitness.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

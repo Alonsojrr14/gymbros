@@ -109,7 +109,7 @@ struct MainView: View {
     @State private var visited: Set<Int> = [0]
     @State private var arrivalPrompt = false
     @State private var recovered = AppData.recoveredCopy != nil
-    /// A Dex abre pela tela do bro (saiu da barra para o bro ficar no centro)
+    /// O BroBook abre pela tela do bro (saiu da barra para o bro ficar no centro)
     @State private var dex = false
     @State private var tour = OnboardingCoordinator.shared
     @Environment(\.modelContext) private var context
@@ -210,7 +210,7 @@ struct MainView: View {
             guard let t = tour.current?.tab, tab != t.rawValue else { return }
             withAnimation(.spring(duration: 0.3)) { tab = t.rawValue }
         }
-        // Tutorial: só com a tela principal livre (sem cena de evolução, avisos ou a Dex por cima)
+        // Tutorial: só com a tela principal livre (sem cena de evolução, avisos ou o BroBook por cima)
         // e, na abertura automática, sem treino em andamento
         .task(id: "\(tour.startRequested)|\(AuthStore.shared.user?.id ?? "")|\(recovered)|\(arrivalPrompt)|\(evolutions.isEmpty)|\(dex)|\(phase == .active)") {
             guard phase == .active else { return }
@@ -370,7 +370,7 @@ struct MainView: View {
         show(Banner(symbol: "heart.fill", text: "\(n) treino\(n == 1 ? "" : "s") do Saúde · +\(xp) XP"))
     }
 
-    /// Descobertas da Dex e cena de evolução, para qualquer monstro da coleção
+    /// Descobertas do BroBook e cena de evolução, para qualquer monstro da coleção
     private func check(_ roster: Roster) {
         guard !monsters.isEmpty else { return }
         var seen = Set(discovered.split(separator: ",").map(String.init))

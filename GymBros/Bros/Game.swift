@@ -65,7 +65,7 @@ enum ActivityKind: String, CaseIterable, Codable, Identifiable {
         case .bike: "figure.outdoor.cycle"
         case .natacao: "figure.pool.swim"
         case .volei: "figure.volleyball"
-        case .futebol: "figure.indoor.soccer"
+        case .futebol: "figure.soccer"
         case .lutas: "figure.martial.arts"
         case .danca: "figure.dance"
         case .yoga: "figure.yoga"
@@ -119,9 +119,9 @@ enum Stage: Int, CaseIterable, Comparable {
         switch self {
         case .egg: "Ovo"
         case .baby: "Bebê"
-        case .rookie: "Rookie"
-        case .champion: "Champion"
-        case .ultimate: "Ultimate"
+        case .rookie: "Novato"
+        case .champion: "Atleta"
+        case .ultimate: "Lenda"
         }
     }
 
@@ -172,7 +172,7 @@ struct MonsterForm: Hashable, Identifiable {
         return attribute2.map { "\(stage)_\(a.rawValue)_\($0.rawValue)" } ?? "\(stage)_\(a.rawValue)"
     }
 
-    /// A espécie padrão mantém os ids antigos, para não perder descobertas da Dex
+    /// A espécie padrão mantém os ids antigos, para não perder descobertas do BroBook
     var id: String { species == Species.standard.id ? key : "\(species)/\(key)" }
 
     static let egg = MonsterForm(stage: .egg, attribute: nil)
@@ -186,7 +186,7 @@ struct MonsterForm: Hashable, Identifiable {
 
     static var all: [MonsterForm] { all() }
 
-    /// As 12 formas híbridas de uma espécie (6 duplas × Champion e Ultimate)
+    /// As 12 formas híbridas de uma espécie (6 duplas × Atleta e Lenda)
     static func hybrids(species: String = Species.standard.id) -> [MonsterForm] {
         [Stage.champion, .ultimate].flatMap { st in
             Attribute.pairs.map { MonsterForm(stage: st, attribute: $0.0, attribute2: $0.1, species: species) }
@@ -250,7 +250,7 @@ struct Species: Identifiable {
 
     /// Para incluir uma espécie: nomes das 10 formas, nomes dos 12 híbridos (únicos: nenhum repete outra forma)
     /// e artes "sprite_<id>_<chave>" no app e no widget.
-    /// Uma espécie só nasce e aparece na Dex quando as artes dela estão no app (`isReady`).
+    /// Uma espécie só nasce e aparece no BroBook quando as artes dela estão no app (`isReady`).
     static let all: [Species] = [standard] + [
         make("urso", "Urso", ["Pelucibro", "Ursabro", "Supinobro", "Trilhabro", "Rolabro", "Sumobro",
                                       "Grizzlibro", "Montanhabro", "Avalanchebro", "Kodiabro"],
@@ -282,7 +282,7 @@ struct Species: Identifiable {
               "Grifobro", "Falcãobro", "Atenabro", "Ciclonebro", "Albatrozbro", "Fênixbro"]),
     ]
 
-    /// Ordem dos híbridos nas listas de nomes: Champions e depois Ultimates, na ordem de `Attribute.pairs`
+    /// Ordem dos híbridos nas listas de nomes: Atletas e depois Lendas, na ordem de `Attribute.pairs`
     static let hybridKeys = [Stage.champion, .ultimate].flatMap { st in Attribute.pairs.map { "\(st)_\($0.0.rawValue)_\($0.1.rawValue)" } }
 
     /// Ordem das formas nas listas de nomes acima
@@ -309,7 +309,7 @@ struct Species: Identifiable {
 
     static func byID(_ id: String) -> Species? { all.first { $0.id == id } }
 
-    /// Tem pelo menos uma arte híbrida no app (a Dex só mostra a seção nesse caso)
+    /// Tem pelo menos uma arte híbrida no app (o BroBook só mostra a seção nesse caso)
     var hasHybrids: Bool { MonsterForm.hybrids(species: id).contains(where: \.hasArt) }
 
     /// Atividades do app que fazem nascer esta espécie (as do Apple Saúde estão todas em `Hatch`)
@@ -339,6 +339,10 @@ struct ActivityRecord: Identifiable, Hashable {
     let effort: Int
     /// Tipo exato do treino no Apple Saúde (decide a espécie com mais precisão que a categoria)
     var healthType: UInt?
+    /// Divisão do XP entre os atributos calculada para este treino; nil = tabela fixa da categoria
+    var weights: [Attribute: Double]?
+
+    var split: [Attribute: Double] { weights ?? kind.weights }
 }
 
 struct Evolution: Identifiable {
@@ -439,7 +443,7 @@ enum Game {
             s.xpByActivity[r.id] = gained
             s.totalXP += gained
 
-            for (attr, w) in r.kind.weights {
+            for (attr, w) in r.split {
                 s.stageAttributes[attr, default: 0] += Double(gained) * w
                 s.lifetimeAttributes[attr, default: 0] += Double(gained) * w
             }

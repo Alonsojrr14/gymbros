@@ -20,6 +20,8 @@ final class OnboardingTargetRegistry {
     }
     /// Área visível do app (global); um elemento fora dela não pode ser destacado
     var bounds: CGRect = .zero
+    /// Barra de abas (global): um elemento de tela embaixo dela está coberto e não pode ser destacado
+    var tabBar: CGRect = .zero
 
     func update(_ target: OnboardingTarget, _ entry: Entry?) {
         guard entries[target] != entry else { return }
@@ -32,6 +34,7 @@ final class OnboardingTargetRegistry {
         _ = revision
         let found = targets.compactMap { entries[$0] }
         guard !found.isEmpty, found.count == targets.count else { return nil }
+        if !tabBar.isEmpty, zip(targets, found).contains(where: { !$0.isInTabBar && $1.frame.intersects(tabBar) }) { return nil }
         let rect = found.dropFirst().reduce(found[0].frame) { $0.union($1.frame) }
         guard rect.width > 1, rect.height > 1 else { return nil }
         if !bounds.isEmpty, !bounds.insetBy(dx: -1, dy: -1).contains(rect) { return nil }
@@ -39,7 +42,8 @@ final class OnboardingTargetRegistry {
     }
 
     func diagnose(_ targets: [OnboardingTarget]) -> String {
-        targets.map { "\($0.rawValue): \(entries[$0].map { "\($0.frame)" } ?? "não registrado")" }.joined(separator: ", ") + " · tela \(bounds)"
+        targets.map { "\($0.rawValue): \(entries[$0].map { "\($0.frame)" } ?? "não registrado")" }.joined(separator: ", ")
+            + " · tela \(bounds) · barra \(tabBar)"
     }
 }
 
@@ -61,7 +65,7 @@ private struct SpotlightTargetModifier: ViewModifier {
     @Environment(\.onboardingVisible) private var visible
 
     func body(content: Content) -> some View {
-        content.background {
+        content.id(target.map(OnboardingScroll.id)).background {
             if let target, visible {
                 GeometryReader { proxy in
                     let frame = proxy.frame(in: .global)
@@ -77,6 +81,11 @@ private struct SpotlightTargetModifier: ViewModifier {
     private func report(_ target: OnboardingTarget, _ frame: CGRect) {
         OnboardingTargetRegistry.shared.update(target, .init(frame: frame, shape: shape))
     }
+}
+
+/// Rolagem até o alvo da etapa: as telas com rolagem procuram este id e trazem o elemento para o centro
+enum OnboardingScroll {
+    static func id(_ target: OnboardingTarget) -> String { "onboarding." + target.rawValue }
 }
 
 extension View {

@@ -131,6 +131,8 @@ struct ProfileView: View {
 
             calendar
 
+            DuelHistorySection()
+
             HStack(spacing: 10) {
                 NavigationLink { AllActivitiesView() } label: {
                     Text("Ver todas as atividades").font(.subheadline.weight(.semibold))

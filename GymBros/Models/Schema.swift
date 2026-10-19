@@ -6,6 +6,46 @@ enum SchemaV1: VersionedSchema {
     static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
     static var models: [any PersistentModel.Type] {
         [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
+         CustomExercise.self, SchemaV1.League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
+         WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self,
+         LeagueMessage.self]
+    }
+
+    /// League como foi publicada na V1 (congelada: não mexer)
+    @Model
+    final class League {
+        var uuid: UUID = UUID()
+        var name: String = ""
+        var emoji: String = "🏆"
+        var scoringRaw: String = LeagueScoring.pontos.rawValue
+        var start: Date = Date.now
+        var code: String = ""
+        var isMock: Bool = false
+        var joinedAt: Date = Date.now
+        var monsterUUID: UUID?
+        var end: Date?
+        @Attribute(.externalStorage) var cover: Data?
+        var autoRenew: Bool = false
+        var season: Int = 1
+        var seriesID: UUID?
+        var nextUUID: UUID?
+        var weightsRaw: String = ""
+        var tieBreakRaw: String = LeagueTieBreak.primeiro.rawValue
+        var photoRuleRaw: String = PhotoRule.livre.rawValue
+        var teamsRaw: String = ""
+        var syncedAt: Date?
+        var joined: Bool = false
+        var myTeamID: String?
+
+        init() {}
+    }
+}
+
+/// V2: `League.swissRaw` (critério da rodada suíça)
+enum SchemaV2: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(2, 0, 0) }
+    static var models: [any PersistentModel.Type] {
+        [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
          CustomExercise.self, League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
          WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self,
          LeagueMessage.self]
@@ -13,14 +53,14 @@ enum SchemaV1: VersionedSchema {
 }
 
 enum AppMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] { [SchemaV1.self] }
-    static var stages: [MigrationStage] { [] }
+    static var schemas: [any VersionedSchema.Type] { [SchemaV1.self, SchemaV2.self] }
+    static var stages: [MigrationStage] { [.lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self)] }
 }
 
 /// Container único do app, compartilhado com os botões do Live Activity (que rodam no processo do app)
 @MainActor
 enum AppData {
-    static let schema = Schema(versionedSchema: SchemaV1.self)
+    static let schema = Schema(versionedSchema: SchemaV2.self)
 
     /// Cópia do banco que não abriu (migração que falhou); o app começa com um banco novo em vez de fechar ao abrir
     private(set) static var recoveredCopy: URL?

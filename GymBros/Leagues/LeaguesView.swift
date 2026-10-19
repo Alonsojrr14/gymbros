@@ -87,7 +87,7 @@ private struct LeagueRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(league.name).font(.headline)
-                    if league.isMock { GMBadge(text: "exemplo", tint: .white) }
+                    if league.isMock { GMBadge(text: "Exemplo", tint: .white) }
                     if league.autoRenew { Image(systemName: "arrow.triangle.2.circlepath").font(.caption2.bold()).foregroundStyle(Theme.dim) }
                 }
                 Text((league.season > 1 ? "T\(league.season) · " : "") + "\(pos)º de \(rank.count) · " + (league.isOver ? "encerrada" : league.daysLeft.map { $0 == 1 ? "último dia" : "faltam \($0) dias" } ?? league.scoring.name))
@@ -121,6 +121,7 @@ struct LeagueDetailView: View {
     @State private var opened: FeedItem?
     @State private var teamChoice: TeamRow?
     @State private var noInvite = false
+    @State private var profile: RemoteFriend?
     @Query private var messages: [LeagueMessage]
 
     var body: some View {
@@ -131,8 +132,9 @@ struct LeagueDetailView: View {
         let rep = roster.snapshot(league.monsterUUID)
         let avatar = rep.form
         let feed = LeagueBoard.feed(league: league, mine: mine, activities: byID, me: trainerName, myAvatar: avatar)
-        let total = LeagueBoard.ranking(feed: feed, league: league, me: trainerName, myAvatar: avatar, since: nil)
-        let rank = window == .liga ? total : LeagueBoard.ranking(feed: feed, league: league, me: trainerName, myAvatar: avatar, since: window.since())
+        let swiss = LeagueBoard.swiss(league: league, feed: feed)
+        let total = LeagueBoard.ranking(feed: feed, league: league, me: trainerName, myAvatar: avatar, since: nil, swiss: swiss)
+        let rank = window == .liga ? total : LeagueBoard.ranking(feed: feed, league: league, me: trainerName, myAvatar: avatar, since: window.since(), swiss: swiss)
 
         GMScreen(league.name, back: true, large: false, bottomInset: 170) {
             if canInvite {
@@ -160,11 +162,14 @@ struct LeagueDetailView: View {
                 LeagueMuralView(league: league, avatar: avatar)
             } else {
                 GMCard { repCard(rep, monster: roster.monster(league.monsterUUID)) }
+                SwissRoundSection(league: league, table: swiss, people: total)
                 GMSegmented(options: RankWindow.allCases.map { ($0, $0.name) }, selection: $window)
                 teamsSection(LeagueBoard.teams(league: league, ranking: rank, feed: feed))
                 GMSection(footer: rankFooter) {
                     ForEach(Array(rank.enumerated()), id: \.element.id) { i, r in
-                        rankRow(i + 1, r)
+                        Button { if !r.isMe { profile = RemoteFriend(id: r.id, name: r.name, formID: r.avatar.id, code: "") } } label: { rankRow(i + 1, r) }
+                            .buttonStyle(GMPress())
+                            .accessibilityHint(r.isMe ? "" : "Abrir o perfil")
                         if i < rank.count - 1 { GMDivider() }
                     }
                 }
@@ -183,7 +188,10 @@ struct LeagueDetailView: View {
         .gmModal(isPresented: $checkingIn) { CheckInForm(preselected: [league.uuid]) }
         .gmModal(isPresented: $editing) { CreateLeagueView(league: league) }
         .gmModal(item: $opened) { CheckInDetailView(item: $0) }
-        .task(id: league.key) { await LeagueRemoteStore.shared.refresh([league]) }
+        .gmModal(item: $profile) { FriendProfileView(friend: $0) }
+        .task(id: league.key) {
+            await LeagueRemoteStore.shared.refresh([league])
+        }
         .gmActions(isPresented: Binding(get: { teamChoice != nil }, set: { if !$0 { teamChoice = nil } }),
                    title: teamChoice.map { "Entrar no \($0.name)?" } ?? "",
                    message: "Seus check-ins passam a somar para este time. Dá para trocar depois.", actions: [
@@ -286,9 +294,9 @@ struct LeagueDetailView: View {
             LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .center, endPoint: .bottom)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    if league.isMock { GMBadge(text: "exemplo", tint: .white) }
-                    if league.season > 1 || league.autoRenew { GMBadge(text: "temporada \(league.season)", tint: .white) }
-                    if league.isOver { GMBadge(text: "encerrada", tint: .white) }
+                    if league.isMock { GMBadge(text: "Exemplo", tint: .white) }
+                    if league.season > 1 || league.autoRenew { GMBadge(text: "Temporada \(league.season)", tint: .white) }
+                    if league.isOver { GMBadge(text: "Encerrada", tint: .white) }
                 }
                 Text("\(league.emoji) \(league.name)").gmFont(26, weight: .heavy, design: .rounded, relativeTo: .title).lineLimit(2)
                     .minimumScaleFactor(0.6)
@@ -396,20 +404,24 @@ struct LeagueDetailView: View {
         let cal = Calendar.current
         let days = Dictionary(grouping: feed.prefix(120)) { cal.startOfDay(for: $0.date) }
         ForEach(days.keys.sorted(by: >), id: \.self) { day in
-            let items = days[day]!.sorted { $0.date > $1.date }
+            let items = (days[day] ?? []).sorted { $0.date > $1.date }
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(dayTitle(day)).font(.headline)
                     Spacer()
-                    Text("\(items.count) check-in\(items.count == 1 ? "" : "s")").font(.caption).foregroundStyle(Theme.dim)
-                }
-                VStack(spacing: 0) {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
-                        timelineRow(item, first: i == 0, last: i == items.count - 1)
+                    if !items.isEmpty {
+                        Text("\(items.count) check-in\(items.count == 1 ? "" : "s")").font(.caption).foregroundStyle(Theme.dim)
                     }
                 }
-                .padding(.horizontal, 12)
-                .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+                if !items.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
+                            timelineRow(item, first: i == 0, last: i == items.count - 1)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+                }
             }
         }
     }
@@ -490,7 +502,7 @@ struct LeagueDetailView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
                                     Text(t.name).font(.subheadline.weight(t.isMine ? .bold : .semibold))
-                                    if t.isMine { GMBadge(text: "seu time", tint: Theme.accent) }
+                                    if t.isMine { GMBadge(text: "Seu time", tint: Theme.accent) }
                                 }
                                 Text("\(t.members) pessoa\(t.members == 1 ? "" : "s") · bro \(t.form.stage.name.lowercased())").font(.caption).foregroundStyle(Theme.dim)
                             }
@@ -527,13 +539,20 @@ struct LeagueDetailView: View {
             MonsterSprite(form: r.avatar).frame(width: 38, height: 38)
             VStack(alignment: .leading, spacing: 2) {
                 Text(r.isMe ? "\(r.name) (você)" : r.name).font(.subheadline.weight(r.isMe ? .bold : .semibold))
-                Text("\(r.checkIns) check-in\(r.checkIns == 1 ? "" : "s")" + (r.tied ? " · \(tieNote(r))" : ""))
+                Text("\(r.checkIns) check-in\(r.checkIns == 1 ? "" : "s")" + (swissNote(r).map { " · \($0)" } ?? "") + (r.tied ? " · \(tieNote(r))" : ""))
                     .font(.caption).foregroundStyle(Theme.dim)
             }
             Spacer()
             Text(league.scoring.short(r.score)).font(.headline.monospacedDigit()).foregroundStyle(r.isMe ? Theme.accent : .white)
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .foregroundStyle(.white)
+    }
+
+    /// Pontos suíços, discretos, só depois da primeira rodada encerrada
+    private func swissNote(_ r: RankRow) -> String? {
+        r.swiss.map { "suíço \(Swiss.format($0))" }
     }
 
     /// Por que ficou nessa posição no empate
@@ -565,6 +584,7 @@ struct CreateLeagueView: View {
     @State private var halves: [Attribute: Int] = Dictionary(uniqueKeysWithValues: Attribute.allCases.map { ($0, 2) })
     @State private var tieBreak: LeagueTieBreak = .primeiro
     @State private var photoRule: PhotoRule = .livre
+    @State private var swiss: SwissCriterion = .pontos
     @State private var teams: [LeagueTeam] = []
     @State private var start = Calendar.current.startOfDay(for: .now)
     @State private var end: Date = Calendar.current.date(byAdding: .day, value: 29, to: Calendar.current.startOfDay(for: .now))!
@@ -662,6 +682,9 @@ struct CreateLeagueView: View {
                       : photoRule.detail) {
                 GMSegmented(options: PhotoRule.allCases.map { ($0, $0.name) }, selection: $photoRule)
             }
+            GMSection("Rodada suíça", footer: "Todo dia cada pessoa enfrenta alguém com pontuação suíça parecida. " + swiss.detail) {
+                GMChoiceChips(options: SwissCriterion.allCases.map { ($0, $0.name) }, selection: $swiss)
+            }
             GMSection("Times", footer: teams.isEmpty ? "Divida a liga em times: o placar do time é a soma dos membros, e cada time tem um bro que evolui junto." : "O placar do time é a soma dos membros. Cada pessoa escolhe o time no Ranking da liga e pode trocar depois. Renomear um time não tira ninguém dele.") {
                 GMToggle(title: "Competir em times", isOn: Binding(get: { !teams.isEmpty }, set: { teams = $0 ? [LeagueTeam(name: "Time Verde"), LeagueTeam(name: "Time Roxo")] : [] }))
                 ForEach(teams) { t in
@@ -696,6 +719,7 @@ struct CreateLeagueView: View {
             scoring = l.scoring
             tieBreak = l.tieBreak
             photoRule = l.photoRule
+            swiss = l.swiss
             teams = l.teams
             for (a, v) in l.attributeWeights { halves[a] = Int((v * 2).rounded()) }
             start = l.start
@@ -717,6 +741,7 @@ struct CreateLeagueView: View {
         l.attributeWeights = halves.mapValues { Double($0) / 2 }
         l.tieBreak = tieBreak
         l.photoRule = photoRule
+        l.swiss = swiss
         // Time sem nome sai da lista (quem estava nele fica sem time)
         l.teams = teams
         l.cover = cover
@@ -798,7 +823,7 @@ func postCheckIns(activity: Activity, leagues: Set<UUID>, title: String, note: S
     let place = GymLocation.shared.gym(activity.gymUUID)?.name ?? GymLocation.shared.placeNow
     for id in leagues {
         let c = LeagueCheckIn(leagueUUID: id, activityUUID: activity.uuid,
-                              title: title.isEmpty ? activity.kind.name : title, note: note, date: activity.date, photo: photo)
+                              title: title.isEmpty ? activity.typeName : title, note: note, date: activity.date, photo: photo)
         c.place = place
         context.insert(c)
     }
@@ -814,7 +839,7 @@ func syncCheckIns(activity: Activity, destinations: Set<UUID>, title: String, no
     guard signedIn ?? Terms.canPublish else { return }
     let id = activity.uuid
     let existing = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
-    let t = title.trimmingCharacters(in: .whitespaces).isEmpty ? activity.kind.name : title.trimmingCharacters(in: .whitespaces)
+    let t = title.trimmingCharacters(in: .whitespaces).isEmpty ? activity.typeName : title.trimmingCharacters(in: .whitespaces)
     for c in existing where !destinations.contains(c.leagueUUID) {
         LeagueOutbox.retract(c)
         context.delete(c)
@@ -848,6 +873,11 @@ func compressedPhoto(_ data: Data) -> Data? {
     return resized.jpegData(compressionQuality: 0.7)
 }
 
+/// Toda atividade vai para pelo menos um lugar (perfil ou liga) quando a conta pode postar: é lá que a foto e o post
+/// moram. Sem conta que posta (termos não aceitos, sem permissão), salvar continua liberado e fica só no histórico.
+@MainActor
+func hasPostDestination(_ selected: Set<UUID>) -> Bool { !Terms.canPublish || !selected.isEmpty }
+
 /// Seção reaproveitada no registro de atividade, no fim do treino e na edição: onde postar o check-in e a foto
 struct LeaguePostSection: View {
     @Binding var selected: Set<UUID>
@@ -876,7 +906,7 @@ struct LeaguePostSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             if signedIn {
-                GMSection("Postar em", footer: selected.isEmpty ? "Sem destino: a atividade fica só no seu histórico." : postFooter,
+                GMSection("Postar em", footer: selected.isEmpty ? "Escolha pelo menos um lugar para salvar." : postFooter,
                           trailing: AnyView(allButton)) {
                     destination(id: ProfileFeed.id, title: "Meu perfil", subtitle: "Aparece no seu perfil público") { Avatar(size: 38) }
                     ForEach(leagues) { l in
@@ -1034,6 +1064,7 @@ struct CheckInForm: View {
     @State private var useExisting = false
     @State private var existing: UUID?
     @State private var kind: ActivityKind = .musculacao
+    @State private var type = WorkoutType.of(.musculacao).id
     @State private var minutes = 60
     @State private var effort = 6
     @State private var date = Date.now
@@ -1062,7 +1093,7 @@ struct CheckInForm: View {
                     if recent.isEmpty { Text("Nada registrado nos últimos 7 dias.").foregroundStyle(Theme.dim) }
                     ForEach(recent) { a in
                         let posted = checkIns.contains { $0.activityUUID == a.uuid && leagues.contains($0.leagueUUID) }
-                        GMRow(icon: a.kind.symbol, title: a.kind.name,
+                        GMRow(icon: a.typeSymbol, title: a.typeName,
                               subtitle: "\(durationText(a.minutes)) · \(a.date.formatted(.dateTime.weekday().day().hour().minute()))",
                               action: { existing = a.uuid }) {
                             if posted { Text("já postada").font(.caption2).foregroundStyle(Theme.dim) }
@@ -1074,7 +1105,8 @@ struct CheckInForm: View {
                     }
                 }
             } else {
-                GMSection("Atividade") { ActivityKindGrid(kind: $kind) }
+                GMSection("Atividade") { ActivityTypePicker(type: $type) }
+                    .onChange(of: type) { _, t in kind = WorkoutType.byID(t)?.kind ?? .outro }
                 GMSection {
                     GMStepper(title: "Duração", value: $minutes, range: 5...Game.maxMinutes, step: 5, format: durationText)
                     GMDivider()
@@ -1104,7 +1136,9 @@ struct CheckInForm: View {
             activity = a
         } else {
             activity = Activity(kind: kind, date: date, minutes: minutes, effort: effort, note: title)
+            activity.healthType = Int(type)
             context.insert(activity)
+            ActivitySplits.stamp(activity, context: context)
         }
         // Não posta duas vezes a mesma atividade na mesma liga
         let already = Set(checkIns.filter { $0.activityUUID == activity.uuid }.map(\.leagueUUID))

@@ -297,12 +297,20 @@ struct FriendsView: View {
     @State private var code = ""
     @State private var message: String?
     @State private var opened: RemoteFriend?
+    @State private var duelsOpen = false
     @Query(sort: \League.joinedAt) private var leagues: [League]
 
     var body: some View {
         GMModal("Amigos") {
             SocialGate(requires: .friendsRead) {
                 myCode
+                GMSection {
+                    Button { duelsOpen = true } label: {
+                        GMNavRow(icon: "bolt.shield.fill", tint: Theme.trophy, title: "X1",
+                                 value: "Desafie qualquer pessoa", badge: DuelStore.shared.duels.filter { $0.challenged.id == "me" && $0.isPending(now: .now) }.count)
+                    }
+                    .buttonStyle(GMPress())
+                }
                 GMSection("Adicionar amigo", footer: message ?? "Peça o código para a pessoa (fica na tela de amigos dela).") {
                     HStack(spacing: 8) {
                         GMTextField(placeholder: "Código do amigo", text: $code, capitalization: .characters)
@@ -344,6 +352,7 @@ struct FriendsView: View {
         }
         .task(id: AuthStore.shared.isSignedIn) { if AuthStore.shared.isSignedIn { await store.refresh() } }
         .gmModal(item: $opened) { FriendProfileView(friend: $0) }
+        .gmModal(isPresented: $duelsOpen) { DuelsView() }
     }
 
     @ViewBuilder

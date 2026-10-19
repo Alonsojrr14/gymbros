@@ -92,6 +92,12 @@ struct TrainView: View {
                         GMRow(icon: "calendar", title: p.name, subtitle: PlannedWodView.dayText(p.day) + " · " + p.format.name, chevron: true) { planDetail = p }
                         GMDivider()
                     }
+                    NavigationLink { WodTimelineView() } label: {
+                        GMRow(icon: "clock.arrow.circlepath", iconTint: Theme.accent, title: "Meus WODs",
+                              subtitle: "Linha do tempo do que você importou e treinou", chevron: true)
+                    }
+                    .buttonStyle(GMPress())
+                    GMDivider()
                     NavigationLink { WodListView() } label: {
                         GMRow(icon: "flame.fill", iconTint: Theme.streak, title: "WODs e cronômetro",
                               subtitle: "Fran, Cindy, Murph… · For Time, AMRAP, EMOM, Tabata", chevron: true)

@@ -109,7 +109,7 @@ Roles e permissões são enums Swift: uma role nova só passa a valer para quem 
 
 | Garantia | Quem garante |
 |---|---|
-| Só altera ou apaga o que criou (perfil, liga, lugar na liga, check-ins, recados, amizades, denúncias, bloqueios) | CloudKit: `Creator: Write` em todos os tipos |
+| Só altera ou apaga o que criou (perfil, liga, lugar na liga, check-ins, recados, amizades, denúncias, bloqueios, desafios, respostas e valores de X1) | CloudKit: `Creator: Write` em todos os tipos |
 | Ninguém lê denúncias e bloqueios de outra pessoa | CloudKit: `Report` e `Block` sem `World: Read` |
 | Ninguém cria ou altera atribuição de role pelo app | CloudKit: `RoleAssignment` sem `Create`/`Write` para `Authenticated`/`World` |
 | Usuário comum não vê nem aciona ações de outra role | App (`AccessStore`), só para clientes não modificados |
@@ -159,3 +159,5 @@ O `CloudKitRoleBackend` não tem teste automatizado: depende de conta paga, cont
 - Em `.mock` todo mundo é `USER`. Só em builds Debug, a tela de login tem a seção "Desenvolvimento" (`GymBros/Access/DevAccounts.swift`) com contas fixas de cada role (`dev-user`, `dev-developer`, `dev-admin`, `dev-disabled`); o arquivo inteiro fica em `#if DEBUG` e não existe no Release nem no modo `.cloudKit`. Antes de publicar, apague o arquivo junto com as chamadas `signIn(as:)`, `DevAccountPicker` e `DevAccount.assignments`.
 - As roles de qualquer conta são legíveis por contas autenticadas.
 - Ligas são lidas por quem souber o código (regra existente, não muda com RBAC).
+- X1 (`GymBros/Duels/`) não tem permissão na matriz: desafiar e responder só pedem sessão e o aceite dos termos (`TermsGate`); `DuelStore.challenge`/`respond` não chamam o `AccessStore`. Uma conta desativada (sem roles) continua desafiando e aceitando. **Recomendação:** criar `duels.challenge` (escopo próprio, concedida a `USER`), conferir em `DuelStore` e esconder os botões com `access.can`, seguindo "Como adicionar uma permissão".
+- A rodada suíça das ligas (`GymBros/Leagues/Swiss.swift`) é calculada no aparelho a partir do feed e não publica nada: não precisa de permissão própria (o critério sobe junto com as regras da liga). Mostrar a música que você ouve (`GymBros/Music/Music.swift`) é uma preferência local e também não tem permissão.

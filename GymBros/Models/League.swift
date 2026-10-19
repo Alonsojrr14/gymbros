@@ -29,6 +29,8 @@ final class League {
     var weightsRaw: String = ""
     var tieBreakRaw: String = LeagueTieBreak.primeiro.rawValue
     var photoRuleRaw: String = PhotoRule.livre.rawValue
+    /// Critério da rodada suíça diária (SchemaV2)
+    var swissRaw: String = SwissCriterion.pontos.rawValue
     /// Times, um por linha: "id\tnome" (formato antigo: só o nome, id = posição); vazio = liga sem times
     var teamsRaw: String = ""
     /// Quando o servidor recebeu a liga (regras) e o seu lugar nela (nome, bro, time); nil = pendente
@@ -57,6 +59,11 @@ final class League {
     var photoRule: PhotoRule {
         get { PhotoRule(rawValue: photoRuleRaw) ?? .livre }
         set { photoRuleRaw = newValue.rawValue }
+    }
+
+    var swiss: SwissCriterion {
+        get { SwissCriterion(rawValue: swissRaw) ?? .pontos }
+        set { swissRaw = newValue.rawValue }
     }
 
     /// Times com id estável: renomear, reordenar ou tirar um time não troca ninguém de time

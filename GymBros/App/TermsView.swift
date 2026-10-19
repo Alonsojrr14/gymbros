@@ -4,8 +4,8 @@ import SwiftUI
 /// Mudou algo que a pessoa precisa aceitar de novo: suba `version`.
 enum Terms {
     static let url = URL(string: "https://alonsojrr14.github.io/gymbros/termos/")!
-    static let updated = "18 de outubro de 2026"
-    static let version = 1
+    static let updated = "19 de outubro de 2026"
+    static let version = 2
     static let acceptedKey = "termsAcceptedVersion", acceptedAtKey = "termsAcceptedAt"
     static let defaultsKeys = [acceptedKey, acceptedAtKey]
 
@@ -15,7 +15,7 @@ enum Terms {
         ("Filtro de palavras", "Antes de enviar, o app confere o texto contra uma lista de termos ofensivos. Se encontrar algum, nada é enviado e você pode ajustar o texto. O filtro não pega tudo, por isso as denúncias continuam valendo."),
         ("Denunciar e bloquear", "Em check-ins, fotos, comentários, recados e perfis de outras pessoas, use \"Denunciar\" para mandar o conteúdo para análise: ele some na hora para você. Use \"Bloquear\" para não ver mais nada de alguém: a amizade é desfeita e a pessoa some de feeds, comentários, mural, amigos e mapa. Para desbloquear, vá em Ajustes > Privacidade > Usuários bloqueados."),
         ("Análise em até 24 h", "Toda denúncia é analisada em até 24 horas. Conteúdo que viola estes termos é removido para todos, e quem o publicou é expulso: a conta é suspensa ou excluída e deixa de aparecer em ligas e amigos."),
-        ("O que você publica", "Você é responsável pelo que publica e precisa ter direito de usar as fotos e os textos que envia. O que você publica aparece para quem participa das suas ligas e para os seus amigos. Dá para apagar posts, recados e comentários a qualquer momento, ou a conta inteira em Ajustes > Conta."),
+        ("O que você publica", "Você é responsável pelo que publica e precisa ter direito de usar as fotos e os textos que envia. O que você publica aparece para quem participa das suas ligas e para os seus amigos. Com o treino ao vivo ligado (o padrão), você aceita que os seus amigos vejam onde você está treinando enquanto o treino durar; dá para desligar em cada treino, no chip \"Ao vivo\", ou em Mapa > Ajustes. Ao convidar um amigo para treinar junto numa academia salva, você aceita enviar a ele o nome e a localização (coordenadas) dessa academia. Dá para apagar posts, recados e comentários a qualquer momento, ou a conta inteira em Ajustes > Conta."),
         ("Saúde", "O GymBros não substitui orientação médica ou de um profissional de educação física. Treine dentro dos seus limites."),
         ("Idade", "O GymBros não é direcionado a menores de 13 anos."),
         ("Mudanças", "Se estes termos mudarem, o app pede um novo aceite na próxima vez que você abrir."),
@@ -59,40 +59,123 @@ private struct TermsText: View {
     }
 }
 
-/// Termos inteiros com o botão de aceitar
-struct TermsAcceptView: View {
-    @Environment(\.dismiss) private var dismiss
+/// Aceite dos termos de uso e da política de privacidade: uma caixa para cada documento.
+/// A caixa (e o texto) só marca e desmarca; o documento abre só pelo link sublinhado.
+struct LegalConsent: View {
+    @Binding var accepted: Bool
+    @State private var agreed: Set<LegalDoc> = []
+    @State private var open: LegalDoc?
 
     var body: some View {
-        GMModal("Termos de uso", confirm: "Aceitar", onConfirm: accept) {
-            Text("Para continuar, leia e aceite os termos. Resumo: tolerância zero para conteúdo ofensivo e abuso.")
-                .font(.subheadline.weight(.semibold))
-            TermsText()
-            GMButton("Aceitar e continuar", icon: "checkmark", action: accept)
+        VStack(spacing: 10) {
+            ForEach(LegalDoc.allCases) { row($0) }
         }
+        .gmModal(item: $open) { doc in
+            switch doc {
+            case .terms: TermsView()
+            case .privacy: PrivacyPolicyView()
+            }
+        }
+        .onChange(of: agreed) { _, a in accepted = a.count == LegalDoc.allCases.count }
+        .environment(\.openURL, OpenURLAction { url in
+            guard url.scheme == "gymbros-legal", let doc = LegalDoc(rawValue: url.host() ?? "") else { return .systemAction }
+            open = doc
+            return .handled
+        })
     }
 
-    private func accept() {
-        Terms.accept()
-        dismiss()
+    private func row(_ doc: LegalDoc) -> some View {
+        let on = agreed.contains(doc)
+        return HStack(spacing: 12) {
+            Image(systemName: on ? "checkmark.square.fill" : "square")
+                .font(.title2)
+                .foregroundStyle(on ? Theme.accent : .white)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 44, height: 44)
+            Text(label(doc))
+                .font(.subheadline.weight(.semibold))
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 6).padding(.horizontal, 8)
+        .background(Theme.card, in: .rect(cornerRadius: Theme.radiusL))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radiusL).stroke(on ? Theme.accent.opacity(0.6) : Theme.stroke))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            UISelectionFeedbackGenerator().selectionChanged()
+            withAnimation(.snappy) { if on { agreed.remove(doc) } else { agreed.insert(doc) } }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Li e concordo com \(doc.article) \(doc.title)")
+        .accessibilityValue(on ? "Marcado" : "Desmarcado")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Ler \(doc.article) \(doc.title)") { open = doc }
+    }
+
+    /// "Li e concordo com os Termos de uso", com o nome do documento como link
+    private func label(_ doc: LegalDoc) -> AttributedString {
+        var text = AttributedString("Li e concordo com \(doc.article) ")
+        var link = AttributedString(doc.title)
+        link.link = URL(string: "gymbros-legal://\(doc.rawValue)")
+        link.foregroundColor = Theme.accent
+        link.underlineStyle = .single
+        text.append(link)
+        return text
+    }
+}
+
+enum LegalDoc: String, CaseIterable, Identifiable {
+    case terms, privacy
+    var id: String { rawValue }
+    var title: String { self == .terms ? "Termos de uso" : "Política de privacidade" }
+    var article: String { self == .terms ? "os" : "a" }
+}
+
+/// Aceite pedido antes de publicar (folha do TermsGate)
+struct TermsAcceptView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var accepted = false
+
+    var body: some View {
+        GMModal("Termos e privacidade") {
+            ConsentIntro()
+            LegalConsent(accepted: $accepted)
+            GMButton("Aceitar e continuar", icon: "checkmark", enabled: accepted) {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                Terms.accept()
+                dismiss()
+            }
+        }
     }
 }
 
 /// Na entrada do app, para quem já tem ovo e ainda não aceitou esta versão (sem botão de fechar)
 struct TermsRequiredView: View {
-    @State private var privacy = false
+    @State private var accepted = false
 
     var body: some View {
-        GMScreen("Termos de uso", subtitle: Terms.version > 1 ? "Os termos mudaram. Leia e aceite para continuar." : "Leia e aceite para continuar.",
+        GMScreen("Termos e privacidade", subtitle: Terms.version > 1 ? "Os termos mudaram. Leia e aceite para continuar." : nil,
                  bottomInset: 40) {
-            TermsText()
-            GMRow(icon: "hand.raised", title: "Política de privacidade", chevron: true) { privacy = true }
-            GMButton("Aceitar e continuar", icon: "checkmark") {
+            ConsentIntro()
+            LegalConsent(accepted: $accepted)
+            GMButton("Aceitar e continuar", icon: "checkmark", enabled: accepted) {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
                 Terms.accept()
             }
         }
-        .gmModal(isPresented: $privacy) { PrivacyPolicyView() }
+    }
+}
+
+private struct ConsentIntro: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: "checkmark.shield.fill").font(.system(size: 36)).foregroundStyle(Theme.accent)
+            Text("Antes de continuar").gmFont(22, weight: .heavy, design: .rounded, relativeTo: .title2)
+            Text("Abra cada documento para ler e marque que concorda. O GymBros tem tolerância zero para conteúdo ofensivo e abuso.")
+                .font(.subheadline).foregroundStyle(Theme.dim)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

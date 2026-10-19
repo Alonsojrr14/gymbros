@@ -84,6 +84,7 @@ struct Backup: Codable, Sendable {
         /// Capa reduzida, só na temporada atual de cada liga (as passadas usam a mesma ao restaurar)
         var cover: Data? = nil
         var syncedAt: Date? = nil, joined: Bool? = nil
+        var swiss: String? = nil
     }
 
     struct MessageDTO: Codable {
@@ -105,6 +106,8 @@ struct Backup: Codable, Sendable {
         var gymUUID: UUID?
         var meters: Double? = nil, kcal: Double? = nil
         var healthType: Int? = nil, healthWritten: String? = nil
+        /// Divisão do XP entre os atributos (ActivitySplits)
+        var attributes: String? = nil
     }
 
     struct MonsterDTO: Codable {
@@ -172,7 +175,8 @@ struct Backup: Codable, Sendable {
             activities: try context.fetch(FetchDescriptor<Activity>()).map {
                 ActivityDTO(uuid: $0.uuid, kind: $0.kindRaw, date: $0.date, minutes: $0.minutes, effort: $0.effort,
                             note: $0.note, healthUUID: $0.healthUUID, source: $0.source, monsterUUID: $0.monsterUUID, gymUUID: $0.gymUUID,
-                            meters: $0.meters, kcal: $0.kcal, healthType: $0.healthType, healthWritten: $0.healthWrittenUUID)
+                            meters: $0.meters, kcal: $0.kcal, healthType: $0.healthType, healthWritten: $0.healthWrittenUUID,
+                            attributes: ActivitySplits.all()[$0.uuid.uuidString])
             },
             routines: try context.fetch(FetchDescriptor<Routine>()).map { r in
                 RoutineDTO(uuid: r.uuid, name: r.name, weekdays: r.weekdaysRaw, order: r.order, items: r.sortedItems.map {
@@ -195,7 +199,7 @@ struct Backup: Codable, Sendable {
                           isMock: $0.isMock, joinedAt: $0.joinedAt, monsterUUID: $0.monsterUUID, end: $0.end, autoRenew: $0.autoRenew, season: $0.season, seriesID: $0.seriesID, nextUUID: $0.nextUUID,
                           weights: $0.weightsRaw, tieBreak: $0.tieBreakRaw, photoRule: $0.photoRuleRaw, teams: $0.teamsRaw, myTeamID: $0.myTeamID,
                           cover: account ? $0.cover : $0.isPastSeason ? nil : $0.cover.flatMap { smallCover($0) },
-                          syncedAt: $0.syncedAt, joined: $0.joined)
+                          syncedAt: $0.syncedAt, joined: $0.joined, swiss: $0.swissRaw)
             },
             monsters: try context.fetch(FetchDescriptor<Monster>()).map {
                 MonsterDTO(uuid: $0.uuid, name: $0.name, createdAt: $0.createdAt, isStarter: $0.isStarter, lastFormID: $0.lastFormID, speciesID: $0.speciesID)
@@ -255,6 +259,8 @@ struct Backup: Codable, Sendable {
         do {
             try replaceAll(in: context)
             try context.save()
+            // Só depois do save: se o restore falhar, a divisão dos atributos continua a das atividades atuais
+            ActivitySplits.replace(Dictionary(activities.compactMap { a in a.attributes.map { (a.uuid.uuidString, $0) } }, uniquingKeysWith: { a, _ in a }))
         } catch {
             context.rollback()
             throw error
@@ -367,6 +373,7 @@ struct Backup: Codable, Sendable {
             league.weightsRaw = l.weights ?? ""
             league.tieBreakRaw = l.tieBreak ?? LeagueTieBreak.primeiro.rawValue
             league.photoRuleRaw = l.photoRule ?? PhotoRule.livre.rawValue
+            league.swissRaw = l.swiss ?? SwissCriterion.pontos.rawValue
             league.teamsRaw = l.teams ?? ""
             league.myTeamID = l.myTeamID
             league.cover = l.cover

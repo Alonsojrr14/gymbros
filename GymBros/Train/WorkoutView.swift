@@ -104,6 +104,7 @@ struct WorkoutView: View {
             GMAction("Descartar", icon: "trash", destructive: true) {
                 HeadphoneControl.shared.stop()
                 cancelRest()
+                LiveShare.end(session.uuid.uuidString)
                 context.delete(session)
                 try? context.save()
                 Task { await LiveWorkout.endAll() }
@@ -213,17 +214,20 @@ struct WorkoutView: View {
 
     private var currentID: String? { LiveWorkout.currentExercise(session) }
 
-    /// Onde está treinando: toque para trocar
+    /// Onde está treinando (toque para trocar) e se os amigos veem o treino ao vivo
     private var placeChip: some View {
         let g = GymLocation.shared.gym(session.gymUUID)
-        return Button { choosingPlace = true } label: {
-            Label(g?.name ?? (session.placeAsked ? "Sem local" : "Onde você está?"), systemImage: "mappin.and.ellipse")
-                .font(.caption.bold())
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(g != nil ? Theme.accent.opacity(0.18) : Theme.raised, in: .capsule)
-                .foregroundStyle(g != nil ? Theme.accent : .white)
+        return HStack(spacing: 8) {
+            Button { choosingPlace = true } label: {
+                Label(g?.name ?? (session.placeAsked ? "Sem local" : "Onde você está?"), systemImage: "mappin.and.ellipse")
+                    .font(.caption.bold()).lineLimit(1)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(g != nil ? Theme.accent.opacity(0.18) : Theme.raised, in: .capsule)
+                    .foregroundStyle(g != nil ? Theme.accent : .white)
+            }
+            .buttonStyle(GMPress())
+            LiveShareChip(workoutID: session.uuid.uuidString)
         }
-        .buttonStyle(GMPress())
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.bottom, 4)
@@ -767,7 +771,7 @@ struct FinishWorkoutView: View {
         let p = preview
         let xp = p.xp
 
-        GMModal("Concluir treino", confirm: "Salvar", confirmEnabled: !done.isEmpty, onConfirm: save) {
+        GMModal("Concluir treino", confirm: "Salvar", confirmEnabled: !done.isEmpty && hasPostDestination(leagues), onConfirm: save) {
             GMCard {
                 HStack {
                     stat(durationText(minutes), "duração")
@@ -845,7 +849,9 @@ struct FinishWorkoutView: View {
     /// XP do treino e o estágio de antes de cada bro que vai evoluir. O XP vai para os bros das ligas marcadas
     /// (regra do Roster, como no registro de atividade); sem liga, o principal. Vários donos: mostra o maior.
     private var preview: (xp: Int, grows: [Stage]) {
-        let new = ActivityRecord(id: UUID(), kind: .musculacao, date: session.start, minutes: minutes, effort: effort)
+        let sets = session.doneWorkSets.map { AttributeSplit.SetSignal(exerciseID: $0.exerciseID, reps: $0.reps, rest: $0.rest) }
+        let split = AttributeSplit.split(.init(kind: .musculacao, minutes: minutes, effort: effort, sets: sets))
+        let new = ActivityRecord(id: UUID(), kind: .musculacao, date: session.start, minutes: minutes, effort: effort, weights: split)
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
         var xp = 0, grows: [Stage] = []
         for o in roster.owners(leagueIDs: leagues, owner: roster.mainID) {
@@ -907,9 +913,11 @@ struct FinishWorkoutView: View {
         postCheckIns(activity: activity, leagues: leagues, title: title, note: ContentFilter.publishable(summary), photo: photo, context: context)
         if updateRoutine, let r = routine, !session.routineChanges(r).isEmpty { session.apply(to: r, context: context) }
         session.end = .now
+        LiveShare.end(session.uuid.uuidString)
         session.effort = effort
         session.activityUUID = activity.uuid
         try? context.save()
+        ActivitySplits.stamp(activity, context: context)
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["rest"])
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         Task { await LiveWorkout.endAll() }

@@ -30,10 +30,10 @@ struct ActivityDetailView: View {
 
     private var photo: Data? { posts.compactMap(\.photo).first }
     private var place: String? { posts.compactMap(\.place).first ?? GymLocation.shared.gym(activity.gymUUID)?.name }
-    private var title: String { posts.first?.title ?? (activity.note.isEmpty ? activity.kind.name : activity.note) }
+    private var title: String { posts.first?.title ?? (activity.note.isEmpty ? activity.typeName : activity.note) }
 
     var body: some View {
-        GMScreen(activity.kind.name, back: true) {
+        GMScreen(activity.typeName, back: true) {
             GMIconButton(icon: "pencil", label: "Editar atividade") { editing = true }
         } content: {
             if let data = photo, let img = UIImage(data: data) {
@@ -44,7 +44,7 @@ struct ActivityDetailView: View {
             }
             GMCard {
                 HStack(spacing: 12) {
-                    Image(systemName: activity.kind.symbol)
+                    Image(systemName: activity.typeSymbol)
                         .font(.title2)
                         .frame(width: 48, height: 48)
                         .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
@@ -225,4 +225,5 @@ func deleteActivity(_ a: Activity, context: ModelContext) {
     route.forEach(context.delete)
     context.delete(a)
     try? context.save()
+    ActivitySplits.set(nil, for: id)
 }

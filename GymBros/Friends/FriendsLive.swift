@@ -25,6 +25,8 @@ struct LiveFriend: Identifiable {
     var now: String = ""
     var done: [String] = []
     var lastSeen: String = ""
+    /// O que está ouvindo (só quem liga "Mostrar o que estou ouvindo")
+    var music: NowPlayingTrack?
 
     var isLive: Bool { start != nil }
 
@@ -102,12 +104,14 @@ enum FriendsLive {
         LiveFriend(id: "bruno", name: "Bruno", form: form("bruno"),
                    kind: .musculacao, start: opened.addingTimeInterval(-38 * 60), place: "Smart Fit", offset: (520, 380),
                    now: "Supino reto · série 3 de 4 · 80 kg",
-                   done: ["Supino inclinado · 4×10 · 26 kg", "Crucifixo · 3×12 · 14 kg", "Tríceps corda · 3×15"]),
+                   done: ["Supino inclinado · 4×10 · 26 kg", "Crucifixo · 3×12 · 14 kg", "Tríceps corda · 3×15"],
+                   music: NowPlayingTrack(title: "Till I Collapse", artist: "Eminem", source: .appleMusic)),
         LiveFriend(id: "ana", name: "Ana", form: form("ana"),
                    kind: .corrida, start: opened.addingTimeInterval(-24 * 60), place: "Parque", offset: (-420, -160),
                    path: [(0, 0), (140, 60), (260, 40), (380, 130), (420, 260), (360, 400), (210, 450), (90, 520),
                           (-60, 470), (-150, 340), (-120, 200), (-170, 90), (-90, -20)],
-                   speed: 3.1, now: "Longão leve · 5:20/km"),
+                   speed: 3.1, now: "Longão leve · 5:20/km",
+                   music: NowPlayingTrack(title: "Run Boy Run", artist: "Woodkid", source: .spotify)),
         LiveFriend(id: "diego", name: "Diego", form: form("diego"),
                    kind: .futebol, start: opened.addingTimeInterval(-51 * 60), place: "Quadra do bairro", offset: (180, -650),
                    now: "Pelada · 2º tempo, 3 a 2 pro time dele"),
@@ -157,6 +161,17 @@ struct FriendPin: View {
                     .foregroundStyle(.black)
                     .offset(x: 17, y: 16)
             }
+            // Por cima da bolinha, sem mudar o tamanho do pino (o ponto no mapa continua o mesmo)
+            .overlay(alignment: .top) {
+                if friend.isLive, let music = friend.music {
+                    Label(music.title, systemImage: "music.note")
+                        .labelStyle(MusicTagStyle())
+                        // Largura máxima da etiqueta; títulos longos terminam em "…"
+                        .frame(width: 120)
+                        .offset(y: -20)
+                        .accessibilityLabel("Ouvindo \(music.title)")
+                }
+            }
             HStack(spacing: 3) {
                 if friend.isLive { GMOnlineDot(size: 6) }
                 Text(friend.isLive ? "\(friend.name) · \(friend.elapsed(at: date) / 60) min" : friend.name)
@@ -176,80 +191,186 @@ struct FriendPin: View {
     }
 }
 
+/// Etiqueta mínima da música em cima do pino: nota + título curto
+private struct MusicTagStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon.font(.system(size: 8, weight: .bold)).foregroundStyle(Theme.health)
+            configuration.title.lineLimit(1)
+        }
+        .gmFont(9, weight: .semibold, relativeTo: .caption2)
+        .foregroundStyle(.white.opacity(0.9))
+        .padding(.horizontal, 6).padding(.vertical, 2)
+        .background(Theme.bg.opacity(0.8), in: .capsule)
+    }
+}
+
 // MARK: - Card do amigo
 
 struct LiveFriendCard: View {
     let friend: LiveFriend
     @Binding var cheered: Set<String>
-    var onShow: () -> Void = {}
+    var onMessage: () -> Void = {}
     @State private var together = false
     @State private var error: String?
     @State private var terms = TermsGate()
+    @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { ctx in
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 12) {
-                    MonsterSprite(form: friend.form)
-                        .frame(width: 56, height: 56)
-                        .padding(6)
-                        .background(Theme.raised, in: .circle)
-                        .overlay(Circle().stroke(friend.isLive ? friend.color : Theme.stroke, lineWidth: 3))
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(friend.name).font(.title3.bold())
-                        Text(friend.form.name).font(.caption).foregroundStyle(Theme.dim)
-                        if friend.isLive {
-                            HStack(spacing: 5) {
-                                GMOnlineDot(size: 7)
-                                Text("AO VIVO · \(friend.kind.name) · \(friend.place)").font(.caption.bold()).foregroundStyle(friend.color)
-                            }
-                        } else {
-                            Text(friend.lastSeen).font(.caption).foregroundStyle(Theme.dim)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
+            VStack(alignment: .leading, spacing: 16) {
+                header(at: ctx.date)
                 if friend.isLive {
-                    HStack(spacing: 8) {
-                        ForEach(Array(friend.stats(at: ctx.date).enumerated()), id: \.offset) { _, s in
-                            VStack(spacing: 2) {
-                                Text(s.0).font(.headline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
-                                Text(s.1).font(.caption2).foregroundStyle(Theme.dim)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
-                        }
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("AGORA").font(.caption2.bold()).foregroundStyle(Theme.dim)
-                        Label(friend.now, systemImage: friend.kind.symbol).font(.subheadline.weight(.semibold))
-                        ForEach(friend.done, id: \.self) { d in
-                            Label(d, systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(Theme.dim)
-                        }
-                    }
+                    statsStrip(at: ctx.date)
+                    nowCard
+                    if let music = friend.music { musicRow(music) }
                 }
-                HStack(spacing: 10) {
-                    let on = cheered.contains(friend.id)
-                    GMButton(on ? "Força enviada" : "Mandar força 💪", icon: on ? "checkmark" : nil, kind: on ? .secondary : .primary,
-                             enabled: !on) {
-                        send { try await InboxStore.shared.cheer(friend.id) } done: {
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            withAnimation(.snappy) { _ = cheered.insert(friend.id) }
-                        }
-                    }
-                    GMIconButton(icon: "location.fill", size: 48, label: "Ver no mapa") { onShow() }
-                }
+                actions
                 if friend.isLive { togetherButton }
-                if let error {
-                    Text(error).font(.caption2).foregroundStyle(Theme.danger)
-                } else if cheered.contains(friend.id) || together {
-                    Text("Chegou na caixa de entrada de \(friend.name). A resposta aparece no sino da tela inicial.")
-                        .font(.caption2).foregroundStyle(Theme.dim)
-                }
+                feedback
             }
         }
         .termsGate($terms)
+        .onAppear {
+            guard friend.isLive, !reduceMotion else { return }
+            withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { pulse = true }
+        }
+    }
+
+    private func header(at date: Date) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                if friend.isLive {
+                    Circle().stroke(friend.color.opacity(0.5), lineWidth: 2)
+                        .scaleEffect(pulse ? 1.25 : 1)
+                        .opacity(pulse ? 0 : 1)
+                }
+                Circle().fill(friend.color.opacity(friend.isLive ? 0.14 : 0)).background(Theme.raised, in: .circle)
+                MonsterSprite(form: friend.form).padding(8)
+                    .saturation(friend.isLive ? 1 : 0.3)
+                Circle().stroke(friend.isLive ? friend.color : Theme.stroke, lineWidth: 3)
+            }
+            .frame(width: 76, height: 76)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(friend.name).gmFont(24, weight: .heavy, design: .rounded, relativeTo: .title2).lineLimit(1)
+                Text(friend.form.name).font(.caption).foregroundStyle(Theme.dim)
+                if friend.isLive {
+                    HStack(spacing: 6) {
+                        GMOnlineDot(size: 6)
+                        Text("AO VIVO").font(.caption2.weight(.heavy))
+                        Text(clock(friend.elapsed(at: date))).font(.caption2.weight(.heavy).monospacedDigit())
+                    }
+                    .foregroundStyle(friend.color)
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(friend.color.opacity(0.14), in: .capsule)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(liveLabel(minutes: friend.elapsed(at: date) / 60))
+                    Label("\(friend.kind.name) · \(friend.place)", systemImage: "mappin.and.ellipse")
+                        .font(.caption).foregroundStyle(Theme.dim).lineLimit(1)
+                } else {
+                    Text(friend.lastSeen).font(.caption).foregroundStyle(Theme.dim)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// Números do treino numa faixa só, com ícone por medida
+    private func statsStrip(at date: Date) -> some View {
+        let stats = friend.stats(at: date)
+        return HStack(spacing: 0) {
+            ForEach(Array(stats.enumerated()), id: \.offset) { i, s in
+                if i > 0 { Rectangle().fill(Theme.stroke).frame(width: 1, height: 34) }
+                VStack(spacing: 4) {
+                    Image(systemName: Self.icon(s.1)).font(.caption.bold()).foregroundStyle(friend.color)
+                    Text(s.0).font(.headline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(s.1).font(.caption2).foregroundStyle(Theme.dim)
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding(.vertical, 12)
+        .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusL))
+    }
+
+    private static func icon(_ label: String) -> String {
+        switch label {
+        case "tempo": "timer"
+        case "kcal": "flame.fill"
+        case "bpm": "heart.fill"
+        case "distância": "point.topleft.down.to.point.bottomright.curvepath"
+        case "ritmo", "velocidade": "speedometer"
+        default: "chart.bar.fill"
+        }
+    }
+
+    private var nowCard: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: friend.kind.symbol)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(friend.color)
+                .frame(width: 36, height: 36)
+                .background(friend.color.opacity(0.16), in: .circle)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("AGORA").font(.caption2.bold()).foregroundStyle(Theme.dim)
+                Text(friend.now).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+                ForEach(friend.done, id: \.self) { d in
+                    Label(d, systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(Theme.dim)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusL))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func musicRow(_ music: NowPlayingTrack) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "headphones")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Theme.health)
+                .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(music.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                Text(music.artist.isEmpty ? music.source.name : "\(music.artist) · \(music.source.name)")
+                    .font(.caption).foregroundStyle(Theme.dim).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(Theme.health.opacity(0.10), in: .rect(cornerRadius: Theme.radiusL))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Ouvindo \(music.title)\(music.artist.isEmpty ? "" : ", de \(music.artist)"), no \(music.source.name)")
+    }
+
+    /// Força e mensagem: ações com ícone e nome, para nenhuma ficar misteriosa.
+    /// Não há "ver no mapa": o card já abre com o mapa centrado no amigo
+    private var actions: some View {
+        let on = cheered.contains(friend.id)
+        return HStack(spacing: 10) {
+            ActionTile(icon: on ? "checkmark" : "hands.clap.fill", title: on ? "Força enviada" : "Mandar força",
+                       tint: on ? Theme.dim : .black, fill: on ? Theme.raised : Theme.accent, enabled: !on) {
+                send { try await InboxStore.shared.cheer(friend.id) } done: {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    withAnimation(.snappy) { _ = cheered.insert(friend.id) }
+                }
+            }
+            ActionTile(icon: "envelope.fill", title: "Mensagem", tint: .white, fill: Theme.raised, action: onMessage)
+        }
+    }
+
+    @ViewBuilder
+    private var feedback: some View {
+        if let error {
+            Text(error).font(.caption2).foregroundStyle(Theme.danger)
+        } else if cheered.contains(friend.id) || together {
+            Label("Chegou para \(friend.name). A resposta aparece no sino da tela inicial.", systemImage: "bell.fill")
+                .font(.caption2).foregroundStyle(Theme.dim)
+        }
     }
 
     /// Envia pela caixa de entrada (depois do aceite dos termos) e mostra o erro no card
@@ -267,7 +388,7 @@ struct LiveFriendCard: View {
         }
     }
 
-    /// Convite para treinar junto: cartão com o bro dos dois e a cor da atividade do amigo
+    /// Convite para treinar junto, na cor da atividade do amigo
     private var togetherButton: some View {
         Button {
             guard !together else { return }
@@ -277,32 +398,61 @@ struct LiveFriendCard: View {
             }
         } label: {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle().fill(friend.color.opacity(together ? 1 : 0.18))
-                    Image(systemName: together ? "checkmark" : "figure.2")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(together ? .black : friend.color)
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .frame(width: 44, height: 44)
+                Image(systemName: together ? "checkmark" : "figure.2")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(together ? .black : friend.color)
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 44, height: 44)
+                    .background(friend.color.opacity(together ? 1 : 0.18), in: .circle)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(together ? "Convite enviado" : "Treinar junto com \(friend.name)")
+                    Text(together ? "Convite enviado" : "Treinar junto")
                         .font(.subheadline.bold())
                     Text(together ? "\(friend.name) responde pela conversa de vocês."
-                                  : "Chama pra treinar junto no \(friend.place)")
+                                  : "Chama \(friend.name) pra treinar junto em \(friend.place)")
                         .font(.caption).foregroundStyle(Theme.dim).lineLimit(2)
                 }
                 Spacer(minLength: 0)
                 if !together {
-                    Image(systemName: "paperplane.fill").font(.subheadline.bold()).foregroundStyle(friend.color)
+                    Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(friend.color)
                 }
             }
             .padding(12)
-            .background(friend.color.opacity(together ? 0.16 : 0.08), in: .rect(cornerRadius: Theme.radiusL))
-            .overlay(RoundedRectangle(cornerRadius: Theme.radiusL).stroke(friend.color.opacity(together ? 0.9 : 0.45), lineWidth: 1.5))
+            .background(
+                LinearGradient(colors: [friend.color.opacity(together ? 0.22 : 0.14), friend.color.opacity(0.04)],
+                               startPoint: .leading, endPoint: .trailing),
+                in: .rect(cornerRadius: Theme.radiusL)
+            )
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusL).stroke(friend.color.opacity(together ? 0.9 : 0.4), lineWidth: 1.5))
             .foregroundStyle(.white)
         }
         .buttonStyle(GMPress())
+        .disabled(together)
+    }
+}
+
+/// Botão quadrado com ícone e nome embaixo (ações do card do amigo)
+private struct ActionTile: View {
+    let icon: String
+    let title: String
+    let tint: Color
+    let fill: Color
+    var enabled = true
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 18, weight: .bold))
+                    .contentTransition(.symbolEffect(.replace))
+                Text(title).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.75)
+            }
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .background(fill, in: .rect(cornerRadius: Theme.radiusL))
+        }
+        .buttonStyle(GMPress())
+        .disabled(!enabled)
+        .accessibilityLabel(title)
     }
 }
 
@@ -337,5 +487,14 @@ struct LiveFriendRow: View {
         }
         .contentShape(Rectangle())
         .opacity(friend.isLive ? 1 : 0.6)
+    }
+}
+
+/// Rótulo do VoiceOver para o tempo ao vivo, com singular e menos de um minuto
+func liveLabel(minutes: Int) -> String {
+    switch minutes {
+    case ..<1: "Ao vivo há menos de 1 minuto"
+    case 1: "Ao vivo há 1 minuto"
+    default: "Ao vivo há \(minutes) minutos"
     }
 }

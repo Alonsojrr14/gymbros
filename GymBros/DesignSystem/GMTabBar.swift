@@ -31,6 +31,16 @@ struct GMTabBar<Center: View>: View {
         .padding(5)
         .background(.ultraThinMaterial, in: .capsule)
         .overlay(Capsule().stroke(Theme.stroke))
+        .background {
+            GeometryReader { proxy in
+                // O bro do meio sobe 16 pt acima da barra
+                let frame = proxy.frame(in: .global).insetBy(dx: 0, dy: -10).offsetBy(dx: 0, dy: -6)
+                Color.clear
+                    .onAppear { OnboardingTargetRegistry.shared.tabBar = frame }
+                    .onChange(of: frame) { _, f in OnboardingTargetRegistry.shared.tabBar = f }
+                    .onDisappear { OnboardingTargetRegistry.shared.tabBar = .zero }
+            }
+        }
         .padding(.horizontal, 14)
         // Barra compacta: cresce com o texto só até um limite
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)

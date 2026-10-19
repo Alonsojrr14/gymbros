@@ -23,8 +23,9 @@ struct MapScreen: View {
     @State private var showFriends = true
     @State private var friend: LiveFriend?
     @State private var cheered: Set<String> = []
+    @State private var chat: LiveFriend?
     @State private var tick = Date.now
-    @AppStorage("shareLive") private var shareLive = false
+    @AppStorage(LiveShare.key) private var shareLive = LiveShare.defaultOn
 
     var body: some View {
         NavigationStack {
@@ -42,12 +43,17 @@ struct MapScreen: View {
             .gmSheet(isPresented: $settings) { _ in settingsSheet }
             .gmModal(item: $editing) { GymEditorView(gym: $0.gym) }
             .gmModal(item: $outdoor) { RouteRunView(kind: $0) }
+            .gmModal(item: $chat) { f in NavigationStack { ConversationView(peerID: f.id) } }
             .gmSheet(isPresented: Binding(get: { route != nil }, set: { if !$0 { route = nil } })) { _ in
                 if let r = route { routeDetail(r) }
             }
             .gmSheet(isPresented: Binding(get: { friend != nil }, set: { if !$0 { friend = nil } })) { close in
                 if let f = friend {
-                    LiveFriendCard(friend: f, cheered: $cheered) { close(); focus(f) }
+                    LiveFriendCard(friend: f, cheered: $cheered, onMessage: {
+                        close()
+                        // A conversa abre depois que o card termina de fechar
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { chat = f }
+                    })
                 }
             }
             .task {
@@ -84,7 +90,7 @@ struct MapScreen: View {
                 }
                 ForEach(FriendsLive.all) { f in
                     Annotation(f.name, coordinate: f.coordinate(base: b, at: tick)) {
-                        FriendPin(friend: f, date: tick).onTapGesture { friend = f }
+                        FriendPin(friend: f, date: tick).onTapGesture { focus(f); friend = f }
                     }
                     .annotationTitles(.hidden)
                 }
@@ -251,9 +257,9 @@ struct MapScreen: View {
             GMToggle(title: "Encerrar treino ao sair", subtitle: "Salva o treino em andamento (mais de 10 min) quando você sai do lugar", isOn: $autoFinish)
                 .onChange(of: autoFinish) { _, v in GymLocation.shared.autoFinish = v }
             GMDivider()
-            GMToggle(title: "Compartilhar treino ao vivo", subtitle: "Ainda não envia nada: chega quando o app tiver servidor. Aí amigos veriam onde você treina e o exercício atual, só durante o treino", isOn: $shareLive)
+            GMToggle(title: "Compartilhar treino ao vivo", subtitle: "Padrão dos próximos treinos: amigos veem onde você treina e o exercício atual, só durante o treino. Cada treino pode mudar no chip \"Ao vivo\". Ainda não envia nada: chega quando o app tiver servidor", isOn: $shareLive)
             GMDivider()
-            Text("Ao começar musculação ou CrossFit, o app reconhece o lugar ou pergunta onde você está. A localização fica só no seu iPhone.")
+            Text("Ao começar musculação ou CrossFit, o app reconhece o lugar ou pergunta onde você está. Fora de um treino ao vivo, a localização fica só no seu iPhone.")
                 .font(.caption).foregroundStyle(Theme.dim)
         }
     }

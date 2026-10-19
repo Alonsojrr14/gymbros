@@ -42,6 +42,7 @@ enum GMDateText {
 struct GMDateField: View {
     @Binding var date: Date
     var limitToNow = true
+    var minDate: Date? = nil
     var title = "Dia"
     @State private var open = false
     @State private var draft = Date.now
@@ -53,13 +54,13 @@ struct GMDateField: View {
         }
         .gmSheet(isPresented: $open) { close in
             VStack(spacing: 16) {
-                GMCalendar(selection: $draft, maxDate: limitToNow ? .now : nil)
+                GMCalendar(selection: $draft, maxDate: limitToNow ? .now : nil, minDate: minDate)
                 GMButton("Confirmar") {
                     // Mantém o horário, troca só o dia
                     let cal = Calendar.current
                     let t = cal.dateComponents([.hour, .minute], from: date)
                     let d = cal.date(bySettingHour: t.hour ?? 0, minute: t.minute ?? 0, second: 0, of: draft) ?? draft
-                    date = limitToNow ? min(d, .now) : d
+                    date = limitToNow ? min(d, .now) : minDate.map { max(d, $0) } ?? d
                     close()
                 }
             }
@@ -171,10 +172,11 @@ struct GMCalendar: View {
         let start = GMMonth.start(of: month)
         let cells = GMMonth.cells(month)
         let canGoForward = maxDate.map { cal.date(byAdding: .month, value: 1, to: start)! <= $0 } ?? true
+        let canGoBack = minDate.map { start > $0 } ?? true
 
         VStack(spacing: 14) {
             HStack {
-                GMIconButton(icon: "chevron.left", size: 36, label: "Mês anterior") { shift(-1) }
+                GMIconButton(icon: "chevron.left", size: 36, tint: canGoBack ? .white : Theme.dim, label: "Mês anterior") { if canGoBack { shift(-1) } }
                 Spacer()
                 Text(GMMonth.title(start)).font(.headline)
                 Spacer()

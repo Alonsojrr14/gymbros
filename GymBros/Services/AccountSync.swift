@@ -37,8 +37,8 @@ struct MockAccountDataBackend: AccountDataBackend {
     /// Onde os outros servidores simulados guardam o estado (nil: `UserDefaults.standard`)
     let serverSuite: String?
 
-    /// Estado dos outros servidores simulados (amigos, mensagens, denúncias e bloqueios): no servidor real é por conta
-    static let socialKeys = ["mockFriends", "mockInbox", "mockReports", "mockBlocks"]
+    /// Estado dos outros servidores simulados (amigos, mensagens, denúncias, bloqueios e X1): no servidor real é por conta
+    static let socialKeys = ["mockFriends", "mockInbox", "mockReports", "mockBlocks", MockDuelServer.key]
 
     init(folder: URL = URL.applicationSupportDirectory.appending(path: "MockServer", directoryHint: .isDirectory), serverSuite: String? = nil) {
         self.folder = folder
@@ -306,6 +306,7 @@ final class AccountSync {
     static func deviceReload() {
         ModerationStore.shared.reload()
         InboxStore.shared.reset()
+        MusicShareStore.shared.reload()
         GymLocation.shared.startMonitoring()
         PRBook.reload()
     }

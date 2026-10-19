@@ -32,11 +32,15 @@ final class HealthPrivacyTests: GymTestCase {
         XCTAssertEqual(OutgoingCheckIn(checkIn(a), activity: a).effort, 8)
     }
 
-    func testHealthTypeAloneCountsAsHealth() {
-        let a = healthRun()
-        a.healthUUID = nil
-        XCTAssertTrue(a.isFromHealth)
-        XCTAssertNil(OutgoingCheckIn(checkIn(a), activity: a).kcal)
+    /// O seletor grava o tipo exato em toda atividade do app: isso não a torna "do Saúde"
+    func testAppActivityWithHealthTypeIsNotHealth() {
+        let a = Activity(kind: .corrida, date: .now, minutes: 30, effort: 9)
+        a.healthType = 37
+        a.meters = 10_000
+        XCTAssertFalse(a.isFromHealth)
+        let out = OutgoingCheckIn(checkIn(a), activity: a)
+        XCTAssertEqual(out.effort, 9)
+        XCTAssertEqual(out.meters, 10_000)
     }
 
     func testAppGPSDistanceIsPublished() {

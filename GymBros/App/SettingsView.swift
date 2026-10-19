@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var auth = AuthStore.shared
     @State private var access = AccessStore.shared
     @State private var moderation = ModerationStore.shared
+    @State private var music = MusicShareStore.shared
     @State private var permission = NotificationPermission.shared
 
     var body: some View {
@@ -32,6 +33,10 @@ struct SettingsView: View {
                     GMDivider()
                     link(TrainingSettingsPage()) {
                         GMNavRow(icon: "dumbbell.fill", tint: Theme.streak, title: "Treino", value: autoWarmup ? "Aquecimento ligado" : nil)
+                    }
+                    GMDivider()
+                    link(MusicSettingsPage()) {
+                        GMNavRow(icon: "music.note", tint: Theme.health, title: "Música", value: music.sharing ? "Compartilhando" : "Desligado")
                     }
                     if HealthSync.available {
                         GMDivider()
@@ -233,6 +238,7 @@ struct SettingsView: View {
         MainMonster.id = nil
         let d = UserDefaults.standard
         for k in ["monsterNick", "lastFormID", "discovered", "achievementsSeen"] { d.removeObject(forKey: k) }
+        ActivitySplits.replace([:])
         WidgetData.defaults?.removeObject(forKey: "pets")
         WidgetCenter.shared.reloadAllTimelines()
         Roster.ensureStarter(context: context)

@@ -191,11 +191,13 @@ enum AccountData {
     /// (`mock…`), o tutorial (já separado por conta) e o dono dos dados ficam.
     static let userKeys: [String] = Backup.settingKeys + [
         "achievementsSeen", "profilePhoto", "publicStats", "publicMonster", "publicAchievements",
-        "remindersOn", "reminderMinute", "reminderRoutineOnly", "weeklySummary", "storyFrame", "shareLive", "headphoneInfoSeen",
+        "remindersOn", "reminderMinute", "reminderRoutineOnly", "weeklySummary", "storyFrame", "headphoneInfoSeen",
         "dexRevealAll", "deloadUntil", "deloadSnooze", "barCountsBar", PendingRoutineUpdate.key,
         "gymNotifyArrival", "gymAutoFinish", "gymInsideID", "gymArrival",
         "friendCode", "declinedFriendRequests", "pendingRetractions", DemoAccount.seededKey,
+        "recentWorkoutTypes", DuelStore.fightersKey, "duelScoreRecords",
     ] + HealthSync.defaultsKeys + ModerationStore.defaultsKeys + Terms.defaultsKeys + InboxStore.defaultsKeys + NotificationPrefs.defaultsKeys
+        + MusicShareStore.defaultsKeys + LiveShare.defaultsKeys
 
     /// Chaves que só limpam (refeitas sozinhas ou ligadas a uma sessão)
     static let transientKeys = ["cloudUserID"]
@@ -225,6 +227,7 @@ enum AccountData {
         }
         for k in ModerationStore.defaultsKeys + Terms.defaultsKeys { defaults.removeObject(forKey: k) }
         LeagueRemoteStore.shared.reset()
+        DuelStore.shared.reset()
         FriendsStore.shared.reset()
         for k in InboxStore.defaultsKeys { defaults.removeObject(forKey: k) }
         InboxStore.shared.reset()
@@ -237,6 +240,8 @@ enum AccountData {
         try Backup.deleteAll(in: context)
         try context.save()
         for k in Set(userKeys + transientKeys) { defaults.removeObject(forKey: k) }
+        // A divisão dos atributos é da conta (vai no snapshot dela) e tem cache em memória
+        ActivitySplits.replace([:])
         WidgetData.clear(widget)
     }
 
@@ -300,6 +305,7 @@ struct MockAuthBackend: AuthBackend {
         MockFriendsBackend.reset()
         MockModerationBackend.reset()
         MockInboxBackend.reset()
+        UserDefaults.standard.removeObject(forKey: MockDuelServer.key)
     }
 }
 

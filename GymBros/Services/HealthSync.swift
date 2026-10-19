@@ -90,7 +90,7 @@ enum HealthSync {
 
     private static func write(_ a: Activity, weight: Double) async throws -> UUID? {
         let config = HKWorkoutConfiguration()
-        config.activityType = activityType(a.kind)
+        config.activityType = a.healthType.flatMap { HKWorkoutActivityType(rawValue: UInt($0)) } ?? activityType(a.kind)
         config.locationType = [.corrida, .caminhada, .bike, .futebol, .volei].contains(a.kind) ? .outdoor : .indoor
         let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: .local())
         let start = a.date, end = a.date.addingTimeInterval(Double(max(a.minutes, 1)) * 60)
@@ -112,7 +112,7 @@ enum HealthSync {
         }
     }
 
-    static func activityType(_ k: ActivityKind) -> HKWorkoutActivityType {
+    nonisolated static func activityType(_ k: ActivityKind) -> HKWorkoutActivityType {
         switch k {
         case .musculacao: .traditionalStrengthTraining
         case .crossfit: .crossTraining
@@ -181,6 +181,7 @@ enum HealthSync {
             activity.meters = distance(w)
             activity.source = w.sourceRevision.source.name
             context.insert(activity)
+            ActivitySplits.stamp(activity, context: context)
             ranges.append((start, end))
             result.imported.append(activity)
         }
@@ -212,7 +213,7 @@ enum HealthSync {
         return try? await q.result(for: store).first?.quantity.doubleValue(for: .gramUnit(with: .kilo))
     }
 
-    static func kind(for type: HKWorkoutActivityType) -> ActivityKind {
+    nonisolated static func kind(for type: HKWorkoutActivityType) -> ActivityKind {
         switch type {
         case .running: .corrida
         case .walking, .hiking: .caminhada

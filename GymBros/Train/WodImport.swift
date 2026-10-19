@@ -24,10 +24,10 @@ struct PlannedWod: Codable, Identifiable, Hashable {
     var parts: [WodPart] = []
 
     var wodID: String { "coach-" + id.uuidString }
-    var wod: Wod { Wod(id: wodID, name: name, category: "Coach", format: format, lines: lines) }
+    var wod: Wod { Wod(id: wodID, name: name, category: "Coach", format: format, lines: lines, exercises: WodMovements.ids(lines)) }
 }
 
-/// WODs agendados, em `UserDefaults` (poucos itens; os mais velhos que 14 dias saem sozinhos)
+/// WODs do coach importados, em `UserDefaults`. Ficam todos: são a linha do tempo dos seus WODs (WodTimelineView)
 enum WodPlan {
     static let key = "plannedWods"
 
@@ -45,9 +45,7 @@ enum WodPlan {
     static func delete(_ p: PlannedWod) { store(all().filter { $0.id != p.id }) }
 
     private static func store(_ list: [PlannedWod]) {
-        let limit = Calendar.current.date(byAdding: .day, value: -14, to: Calendar.current.startOfDay(for: .now))!
-        let kept = list.filter { $0.day >= limit }
-        UserDefaults.standard.set(String(data: (try? JSONEncoder().encode(kept)) ?? Data(), encoding: .utf8), forKey: key)
+        UserDefaults.standard.set(String(data: (try? JSONEncoder().encode(list)) ?? Data(), encoding: .utf8), forKey: key)
     }
 
     /// WOD de um dia que ainda não tem resultado salvo
@@ -71,6 +69,8 @@ struct WodDraft: Equatable {
     var parts: [WodPart] = []
     /// Nenhum formato apareceu no texto: For Time sem limite é só um palpite
     var guessed = true
+    /// Dia que veio no título ("WOD 19/10/2026", "Treino sexta 17/10")
+    var day: Date?
 }
 
 enum WodParser {
@@ -86,32 +86,42 @@ enum WodParser {
     ]
 
     static func parse(_ text: String) -> WodDraft {
-        let lines = text.components(separatedBy: .newlines).map(clean).filter { !$0.isEmpty }
+        let lines = text.components(separatedBy: .newlines).map(clean).filter { !$0.isEmpty && !isNoise($0) }
         var sections: [(kind: Kind?, title: String, lines: [String])] = [(nil, "", [])]
+        var day: Date?
         for line in lines {
             if let (kind, title, rest) = header(line) {
-                sections.append((kind, title, rest.isEmpty ? [] : [rest]))
+                day = day ?? date(in: line)
+                sections.append((kind, title, rest.isEmpty ? [] : [tidy(rest)]))
             } else {
-                sections[sections.count - 1].lines.append(line)
+                sections[sections.count - 1].lines.append(tidy(line))
             }
         }
+        let hasHeaders = sections.contains { $0.kind != nil }
+        if hasHeaders { day = day ?? sections[0].lines.lazy.compactMap { date(in: $0) }.first }
         sections.removeAll { $0.kind == nil && $0.lines.isEmpty }
 
-        let hasHeaders = sections.contains { $0.kind != nil }
         let wodIndex = sections.lastIndex { $0.kind == .wod }
             ?? sections.lastIndex { $0.lines.contains { format(in: $0) != nil } }
             ?? (hasHeaders ? sections.lastIndex { $0.kind != nil } : sections.indices.last)
 
         var draft = WodDraft()
+        draft.day = day
         guard let wodIndex else { return draft }
         let wodLines = sections[wodIndex].lines
-        if let found = wodLines.lazy.compactMap(format(in:)).first {
+        if let blocks = intervals(wodLines) {
+            draft.format = blocks
+            draft.guessed = false
+            draft.lines = wodLines.filter { !isOnlyFormat($0) || blockMinutes($0) != nil }
+        } else if let found = wodLines.lazy.compactMap(format(in:)).first {
             draft.format = found
             draft.guessed = false
             // "For time" numa linha e "Cap: 15'" na outra
             if case .forTime(nil) = found, let c = wodLines.lazy.compactMap(cap(in:)).first { draft.format = .forTime(capMinutes: c) }
+            draft.lines = wodLines.filter { !isOnlyFormat($0) }
+        } else {
+            draft.lines = wodLines.filter { !isOnlyFormat($0) }
         }
-        draft.lines = wodLines.filter { !isOnlyFormat($0) }
         // Antes do primeiro título costuma vir "Treino de sexta 17/10" ou o nome do box: não é parte do treino
         draft.parts = sections.enumerated().compactMap { i, s in
             i == wodIndex || s.kind == nil || s.lines.isEmpty ? nil : WodPart(title: s.title, lines: s.lines)
@@ -132,7 +142,83 @@ enum WodParser {
         return s.trimmingCharacters(in: .whitespaces)
     }
 
-    /// "AQUECIMENTO", "B) Força:", "WOD: AMRAP 15'" (o que vem depois dos dois-pontos fica como linha)
+    /// Linha do jeito que o atleta lê: "03 DEVIL PRESS (2DB)" → "3 Devil press (2 DB)", "REST 2'" → "Descanso 2'"
+    static func tidy(_ line: String) -> String {
+        var s = line.replacingOccurrences(of: "^0+(\\d)", with: "$1", options: .regularExpression)
+            .replacingOccurrences(of: "(\\d)\\s*(kb|db|bb)\\b", with: "$1 $2", options: [.regularExpression, .caseInsensitive])
+        let shouting = !s.contains(where: \.isLowercase) && s.filter(\.isLetter).count >= 4
+        for (typo, fix) in typos {
+            s = s.replacingOccurrences(of: "\\b\(typo)\\b", with: shouting ? fix.uppercased() : fix, options: [.regularExpression, .caseInsensitive])
+        }
+        if shouting { s = sentenceCase(s) }
+        return s.replacingOccurrences(of: "^(?:rest|desc\\.?|pausa)(?=[\\s:\\d]|$)\\s*:?\\s*", with: "Descanso ",
+                                      options: [.regularExpression, .caseInsensitive])
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    private static let typos = [("burpeers", "burpees"), ("burpeer", "burpee"), ("burpes", "burpees"), ("dumbels", "dumbbells"),
+                                ("dumbells", "dumbbells"), ("dumbel", "dumbbell"), ("dumbell", "dumbbell"), ("dumbbel", "dumbbell"),
+                                ("kettlebel", "kettlebell"), ("wallball", "wall ball"),
+                                ("shoud", "shoulder"), ("shouder", "shoulder"), ("sholder", "shoulder")]
+
+    private static let acronyms = "kb|db|bb|amrap|emom|e\\dmom|wod|hspu|t2b|ttb|c2b|ctb|ghd|rm|pr|bjo|bbjo|ohs|du|sdhp|tgu|hpc|rx|tc|ft|rdl|dl|bmu|rmu|k2e|hsw|lpo|mmss|mmii|ii"
+
+    /// "5 WALL BALL" → "5 Wall ball", mantendo siglas (KB, DB, AMRAP…) em maiúsculas
+    private static func sentenceCase(_ line: String) -> String {
+        var s = line.lowercased()
+        if let re = try? NSRegularExpression(pattern: "\\b(?:\(acronyms))\\b") {
+            for m in re.matches(in: s, range: NSRange(s.startIndex..., in: s)).reversed() {
+                if let r = Range(m.range, in: s) { s.replaceSubrange(r, with: s[r].uppercased()) }
+            }
+        }
+        if let i = s.firstIndex(where: \.isLetter) { s.replaceSubrange(i...i, with: s[i].uppercased()) }
+        return s
+    }
+
+    /// Marca d'água do app do box ("TECNOFIT" no rodapé do print)
+    static func isNoise(_ line: String) -> Bool {
+        // Contador solto de curtidas/comentários ("0") e setas de navegação
+        if line.range(of: "^[\\d<>‹›]{1,2}$", options: .regularExpression) != nil { return true }
+        let key = line.lowercased().filter { $0.isLetter || $0 == " " || $0 == "-" }.trimmingCharacters(in: .whitespaces)
+        return ["tecnofit", "nextfit", "next fit", "wodify", "sugarwod", "btwb", "pushpress", "push press app", "zen planner",
+                "check-in", "checkin", "ações", "acoes", "cross"].contains(key)
+    }
+
+    /// "19/10/2026", "17/10" (sem ano: este ano); cargas como "9/6kg" não contam
+    static func date(in line: String) -> Date? {
+        guard let m = match("(?<![\\d/])(\\d{1,2})/(\\d{1,2})(?:/(\\d{2,4}))?(?![\\d/])(?!\\s*(?:kg|lb))", line),
+              let d = Int(m[1]), let mo = Int(m[2]), (1...31).contains(d), (1...12).contains(mo) else { return nil }
+        let cal = Calendar.current
+        var y = Int(m[3]) ?? cal.component(.year, from: .now)
+        if y < 100 { y += 2000 }
+        return cal.date(from: DateComponents(year: y, month: mo, day: d))
+    }
+
+    /// Blocos com descanso ("AMRAP 3' / Descanso 2' / AMRAP 3'…"): um cronômetro só, com o tempo total
+    private static func intervals(_ lines: [String]) -> WodFormat? {
+        let blocks = lines.filter(isOnlyFormat).compactMap(format(in:))
+        let rest = lines.compactMap(restSeconds).reduce(0, +)
+        let amraps = blocks.compactMap { if case .amrap(let m) = $0 { m } else { nil } }
+        let emoms = blocks.compactMap { if case .emom(let m) = $0 { m } else { nil } }
+        let total = { (m: [Int]) in min(90, m.reduce(0, +) + Int((Double(rest) / 60).rounded(.up))) }
+        if amraps.count > 1, emoms.isEmpty { return .amrap(minutes: total(amraps)) }
+        if emoms.count > 1, amraps.isEmpty { return .emom(minutes: total(emoms)) }
+        return nil
+    }
+
+    private static func blockMinutes(_ line: String) -> Int? {
+        switch format(in: line) {
+        case .amrap(let m), .emom(let m): m
+        default: nil
+        }
+    }
+
+    private static func restSeconds(_ line: String) -> Int? {
+        guard let m = match("^descanso\\s*(\\d{1,3})\\s*('|’|min|s\\b|seg|\")?", line), let n = Int(m[1]) else { return nil }
+        return ["s", "seg", "\""].contains(m[2].lowercased()) ? n : n * 60
+    }
+
+    /// "AQUECIMENTO", "B) Força:", "WOD: AMRAP 15'", "WOD 1", "WOD 19/10/2026" (o que vem depois dos dois-pontos fica como linha)
     private static func header(_ line: String) -> (Kind, String, String)? {
         let stripped = line.replacingOccurrences(of: "^([a-zA-Z0-9][).]|parte \\d+)\\s*", with: "", options: [.regularExpression, .caseInsensitive])
         let lower = stripped.lowercased()
@@ -141,6 +227,14 @@ enum WodParser {
                 let rest = stripped.dropFirst(w.count)
                 guard rest.isEmpty || !(rest.first!.isLetter) else { continue }
                 let tail = rest.trimmingCharacters(in: CharacterSet(charactersIn: " :-–—|"))
+                if tail.range(of: "^\\d{1,2}/\\d{1,2}(/\\d{2,4})?$", options: .regularExpression) != nil { return (kind, title, "") }
+                if let inner = match("^\\(([^()]{2,30})\\)$", tail)?[1] {
+                    let name = w == "lpo" ? "LPO" : title
+                    return (kind, "\(name) (\(inner.lowercased().capitalizedFirst))", "")
+                }
+                if tail.range(of: "^(\\d{1,2}|[a-z])$", options: [.regularExpression, .caseInsensitive]) != nil {
+                    return (kind, "\(title) \(tail.uppercased())", "")
+                }
                 // "Core: 3x20 abdominais" é título com conteúdo; "Força total no agachamento" não é título
                 if tail.isEmpty || rest.trimmingCharacters(in: .whitespaces).first.map({ ":-–—|".contains($0) }) == true || format(in: tail) != nil {
                     return (kind, title, tail)
@@ -196,7 +290,11 @@ enum WodParser {
 enum WodOCR {
     /// Texto de um print ou foto, de cima para baixo; horários soltos de mensagens ("10:32") saem
     static func text(from image: UIImage) async throws -> String {
-        guard let cg = image.cgImage else { return "" }
+        try await lines(from: image).joined(separator: "\n")
+    }
+
+    static func lines(from image: UIImage) async throws -> [String] {
+        guard let cg = image.cgImage else { return [] }
         let orientation = CGImagePropertyOrientation(image.imageOrientation)
         return try await Task.detached(priority: .userInitiated) {
             let request = VNRecognizeTextRequest()
@@ -204,12 +302,56 @@ enum WodOCR {
             request.recognitionLanguages = ["pt-BR", "en-US"]
             request.usesLanguageCorrection = true
             try VNImageRequestHandler(cgImage: cg, orientation: orientation).perform([request])
+            // De cima para baixo (no Vision, y cresce para cima); na mesma altura, da esquerda para a direita
             return (request.results ?? [])
+                .sorted { abs($0.boundingBox.midY - $1.boundingBox.midY) > 0.008 ? $0.boundingBox.midY > $1.boundingBox.midY
+                                                                              : $0.boundingBox.minX < $1.boundingBox.minX }
                 .compactMap { $0.topCandidates(1).first?.string }
                 .filter { $0.range(of: "^\\d{1,2}:\\d{2}$", options: .regularExpression) == nil }
-                .joined(separator: "\n")
         }.value
     }
+
+    /// Treino que não coube num print só: junta as partes pela sobreposição (o fim de um print repete o começo do outro),
+    /// em qualquer ordem de escolha. O título que se repete no topo de cada print fica uma vez só.
+    static func merge(_ pages: [[String]]) -> [String] {
+        let pages = pages.map { $0.filter { !key($0).isEmpty && !WodParser.isNoise(WodParser.clean($0)) } }.filter { !$0.isEmpty }
+        guard pages.count > 1 else { return pages.first ?? [] }
+        let repeated = pages.dropFirst().reduce(Set(pages[0].prefix(3).map(key))) { $0.intersection($1.prefix(3).map(key)) }
+        let title = pages[0].prefix(3).filter { repeated.contains(key($0)) }
+        var rest = pages.map { $0.filter { !repeated.contains(key($0)) } }
+        var chain = rest.removeFirst()
+        while !rest.isEmpty {
+            var best = (index: 0, lines: chain + rest[0], size: 0)
+            for (i, p) in rest.enumerated() {
+                for joined in [join(chain, p), join(p, chain)] where joined.size > best.size {
+                    best = (i, joined.lines, joined.size)
+                }
+            }
+            // Sem sobreposição: vale a ordem em que os prints foram escolhidos
+            if best.size == 0 { best.lines = chain + rest[best.index] }
+            rest.remove(at: best.index)
+            chain = best.lines
+        }
+        return title + chain
+    }
+
+    /// `a` em cima de `b`: o maior trecho repetido perto da emenda (fim de `a`, começo de `b`). O que sobra depois do
+    /// trecho em `a` (botão flutuante, linha cortada) e antes dele em `b` (título, linha cortada) sai.
+    private static func join(_ a: [String], _ b: [String]) -> (lines: [String], size: Int) {
+        let ka = a.map(key), kb = b.map(key)
+        var best = (i: 0, j: 0, k: 0)
+        for i in ka.indices {
+            for j in kb.indices.prefix(4) {
+                var k = 0
+                while i + k < ka.count, j + k < kb.count, ka[i + k] == kb[j + k] { k += 1 }
+                if k > best.k, ka.count - (i + k) <= 3 { best = (i, j, k) }
+            }
+        }
+        guard best.k >= min(2, a.count, b.count) else { return (a + b, 0) }
+        return (Array(a[..<(best.i + best.k)]) + b[(best.j + best.k)...], best.k)
+    }
+
+    private static func key(_ line: String) -> String { line.lowercased().filter { $0.isLetter || $0.isNumber } }
 }
 
 private extension CGImagePropertyOrientation {
@@ -279,7 +421,7 @@ enum WodAI {
             default: d.format = .forTime(capMinutes: n)
             }
             d.guessed = false
-            d.lines = ai.movimentos.map(WodParser.clean).filter { !$0.isEmpty }
+            d.lines = ai.movimentos.map { WodParser.tidy(WodParser.clean($0)) }.filter { !$0.isEmpty }
             d.parts = ai.partes.map { WodPart(title: $0.titulo, lines: $0.linhas.map(WodParser.clean).filter { !$0.isEmpty }) }.filter { !$0.lines.isEmpty }
             return d
         }
@@ -293,9 +435,12 @@ enum WodAI {
 /// Colar o texto ou escolher o print, conferir e agendar
 struct ImportWodView: View {
     var editing: PlannedWod?
+    /// Usado no registro de atividade: o dia do treino e o que fazer com o WOD salvo (em vez de agendar ou começar)
+    var initialDay: Date?
+    var onPick: ((PlannedWod) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @State private var raw = ""
-    @State private var photo: PhotosPickerItem?
+    @State private var photos: [PhotosPickerItem] = []
     @State private var reading = false
     @State private var error: String?
     @State private var reviewing = false
@@ -313,16 +458,18 @@ struct ImportWodView: View {
 
     var body: some View {
         GMModal(editing == nil ? "Treino do coach" : "Editar treino", confirm: reviewing ? "Salvar" : nil, confirmEnabled: !lines.isEmpty,
-                onConfirm: { save(); dismiss() }) {
+                onConfirm: { let p = save(); onPick?(p); dismiss() }) {
             if reviewing { review } else { input }
         }
         .overlay { if reading { readingOverlay } }
         .animation(.snappy, value: reviewing)
-        .onChange(of: photo) { _, item in if let item { Task { await read(item) } } }
+        .onChange(of: photos) { _, items in if !items.isEmpty { Task { await read(items) } } }
         .onChange(of: dayChoice) { _, c in
             if c < 2 { day = Calendar.current.date(byAdding: .day, value: c, to: Calendar.current.startOfDay(for: .now))! }
         }
-        .onAppear { if let editing { load(editing) } }
+        .onAppear {
+            if let editing { load(editing) } else if let d = initialDay { setDay(d) }
+        }
         .gmModal(item: $start) { WodTimerView(wod: $0) }
     }
 
@@ -344,10 +491,10 @@ struct ImportWodView: View {
         .padding(.top, 4)
 
         HStack(spacing: 12) {
-            PhotosPicker(selection: $photo, matching: .screenshots) {
-                sourceTile(icon: "text.viewfinder", title: "Print", subtitle: "Captura de tela")
+            PhotosPicker(selection: $photos, maxSelectionCount: 6, selectionBehavior: .ordered, matching: .screenshots) {
+                sourceTile(icon: "text.viewfinder", title: "Prints", subtitle: "Um ou mais, se não coube")
             }
-            PhotosPicker(selection: $photo, matching: .images) {
+            PhotosPicker(selection: $photos, maxSelectionCount: 6, selectionBehavior: .ordered, matching: .images) {
                 sourceTile(icon: "photo.on.rectangle", title: "Foto", subtitle: "Ex.: quadro do box")
             }
         }
@@ -471,7 +618,7 @@ struct ImportWodView: View {
             }
         }
 
-        GMSection("WOD", footer: "Um movimento por linha; é o que aparece no cronômetro.") {
+        GMSection("WOD", footer: recognizedFooter) {
             WodTextEditor(text: $linesText, placeholder: "10 wall balls\n10 burpees", minHeight: 120)
         }
 
@@ -496,7 +643,12 @@ struct ImportWodView: View {
         }
 
         VStack(spacing: 6) {
-            if Calendar.current.isDateInToday(day) {
+            if let onPick {
+                GMButton("Usar este WOD", icon: "checkmark", enabled: !lines.isEmpty) {
+                    onPick(save())
+                    dismiss()
+                }
+            } else if Calendar.current.isDateInToday(day) {
                 GMButton("Salvar e começar agora", icon: "play.fill", enabled: !lines.isEmpty) { start = save().wod }
             } else {
                 GMButton("Agendar para \(PlannedWodView.dayText(day).prefix(1).lowercased() + PlannedWodView.dayText(day).dropFirst())", icon: "calendar.badge.plus", enabled: !lines.isEmpty) {
@@ -509,6 +661,12 @@ struct ImportWodView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    private var recognizedFooter: String {
+        let names = WodMovements.ids(lines).compactMap(Exercise.byID).map(\.name)
+        return "Um movimento por linha; é o que aparece no cronômetro."
+            + (names.isEmpty ? "" : "\nReconhecidos: " + names.joined(separator: ", ") + ".")
     }
 
     private var lines: [String] {
@@ -548,6 +706,12 @@ struct ImportWodView: View {
         reviewing = true
     }
 
+    private func setDay(_ d: Date) {
+        let offset = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: .now), to: Calendar.current.startOfDay(for: d)).day ?? 2
+        dayChoice = (0...1).contains(offset) ? offset : 2
+        day = d
+    }
+
     private func apply(_ f: WodFormat) {
         switch f {
         case .forTime(let cap): kind = 0; minutes = cap ?? 0
@@ -557,15 +721,19 @@ struct ImportWodView: View {
         }
     }
 
-    private func read(_ item: PhotosPickerItem) async {
+    private func read(_ items: [PhotosPickerItem]) async {
         error = nil
         reading = true
-        defer { reading = false; photo = nil }
-        guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
-            error = "Não deu para abrir a imagem."
-            return
+        defer { reading = false; photos = [] }
+        var pages: [[String]] = []
+        for item in items {
+            guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
+                error = items.count == 1 ? "Não deu para abrir a imagem." : "Não deu para abrir uma das imagens."
+                return
+            }
+            pages.append((try? await WodOCR.lines(from: image)) ?? [])
         }
-        let text = (try? await WodOCR.text(from: image)) ?? ""
+        let text = WodOCR.merge(pages).joined(separator: "\n")
         guard !text.isEmpty else {
             error = "Não achei texto nessa imagem. Tente um print mais de perto."
             return
@@ -585,6 +753,7 @@ struct ImportWodView: View {
             return
         }
         apply(draft.format)
+        if let d = draft.day { setDay(d) }
         linesText = draft.lines.joined(separator: "\n")
         parts = draft.parts
         guessed = draft.guessed
@@ -623,6 +792,8 @@ struct PlannedWodView: View {
     @State private var start: Wod?
     @State private var editing = false
     @State private var confirmDelete = false
+    @State private var info: Exercise?
+    @Query(sort: \WodResult.date, order: .reverse) private var allResults: [WodResult]
 
     /// Volta da edição com o que foi salvo
     private var plan: PlannedWod { WodPlan.all(raw).first { $0.id == initial.id } ?? initial }
@@ -639,12 +810,29 @@ struct PlannedWodView: View {
                 Text(plan.format.detail).font(.caption).foregroundStyle(Theme.dim)
                 ForEach(Array(plan.lines.enumerated()), id: \.offset) { Text($0.element).font(.headline) }
             }
+            let done = allResults.filter { $0.wodID == plan.wodID }
+            if !done.isEmpty {
+                GMSection("Seu resultado") {
+                    ForEach(done) { r in
+                        GMValueRow(label: r.date.formatted(date: .abbreviated, time: .omitted), value: r.text + (r.rx ? " RX" : ""))
+                    }
+                }
+            }
+            let movements = WodMovements.ids(plan.parts.flatMap(\.lines) + plan.lines).compactMap(Exercise.byID)
+            if !movements.isEmpty {
+                GMSection("Movimentos") {
+                    ForEach(movements) { e in
+                        GMRow(title: e.name, chevron: true, action: { info = e }) { ExerciseThumb(exercise: e, size: 36) }
+                    }
+                }
+            }
             GMButton("Começar WOD", icon: "play.fill") { start = plan.wod }
             GMButton("Editar", icon: "pencil", kind: .secondary) { editing = true }
             GMButton("Apagar treino", icon: "trash", kind: .danger) { confirmDelete = true }
         }
         .gmModal(item: $start) { WodTimerView(wod: $0) }
         .gmModal(isPresented: $editing) { ImportWodView(editing: plan) }
+        .gmModal(item: $info) { ExerciseInfoView(exercise: $0) }
         .gmActions(isPresented: $confirmDelete, title: "Apagar \(plan.name)?", message: "Resultados já salvos continuam no histórico.",
                    actions: [GMAction("Apagar", icon: "trash", destructive: true) { WodPlan.delete(plan); dismiss() }])
     }

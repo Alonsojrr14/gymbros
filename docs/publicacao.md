@@ -21,10 +21,11 @@ Ordem sugerida: conta e assinatura → código de desenvolvimento → servidor �
 ## 3. Servidor (CloudKit)
 
 - [ ] `Backend.mode = .cloudKit` (`Services/Backend.swift`). Sem isso, login e ligas continuam simulados.
-- [ ] Esquema criado no Dashboard (Development) com índices: `Profile`, `League`, `Member`, `CheckIn`, `Message`, `FriendLink`, `Report`, `Block`, `RoleAssignment` (`cloudkit.md` → "Esquema").
+- [ ] Esquema criado no Dashboard (Development) com índices: `Profile`, `League` (com `swiss`), `Member` (com `joinedAt`), `CheckIn`, `Message`, `FriendLink`, `Report`, `Block`, `Duel`, `RoleAssignment` (`cloudkit.md` → "Esquema").
 - [ ] Security Roles conferidas: `World: Read · Authenticated: Create · Creator: Write`; `Report`/`Block` sem `World: Read`; `RoleAssignment` só `Authenticated: Read` (`cloudkit.md` → "Permissões", `rbac.md`).
 - [ ] `RoleAssignment` criados para as contas `ADMIN`/`DEVELOPER`, cada uma listando também `USER`.
-- [ ] Testado no aparelho com **duas** contas do iCloud: criar e entrar em liga, check-in com foto, mural, amizade, denunciar, bloquear, excluir conta.
+- [ ] Testado no aparelho com **duas** contas do iCloud: criar e entrar em liga, check-in com foto, mural, rodada suíça igual nos dois aparelhos, amizade, X1 (desafiar, aceitar, placar dos dois lados), denunciar, bloquear, excluir conta.
+- [ ] Valor do X1 sem distância e calorias do Apple Saúde antes de ligar o CloudKit (`cloudkit.md` → "Checklist do que falta no servidor (X1)").
 - [ ] **Deploy Schema Changes** para Production.
 - [ ] Processo de moderação definido para o prazo de 24 h prometido no app: quem olha a fila de `Report` no Dashboard e como tira conteúdo do ar e expulsa o autor (`cloudkit.md` → "Checklist do que falta no servidor (moderação)").
 - [ ] Decidido o que fazer com as pendências de exclusão de conta: ligas sem dono, `FriendLink` de outras pessoas, revogação do token da Apple (`cloudkit.md` → "Checklist do que falta no servidor (conta)").
@@ -35,6 +36,9 @@ Ordem sugerida: conta e assinatura → código de desenvolvimento → servidor �
 - [ ] `NSPrivacyCollectedDataTypes` nos `PrivacyInfo.xcprivacy` (app e widget) refletindo o que passa a subir: nome, @usuário, bio, foto de check-in, conteúdo gerado, id do usuário (`requisitos-nao-funcionais.md`).
 - [ ] App Privacy no App Store Connect igual ao manifesto.
 - [ ] Termos de uso conferidos e com versão nova se o texto mudou (`termos.md`, `Terms.version`).
+- [x] Política e termos citam as coordenadas da academia no convite para treinar junto (termos versão 2, 19/10/2026).
+- [ ] Política e termos cobrindo o X1 (nome, bro e total na métrica vão para o adversário) (`servidor-real.md`).
+- [ ] Música: `NSAppleMusicUsageDescription` conferido e, quando a música subir com o status ao vivo, manifesto e rótulos atualizados (`app-review.md` → "PrivacyInfo").
 - [ ] Texto de uso da localização em segundo plano explicado para a revisão (percurso de corrida e automações de academia).
 
 ## 5. Build e testes
@@ -45,14 +49,14 @@ Ordem sugerida: conta e assinatura → código de desenvolvimento → servidor �
   ```
 - [ ] Build **Release** compila sem warnings novos (`-configuration Release`).
 - [ ] Instalar o Release no aparelho e conferir: login sem a seção "Desenvolvimento", Ajustes sem "Diagnóstico" para conta comum, onboarding na primeira abertura.
-- [ ] Atualização por cima da versão anterior: dados, bros e sessão continuam (sem recuperação do banco).
+- [ ] Atualização por cima da versão anterior: dados, bros e sessão continuam (sem recuperação do banco). O banco migra de `SchemaV1` para `SchemaV2` (`League.swissRaw`, estágio leve em `AppMigrationPlan`; `StoreTests.testV1StoreMigratesToV2`).
 - [ ] Backup exportado na versão anterior restaura na nova.
 - [ ] Widgets, Live Activity e controles funcionando com o App Group novo.
 
 ## 6. App Store
 
 - [ ] Rodar a auditoria de revisão (skill `appstore-review`) e resolver o que aparecer.
-- [ ] Conta de demonstração e notas da revisão: texto pronto em [app-review.md](app-review.md) (conta demo, denunciar/bloquear, excluir conta, termos, privacidade, localização "Sempre" e Saúde).
+- [ ] Conta de demonstração e notas da revisão: texto pronto em [app-review.md](app-review.md) (conta demo, X1, rodada suíça, denunciar/bloquear, excluir conta, termos, privacidade, localização "Sempre", Apple Music e Saúde).
 - [ ] Capturas de tela, descrição, palavras-chave e classificação etária (conteúdo gerado por usuários).
 - [ ] URLs no App Store Connect: suporte e marketing `https://alonsojrr14.github.io/gymbros/` (landing em `index.html`, seção "Suporte"), privacidade `https://alonsojrr14.github.io/gymbros/privacidade/`. Para o Google Play, a exclusão de conta fica em `https://alonsojrr14.github.io/gymbros/excluir-conta/` (`excluir-conta.md`).
 - [ ] Login obrigatório justificado nas notas por 5.1.1(v): progresso do bro, treinos e perfil pertencem à conta e alimentam ligas, amigos e perfil público ([app-review.md](app-review.md)).

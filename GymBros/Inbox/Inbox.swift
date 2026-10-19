@@ -25,8 +25,18 @@ struct TrainInvite: Codable, Hashable, Sendable {
     var place: String
     /// Quando; nil = agora
     var when: Date?
+    /// Local salvo de quem convidou, para o amigo abrir no mapa mesmo sem ter esse lugar
+    var latitude: Double?
+    var longitude: Double?
 
     var kind: ActivityKind { ActivityKind(rawValue: kindRaw) ?? .outro }
+
+    var mapsURL: URL? {
+        guard let latitude, let longitude else { return nil }
+        var c = URLComponents(string: "https://maps.apple.com/")
+        c?.queryItems = [URLQueryItem(name: "ll", value: "\(latitude),\(longitude)"), URLQueryItem(name: "q", value: place.isEmpty ? "Treino" : place)]
+        return c?.url
+    }
 
     /// "Agora", "Hoje, 19:00", "Amanhã, 07:00" ou "sáb., 25 out., 08:00"
     var whenText: String {
@@ -81,6 +91,8 @@ struct InboxEvent: Codable, Hashable, Identifiable, Sendable {
         case friendRequest
         /// Vindos das mensagens diretas
         case cheer, invite, inviteReply
+        /// X1 (`targetID` = id do X1): desafio recebido, aceito, recusado, expirado e resultado
+        case duelChallenge, duelAccepted, duelDeclined, duelExpired, duelResult
     }
 
     let id: String
@@ -92,7 +104,7 @@ struct InboxEvent: Codable, Hashable, Identifiable, Sendable {
     var text = ""
     var detail = ""
     var targetID: String?
-    /// Resposta a convite: topou?
+    /// Resposta a convite ou a desafio: topou? (nil = ainda pendente)
     var accepted: Bool?
 
     var actorForm: MonsterForm { MonsterForm.byID(actorFormID) ?? .egg }
@@ -104,6 +116,7 @@ struct InboxEvent: Codable, Hashable, Identifiable, Sendable {
         case .friendRequest: .friendRequests
         case .cheer: .cheers
         case .invite, .inviteReply: .invites
+        case .duelChallenge, .duelAccepted, .duelDeclined, .duelExpired, .duelResult: .duels
         }
     }
 }
@@ -153,9 +166,10 @@ enum InboxRoute: Equatable {
 final class InboxStore {
     static let shared = InboxStore()
 
-    static let seenKey = "inboxSeenAt", readKey = "inboxReadUntil", notifiedKey = "inboxNotified", requestsKey = "inboxRequestsSeen"
+    static let seenKey = "inboxSeenAt", readKey = "inboxReadUntil", notifiedKey = "inboxNotified", requestsKey = "inboxRequestsSeen",
+               firstSeenKey = "inboxFirstSeen"
     /// Vão com a conta (AccountSync) e saem do aparelho ao sair
-    static let defaultsKeys = [seenKey, readKey, notifiedKey, requestsKey]
+    static let defaultsKeys = [seenKey, readKey, notifiedKey, requestsKey, firstSeenKey]
 
     var backend: any InboxBackend = MockInboxBackend() {
         didSet { state = InboxState() }
@@ -165,11 +179,15 @@ final class InboxStore {
     /// Pedidos de amizade pendentes (vêm do FriendsStore)
     var friendRequests: @MainActor () -> [RemoteFriend] = { FriendsStore.shared.incoming }
     var friendIDs: @MainActor () -> Set<String> = { FriendsStore.shared.friendIDs }
+    /// X1 que envolvem você, já atualizados do servidor das ligas (trocado nos testes)
+    var duelNotices: @MainActor () async -> [DuelNotice] = { await InboxStore.loadDuels() }
     /// Entrega uma notificação local (trocado nos testes)
     var notify: @MainActor (InboxNotice) -> Void = { SocialNotifier.deliver($0) }
 
     private let defaults: UserDefaults
     private(set) var state = InboxState()
+    /// Eventos de X1 da última busca
+    private(set) var duelEvents: [InboxEvent] = []
     private(set) var lastError: String?
     private(set) var loaded = false
     /// Até quando a aba Notificações foi vista
@@ -216,7 +234,7 @@ final class InboxStore {
 
     /// Notificações: atividade do servidor, força e convites recebidos e pedidos de amizade, mais novas primeiro
     var activity: [InboxEvent] {
-        var out = state.events.filter { !moderation.isBlocked($0.actorID) && !moderation.isHidden(.comment, $0.id) }
+        var out = (state.events + duelEvents).filter { !moderation.isBlocked($0.actorID) && !moderation.isHidden(.comment, $0.id) }
         for m in visibleMessages where !m.outgoing && m.kind != .text {
             let p = peer(m.peerID)
             let kind: InboxEvent.Kind = m.kind == .cheer ? .cheer : m.kind == .invite ? .invite : .inviteReply
@@ -287,9 +305,62 @@ final class InboxStore {
             lastError = error.localizedDescription
         }
         loaded = true
+        duelEvents = Self.events(from: await duelNotices(), firstSeen: firstSeen)
         rememberRequests()
         if let context { applyReactions(context) }
         deliverNew()
+    }
+
+    // MARK: X1
+
+    /// Atualiza os X1 e devolve os seus (com placar dos encerrados)
+    static func loadDuels() async -> [DuelNotice] {
+        await DuelStore.shared.refresh()
+        return DuelStore.shared.notices()
+    }
+
+    /// Quando cada evento sem data própria (recusa) apareceu pela primeira vez
+    private func firstSeen(_ id: String) -> Date {
+        var seen = defaults.dictionary(forKey: Self.firstSeenKey) as? [String: Double] ?? [:]
+        if let t = seen[id] { return Date(timeIntervalSince1970: t) }
+        seen[id] = Date.now.timeIntervalSince1970
+        defaults.set(seen, forKey: Self.firstSeenKey)
+        return .now
+    }
+
+    /// Desafio recebido, aceito, resultado (os dois lados); recusado e expirado só para quem desafiou
+    static func events(from duels: [DuelNotice], firstSeen: (String) -> Date) -> [InboxEvent] {
+        var out: [InboxEvent] = []
+        for d in duels {
+            func event(_ prefix: String, _ kind: InboxEvent.Kind, _ date: Date, text: String = "", accepted: Bool? = nil) -> InboxEvent {
+                InboxEvent(id: "x1-\(prefix)-\(d.id)", kind: kind, actorID: d.opponent.id, actorName: d.opponent.name, actorFormID: d.opponent.formID,
+                           date: date, text: text, detail: "X1 de \(d.metric.name.lowercased())", targetID: d.id, accepted: accepted)
+            }
+            if !d.iChallenged {
+                let answer: Bool?
+                switch d.phase {
+                case .pending: answer = nil
+                case .active, .finished: answer = true
+                case .declined, .expired: answer = false
+                }
+                out.append(event("recebido", .duelChallenge, d.createdAt, text: d.phase == .expired ? "expirou" : "", accepted: answer))
+            }
+            if d.iChallenged, let at = d.acceptedAt { out.append(event("aceito", .duelAccepted, at)) }
+            switch d.phase {
+            case .declined where d.iChallenged: out.append(event("recusado", .duelDeclined, firstSeen("x1-recusado-\(d.id)")))
+            case .expired where d.iChallenged: out.append(event("expirado", .duelExpired, d.expiresAt))
+            case .finished(let ended): out.append(event("resultado", .duelResult, ended, text: d.resultText ?? ""))
+            default: break
+            }
+        }
+        return out
+    }
+
+    /// Responde a um desafio recebido pela linha da notificação
+    func answerDuel(_ e: InboxEvent, accept: Bool, monster: UUID? = nil) async throws {
+        guard let id = e.targetID, let duel = DuelStore.shared.duel(id) else { throw DuelRefusal.notPending }
+        try await DuelStore.shared.respond(duel, accept: accept, monster: monster)
+        await refresh()
     }
 
     /// Primeira vez que cada pedido de amizade apareceu (o servidor de amigos não manda data)
@@ -383,6 +454,7 @@ final class InboxStore {
     /// Esquece o que veio do servidor (saiu ou excluiu a conta)
     func reset() {
         state = InboxState()
+        duelEvents = []
         loaded = false
         lastError = nil
         openPeer = nil

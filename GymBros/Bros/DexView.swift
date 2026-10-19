@@ -7,17 +7,27 @@ struct DexView: View {
     /// Aberta pela tela do bro: voltar em vez da bolinha do perfil
     var modal = false
     @State private var tab = 0
+    @State private var entry: MonsterForm?
 
     var body: some View {
         NavigationStack {
             GMScreen("Bros", subtitle: subtitle, back: modal, avatar: !modal) {
                 hero
-                GMSegmented(options: [(0, "Meus bros"), (1, "Dex"), (2, "Conquistas")], selection: $tab)
+                GMSegmented(options: [(0, "Meus bros"), (1, "BroBook"), (2, "Conquistas")], selection: $tab)
                 switch tab {
                 case 0: MyBrosList()
                 case 1: monsters
                 default: trophies
                 }
+            }
+            .sheet(item: $entry) {
+                DexEntryView(form: $0, snapshot: snapshot, isKnown: { [revealAll, discovered] f in revealAll || discovered.contains(f.id) })
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(Theme.radiusXL)
+                    .presentationBackground(Theme.bg)
+                    .preferredColorScheme(.dark)
+                    .tint(Theme.accent)
             }
         }
     }
@@ -39,7 +49,7 @@ struct DexView: View {
     }
     private var unlocked: Int { achievements.filter(\.unlocked).count }
 
-    /// Seu bro em destaque, o anel da Dex e os números da coleção
+    /// Seu bro em destaque, o anel do BroBook e os números da coleção
     private var hero: some View {
         HStack(spacing: 16) {
             ZStack {
@@ -53,7 +63,7 @@ struct DexView: View {
             .frame(width: 96, height: 96)
             .animation(.spring(duration: 0.6), value: dexProgress)
             VStack(alignment: .leading, spacing: 8) {
-                Text("\(Int((dexProgress * 100).rounded())) % da Dex")
+                Text("\(Int((dexProgress * 100).rounded())) % do BroBook")
                     .gmFont(24, weight: .heavy, design: .rounded, relativeTo: .title2)
                 stat("sparkles", Theme.accent, "\(knownCount) de \(DexView.allForms.count) formas")
                 stat("pawprint.fill", Attribute.agilidade.color, "\(hatchedSpecies) de \(Species.all.filter(\.isReady).count) espécies chocadas")
@@ -310,7 +320,7 @@ struct DexView: View {
         .padding(.top, 4)
     }
 
-    /// Um galho: faixa na cor do atributo, nome no topo e Champion → Ultimate
+    /// Um galho: faixa na cor do atributo, nome no topo e Atleta → Lenda
     private func branch<L: View>(colors: [Color], @ViewBuilder label: () -> L,
                                  champion: () -> MonsterForm, ultimate: () -> MonsterForm) -> some View {
         let tint = colors.first ?? Theme.accent
@@ -345,7 +355,17 @@ struct DexView: View {
     private func node(_ f: MonsterForm, size: CGFloat, tint: Color = Theme.accent) -> some View {
         let known = isKnown(f)
         let current = snapshot.form == f
-        return VStack(spacing: 4) {
+        return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            entry = f
+        } label: { nodeLabel(f, size: size, tint: tint, known: known, current: current) }
+        .buttonStyle(GMPress())
+        .accessibilityLabel(known ? "\(f.name), \(f.stage.name)\(current ? ", seu bro atual" : "")" : "Forma não descoberta")
+        .accessibilityHint("Abre a ficha")
+    }
+
+    private func nodeLabel(_ f: MonsterForm, size: CGFloat, tint: Color, known: Bool, current: Bool) -> some View {
+        VStack(spacing: 4) {
             ZStack {
                 if known { Circle().fill(tint.opacity(0.16)).frame(width: size * 0.95, height: size * 0.95).blur(radius: 8) }
                 MonsterSprite(form: f, hidden: !known).frame(width: size, height: size)
@@ -367,7 +387,6 @@ struct DexView: View {
                     .offset(y: -7)
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(known ? "\(f.name), \(f.stage.name)\(current ? ", seu bro atual" : "")" : "Forma não descoberta")
+        .contentShape(Rectangle())
     }
 }

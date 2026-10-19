@@ -1,6 +1,6 @@
 # 02 — Treino: musculação guiada, CrossFit, recordes e corpo
 
-Este documento descreve os requisitos funcionais da área de treino do GymBros, extraídos do código atual (SwiftUI + SwiftData, tudo local no aparelho). Cobre rotinas e modelos prontos, o treino guiado (séries, cargas sugeridas, progressão, deload, aquecimento, superséries, troca de exercício), o timer de descanso e os controles fora da tela (Live Activity, Siri/Atalhos e modo fone), a conclusão do treino, recordes e 1RM, a biblioteca de exercícios (inclusive personalizados, com imagens do wger, do Everkinetic e do Wikimedia Commons, vídeos e instruções e a tela de créditos), mapa muscular e volume semanal, CrossFit/WOD, peso, medidas e calculadora de anilhas, e as metas, o perfil físico com referência nutricional e as estatísticas do perfil privado. XP, ligas, lugares de treino e Apple Saúde aparecem só onde tocam o treino; o detalhe deles fica em outros documentos. Caminhos de fonte são relativos à raiz do projeto.
+Este documento descreve os requisitos funcionais da área de treino do GymBros, extraídos do código atual (SwiftUI + SwiftData, tudo local no aparelho). Cobre rotinas e modelos prontos, o treino guiado (séries, cargas sugeridas, progressão, deload, aquecimento, superséries, troca de exercício), o timer de descanso e os controles fora da tela (Live Activity, Siri/Atalhos e modo fone), a conclusão do treino, o treino informado depois no registro de atividade (rotina, treino livre ou WOD), recordes e 1RM, a biblioteca de exercícios (inclusive personalizados, com imagens do wger, do Everkinetic e do Wikimedia Commons, vídeos e instruções e a tela de créditos), mapa muscular e volume semanal, CrossFit/WOD (com o treino do coach, o reconhecimento dos movimentos e a linha do tempo "Meus WODs"), peso, medidas e calculadora de anilhas, e as metas, o perfil físico com referência nutricional e as estatísticas do perfil privado. XP, ligas, lugares de treino e Apple Saúde aparecem só onde tocam o treino; o detalhe deles fica em outros documentos. Caminhos de fonte são relativos à raiz do projeto.
 
 ## 1. Rotinas
 ### RF-TRE-01 — Tela Treino
@@ -9,6 +9,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Com treino em andamento (sessão sem `end`), mostra só o cartão "Em andamento desde HH:MM" com "Continuar", no lugar da seção "Hoje".
 - Sem treino em andamento, "Hoje" lista as rotinas cujo dia da semana é o atual, cada uma com "N exercícios · M séries" e "Começar", mais a linha "Treino livre".
 - Sem rotina no dia: "Crie uma rotina ou use um modelo pronto." (sem rotinas) ou "Nenhuma rotina para hoje. Descanso também evolui o bro.".
+- "CrossFit" tem, nesta ordem: "Importar treino do coach", os WODs do coach agendados para os próximos dias (RF-TRE-42), "Meus WODs" (RF-TRE-43) e "WODs e cronômetro" (RF-TRE-32).
 - "Evolução" dá acesso a Meus PRs, Exercícios e recordes, Volume semanal, Mapa muscular, Biblioteca, Peso e medidas e Calculadora de anilhas (que abre com 60 kg).
 - "Treinos recentes" mostra os 10 últimos treinos concluídos.
 
@@ -42,7 +43,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 **Descrição:** O app deve iniciar um treino de rotina ou livre já com as cargas sugeridas pelo histórico.  
 **Regras de negócio:**
 - Treino livre começa vazio com o título "Treino livre"; o de rotina recebe o nome da rotina e cria as séries de cada item com a sugestão de RF-TRE-09.
-- Se o app já sabe que a pessoa está num lugar salvo, a sessão nasce com esse lugar; senão detecta ou pergunta uma vez por treino (chip "Onde você está?" / "Sem local", tocável para trocar).
+- Se o app já sabe que a pessoa está num lugar salvo, a sessão nasce com esse lugar; senão detecta ou pergunta uma vez por treino (chip "Onde você está?" / "Sem local", tocável para trocar). Ao lado, o chip "Ao vivo para amigos" / "Só você" escolhe se os amigos veem este treino ao vivo (RF-SOC-23).
 - Ao chegar na academia (notificação), o app abre o treino em andamento ou começa a primeira rotina do dia. Pede permissão de notificações ao começar.
 
 **Critério de aceitação:** Começar uma rotina com 4×8 de supino gera 4 séries com a carga e as reps sugeridas e o descanso da rotina.  
@@ -201,6 +202,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Fala em pt-BR ("×" lido como "por"): ao ligar, "Dez segundos" antes do fim do descanso e "Descanso acabou. <exercício>, série n, <carga>".
 - "Dez segundos" sai uma vez por descanso, mesmo que o laço (≈1 s) pule o segundo 10 exato, e só se o descanso foi visto com mais de 10 s restantes (não fala em descanso curto nem depois de um −15 s que já caiu abaixo de 10). Um +15 s cria um descanso novo e um novo aviso.
 - Desliga ao concluir ou descartar o treino.
+- O "Ouvindo agora" (música mostrada aos amigos no treino ao vivo, `GymBros/Music/Music.swift`) é social e independente do modo fone: só lê o que toca no app Música, não toca nem controla áudio (RF-SOC-23).
 
 **Critério de aceitação:** Com o app aberto e música tocando em outro app, o fim do descanso é falado no fone com a música abaixada, que volta ao volume normal depois da fala.  
 **Fonte:** `GymBros/Train/HeadphoneControl.swift` (`TenSecondCue`), `GymBros/Train/WorkoutView.swift`, `GymBrosTests/WorkoutTests.swift` (`testTenSecondCueSpeaksOncePerRest`)
@@ -212,11 +214,12 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - Mostra duração (mínimo 1 min), séries feitas/total de trabalho, volume (Σ carga × reps das séries de trabalho feitas) e mapa dos músculos trabalhados.
 - "No próximo treino, suba a carga": exercícios em que a regra sugere mais carga ou mais reps/tempo.
 - "Onde melhorar": exercícios com séries feitas abaixo da meta, com as reps de cada série e a meta.
-- "Recordes 🏆" (RF-TRE-23), esforço 1–10 (padrão 7), postagem nas ligas com foto opcional e prévia do XP (atributo Força) pelos bros das ligas marcadas, com aviso de choco/evolução (mesma regra do RF-JOG-04).
-- "Salvar" só habilitado com ao menos uma série de trabalho feita ("Marque ao menos uma série feita para salvar.").
+- "Recordes 🏆" (RF-TRE-23), esforço 1–10 (padrão 7), postagem nas ligas com foto opcional e prévia do XP pelos bros das ligas marcadas, com aviso de choco/evolução (mesma regra do RF-JOG-04).
+- A prévia divide o XP entre os atributos pelas séries de trabalho feitas (exercício, reps e descanso de cada uma; `AttributeSplit`), não mais só em Força; ao salvar, a divisão é calculada e guardada com a atividade (`ActivitySplits.stamp`, regra em RF-JOG-07).
+- "Salvar" só habilitado com ao menos uma série de trabalho feita ("Marque ao menos uma série feita para salvar.") e, quando a conta pode postar, com ao menos um destino marcado (perfil ou liga; `hasPostDestination`, "Escolha pelo menos um lugar para salvar."). Sem permissão de postar (termos não aceitos, conta sem acesso), salvar continua liberado e o treino fica só no histórico.
 
-**Critério de aceitação:** Treino só com aquecimentos marcados não pode ser salvo.  
-**Fonte:** `GymBros/Train/WorkoutView.swift` (`FinishWorkoutView`)
+**Critério de aceitação:** Treino só com aquecimentos marcados não pode ser salvo; com a conta podendo postar e todos os destinos desmarcados, "Salvar" fica desabilitado.  
+**Fonte:** `GymBros/Train/WorkoutView.swift` (`FinishWorkoutView`, `preview`), `GymBros/Bros/AttributeSplit.swift` (`AttributeSplit`, `ActivitySplits`), `GymBros/Leagues/LeaguesView.swift` (`hasPostDestination`, `LeaguePostSection`)
 ### RF-TRE-19 — Salvar treino e atualizar rotina
 **Descrição:** O app deve registrar o treino como atividade de musculação e, se pedido, atualizar a rotina de origem.  
 **Regras de negócio:**
@@ -246,6 +249,21 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 
 **Critério de aceitação:** Corrigir a carga de uma série passada muda a sugestão do próximo treino.  
 **Fonte:** `GymBros/Train/TrainView.swift` (`SessionRow`, `SessionDetailView`, `deleteSession`)
+### RF-TRE-45 — Treino informado no registro de atividade
+**Descrição:** O app deve permitir dizer, ao registrar uma atividade à mão (RF-JOG-01), qual treino foi feito sem ter dado "Começar", e gravá-lo como o treino guiado ou o cronômetro do WOD gravariam.  
+**Regras de negócio:**
+- Só em atividade nova: a seção "Treino feito" aparece logo depois do tipo de atividade. Vazia, mostra "Adicionar o que você treinou" (Rotina, treino livre ou WOD do coach) com o rodapé "Esqueceu de dar Começar? Diga o que treinou: as séries entram na progressão e nos recordes, e o resultado do WOD no histórico."; preenchida, um resumo ("<rotina> · N exercícios · M séries" ou "<WOD> · <formato> · <resultado>[ RX]") que reabre a edição e um "x" que tira o treino.
+- "O que você treinou?" oferece três seções: **Musculação** (as rotinas e "Treino livre", que abre o seletor de exercícios), **WOD do coach** ("Trazer o WOD do coach", que abre a importação do RF-TRE-42 já no dia da atividade e com "Usar este WOD" no lugar de agendar/começar, e os WODs do coach já trazidos até 7 dias antes ou depois, o mais perto primeiro) e **WODs clássicos** (os 15 benchmarks, atrás de "Ver os clássicos").
+- Rotina: os itens vêm com séries, reps e carga que o treino guiado sugeriria (RF-TRE-09, com o histórico de treinos concluídos); "Ajuste o que foi diferente do previsto." Por exercício: séries 1–12, reps 1–100 (ou segundos 5–600 em passos de 5 nos por tempo) e carga (ou "Carga extra" no peso do corpo; sem campo nos por tempo); "Adicionar exercício" entra com 3 × 10 (30 s se por tempo). No treino livre, o nome é editável (padrão "Treino livre").
+- WOD: For Time pede minutos (0–90) e segundos (0–55, passo 5), e "Pronto" só libera com tempo maior que 0:00; com limite de tempo aparece "Estourou o time cap", que troca o tempo pelas reps feitas (0–999); AMRAP pede rodadas (0–200) e reps extras (0–300); EMOM e Tabata contam como concluído; RX ligado por padrão. Escolher um For Time com limite começa com min(limite, 10) min.
+- Escolher uma rotina troca o tipo para Musculação; escolher um WOD troca para Crossfit. Com treino informado, o tipo fica travado: no lugar do seletor aparece o tipo com o rodapé "Definido pelo treino feito. Tire o treino para escolher outro tipo." Escolher um WOD também, se o formato tem duração (AMRAP, EMOM, Tabata ou For Time com limite), ajusta a duração da atividade para esse tempo arredondado para cima (mínimo 5 min).
+- Lugar (opcional): com academias salvas, "Onde foi" em "Quando" escolhe uma delas ou "Sem local". O lugar vai para a atividade, para a sessão do treino informado e para o check-in.
+- Ao salvar: rotina vira uma sessão concluída (início na data da atividade, fim = início + duração, esforço da atividade, ligada à atividade) com todas as séries marcadas como feitas e 90 s de descanso, sem aquecimento; entra em progressão, recordes, mapa, volume e Treinos recentes. WOD vira um `WodResult` na data da atividade, ligado a ela, e entra no recorde e no histórico do WOD (RF-TRE-34) e em "Meus WODs" (RF-TRE-43).
+- Sem observação, o título da atividade e do post é o do treino: "<WOD> · <resultado>" ou o nome da rotina.
+- A prévia de XP já divide os atributos pelas séries (descanso 90 s) ou pelo formato e movimentos do WOD (RF-TRE-44); a divisão é guardada ao salvar.
+
+**Critérios de aceitação:** Informar "Peito" com supino 3 × 8 com 60 kg cria uma sessão concluída com 3 séries de trabalho feitas e volume 1.440 kg, ligada à atividade; informar Fran em 7:30 grava um resultado de 450 s ligado à atividade.  
+**Fonte:** `GymBros/Activities/ManualWorkout.swift` (`ManualWorkoutDraft`, `ManualWorkoutSection`, `WorkoutDoneFlow`), `GymBros/Activities/LogActivityView.swift` (`save`, `split`), `GymBros/Train/WodImport.swift` (`ImportWodView.initialDay`, `onPick`), `GymBrosTests/ManualWorkoutTests.swift` (`testRoutineBecomesFinishedSession`, `testWodResult`)
 
 ## 6. Recordes e 1RM
 ### RF-TRE-22 — 1RM estimado
@@ -267,7 +285,7 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 **Descrição:** O app deve mostrar a melhor marca de cada exercício e permitir registrar PRs à mão.  
 **Regras de negócio:**
 - Melhor marca entre PRs manuais e séries feitas com carga > 0, pela força na escala de 1RM (`Progression.strength`: séries acima de 12 reps contam como 12, sem misturar 1RM com carga bruta), depois maior carga e mais reps; mostra carga × reps, 1RM, data e "registrado"/"no treino"; ordem alfabética.
-- Sessão de PR: já traz os exercícios com carga das rotinas, sem repetir; aceita adicionar/remover; exercícios sem carga > 0 e reps ≥ 1 são ignorados; data editável; selo "🏆 novo PR" quando a marca supera a atual pela mesma régua (`PRBook.beats`); repetir a mesma marca não é PR.
+- Sessão de PR: já traz os exercícios com carga das rotinas, sem repetir; aceita adicionar/remover; exercícios sem carga > 0 e reps ≥ 1 são ignorados; data editável; selo "🏆 Novo PR" quando a marca supera a atual pela mesma régua (`PRBook.beats`); repetir a mesma marca não é PR.
 - Menu por exercício: "Registrar novo PR" e "Apagar PRs registrados à mão (N)".
 - PRs manuais alimentam a primeira sugestão de carga (RF-TRE-09) e a comparação de recordes.
 
@@ -368,10 +386,10 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 - 15 benchmarks: 13 "Girls" (Fran, Grace, Isabel, Diane, Elizabeth, Helen, Cindy, Annie, Karen, Jackie, Nancy, Kelly, Chelsea) e 2 "Heróis" (Murph, DT), com formato, limite de tempo e movimentos ligados à biblioteca.
 - Formatos: For Time (com limite opcional), AMRAP, EMOM e Tabata (20 s de esforço / 10 s de descanso).
 - WOD livre: For Time, AMRAP (padrão) ou EMOM de 1 a 90 min (padrão 12) ou Tabata de 1 a 20 rodadas (padrão 8); movimentos opcionais, um por linha.
-- Lista mostra o recorde de cada benchmark e os 10 últimos resultados; detalhe mostra recorde e histórico.
+- Lista ("WODs"): "WOD livre (monte o seu)", "Importar treino do coach", "Meus WODs" (RF-TRE-43), o recorde de cada benchmark e os 10 últimos resultados; detalhe mostra a descrição do formato, as linhas, "Movimentos" (exercícios da biblioteca ligados ao WOD, cada um abrindo o "como fazer" do RF-TRE-28), "Começar", recorde e histórico.
 
-**Critério de aceitação:** Abrir "Fran" mostra "21-15-9", "For Time" e limite de 10 min.  
-**Fonte:** `GymBros/Train/Wod.swift`
+**Critério de aceitação:** Abrir "Fran" mostra "21-15-9", "For Time", limite de 10 min e os movimentos Thruster e Kipping pull-up.  
+**Fonte:** `GymBros/Train/Wod.swift` (`Wod.benchmarks`, `WodListView`, `WodDetailView`)
 ### RF-TRE-33 — Cronômetro do WOD
 **Descrição:** O app deve cronometrar o WOD com avisos sonoros e contador de rodadas.  
 **Regras de negócio:**
@@ -386,29 +404,59 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 **Descrição:** O app deve registrar o resultado e gerar uma atividade de crossfit.  
 **Regras de negócio:**
 - For Time grava o tempo; For Time no limite grava CAP ("CAP" em laranja, "Tempo esgotado no limite de mm:ss: não conta como terminado." e "Repetições feitas" de 0 a 2000), exibido como "CAP · N reps"; AMRAP grava rodadas (0–200, pré-preenchidas pelo contador) e repetições extras (0–500); EMOM/Tabata gravam "Concluído".
-- RX (padrão ligado), esforço (padrão 8), observação e postagem nas ligas.
+- RX (padrão ligado), esforço (padrão 8), observação e postagem nas ligas. "Salvar" exige ao menos um destino quando a conta pode postar (mesma regra do RF-TRE-18).
+- A divisão do XP entre atributos usa o formato e os movimentos do WOD (benchmark ou do coach; RF-TRE-44) e é guardada com a atividade (`ActivitySplits.stamp`). O resultado de um WOD livre não é encontrado por `Wod.byID` nem entre os do coach, então a divisão fica sem o detalhe do WOD (só tipo, duração e esforço).
 - Recorde: For Time, menor tempo; qualquer CAP fica abaixo de qualquer tempo terminado e, entre CAPs, mais reps é melhor; AMRAP, rodadas × 1000 + reps.
 - Atividade de crossfit com minutos = max(segundos ativos/60, 1), data no início real do WOD (contando as pausas) e nota "<WOD> · <resultado>".
 
 **Critério de aceitação:** Fran em 5:30 aparece como recorde "5:30 RX" se for o menor tempo; um CAP com 80 reps nunca supera um tempo de 9:50.  
-**Fonte:** `GymBros/Train/Wod.swift` (`WodResultForm`, `WodTimerView.FinishedWod`), `GymBros/Models/WodResult.swift` (`WodResult.capped`), `GymBrosTests/WorkoutTests.swift` (`testForTimeCapIsNotAFinishTime`)
+**Fonte:** `GymBros/Train/Wod.swift` (`WodResultForm`, `WodTimerView.FinishedWod`), `GymBros/Models/WodResult.swift` (`WodResult.capped`, `score`), `GymBros/Bros/AttributeSplit.swift` (`ActivitySplits.stamp`), `GymBrosTests/WorkoutTests.swift` (`testForTimeCapIsNotAFinishTime`)
 
 ### RF-TRE-42 — Treino do coach (importar e agendar)
 **Descrição:** O app deve transformar o treino que o coach manda (mensagem, outro app ou quadro do box) num WOD agendado para o dia, pronto para começar ao chegar no box.  
 **Regras de negócio:**
-- Entrada em Treino → CrossFit → "Importar treino do coach" e na lista de WODs. A tela abre com "Traga o treino do coach" e três jeitos: os cartões "Print" (galeria filtrada em capturas de tela) e "Foto" (qualquer imagem, ex.: quadro do box), o cartão "Texto copiado" com o botão "Colar" do sistema (sem pedido de permissão) e um campo para digitar, com "Ler treino". Enquanto lê, mostra "Lendo o treino…".
-- Print e foto: texto lido no aparelho pelo Vision (português e inglês, de cima para baixo); horários soltos de mensagens ("10:32") saem. Sem texto na imagem: "Não achei texto nessa imagem. Tente um print mais de perto."
-- Leitura do texto (`WodParser`): tira negrito/itálico de mensagem, emojis e marcadores; títulos (Aquecimento/Mobilidade, Skill/Técnica, Força/LPO/Strength, WOD/Metcon, Acessórios/Core/Cooldown), com ou sem "1." / "B)" na frente, separam as partes; o que vem depois de "WOD:" na mesma linha conta como linha do WOD. Linhas antes do primeiro título (saudação, data, nome do box) ficam de fora.
+- Entrada em Treino → CrossFit → "Importar treino do coach", na lista de WODs e no "+" de "Meus WODs" (RF-TRE-43). A tela abre com "Traga o treino do coach" e três jeitos: os cartões "Prints" ("Um ou mais, se não coube", galeria filtrada em capturas de tela) e "Foto" (qualquer imagem, ex.: quadro do box), os dois com até 6 imagens na ordem escolhida; o cartão "Texto copiado" com o botão "Colar" do sistema (sem pedido de permissão); e um campo para digitar, com "Ler treino". Enquanto lê, mostra "Lendo o treino…".
+- Prints e foto: texto lido no aparelho pelo Vision (português e inglês), de cima para baixo e, na mesma altura, da esquerda para a direita; horários soltos de mensagens ("10:32") saem. Sem texto: "Não achei texto nessa imagem. Tente um print mais de perto."; imagem que não abre: "Não deu para abrir a imagem." (ou "uma das imagens", com várias).
+- Vários prints do mesmo treino (`WodOCR.merge`): são emendados pela sobreposição (o fim de um repete o começo do outro), em qualquer ordem de escolha; o que sobra depois do trecho repetido no de cima (botão flutuante, linha cortada) e antes dele no de baixo sai; o título repetido no topo de todos os prints fica uma vez só. Sem sobreposição, vale a ordem de escolha.
+- Leitura do texto (`WodParser`): tira negrito/itálico de mensagem, emojis e marcadores; ignora marca d'água e botões de apps de box (Tecnofit, Nextfit, Wodify, SugarWOD, BTWB, PushPress, Zen Planner, "Check-in", "Ações", "Cross") e linhas de 1–2 caracteres só com dígitos ou setas (contadores de curtidas, navegação).
+- Títulos (Aquecimento/Mobilidade, Skill/Técnica, Força/LPO/Strength, WOD/Metcon, Acessórios/Core/Cooldown), com ou sem "1." / "B)" na frente, separam as partes; o que vem depois de "WOD:" na mesma linha conta como linha do WOD. Também são títulos "WOD 1" (fica "WOD 1"), "Wod - 19/10/2026" (a data sai do título) e "Força (Deadlift)" / "LPO (powerlifting)" (o parêntese entra no título: "Força (Deadlift)", "LPO (Powerlifting)"). Linhas antes do primeiro título (saudação, data, nome do box) ficam de fora.
+- Cada linha é arrumada para leitura (`WodParser.tidy`): zeros à esquerda saem ("03" → "3"), "2DB" vira "2 DB", erros comuns são corrigidos (burpeers, dumbel, kettlebel, wallball, shoud…), linha toda em maiúsculas vira só a primeira letra maiúscula mantendo siglas (KB, DB, AMRAP, EMOM, T2B, HSPU…) e "REST"/"Desc."/"Pausa" vira "Descanso". Ex.: "03 DEVIL PRESS (2DB)" → "3 Devil press (2 DB)".
+- Dia do treino: a primeira data "dd/mm" ou "dd/mm/aaaa" num título ou, havendo títulos, nas linhas antes do primeiro (sem ano, o ano atual); cargas como "9/6kg" não contam. A data lida já escolhe o "Quando".
 - WOD principal: a seção WOD/Metcon; sem ela, a que tem um formato; sem títulos, o texto todo. Formatos reconhecidos: "AMRAP 15'" / "20' AMRAP", "EMOM 10" / "E2MOM de 16 min", "Tabata" (rodadas opcionais, padrão 8), "For Time" / "FT" / "por tempo" com time cap ("TC 12min", "Cap: 15'") na mesma linha ou em outra. Linhas que são só o formato saem dos movimentos; "3 rounds for time:" fica.
-- Sem formato no texto ou sem movimentos, e com Apple Intelligence disponível (iOS 26), o modelo do próprio aparelho tenta ler o texto; senão fica For Time sem limite com o aviso "Não achei o formato no texto: confira antes de salvar."
-- Conferência antes de salvar: cartão com o nome editável (padrão "WOD do coach"), formato e número de movimentos; "Quando" (Hoje, Amanhã ou Outro dia no calendário); formato e tempo (time cap 0 = sem limite); movimentos um por linha; as outras partes em cartões (cada uma pode ser tirada). Embaixo, "Salvar e começar agora" se o dia é hoje ou "Agendar para <dia>"; "Usar outro texto" volta à entrada.
-- Agendados ficam no aparelho (`UserDefaults("plannedWods")`, entram no backup); os de mais de 14 dias saem ao salvar outro.
-- Treino → Hoje mostra o WOD do dia ("Treino do coach · <formato>", "Começar") e "Ver treino completo" (partes, WOD, editar, apagar); agendados para os próximos dias aparecem em CrossFit. O WOD some de Hoje quando tem resultado salvo.
+- Blocos com descanso: mais de um "AMRAP n'" (sem EMOM) ou mais de um "EMOM n" (sem AMRAP) viram um cronômetro só, com a soma dos blocos mais os descansos ("Descanso 2'", "Descanso 30s") arredondados para cima em minutos, até 90 min. As linhas de cada bloco e de descanso ficam no WOD para guiar. Ex.: 3 × "AMRAP 3'" com 2 × "Descanso 2'" → AMRAP 13 min.
+- Sem formato no texto ou sem movimentos, e com Apple Intelligence disponível (iOS 26), o modelo do próprio aparelho tenta ler o texto (os movimentos que ele devolve passam pela mesma arrumação); senão fica For Time sem limite com o aviso "Não achei o formato no texto: confira abaixo."
+- Conferência antes de salvar: cartão com o nome editável (padrão "WOD do coach"), formato e número de movimentos; "Quando" (Hoje, Amanhã ou Outro dia no calendário); formato e tempo (time cap 0 = sem limite); movimentos um por linha, com o rodapé "Reconhecidos: <exercícios>." quando algum movimento é ligado à biblioteca (RF-TRE-44); as outras partes em cartões (cada uma pode ser tirada). Embaixo, "Salvar e começar agora" se o dia é hoje ou "Agendar para <dia>"; "Usar outro texto" volta à entrada. Aberta pelo registro de atividade (RF-TRE-45), o dia é o da atividade e o botão é "Usar este WOD".
+- Importados ficam no aparelho (`UserDefaults("plannedWods")`, entram no backup) e não saem mais com o tempo: são a linha do tempo de "Meus WODs" (RF-TRE-43). Saem só por "Apagar treino".
+- Treino → Hoje mostra o WOD do dia ("Treino do coach · <formato>", "Começar") e "Ver treino completo"; agendados para os próximos dias aparecem em CrossFit. O WOD some de Hoje quando tem resultado salvo.
+- "Ver treino completo": partes, WOD, "Seu resultado" (resultados já salvos desse WOD, com RX), "Movimentos" (exercícios reconhecidos nas partes e no WOD, cada um abrindo o "como fazer"), "Começar WOD", "Editar" e "Apagar treino" ("Apagar <nome>?" · "Resultados já salvos continuam no histórico.").
 - Chegada ao box (notificação e aviso ao abrir o app): o WOD do dia vem antes da rotina ("Começar <nome> (<formato>)?"); tocar em começar abre o cronômetro do WOD. Widget "Treino do dia" faz o mesmo.
-- O resultado entra como qualquer WOD (RF-TRE-34), com id próprio por treino agendado.
+- O resultado entra como qualquer WOD (RF-TRE-34), com id próprio por treino importado (`coach-<uuid>`).
 
-**Critério de aceitação:** colar "WOD\nAMRAP 15'\n10 wall balls\n10 burpees" agenda um AMRAP de 15 min com 2 movimentos para hoje; ao chegar no box, o aviso oferece esse WOD e abre o cronômetro.  
-**Fonte:** `GymBros/Train/WodImport.swift`, `GymBros/Train/TrainView.swift` (`plannedToday`, `startToday`), `GymBros/Services/Location.swift` (`todayTrainingName`), `GymBrosTests/WodImportTests.swift`
+**Critérios de aceitação:** colar "WOD\nAMRAP 15'\n10 wall balls\n10 burpees" agenda um AMRAP de 15 min com 2 movimentos para hoje; ao chegar no box, o aviso oferece esse WOD e abre o cronômetro. O print do Tecnofit com "Wod - 19/10/2026" e três AMRAPs de 3' com dois descansos de 2' vira AMRAP 13 min para 19/10/2026, sem a linha "TECNOFIT". Dois prints da mesma tela, escolhidos de baixo para cima, viram um texto só sem linhas repetidas. Um WOD importado há 90 dias continua salvo.  
+**Fonte:** `GymBros/Train/WodImport.swift` (`WodPlan`, `WodParser.parse`, `tidy`, `isNoise`, `date(in:)`, `intervals`, `WodOCR.lines`, `WodOCR.merge`, `WodAI`, `ImportWodView`, `PlannedWodView`), `GymBros/Train/TrainView.swift` (`plannedToday`, `plannedNext`, `startToday`), `GymBros/Services/Location.swift` (`todayTrainingName`), `GymBros/Services/Backup.swift` (`settingKeys`), `GymBrosTests/WodImportTests.swift` (`testBlocksAndLines`, `testDateIgnoresLoads`, `testMergeScreenshots`), `GymBrosTests/WodTimelineTests.swift` (`testOldPlansAreKept`)
+### RF-TRE-43 — Meus WODs (linha do tempo)
+**Descrição:** O app deve mostrar numa linha do tempo todos os WODs do coach importados e todos os resultados de WOD, do mais novo ao mais antigo.  
+**Regras de negócio:**
+- Entrada em Treino → CrossFit → "Meus WODs" ("Linha do tempo do que você importou e treinou") e na lista de WODs; o "+" do topo abre a importação (RF-TRE-42).
+- Cada WOD importado é um item, no dia dele, com os resultados que tiver (o melhor primeiro, pela régua do RF-TRE-34). Resultados de benchmarks e de WODs livres viram itens próprios, na data do resultado.
+- Situação: "Feito · <resultado>[ RX][ · N×]" (com resultado), "Hoje" (dia de hoje, cartão contornado), "Agendado" (dia futuro) ou "Não registrado" (dia passado sem resultado), cada uma com cor e ícone próprios.
+- Topo com três números: feitos, feitos este mês (pelo dia do item) e importados. Filtro Todos / Feitos / Não feitos. Itens agrupados por mês ("OUTUBRO DE 2026"), com dia e dia da semana à esquerda, formato e as 3 primeiras linhas do WOD.
+- Tocar num importado abre "Ver treino completo" (RF-TRE-42); num resultado de benchmark, o detalhe do WOD (RF-TRE-32); resultado de WOD livre não abre nada.
+- Vazio: "Nenhum WOD ainda — Importe o WOD do coach (print ou texto) e ele aparece aqui, no dia dele."; com filtro sem itens: "Nada por aqui — Mude o filtro para ver os outros."
+
+**Critério de aceitação:** Com um WOD importado há 40 dias com resultado, um agendado para daqui a 2 dias e um resultado de Fran, a linha do tempo tem 3 itens, o primeiro é o agendado ("Agendado") e o importado antigo aparece como feito.  
+**Fonte:** `GymBros/Train/WodTimeline.swift` (`WodTimelineEntry.build`, `status`, `WodTimelineView`), `GymBros/Train/TrainView.swift`, `GymBros/Train/Wod.swift` (`WodListView`), `GymBrosTests/WodTimelineTests.swift` (`testImportedKeepResultAndOthersStandAlone`)
+### RF-TRE-44 — Movimentos do WOD ligados à biblioteca
+**Descrição:** O app deve reconhecer, nas linhas de um WOD do coach, os exercícios da biblioteca, para mostrar como fazer e dividir o XP pelos movimentos.  
+**Regras de negócio:**
+- Cada linha é dividida em "+", "," e ";" ("10 thrusters + 10 pull-ups" dá dois); cada pedaço vira no máximo um exercício.
+- Normalização (`WodMovements.tokens`): minúsculas, sem acento, sem números e cargas, no singular ("flexões" → "flexao"), sem palavras de ligação (de, com, the, with…), com sinônimos (KB → kettlebell, DB/dumbbell/haltere → halter, BB/barbell → barra, "pushup" → "push up"…) e com erro de digitação ou de leitura corrigido para a palavra parecida do vocabulário (1 letra de diferença em palavras de 5 a 7 letras, 2 a partir de 8, só se houver um único candidato).
+- 163 apelidos em português e inglês, incluindo siglas (T2B, C2B, HSPU, BJO, OHS, DU, SDHP, TGU, HPC, RDL, BMU, RMU, K2E, HSW…). Ganha o apelido com mais palavras que aparece na linha, na ordem (ex.: "squat clean" vence "squat"); "run"/"corrida" vira "Corrida na esteira", "row"/"remo" vira "Remo (calorias)" e "Descanso 2'" não vira nada.
+- Lista final na ordem das linhas, sem repetir. É usada no rodapé "Reconhecidos" da conferência, em "Movimentos" do treino completo, nos exercícios do WOD do coach (`PlannedWod.wod`) e na divisão de atributos do WOD (RF-TRE-34, RF-TRE-45).
+- Todo apelido aponta para um exercício que existe na biblioteca (garantido por teste).
+
+**Critério de aceitação:** "21 KB swings 24/16kg" → kettlebell swing; "15 T2B" → toes to bar; "400m run" → corrida na esteira; "10 flexões de braço" → flexão; as linhas do print do Tecnofit reconhecem wall ball, kettlebell swing, flexão, devil press, afundo, agachamento livre, burpee, rosca alternada e remada curvada com halter.  
+**Fonte:** `GymBros/Train/WodMovements.swift` (`WodMovements.ids`, `identify`, `tokens`), `GymBros/Train/WodImport.swift` (`PlannedWod.wod`, `recognizedFooter`, `PlannedWodView`), `GymBrosTests/WodImportTests.swift` (`testMovementsIdentified`, `testIdentifyVariants`, `testEveryAliasExists`)
 
 ## 10. Peso, medidas e anilhas
 ### RF-TRE-35 — Peso e medidas

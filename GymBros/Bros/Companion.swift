@@ -83,9 +83,9 @@ enum Achievements {
         var sessions: [SessionLog]
         /// Espécies diferentes entre os monstros já chocados
         var species = 0
-        /// Monstros que chegaram ao Ultimate
+        /// Monstros que chegaram à Lenda
         var ultimates = 0
-        /// Formas descobertas na Dex e total existente
+        /// Formas descobertas no BroBook e total existente
         var discovered = 0
         var dexTotal = 1
     }
@@ -119,9 +119,9 @@ enum Achievements {
         return [
             Achievement(id: "primeiro", title: "Primeiro passo", detail: "Registre sua primeira atividade", symbol: "figure.walk", current: n, goal: 1),
             Achievement(id: "chocou", title: "Chocou!", detail: "Choque o ovo", symbol: "sparkles", current: Double(stage), goal: 1),
-            Achievement(id: "rookie", title: "Crescendo", detail: "Chegue ao Rookie", symbol: "arrow.up.circle", current: Double(stage), goal: 2),
-            Achievement(id: "champion", title: "Campeão", detail: "Chegue ao Champion", symbol: "trophy", current: Double(stage), goal: 3),
-            Achievement(id: "ultimate", title: "Forma final", detail: "Chegue ao Ultimate", symbol: "crown", current: Double(stage), goal: 4),
+            Achievement(id: "rookie", title: "Crescendo", detail: "Chegue ao estágio Novato", symbol: "arrow.up.circle", current: Double(stage), goal: 2),
+            Achievement(id: "champion", title: "Campeão", detail: "Chegue ao estágio Atleta", symbol: "trophy", current: Double(stage), goal: 3),
+            Achievement(id: "ultimate", title: "Forma final", detail: "Chegue ao estágio Lenda", symbol: "crown", current: Double(stage), goal: 4),
             Achievement(id: "treinos10", title: "Pegando o ritmo", detail: "10 atividades", symbol: "10.circle", current: n, goal: 10),
             Achievement(id: "treinos50", title: "Rotina de atleta", detail: "50 atividades", symbol: "50.circle", current: n, goal: 50),
             Achievement(id: "treinos100", title: "Centenário", detail: "100 atividades", symbol: "100.circle", current: n, goal: 100),
@@ -141,9 +141,9 @@ enum Achievements {
             Achievement(id: "especies2", title: "Nova espécie", detail: "Choque um bro de outra espécie", symbol: "pawprint", current: Double(i.species), goal: 2),
             Achievement(id: "especies4", title: "Colecionador", detail: "Bros de 4 espécies diferentes", symbol: "pawprint.fill", current: Double(i.species), goal: 4),
             Achievement(id: "especies8", title: "Zoológico completo", detail: "Bros das 8 espécies", symbol: "tortoise.fill", current: Double(i.species), goal: Double(max(Species.catalog.count, 2))),
-            Achievement(id: "ultimate2", title: "Treinador de elite", detail: "2 bros no Ultimate", symbol: "crown.fill", current: Double(i.ultimates), goal: 2),
-            Achievement(id: "dex25", title: "Pesquisador", detail: "Descubra 25 formas na Dex", symbol: "book", current: Double(i.discovered), goal: 25),
-            Achievement(id: "dexall", title: "Dex completa", detail: "Descubra todas as formas", symbol: "book.fill", current: Double(i.discovered), goal: Double(i.dexTotal)),
+            Achievement(id: "ultimate2", title: "Treinador de elite", detail: "2 bros no estágio Lenda", symbol: "crown.fill", current: Double(i.ultimates), goal: 2),
+            Achievement(id: "dex25", title: "Pesquisador", detail: "Descubra 25 formas no BroBook", symbol: "book", current: Double(i.discovered), goal: 25),
+            Achievement(id: "dexall", title: "BroBook completo", detail: "Descubra todas as formas", symbol: "book.fill", current: Double(i.discovered), goal: Double(i.dexTotal)),
             Achievement(id: "saude", title: "Conectado", detail: "Importe um treino do Apple Saúde", symbol: "heart.text.square", current: Double(i.fromHealth), goal: 1),
         ]
     }

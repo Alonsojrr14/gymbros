@@ -5,12 +5,12 @@ Documentação do design system do app, extraída do código. Fontes principais:
 - `Shared/Theme.swift`: `enum Theme` com todas as cores, compilado no app e no widget.
 - `GymBros/DesignSystem/`: componentes com prefixo `GM`, um arquivo por família: `GymBros/DesignSystem/DesignSystem.swift` (escala de raios em `extension Theme` e `gmFont`), `GymBros/DesignSystem/GMButtons.swift`, `GymBros/DesignSystem/GMSurfaces.swift` (cards, seções, linhas), `GymBros/DesignSystem/GMIndicators.swift` (progresso, badge, online), `GymBros/DesignSystem/GMChips.swift` e `GymBros/DesignSystem/GMFlow.swift`, `GymBros/DesignSystem/GMToggles.swift`, `GymBros/DesignSystem/GMFields.swift`, `GymBros/DesignSystem/GMSteppers.swift`, `GymBros/DesignSystem/GMCalendar.swift` (datas, `GMMonth`, roletas), `GymBros/DesignSystem/GMScreen.swift` (cabeçalho, tela, modal), `GymBros/DesignSystem/GMSheets.swift` (bottom sheet, ações, prompt), `GymBros/DesignSystem/GMTabBar.swift`, `GymBros/DesignSystem/GMKeyboard.swift`, `GymBros/DesignSystem/GMExtensions.swift` e `GymBros/DesignSystem/PeriodPicker.swift`.
 - `GymBros/Models/Activity.swift`: `Attribute.color`.
-- `GymBros/Bros/Game.swift`: nomes e SF Symbols de `Attribute` e `ActivityKind`.
-- Componentes de domínio: `GymBros/Bros/MonsterSprite.swift`, `GymBros/Profile/ProfileView.swift`, `GymBros/Friends/PublicProfile.swift`, `GymBros/Profile/ProfileCalendar.swift`, `GymBros/Leagues/LeaguesView.swift`, `GymBros/Bros/HomeView.swift`, `GymBros/Friends/FriendsLive.swift`, `GymBros/Activities/LogActivityView.swift`.
+- `GymBros/Bros/Game.swift`: nomes e SF Symbols de `Attribute` e `ActivityKind`; `GymBros/Activities/WorkoutTypes.swift`: nome e símbolo dos 80 tipos exatos de treino (`WorkoutType`).
+- Componentes de domínio: `GymBros/Bros/MonsterSprite.swift`, `GymBros/Profile/ProfileView.swift`, `GymBros/Friends/PublicProfile.swift`, `GymBros/Profile/ProfileCalendar.swift`, `GymBros/Leagues/LeaguesView.swift`, `GymBros/Bros/HomeView.swift`, `GymBros/Bros/Monsters.swift`, `GymBros/Bros/DexEntryView.swift`, `GymBros/Duels/DuelViews.swift`, `GymBros/Friends/FriendsLive.swift`, `GymBros/Activities/LogActivityView.swift`, `GymBros/Activities/WorkoutTypes.swift`.
 
 ## 1. Princípios
 
-1. **Nada de controles padrão do iOS.** `Form`, `List`, `Picker`, `Toggle`, `Stepper`, `Slider`, `DatePicker`, `Menu`, `alert`, `confirmationDialog`, barra de navegação e `TabView` são substituídos por componentes `GM`. A busca no código confirma isso: nenhum desses aparece fora de comentários.
+1. **Nada de controles padrão do iOS.** `Form`, `List`, `Picker`, `Toggle`, `Stepper`, `Slider`, `DatePicker`, `Menu`, `alert`, `confirmationDialog`, barra de navegação e `TabView` são substituídos por componentes `GM`. Exceções no código hoje: a lista "Tipo de treino" (`WorkoutTypeList` em `GymBros/Activities/WorkoutTypes.swift`) usa `List`, `.searchable`, `.toolbar` com botão "Fechar" e `ContentUnavailableView.search`, e três telas abrem com `.sheet` do sistema (seção 3, "Overlays", e seção 7).
 2. **O que continua do sistema** (o iOS não deixa substituir): teclado, seletor de fotos (`PhotosPicker`), tela de compartilhar, seletor de arquivos e pedidos de permissão. A navegação por pilha continua com `NavigationStack`/`NavigationLink`, com a barra escondida (`.toolbar(.hidden, for: .navigationBar)`); o gesto de voltar pela borda é reativado por uma extensão de `UINavigationController` em `GymBros/DesignSystem/GMExtensions.swift`.
 3. **Sempre escuro.** `GymBros/App/App.swift` aplica `.preferredColorScheme(.dark)` e `gmModal` repete `.preferredColorScheme(.dark).tint(Theme.accent)` nas telas modais (inclusive na cena de evolução). Não existe variante clara.
 4. **Tom:** jogo, mas sem infantilizar. Títulos grandes em `.rounded`/`.heavy`, um único acento verde-limão, tudo tocável encolhe de leve (`GMPress`), vibração em toda escolha. Textos em português, informais ("Bora treinar?", "Mande o primeiro recado pra galera da liga.").
@@ -53,7 +53,7 @@ Todas em `Shared/Theme.swift`, compartilhado entre app e widget (widgets e Live 
 
 `streak` e `warning` (e `trophy` e `note`) têm o mesmo valor hoje, mas significados diferentes: use o token pelo significado.
 
-Uso no código (ocorrências de `Theme.*` em app, widget e `Shared/`): `dim` 241, `accent` 170, `raised` 54, `bg` 26, `card` 23, `warning` 11, `stroke` 10, `streak` 10, `trophy` 7, `danger` 5, `info` 5, `track` 2, `health` 2, `note`, `online`, `badge` e `video` 1 cada.
+Uso no código (ocorrências de `Theme.*` em app, widget e `Shared/`): `dim` 354, `accent` 286, `raised` 82, `bg` 44, `card` 45, `trophy` 31, `streak` 29, `stroke` 22, `danger` 22, `warning` 18, `info` 15, `health` 12, `track` 5, `badge` 5, `online` 4, `note` e `video` 1 cada.
 
 **Cores dos atributos** (`extension Attribute` em `GymBros/Models/Activity.swift`):
 
@@ -81,7 +81,7 @@ As cores de atributo também colorem o anel da bolinha central da `GMTabBar` (gr
 
 ### 2.2 Tipografia
 
-Só a fonte do sistema (SF). Estilos do sistema (`.headline`, `.caption`…) para quase tudo; tamanho próprio sempre por `gmFont(size, weight:, design:, mono:, relativeTo:)`, que usa `@ScaledMetric` relativo ao estilo indicado e cresce com o Dynamic Type (25 usos).
+Só a fonte do sistema (SF). Estilos do sistema (`.headline`, `.caption`…) para quase tudo; tamanho próprio sempre por `gmFont(size, weight:, design:, mono:, relativeTo:)`, que usa `@ScaledMetric` relativo ao estilo indicado e cresce com o Dynamic Type (47 usos).
 
 | Papel | Estilo | Onde |
 |---|---|---|
@@ -98,7 +98,7 @@ Só a fonte do sistema (SF). Estilos do sistema (`.headline`, `.caption`…) par
 | Aba | `gmFont(10, weight: .semibold, relativeTo: .caption2)`; ícone `.system(size: 18, weight: .semibold)`; barra limitada a `xxLarge` | `GMTabBar` |
 | Roleta | `.system(size: 30/24, weight: .bold/.medium, design: .rounded).monospacedDigit()` | `GMWheel` |
 
-Regras práticas: **números sempre `.monospacedDigit()`** (ou `gmFont(…, mono: true)`) e `.contentTransition(.numericText())` quando o valor muda em tela (`GMStepper`, `GMCompactStepper`). Nada de `.font(.system(size:))` em texto: os 30 que restam são ícones, emojis e o widget do bro.
+Regras práticas: **números sempre `.monospacedDigit()`** (ou `gmFont(…, mono: true)`) e `.contentTransition(.numericText())` quando o valor muda em tela (`GMStepper`, `GMCompactStepper`). Nada de `.font(.system(size:))` em texto: os 51 usos que restam são, em princípio, ícones, emojis, widgets e a arte do story.
 
 ### 2.3 Espaçamentos
 
@@ -111,7 +111,7 @@ Regras práticas: **números sempre `.monospacedDigit()`** (ou `gmFont(…, mono
 | 2–4 | Título ↔ subtítulo (2), padding horizontal de rótulo de seção (4) |
 | 100 | `bottomInset` padrão do `GMScreen`, para o conteúdo não ficar sob a `GMTabBar` |
 
-Contagem no código: `spacing: 2` (49), `12` (45), `10` (43), `8` (28), `4` (27), `6` (23).
+Contagem no código: `spacing: 12` (78), `10` (74), `2` (68), `8` (61), `6` (52), `4` (43).
 
 ### 2.4 Raios
 
@@ -121,10 +121,10 @@ Escala única em `extension Theme` (`GymBros/DesignSystem/DesignSystem.swift`). 
 |---|---|---|
 | `Theme.radiusXS` | 4 | Barras finas: `GMEffortPicker`, mapa de calor das estatísticas, anilhas |
 | `Theme.radiusS` | 10 | Quadrado de ícone (`GMRow`, campos de data/hora, `ActivityRow`), miniaturas, dias da rotina |
-| `Theme.radiusM` | 12 | `GMTextField`, `GMButton` `small`, `GMCompactStepper`, roletas, fotos em lista, `ActivityKindGrid`, balão do bro, imagens e vídeo do wger |
+| `Theme.radiusM` | 12 | `GMTextField`, `GMButton` `small`, `GMCompactStepper`, roletas, fotos em lista, atalhos do `ActivityTypePicker`, casas da Box e nós do BroBook, balão do bro, imagens e vídeo do wger |
 | `Theme.radiusL` | 16 | `GMButton` normal, blocos dentro de card, mapas, status do mapa |
-| `Theme.radius` | 20 | `GMCard` (e `GMSection`), cards de exercício e barra de descanso do treino, cards da Dex e da liga |
-| `Theme.radiusXL` | 28 | `GMSheetCard` (topo do bottom sheet) e diálogo `gmPrompt` |
+| `Theme.radius` | 20 | `GMCard` (e `GMSection`), cards de exercício e barra de descanso do treino, cards do BroBook e da liga |
+| `Theme.radiusXL` | 28 | `GMSheetCard` (topo do bottom sheet), diálogo `gmPrompt` e `presentationCornerRadius` das sheets do sistema (ficha do BroBook, lista de tipos) |
 | `.capsule` | — | Chips, segmentado, busca, badge, barra de abas, valor dos campos de data |
 | `.circle` | — | `GMIconButton`, botões do stepper, avatar, `GMFloatingButton` |
 
@@ -141,11 +141,13 @@ Somente SF Symbols (as imagens de exercícios são ilustrações do wger, não �
 | Bike | `figure.outdoor.cycle` |
 | Natação | `figure.pool.swim` |
 | Vôlei | `figure.volleyball` |
-| Futebol | `figure.indoor.soccer` |
+| Futebol | `figure.soccer` |
 | Lutas | `figure.martial.arts` |
 | Dança | `figure.dance` |
 | Yoga | `figure.yoga` |
 | Outro | `figure.mixed.cardio` |
+
+Listas, detalhe e Stories mostram o tipo exato (`Activity.typeName`/`typeSymbol`, de `WorkoutType`): "Basquete" com `figure.basketball` em vez de "Futebol". Os 12 tipos acima são os equivalentes das categorias (`WorkoutType.of(kind)`) e os atalhos iniciais da grade de tipos.
 
 Abas (`GymBros/App/App.swift`): Treino `dumbbell.fill`, Ligas `trophy.fill`, Mapa `map.fill`, Histórico `list.bullet`; o centro é o sprite do bro. Ícones de ação recorrentes, com o rótulo do VoiceOver que `GMIconButton` dá a eles por padrão: `chevron.left` (Voltar), `xmark` (Fechar), `ellipsis` (Mais opções), `pencil` (Editar), `trash` (Apagar), `plus` (Adicionar), `gearshape` (Ajustes), `person.2.fill` (Amigos), `pawprint.fill` (Bros), `square.and.arrow.up` (Compartilhar).
 
@@ -163,9 +165,11 @@ Abas (`GymBros/App/App.swift`): Treino `dumbbell.fill`, Ligas `trophy.fill`, Map
 Tela padrão: cabeçalho próprio (`GMHeader`) + `ScrollView` com `VStack(spacing: 18)`, fundo `Theme.bg`, botão "OK" do teclado e barra de navegação escondida.
 Parâmetros: `title`, `subtitle`, `back` (mostra `chevron.left` e usa título de 26 pt abaixo da barra), `avatar` (bolinha do perfil à esquerda, telas raiz das abas), `close` (X à esquerda, para tela apresentada com `gmModal` que não é formulário, como o perfil), `large`, `bottomInset` (100), `trailing` (botões à direita), `content`.
 
+O `ScrollView` fica dentro de um `ScrollViewReader` que observa o tutorial (`OnboardingCoordinator.scrollTarget`): quando uma etapa destaca um elemento da tela, o `GMScreen` rola até ele (`OnboardingScroll.id(target)`, posto pelo `.onboardingTarget`) e o centraliza, para ele não ficar atrás da barra de abas. Tela com rolagem própria não ganha isso de graça.
+
 ```swift
 // ActivityDetail.swift
-GMScreen(activity.kind.name, back: true) {
+GMScreen(activity.typeName, back: true) {
     GMIconButton(icon: "pencil", label: "Editar atividade") { editing = true }
 } content: { ... }
 
@@ -209,8 +213,8 @@ Não usar: para um card sem rótulo nem rodapé (use `GMCard`).
 Superfície `Theme.card`, raio `Theme.radius` (20), `padding` (padrão 16; a Home e a corrida usam 18), `VStack(alignment: .leading, spacing: 12)`, largura total.
 
 ```swift
-// DexView.swift
-GMCard { GMToggle(title: "Revelar todas", subtitle: "Mostra todas as formas, sem contar como descoberta", isOn: $revealAll) }
+// SocialGate.swift
+GMCard { GMEmptyState(icon: "lock.fill", title: "Sem acesso", message: "Sua conta não tem permissão para ver isto.") }
 ```
 Não usar: aninhado em outro card (use `Theme.raised` para a camada interna).
 
@@ -269,7 +273,7 @@ GMButton("Série", icon: "plus", kind: .secondary, full: false, small: true) { .
 Não usar: `.danger` para abrir a confirmação; o botão que *abre* a confirmação é `.secondary` (`"Apagar atividade"` em `GymBros/Activities/ActivityDetail.swift`), e o `.danger` fica dentro do `gmActions`.
 
 #### `GMIconButton`
-Círculo `Theme.raised` com SF Symbol. Parâmetros: `icon`, `size` (40), `tint` (branco), `label` (rótulo do VoiceOver). Sem `label`, o rótulo vem de `defaultLabel(icon)` ("Fechar", "Voltar", "Mais opções", "Ajustes"…; ícones desconhecidos viram o nome do símbolo sem pontos). Passe `label` sempre que o ícone sozinho não disser a ação (30 dos 44 usos passam).
+Círculo `Theme.raised` com SF Symbol. Parâmetros: `icon`, `size` (40), `tint` (branco), `label` (rótulo do VoiceOver). Sem `label`, o rótulo vem de `defaultLabel(icon)` ("Fechar", "Voltar", "Mais opções", "Ajustes"…; ícones desconhecidos viram o nome do símbolo sem pontos). Passe `label` sempre que o ícone sozinho não disser a ação (40 dos 56 usos passam).
 
 ```swift
 // HomeView.swift
@@ -421,9 +425,9 @@ GMSearchField(placeholder: "Buscar exercício", text: $search)
 | Componente | Função |
 |---|---|
 | `GMDateTimePicker` | `GMDateField` + `GMDivider` + `GMTimeField`; `limitToNow` (padrão `true`) bloqueia o futuro |
-| `GMDateField` | Linha "Dia · Hoje" que abre `GMCalendar` num `gmSheet` |
+| `GMDateField` | Linha "Dia · Hoje" que abre `GMCalendar` num `gmSheet`; `limitToNow` e `minDate` (sem `limitToNow`, o dia confirmado nunca fica antes de `minDate`); mantém o horário e troca só o dia |
 | `GMTimeField` | Linha "Horário · 14:30" que abre `GMTimeWheel` num `gmSheet` |
-| `GMCalendar` | Mês em pt-BR começando no domingo (grade de `GMMonth`); `maxDate`, `minDate`; "Ir para hoje"; setas "Mês anterior"/"Próximo mês" |
+| `GMCalendar` | Mês em pt-BR começando no domingo (grade de `GMMonth`); `maxDate`, `minDate` (dias fora ficam desabilitados); "Ir para hoje"; setas "Mês anterior"/"Próximo mês", apagadas (`Theme.dim`) e sem efeito quando o mês vizinho fica todo fora do limite |
 | `GMMonth` | Grade do mês compartilhada por `GMCalendar` e `ActivityCalendar`: `calendar` (gregoriano, pt-BR, domingo primeiro), `cells(month)` (com `nil` antes do dia 1), `start(of:)`, `title` ("Outubro de 2026") e `header` ("Dom Seg Ter…") |
 | `GMTimeWheel` | Duas `GMWheel` (0–23 e 0–59) |
 | `GMDurationWheel` | Minutos (0…`maxMinutes`) e segundos de 5 em 5 |
@@ -437,6 +441,8 @@ GMSection("Quando") { GMDateTimePicker(date: $date) }
 GMTimeField(date: Binding(get: { ... }, set: { ... }))
 // PeriodPicker.swift
 GMCalendar(selection: $draftStart, minDate: minDate)
+// ConversationView.swift (só datas a partir de hoje)
+GMDateField(date: $day, limitToNow: false, minDate: .now)
 // WorkoutView.swift
 GMDurationWheel(seconds: $restDraft)
 ```
@@ -456,8 +462,8 @@ if league.isMock { GMBadge(text: "exemplo", tint: .white) }
 Barra em cápsula animada; `value` 0…1, `tint`, `height` (8).
 
 ```swift
-// DexView.swift
-GMProgressBar(value: a.progress, height: 6)
+// DexView.swift (conquista bloqueada)
+GMProgressBar(value: a.progress, tint: Theme.trophy, height: 5)
 ```
 
 #### `GMEmptyState`
@@ -483,9 +489,25 @@ if friend.isLive { GMOnlineDot(size: 6) }
 | `gmSheet(isPresented:) { close in … }` | `.sheet` | Livre, dentro de `GMSheetCard` (alça, raio 28, `Theme.card`) |
 | `gmActions(isPresented:title:message:actions:)` | `Menu`, `confirmationDialog` | Lista de `GMAction` (`.secondary` ou `.danger`) + "Cancelar" `.ghost` |
 | `gmPrompt(isPresented:title:message:placeholder:text:confirm:onConfirm:)` | `alert` com `TextField` | Diálogo central com `GMTextField` e dois botões |
-| `gmKeyboardDone()` | barra do teclado | Botão "OK" em acento acima do teclado; instala o toque-fora-fecha-teclado |
+| `gmKeyboardDone()` | barra do teclado | Botão "OK" em acento acima do teclado; instala o toque-fora-fecha-teclado (`GMKeyboardDismisser`, um gesto de toque por janela que não rouba o toque de quem está embaixo) |
 
-Os três primeiros usam `GMOverlayHost` (`fullScreenCover` transparente). A ação de um `GMAction` roda **depois** que a camada fecha, então pode abrir outra tela em seguida.
+Os três primeiros usam `GMOverlayHost` (`fullScreenCover` transparente). A ação de um `GMAction` roda **depois** que a camada fecha, então pode abrir outra tela em seguida. O `GMSheetCard` ignora só a área segura do contêiner na borda de baixo (`.ignoresSafeArea(.container, edges: .bottom)`): com o teclado aberto, a folha sobe junto e o campo continua visível.
+
+**Sheet do sistema com alturas** (exceção à regra 8): a ficha do BroBook (`DexEntryView`, em `DexView` e em `MyBrosList`) e a lista de tipos de treino (`WorkoutTypeList`) usam `.sheet` com `.presentationDetents`, porque precisam da meia altura que expande e da alça de arrastar, que o `gmSheet` não tem. Todas repetem o mesmo acabamento:
+
+```swift
+// DexView.swift
+.sheet(item: $entry) {
+    DexEntryView(form: $0, snapshot: snapshot, isKnown: { ... })
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(Theme.radiusXL)
+        .presentationBackground(Theme.bg)
+        .preferredColorScheme(.dark)
+        .tint(Theme.accent)
+}
+```
+**Recomendação:** extrair esse acabamento para um modificador `gm*` (ex.: `gmDetentSheet`) ou dar alturas ao `gmSheet`, para a exceção não se espalhar com variações.
 
 ```swift
 // Monsters.swift
@@ -512,7 +534,7 @@ GMTabBar(left: [GMTabItem(icon: "dumbbell.fill", title: "Treino", tag: 1),
                  GMTabItem(icon: "list.bullet", title: "Histórico", tag: 4)],
          centerTag: 0, selection: $tab) { MonsterSprite(form: s.form) }
 ```
-Existe uma só, em `MainView`. As páginas ficam vivas depois da primeira visita (guardam rolagem e navegação).
+Existe uma só, em `MainView`. As páginas ficam vivas depois da primeira visita (guardam rolagem e navegação). Cada aba e o bro do centro são alvos do tutorial (`.onboardingTarget`), e a barra publica o próprio frame global em `OnboardingTargetRegistry.tabBar`, com 16 pt de folga para cima por causa do bro elevado: elemento de tela que cruza esse retângulo não é destacado.
 
 ## 4. Padrões de tela
 
@@ -566,10 +588,11 @@ Use `GMFloatingButton` (seção 3) em `.overlay(alignment: .bottomTrailing)`, co
 
 | Gerador | Quando | Ocorrências |
 |---|---|---|
-| `UISelectionFeedbackGenerator().selectionChanged()` | Trocar seleção (chips, aba, dia do calendário, roleta, régua, esforço, grade de atividades) | 15 |
-| `UIImpactFeedbackGenerator(style: .light)` | Incremento (stepper, `GMCompactStepper`, switch), atualizar posição no mapa | 10+ |
-| `UIImpactFeedbackGenerator(style: .medium)` | Ação física de treino (contar rodada no WOD, evolução) | 3 |
-| `UINotificationFeedbackGenerator().notificationOccurred(.success)` | Salvou, check-in feito, amizade aceita, evoluiu | 11 |
+| `UISelectionFeedbackGenerator().selectionChanged()` | Trocar seleção (chips, aba, dia do calendário, roleta, régua, esforço, grade de tipos, nó do BroBook, aceite dos termos) | 23 |
+| `.sensoryFeedback(.selection, trigger:)` | Seleção que muda por estado: casa da Box em "Meus bros", troca de forma na ficha do BroBook | 2 |
+| `UIImpactFeedbackGenerator(style: .light)` | Incremento (stepper, `GMCompactStepper`, switch), atualizar posição no mapa | 11 |
+| `UIImpactFeedbackGenerator(style: .medium)` | Ação física ou de impacto (contar rodada no WOD, apagar série no treino, evolução, "Mandar força" no perfil e nos amigos ao vivo, envio na conversa) | 7 |
+| `UINotificationFeedbackGenerator().notificationOccurred(.success)` | Salvou, check-in feito, amizade aceita, evoluiu | 20 |
 | `.warning` | Alerta | 1 |
 
 Componentes `GM` de seleção já vibram; não duplique a vibração no `action`.
@@ -578,7 +601,7 @@ Componentes `GM` de seleção já vibram; não duplique a vibração no `action`
 
 | Componente | Arquivo | Descrição |
 |---|---|---|
-| `MonsterSprite(form:hidden:)` | `GymBros/Bros/MonsterSprite.swift` | Pixel art sem suavização (`.interpolation(.none)`), `hueRotation` por forma; `hidden` vira silhueta preta a 60 % (Dex). Usado em listas (44 pt), amigos (42–56 pt) e no centro da barra de abas |
+| `MonsterSprite(form:hidden:)` | `GymBros/Bros/MonsterSprite.swift` | Pixel art sem suavização (`.interpolation(.none)`), `hueRotation` por forma; `hidden` vira silhueta preta a 60 % (BroBook). Usado em listas (44 pt), amigos (42–56 pt) e no centro da barra de abas |
 | `LivingMonster(form:progress:)` | `GymBros/Bros/MonsterSprite.swift` | Sprite animado: ovo treme com frequência e força crescentes conforme `progress`; demais formas têm animação ociosa por espécie (`MotionScript`: urso balança, rato pula, coruja flutua…). Usado na Home (200 pt) e no `PublicProfileCard` (60 pt) |
 | `PersonAvatar(name:photo:size:)` | `GymBros/Friends/PublicProfile.swift` | Círculo com foto ou inicial em `.heavy .rounded` preta sobre acento; contorno `Theme.stroke` |
 | `Avatar(size:)` | `GymBros/Profile/ProfileView.swift` | `PersonAvatar` do próprio usuário (lê `@AppStorage`) |
@@ -587,8 +610,12 @@ Componentes `GM` de seleção já vibram; não duplique a vibração no `action`
 | `ActivityCalendar(marks:onDay:)` | `GymBros/Profile/ProfileCalendar.swift` | Mês (grade de `GMMonth`) com foto do dia (até duas sobrepostas) ou círculo de acento com o símbolo da atividade e contador; usado também no perfil privado |
 | `PostsCalendar` | `GymBros/Profile/ProfileCalendar.swift` | `ActivityCalendar` + `gmSheet` com os posts do dia |
 | `LeagueRow` (privado) | `GymBros/Leagues/LeaguesView.swift` | Card de liga: emoji `.largeTitle`, nome, `GMBadge` "exemplo", posição e dias restantes, sprite do representante e chevron, dentro de `GMCard` |
-| `ActivityRow` | `GymBros/Bros/HomeView.swift` | Ícone da atividade 40×40 em `Theme.raised`, tipo, duração · esforço · data, destinos em acento, `heart.fill` em `Theme.health` se veio do Saúde (rótulo "Do app Saúde"), "+XP" em acento |
-| `ActivityKindGrid` | `GymBros/Activities/LogActivityView.swift` | Grade 4 colunas dos 12 tipos; selecionado com fundo de acento 20 % e contorno de acento |
+| `ActivityRow` | `GymBros/Bros/HomeView.swift` | Ícone do tipo exato (`typeSymbol`) 40×40 em `Theme.raised`, nome do tipo (`typeName`), duração · esforço · data, destinos em acento, `heart.fill` em `Theme.health` se veio do Saúde (rótulo "Do app Saúde"), "+XP" em acento |
+| `ActivityTypePicker` | `GymBros/Activities/WorkoutTypes.swift` | Substituiu o `ActivityKindGrid`: grade 4 colunas com 7 atalhos (tipos mais usados e escolhidos por último) e "Todas" (`magnifyingglass`); casa de altura mínima 66, raio `radiusM`, selecionada com fundo de acento 20 %, contorno de acento 1,5 pt e traço `isSelected` no VoiceOver. Os atalhos ficam fixos enquanto a tela está aberta (escolher não reordena; um tipo escolhido em "Todas" ocupa a última casa) |
+| `WorkoutTypeList` | `GymBros/Activities/WorkoutTypes.swift` | Os 80 tipos por seção com busca "Buscar treino", em sheet do sistema (`.large`); linha com ícone em quadrado `radiusS` (acento 15 %, ou acento cheio com ícone preto no selecionado) e ✓. Usa `List` `.insetGrouped` com fundo `Theme.card` e `.searchable` (exceção à seção 1) |
+| `MyBrosList` (Box) | `GymBros/Bros/Monsters.swift` | Box de 4 colunas com no mínimo 12 casas (vazias tracejadas com `Theme.stroke`), casa em proporção 0,82 com sprite 52 pt, nome e "Nv N" em `gmFont(9, mono:)`, estrela de principal (círculo de acento) e emoji da liga nos cantos; selecionada com fundo e contorno na cor do atributo. Embaixo, card de resumo com contorno na cor do atributo, barras de atributo e botões pequenos "Principal", "Apelido" e "BroBook". O fundo da Box (`Theme.card` com degradê de acento 8 %) e o card de resumo são montados à mão |
+| `DexEntryView` | `GymBros/Bros/DexEntryView.swift` | Ficha da forma em sheet do sistema (`.medium`/`.large`): topo de 280 pt com degradê das cores dos atributos, grade de pixels a 6 % (`PixelGrid`), arte de 168 pt, "Nº 000" em cápsula preta 25 % e `GMIconButton` "Fechar"; nome em `gmFont(34, .heavy, .rounded)`; pílulas de atributo (texto preto sobre a cor); três números separados por divisores; card "seu bro" em acento 12 %; seções "Como conseguir" e "Evolução" com linhas tocáveis (faixa lateral na cor do atributo, selo "ESTA") |
+| `DuelHomeCard` | `GymBros/Duels/DuelViews.swift` | Card "X1" da tela inicial dentro de `GMCard`: título em `Theme.trophy` (`bolt.shield.fill`), retrospecto "NV · NE · ND", linhas de desafio recebido (fundo `Theme.trophy` 10 %, botão "Responder") e de X1 valendo (placar em acento, `Theme.danger` ou branco), ou o convite com até 4 amigos em círculos com contorno `Theme.trophy` |
 | `SpeechBubble` | `GymBros/Bros/HomeView.swift` | Balão do bro com emoji de humor e pontinha apontando para baixo |
 | `LiveFriendCard` / `LiveFriendRow` / `FriendPin` | `GymBros/Friends/FriendsLive.swift` | Amigo treinando agora: sprite com anel na cor do atributo da atividade, `GMOnlineDot` e "AO VIVO"; pino com teto de Dynamic Type `xLarge` |
 | `ExercisePhotos` / `CreditLine` / `WgerVideoView` / `CreditsView` | `GymBros/Exercises/Wger.swift` | Imagens do wger sobre fundo branco alternando com o crédito embaixo; linha "Imagem: autor · licença · wger.de" em `.caption2`/`Theme.dim`; vídeo no app; tela "Créditos e licenças" |
@@ -608,7 +635,7 @@ Componentes `GM` de seleção já vibram; não duplique a vibração no `action`
 5. Uma ação primária (acento) por tela; o resto `.secondary` ou `.ghost`.
 6. Tudo tocável usa `GMPress`.
 7. Números com `.monospacedDigit()`. Tamanho de fonte próprio só com `gmFont`.
-8. Nenhum controle nativo listado na seção 1; nada de `.sheet`, `.alert`, `.confirmationDialog`.
+8. Nenhum controle nativo listado na seção 1; nada de `.sheet`, `.alert`, `.confirmationDialog` (exceção registrada: sheet do sistema com alturas, seção 3, "Overlays").
 9. Datas pelo `GMDateText` e locale `pt_BR`.
 10. Seleção vibra (`selectionChanged`), sucesso vibra (`.success`).
 11. Botão só com ícone tem rótulo do VoiceOver (`GMIconButton(label:)`, `accessibilityLabel`).
@@ -637,8 +664,11 @@ Resolvidas desde a primeira versão: cores do tema duplicadas no widget (agora `
 |---|---|---|
 | Cores do sistema fora de token | `GMEffortPicker`, `MapScreen` (`color(kind)`), `MuscleViews` (mapa de calor) | Escala de esforço e cores de percurso ainda usam `.yellow`, `.orange`, `.red`, `.cyan` direto (as anilhas são cores de domínio) |
 | Terceiro calendário | `GymBros/DesignSystem/PeriodPicker.swift` (`GMRangeCalendar`) | Calcula a grade por conta própria e usa "D S T Q Q S S", em vez de `GMMonth` ("Dom Seg Ter…") |
-| Cards montados à mão | `DexView` (conquistas e seletor de espécie), `WorkoutView` (card do exercício, barra de descanso), `LeaguesView` (resumo, linhas), `MapScreen` (raio `radiusL`) | Já usam `Theme.card` e tokens de raio, mas não `GMCard` (precisam de contorno ou padding variável) |
+| Cards montados à mão | `DexView` (card do topo, conquistas, seletor de espécie e galhos), `MyBrosList` (fundo da Box, casas e resumo), `DexEntryView` (números, "Como conseguir", linhas da evolução), `DuelHomeCard` (linhas), `WorkoutView` (card do exercício, barra de descanso), `LeaguesView` (resumo, linhas), `MapScreen` (raio `radiusL`) | Já usam `Theme.card` e tokens de raio, mas não `GMCard` (precisam de contorno ou padding variável) |
 | Telas com `ScrollView` à mão | `GymBros/Friends/PublicProfile.swift` (`FriendProfileView`), `GymBros/Leagues/CheckInDetail.swift`, `GymBros/Train/WorkoutView.swift` | Fogem do `GMScreen`; as duas últimas têm layout de tela cheia próprio |
 | Trilhos com literal | `GMSwitch` (`.white.opacity(0.15)`), `XPBar` do widget (`.white.opacity(0.12)`) | Próximos de `Theme.track` (0,1), mas diferentes |
-| Tamanhos fixos | ícones e emojis (`GMEmptyState`, roleta, reações, troféu), `PetWidget` | 30 usos de `.font(.system(size:))`, fora do `gmFont` (a arte do story fica de fora: é imagem, não tela) |
+| Tamanhos fixos | ícones e emojis (`GMEmptyState`, roleta, reações, troféu, estrela e emoji da liga nas casas da Box), `PetWidget` | 51 usos de `.font(.system(size:))`, fora do `gmFont` (a arte do story fica de fora: é imagem, não tela) |
+| Controles nativos | `WorkoutTypeList` (`GymBros/Activities/WorkoutTypes.swift`) | `List` `.insetGrouped`, `.searchable`, `.toolbar` com `Button("Fechar")` e `ContentUnavailableView.search`, no lugar de `GMSearchField`, `GMSection`/`GMRow`, `GMIconButton` e `GMEmptyState` |
+| `.sheet` direto | `DexView` e `MyBrosList` (ficha do BroBook), `ActivityTypePicker` (lista de tipos) | Sheet do sistema com `.presentationDetents` e o acabamento repetido à mão em cada um (raio, fundo, tema e tinta); ver a recomendação em "Overlays" |
+| Dois jeitos de vibrar na seleção | `MyBrosList` (`slot`), `DexEntryView` | Usam `.sensoryFeedback(.selection, trigger:)`; o resto do app chama `UISelectionFeedbackGenerator`. Na Box, o gatilho é o `selected` de cada casa, então trocar de bro muda o gatilho de duas casas (a que sai e a que entra) |
 | Telas cheias fora de `GMScreen`/`GMModal` | `LoginView` (`GymBros/Services/Auth.swift`), `StoryComposerView` (`GymBros/Activities/StoryShare.swift`) | O login monta o próprio `ScrollView` e recria o fundo do campo de senha (`SecureField` com `Theme.card`, porque `GMTextField` não tem modo seguro); o story abre por `UIHostingController` em tela cheia, com cabeçalho próprio |

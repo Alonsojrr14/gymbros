@@ -88,7 +88,7 @@ struct StoryData {
         }
         if let k = kcal(a, kind: a.kind, minutes: a.minutes, effort: a.effort, context: context) { stats.append((k, "kcal")) }
         let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
-        let title = posts.first?.title ?? (a.note.isEmpty || a.healthUUID != nil ? a.kind.name : a.note)
+        let title = posts.first?.title ?? (a.note.isEmpty || a.healthUUID != nil ? a.typeName : a.note)
         return StoryData(title: title, date: a.date,
                          place: posts.compactMap(\.place).first ?? GymLocation.shared.gym(a.gymUUID)?.name,
                          stats: stats.map { (value: $0.0, label: $0.1) }, route: route?.coordinates ?? [],

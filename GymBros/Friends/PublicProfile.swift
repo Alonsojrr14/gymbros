@@ -166,6 +166,7 @@ struct FriendProfileView: View {
     @State private var moderation: ModerationRequest?
     @State private var mod = ModerationStore.shared
     @State private var chatting = false
+    @State private var dueling = false
     @State private var cheered = false
     @State private var terms = TermsGate()
 
@@ -178,6 +179,7 @@ struct FriendProfileView: View {
             VStack(spacing: 18) {
                 header(profile)
                 if store.friendIDs.contains(friend.id) { friendActions }
+                GMButton("Desafiar para um X1", icon: "bolt.shield.fill", kind: .secondary) { dueling = true }
                 if mod.isHidden(.profile, friend.id) {
                     GMEmptyState(icon: "flag", title: "Perfil denunciado",
                                  message: "Você não vê mais o conteúdo deste perfil. " + ModerationStore.reviewNote)
@@ -222,6 +224,9 @@ struct FriendProfileView: View {
         .moderation($moderation) { dismiss() }
         .termsGate($terms)
         .gmModal(isPresented: $chatting) { NavigationStack { ConversationView(peerID: friend.id) } }
+        .gmSheet(isPresented: $dueling) { close in
+            DuelComposer(opponent: DuelPerson(id: friend.id, name: friend.name, formID: friend.formID)) { close() }
+        }
     }
 
     private var menuActions: [GMAction] {

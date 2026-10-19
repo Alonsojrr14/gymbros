@@ -7,7 +7,7 @@ import UserNotifications
 // inclusive lembretes, resumo, descanso e chegada na academia. Com servidor, as mesmas chaves filtram o push.
 
 enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
-    case messages, cheers, invites, friendsTraining, reactions, friendRequests
+    case messages, cheers, invites, duels, friendsTraining, reactions, friendRequests
 
     var id: String { rawValue }
     var key: String { "notify.\(rawValue)" }
@@ -20,6 +20,7 @@ enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
         case .friendsTraining: "Amigo começou a treinar"
         case .reactions: "Reações e comentários"
         case .friendRequests: "Pedidos de amizade"
+        case .duels: "X1"
         }
     }
 
@@ -31,6 +32,7 @@ enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
         case .friendsTraining: "Quando um amigo começa um treino ao vivo"
         case .reactions: "Nos seus check-ins do perfil e das ligas"
         case .friendRequests: "Quando alguém quer ser seu amigo"
+        case .duels: "Desafios, respostas e resultado dos seus X1"
         }
     }
 
@@ -42,6 +44,7 @@ enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
         case .friendsTraining: "dot.radiowaves.left.and.right"
         case .reactions: "face.smiling.inverse"
         case .friendRequests: "person.badge.plus"
+        case .duels: "bolt.shield.fill"
         }
     }
 
@@ -53,6 +56,7 @@ enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
         case .friendsTraining: Theme.online
         case .reactions: Theme.streak
         case .friendRequests: Attribute.tecnica.color
+        case .duels: Theme.trophy
         }
     }
 
@@ -162,6 +166,26 @@ struct InboxNotice: Identifiable {
             title = e.actorName
             body = e.text
             peerID = e.actorID
+        case .duelChallenge:
+            title = "\(e.actorName) te desafiou para um X1 ⚔️"
+            body = "\(e.detail) · 24 h para aceitar. Vence quem fizer mais nas 24 h depois do aceite."
+            peerID = nil
+        case .duelAccepted:
+            title = "\(e.actorName) aceitou seu X1 ⚔️"
+            body = "\(e.detail) · valendo pelas próximas 24 h."
+            peerID = nil
+        case .duelDeclined:
+            title = "\(e.actorName) recusou seu X1"
+            body = e.detail
+            peerID = nil
+        case .duelExpired:
+            title = "Seu X1 com \(e.actorName) expirou"
+            body = "\(e.detail) · ninguém aceitou em 24 h."
+            peerID = nil
+        case .duelResult:
+            title = "X1 encerrado · \(e.detail)"
+            body = e.text.isEmpty ? "Seu X1 com \(e.actorName) terminou." : e.text
+            peerID = nil
         }
     }
 }

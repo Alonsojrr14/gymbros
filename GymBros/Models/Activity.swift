@@ -39,7 +39,8 @@ final class Activity {
     var kind: ActivityKind { ActivityKind(rawValue: kindRaw) ?? .outro }
 
     var record: ActivityRecord {
-        ActivityRecord(id: uuid, kind: kind, date: date, minutes: minutes, effort: effort, healthType: healthType.map(UInt.init))
+        ActivityRecord(id: uuid, kind: kind, date: date, minutes: minutes, effort: effort, healthType: healthType.map(UInt.init),
+                       weights: ActivitySplits.weights(uuid))
     }
 }
 

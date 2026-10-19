@@ -44,6 +44,7 @@ struct HomeView: View {
                 if snapshot.stage != .egg { attributesCard }
                 GMButton("Registrar atividade", icon: "plus.circle.fill") { logging = true }
                     .onboardingTarget(.logActivity, shape: .rounded(Theme.radiusL))
+                DuelHomeCard()
                 if !activities.isEmpty { recentCard }
             }
             .gmModal(isPresented: $logging) { LogActivityView(snapshot: snapshot) }
@@ -196,12 +197,12 @@ struct ActivityRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: activity.kind.symbol)
+            Image(systemName: activity.typeSymbol)
                 .font(.title3)
                 .frame(width: 40, height: 40)
                 .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusS))
             VStack(alignment: .leading, spacing: 2) {
-                Text(activity.kind.name).font(.subheadline.weight(.semibold))
+                Text(activity.typeName).font(.subheadline.weight(.semibold))
                 Text("\(durationText(activity.minutes)) · \(effortLabel(activity.effort)) · \(activity.date.formatted(.dateTime.day().month(.abbreviated)))")
                     .font(.caption)
                     .foregroundStyle(Theme.dim)

@@ -19,8 +19,9 @@ struct ScoreInput {
 }
 
 extension Activity {
-    /// Importada do Apple Saúde: kcal, distância e o esforço derivado delas não saem do aparelho (guideline 5.1.3)
-    var isFromHealth: Bool { healthUUID != nil || healthType != nil }
+    /// Importada do Apple Saúde: kcal, distância e o esforço derivado delas não saem do aparelho (guideline 5.1.3).
+    /// Só o `healthUUID` marca a origem: o tipo exato (`healthType`) também é gravado nas atividades do app.
+    var isFromHealth: Bool { healthUUID != nil }
     /// Esforço que pode ser publicado: o do Saúde vem das kcal de lá, então sobe o neutro
     var publishableEffort: Int { isFromHealth ? 5 : effort }
     /// Distância que pode ser publicada (só a do GPS do app)
@@ -79,11 +80,11 @@ enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    /// Placar com unidade: "120 pts", "3 treinos", "1 h 20 min", "12,4 km", "830 kcal"
-    func format(_ v: Int) -> String {
+    /// Placar com unidade: "120 pts", "3 treinos", "1 h 20 min", "12,4 km", "830 kcal". `count` decide o plural (padrão: `v`).
+    func format(_ v: Int, count: Int? = nil) -> String {
         switch self {
         case .pontos: "\(v) pts"
-        case .treinos: "\(v) treino\(v == 1 ? "" : "s")"
+        case .treinos: "\(v) treino\((count ?? v) == 1 ? "" : "s")"
         case .minutos: durationText(v)
         case .distancia: Self.km(v)
         case .calorias: "\(v) kcal"
@@ -226,6 +227,7 @@ enum LeagueRenewal {
         l.weightsRaw = old.weightsRaw
         l.tieBreakRaw = old.tieBreakRaw
         l.photoRuleRaw = old.photoRuleRaw
+        l.swissRaw = old.swissRaw
         l.teamsRaw = old.teamsRaw
         l.myTeamID = old.myTeamID
         l.autoRenew = true
@@ -389,6 +391,10 @@ struct RankRow: Identifiable {
     var bestStreak = 0
     /// Empatado no placar com alguém e decidido pelo desempate
     var tied = false
+    /// Pontos suíços das rodadas encerradas; nil = nenhuma rodada encerrada ainda
+    var swiss: Double?
+    /// Bônus das rodadas suíças que entrou no placar da janela
+    var bonus = 0
 }
 
 struct LeagueTeam: Hashable, Identifiable, Sendable {
@@ -488,9 +494,32 @@ enum LeagueBoard {
         return (f.hasArt ? f : f.single, progress)
     }
 
-    static func ranking(feed: [FeedItem], league: League, me: String, myAvatar: MonsterForm, since: Date?,
-                        remote: RemoteLeague? = nil) -> [RankRow] {
+    /// Seu id no servidor (o mesmo que os outros aparelhos veem), para o pareamento suíço ser igual em todos
+    static var selfID: String { Cloud.knownID ?? "me" }
+
+    /// Rodadas suíças da liga, derivadas do feed e dos membros
+    static func swiss(league: League, feed: [FeedItem], remote: RemoteLeague? = nil, now: Date = .now) -> SwissTable {
         let remote = remote ?? LeagueRemoteStore.shared.remote(league)
+        let cal = Swiss.calendar
+        var tallies: [Date: [String: SwissTally]] = [:]
+        for f in feed where f.date >= league.start && f.date <= (league.end ?? .distantFuture) && f.date <= now {
+            let day = cal.startOfDay(for: f.date)
+            var t = tallies[day]?[f.memberID] ?? SwissTally()
+            t.score += f.score
+            if league.photoRule.apply(1, hasPhoto: f.hasPhoto) > 0 { t.checkIns += 1 }
+            tallies[day, default: [:]][f.memberID] = t
+        }
+        var joined = ["me": league.swissJoinedAt]
+        for m in remote.members { joined[m.id] = m.joinedAt }
+        return Swiss.table(members: ["me"] + remote.members.map(\.id), tallies: tallies, start: league.start, end: league.end, now: now,
+                           seed: league.code.isEmpty ? league.uuid.uuidString : league.code, criterion: league.swiss,
+                           identity: ["me": selfID], joined: joined, calendar: cal)
+    }
+
+    static func ranking(feed: [FeedItem], league: League, me: String, myAvatar: MonsterForm, since: Date?,
+                        remote: RemoteLeague? = nil, swiss: SwissTable? = nil) -> [RankRow] {
+        let remote = remote ?? LeagueRemoteStore.shared.remote(league)
+        let swiss = swiss ?? Self.swiss(league: league, feed: feed, remote: remote)
         var rows: [String: RankRow] = [:]
         var days: [String: Set<Date>] = [:]
         // Todo mundo aparece, mesmo zerado
@@ -507,6 +536,14 @@ enum LeagueBoard {
             days[f.memberID, default: []].insert(cal.startOfDay(for: f.date))
         }
         for (id, d) in days { rows[id]?.bestStreak = Game.bestStreak(days: d, calendar: cal) }
+        for (id, b) in swiss.bonuses(scoring: league.scoring, since: since, calendar: Swiss.calendar) {
+            guard var r = rows[id] else { continue }
+            r.score += b.total
+            r.bonus = b.total
+            r.reachedAt = max(r.reachedAt ?? .distantPast, b.last)
+            rows[id] = r
+        }
+        for (id, p) in swiss.points { rows[id]?.swiss = p }
         var sorted = rows.values.sorted { a, b in
             if a.score != b.score { return a.score > b.score }
             switch league.tieBreak {

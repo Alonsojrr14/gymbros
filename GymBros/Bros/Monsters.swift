@@ -116,76 +116,191 @@ struct Roster {
 
 // MARK: - Telas
 
-/// Coleção: quem é o principal, quem representa cada liga, apelidos
-/// Coleção de bros: escolher o principal e dar apelido. Fica na aba "Meus bros" da tela de bros.
+/// "Meus bros" como uma Box: todos os bros em slots e, embaixo, o resumo do selecionado
+/// (principal, apelido, ligas, atributos e a ficha no BroBook).
 struct MyBrosList: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Monster.createdAt) private var monsters: [Monster]
     @Query private var activities: [Activity]
     @Query private var checkIns: [LeagueCheckIn]
     @Query private var leagues: [League]
-    @State private var menu: Monster?
+    @AppStorage("discovered") private var discovered = ""
+    @AppStorage("dexRevealAll") private var revealAll = false
+    @State private var selectedID: UUID?
     @State private var renaming = false
-    @State private var renameTarget: Monster?
     @State private var newName = ""
     @State private var mainID = MainMonster.id
+    @State private var dexEntry: MonsterForm?
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 4)
 
     var body: some View {
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues)
-        VStack(alignment: .leading, spacing: 18) {
-            ForEach(monsters) { m in
-                let s = roster.snapshot(m.uuid)
-                let reps = leagues.filter { $0.monsterUUID == m.uuid }
-                Button { menu = m } label: {
-                    GMCard {
-                        HStack(spacing: 14) {
-                            LivingMonster(form: s.form, progress: s.progress).frame(width: 64, height: 64)
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text(m.displayName(s.form)).font(.headline)
-                                    if m.uuid == roster.mainID { GMBadge(text: "principal") }
-                                }
-                                Text(s.stage == .egg ? "Ovo · \(s.xpToNext ?? 0) XP para chocar" : "\(s.stage.name) · Nível \(s.level) · \(s.totalXP) XP")
-                                    .font(.caption).foregroundStyle(Theme.dim)
-                                GMProgressBar(value: s.progress, height: 5)
-                                Text(reps.isEmpty ? "Não representa nenhuma liga" : "Liga: " + reps.map { "\($0.emoji) \($0.name)" }.joined(separator: ", "))
-                                    .font(.caption2).foregroundStyle(Theme.dim)
-                            }
-                            Image(systemName: "ellipsis").foregroundStyle(Theme.dim)
-                        }
-                    }
-                }
-                .buttonStyle(GMPress())
-            }
+        let current = roster.monster(selectedID) ?? roster.main
+        VStack(alignment: .leading, spacing: 16) {
+            box(roster, selected: current?.uuid)
+            if let m = current { summary(m, roster.snapshot(m.uuid), isMain: m.uuid == roster.mainID) }
             Text("O principal aparece na tela inicial e nos widgets e recebe o XP das atividades que não vão para nenhuma liga. Cada liga dá XP só ao bro que te representa nela. Ovos novos você adota ao entrar numa liga.")
                 .font(.caption).foregroundStyle(Theme.dim)
         }
-        .gmActions(isPresented: Binding(get: { menu != nil }, set: { if !$0 { menu = nil } }),
-                   title: menu.map { m in m.displayName(roster.snapshot(m.uuid).form) }, actions: actions)
         .gmPrompt(isPresented: $renaming, title: "Apelido", message: "Vazio usa o nome da forma atual.",
                   placeholder: "Apelido", text: $newName) {
-            renameTarget?.name = newName.trimmingCharacters(in: .whitespaces)
+            current?.name = newName.trimmingCharacters(in: .whitespaces)
             try? context.save()
-            renameTarget = nil
+        }
+        .sheet(item: $dexEntry) { f in
+            let seen = Set(discovered.split(separator: ",").map(String.init))
+            DexEntryView(form: f, snapshot: roster.snapshot(current?.uuid), isKnown: { [revealAll] in revealAll || seen.contains($0.id) })
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(Theme.radiusXL)
+                .presentationBackground(Theme.bg)
+                .preferredColorScheme(.dark)
+                .tint(Theme.accent)
         }
     }
 
-    private var actions: [GMAction] {
-        guard let m = menu else { return [] }
-        var list: [GMAction] = []
-        if m.uuid != (mainID ?? MainMonster.id) {
-            list.append(GMAction("Tornar principal", icon: "star") {
-                MainMonster.id = m.uuid
-                mainID = m.uuid
-                try? context.save()
-            })
+    // MARK: Box
+
+    private func box(_ roster: Roster, selected: UUID?) -> some View {
+        // Sempre fileiras cheias, com pelo menos 3 (os vazios lembram que dá para ter mais)
+        let slots = max(12, Int((Double(monsters.count) / 4).rounded(.up)) * 4)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Box", systemImage: "square.grid.3x3.fill").font(.headline)
+                Spacer()
+                Text("\(monsters.count) \(monsters.count == 1 ? "bro" : "bros")")
+                    .font(.subheadline.bold().monospacedDigit()).foregroundStyle(Theme.dim)
+            }
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(0..<slots, id: \.self) { i in
+                    if i < monsters.count {
+                        let m = monsters[i]
+                        slot(m, roster.snapshot(m.uuid), isMain: m.uuid == roster.mainID, selected: m.uuid == selected)
+                    } else {
+                        RoundedRectangle(cornerRadius: Theme.radiusM)
+                            .strokeBorder(Theme.stroke, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
+                            .aspectRatio(0.82, contentMode: .fit)
+                            .accessibilityHidden(true)
+                    }
+                }
+            }
         }
-        list.append(GMAction("Dar apelido", icon: "pencil") {
-            newName = m.name
-            renameTarget = m
-            renaming = true
-        })
-        return list
+        .padding(14)
+        .background {
+            ZStack {
+                Theme.card
+                LinearGradient(colors: [Theme.accent.opacity(0.08), .clear], startPoint: .top, endPoint: .bottom)
+            }
+            .clipShape(.rect(cornerRadius: Theme.radius))
+        }
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(.white.opacity(0.08), lineWidth: 1))
+    }
+
+    private func slot(_ m: Monster, _ s: Snapshot, isMain: Bool, selected: Bool) -> some View {
+        let color = s.form.attribute?.color ?? Theme.accent
+        let reps = leagues.filter { $0.monsterUUID == m.uuid }
+        return Button {
+            withAnimation(.snappy) { selectedID = m.uuid }
+        } label: {
+            VStack(spacing: 2) {
+                MonsterSprite(form: s.form).frame(width: 52, height: 52).padding(.top, 10)
+                Text(m.displayName(s.form)).font(.caption2.bold()).lineLimit(1).minimumScaleFactor(0.7)
+                Text(s.stage == .egg ? "Ovo" : "Nv \(s.level)").gmFont(9, weight: .semibold, mono: true, relativeTo: .caption2)
+                    .foregroundStyle(Theme.dim)
+                    .padding(.bottom, 8)
+            }
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity)
+            .aspectRatio(0.82, contentMode: .fit)
+            .background(selected ? color.opacity(0.2) : Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(selected ? color : .clear, lineWidth: 2))
+            .overlay(alignment: .topLeading) {
+                if isMain {
+                    Image(systemName: "star.fill").font(.system(size: 9, weight: .black)).foregroundStyle(.black)
+                        .frame(width: 18, height: 18).background(Theme.accent, in: .circle).offset(x: -4, y: -4)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if let l = reps.first {
+                    Text(l.emoji).font(.system(size: 11)).frame(width: 20, height: 20)
+                        .background(Theme.bg, in: .circle).offset(x: 4, y: -4)
+                }
+            }
+        }
+        .buttonStyle(GMPress())
+        .sensoryFeedback(.selection, trigger: selected)
+        .accessibilityLabel("\(m.displayName(s.form))\(isMain ? ", principal" : ""), \(s.stage == .egg ? "ovo" : "nível \(s.level)")")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    // MARK: Resumo do selecionado
+
+    private func summary(_ m: Monster, _ s: Snapshot, isMain: Bool) -> some View {
+        let color = s.form.attribute?.color ?? Theme.accent
+        let reps = leagues.filter { $0.monsterUUID == m.uuid }
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 14) {
+                LivingMonster(form: s.form, progress: s.progress)
+                    .frame(width: 84, height: 84)
+                    .background(color.opacity(0.15), in: .circle)
+                    .id(m.uuid)
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Text(m.displayName(s.form)).font(.title3.bold()).lineLimit(1)
+                        if isMain { GMBadge(text: "Principal") }
+                    }
+                    if !m.name.isEmpty, s.stage != .egg {
+                        Text(s.form.name).font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
+                    }
+                    Text(s.stage == .egg ? "Ovo · \(s.xpToNext ?? 0) XP para chocar" : "\(s.stage.name) · Nível \(s.level) · \(s.totalXP.formatted()) XP")
+                        .font(.caption).foregroundStyle(Theme.dim)
+                    GMProgressBar(value: s.progress, tint: color, height: 5)
+                }
+            }
+            attributes(s)
+            HStack(spacing: 6) {
+                Image(systemName: "flag.fill").font(.caption).foregroundStyle(Theme.dim)
+                Text(reps.isEmpty ? "Não representa nenhuma liga" : reps.map { "\($0.emoji) \($0.name)" }.joined(separator: ", "))
+                    .font(.caption).foregroundStyle(Theme.dim)
+            }
+            HStack(spacing: 8) {
+                if !isMain {
+                    GMButton("Principal", icon: "star", small: true) {
+                        MainMonster.id = m.uuid
+                        mainID = m.uuid
+                        try? context.save()
+                    }
+                }
+                GMButton("Apelido", icon: "pencil", kind: .secondary, small: true) {
+                    newName = m.name
+                    renaming = true
+                }
+                GMButton("BroBook", icon: "book.closed", kind: .secondary, small: true) { dexEntry = s.form }
+            }
+        }
+        .padding(16)
+        .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(color.opacity(0.35), lineWidth: 1))
+        .animation(.snappy, value: m.uuid)
+    }
+
+    /// Atributos de tudo que ele já treinou (barras relativas ao maior)
+    @ViewBuilder
+    private func attributes(_ s: Snapshot) -> some View {
+        let top = max(s.lifetimeAttributes.values.max() ?? 0, 1)
+        if s.lifetimeAttributes.values.contains(where: { $0 > 0 }) {
+            VStack(spacing: 7) {
+                ForEach(Attribute.allCases) { a in
+                    HStack(spacing: 8) {
+                        Image(systemName: a.symbol).font(.caption2.bold()).foregroundStyle(a.color).frame(width: 16)
+                        Text(a.name).font(.caption.weight(.semibold)).frame(width: 84, alignment: .leading)
+                        GMProgressBar(value: (s.lifetimeAttributes[a] ?? 0) / top, tint: a.color, height: 6)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
     }
 }
 
