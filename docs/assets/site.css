@@ -99,8 +99,7 @@ section h2 { font-size: clamp(40px, 6vw, 62px); line-height: 0.98; }
   display: grid; gap: 16px; grid-template-columns: repeat(4, 1fr);
 }
 .dex-grid li {
-  background: var(--bg); color: var(--text); border: 3px solid var(--on-lime); border-radius: 6px;
-  box-shadow: 5px 5px 0 var(--on-lime); padding: 16px 16px 18px;
+  background: var(--bg); color: var(--text); border-radius: 10px; padding: 16px 16px 18px;
 }
 .dex-grid img { display: block; height: 150px; width: 100%; object-fit: contain; }
 .dex-grid h3 { font: 600 20px/1.25 var(--body); margin-top: 12px; }
@@ -168,7 +167,7 @@ section h2 { font-size: clamp(40px, 6vw, 62px); line-height: 0.98; }
   .inner, .doc article, .doc-head { padding-left: 16px; padding-right: 16px; }
   .dex { padding: 56px 0; }
   .dex-grid { gap: 12px; }
-  .dex-grid li { padding: 12px; box-shadow: 4px 4px 0 var(--on-lime); }
+  .dex-grid li { padding: 12px; }
   .dex-grid img { height: 110px; }
   .dex-grid h3 { font-size: 18px; }
   .features dl, .links { grid-template-columns: 1fr; }
