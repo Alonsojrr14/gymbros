@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/site.css?v=2">
+<link rel="stylesheet" href="assets/site.css?v=3">
 </head>
 <body>
   <nav class="topbar">
@@ -36,9 +36,9 @@
     <div class="evo" aria-live="polite">
       <figure class="evo-stage s1"><img src="assets/bros/egg.png" alt="Ovo"><figcaption>Ovo<span>0 XP</span></figcaption></figure>
       <figure class="evo-stage s2"><img src="assets/bros/lobo_baby.png" alt="Lobo bebê"><figcaption>Bebê<span>60 XP</span></figcaption></figure>
-      <figure class="evo-stage s3"><img src="assets/bros/lobo_rookie.png" alt="Lobo rookie"><figcaption>Rookie<span>300 XP</span></figcaption></figure>
-      <figure class="evo-stage s4"><img data-stage="champion" src="assets/bros/lobo_champion_forca.png" alt="Lobo champion de Força"><figcaption>Champion<span>1200 XP</span></figcaption></figure>
-      <figure class="evo-stage s5"><img data-stage="ultimate" src="assets/bros/lobo_ultimate_forca.png" alt="Lobo ultimate de Força"><figcaption>Ultimate<span>3600 XP</span></figcaption></figure>
+      <figure class="evo-stage s3"><img src="assets/bros/lobo_rookie.png" alt="Lobo novato"><figcaption>Novato<span>300 XP</span></figcaption></figure>
+      <figure class="evo-stage s4"><img data-stage="champion" src="assets/bros/lobo_champion_forca.png" alt="Lobo atleta de Força"><figcaption>Atleta<span>1200 XP</span></figcaption></figure>
+      <figure class="evo-stage s5"><img data-stage="ultimate" src="assets/bros/lobo_ultimate_forca.png" alt="Lobo lenda de Força"><figcaption>Lenda<span>3600 XP</span></figcaption></figure>
     </div>
 
     <div class="branch">
@@ -53,11 +53,11 @@
   </header>
 
   <main>
-    <section class="dex">
+    <section class="brobook">
       <div class="inner">
         <h2>Que bicho vai sair do ovo?</h2>
         <p class="lead">Depende do treino que mais te acompanhou até ele chocar.</p>
-        <ul class="dex-grid">
+        <ul class="brobook-grid">
           <li><img src="assets/bros/urso_baby.png" alt="" loading="lazy"><h3>Urso</h3><p>Musculação e CrossFit</p></li>
           <li><img src="assets/bros/rato_baby.png" alt="" loading="lazy"><h3>Rato</h3><p>Musculação e CrossFit</p></li>
           <li><img src="assets/bros/lobo_baby.png" alt="" loading="lazy"><h3>Lobo</h3><p>Corrida, bike e natação</p></li>
@@ -122,7 +122,7 @@
 
     function select(chip) {
       chips.forEach(function (c) { c.setAttribute('aria-checked', String(c === chip)); c.tabIndex = c === chip ? 0 : -1; });
-      [[champion, 'champion', 'Lobo champion de '], [ultimate, 'ultimate', 'Lobo ultimate de ']].forEach(function (x) {
+      [[champion, 'champion', 'Lobo atleta de '], [ultimate, 'ultimate', 'Lobo lenda de ']].forEach(function (x) {
         x[0].src = 'assets/bros/lobo_' + x[1] + '_' + chip.dataset.attr + '.png';
         x[0].alt = x[2] + chip.dataset.name;
         if (!reduce) {
