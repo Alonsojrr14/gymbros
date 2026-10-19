@@ -54,5 +54,6 @@ Ordem sugerida: conta e assinatura → código de desenvolvimento → servidor �
 - [ ] Rodar a auditoria de revisão (skill `appstore-review`) e resolver o que aparecer.
 - [ ] Conta de demonstração e notas da revisão: texto pronto em [app-review.md](app-review.md) (conta demo, denunciar/bloquear, excluir conta, termos, privacidade, localização "Sempre" e Saúde).
 - [ ] Capturas de tela, descrição, palavras-chave e classificação etária (conteúdo gerado por usuários).
+- [ ] URLs no App Store Connect: suporte e marketing `https://alonsojrr14.github.io/gymbros/` (landing em `index.html`, seção "Suporte"), privacidade `https://alonsojrr14.github.io/gymbros/privacidade/`. Para o Google Play, a exclusão de conta fica em `https://alonsojrr14.github.io/gymbros/excluir-conta/` (`excluir-conta.md`).
 - [ ] Login obrigatório justificado nas notas por 5.1.1(v): progresso do bro, treinos e perfil pertencem à conta e alimentam ligas, amigos e perfil público ([app-review.md](app-review.md)).
 - [ ] TestFlight interno antes do envio para revisão.

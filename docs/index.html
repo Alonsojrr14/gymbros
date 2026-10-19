@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GymBros</title>
+<meta name="description" content="Seus treinos chocam e evoluem um bro. Musculação guiada, CrossFit, ligas com os amigos e Apple Saúde, no iPhone.">
+<meta property="og:title" content="GymBros">
+<meta property="og:description" content="Seus treinos chocam e evoluem um bro.">
+<meta property="og:image" content="https://alonsojrr14.github.io/gymbros/assets/icon.png">
+<meta name="theme-color" content="#0D0F14">
+<link rel="icon" href="assets/icon.png">
+<link rel="apple-touch-icon" href="assets/icon.png">
+<style>
+  :root {
+    --bg: #0D0F14;
+    --card: #1A1C24;
+    --raised: rgba(255, 255, 255, 0.06);
+    --stroke: rgba(255, 255, 255, 0.08);
+    --text: #F2F3F5;
+    --dim: rgba(242, 243, 245, 0.62);
+    --accent: #A3E636;
+    --radius: 20px;
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+
+  header.hero { padding: 72px 0 56px; text-align: center; }
+  .hero img { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 12px 40px rgba(163, 230, 54, 0.18); }
+  .hero h1 { font-size: clamp(40px, 8vw, 64px); line-height: 1.05; margin: 24px 0 12px; letter-spacing: -0.02em; }
+  .hero p { font-size: clamp(18px, 3.2vw, 22px); color: var(--dim); max-width: 560px; margin: 0 auto; }
+  .badge {
+    display: inline-block; margin-top: 28px; padding: 12px 22px; border-radius: 999px;
+    background: var(--accent); color: #000; font-weight: 700; text-decoration: none;
+  }
+
+  section { padding: 40px 0; }
+  h2 { font-size: 28px; margin: 0 0 20px; letter-spacing: -0.01em; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--stroke); border-radius: var(--radius); padding: 20px; }
+  .card .ic { font-size: 28px; line-height: 1; }
+  .card h3 { margin: 12px 0 6px; font-size: 19px; }
+  .card p { margin: 0; color: var(--dim); font-size: 16px; }
+
+  .stages { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .stage { background: var(--raised); border-radius: 999px; padding: 6px 14px; font-size: 15px; }
+  .stage b { color: var(--accent); font-weight: 600; }
+
+  .links { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .links a {
+    display: block; background: var(--card); border: 1px solid var(--stroke); border-radius: 16px;
+    padding: 16px 18px; color: var(--text); text-decoration: none; font-weight: 600;
+  }
+  .links a span { display: block; color: var(--dim); font-weight: 400; font-size: 15px; margin-top: 2px; }
+  .links a:hover { border-color: var(--accent); }
+
+  footer { padding: 40px 0 56px; color: var(--dim); font-size: 14px; text-align: center; }
+  footer a { color: var(--dim); margin: 0 8px; }
+</style>
+</head>
+<body>
+  <header class="hero wrap">
+    <img src="assets/icon.png" alt="Ícone do GymBros">
+    <h1>GymBros</h1>
+    <p>Seus treinos chocam e evoluem um bro. Treine, ganhe XP e veja o seu parceiro crescer junto com você.</p>
+    <span class="badge">Em breve na App Store</span>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h2>Do ovo ao Ultimate</h2>
+      <div class="card">
+        <p>Cada atividade rende XP pela duração, pela intensidade e pelo esforço, e soma em quatro atributos: Força, Resistência, Agilidade e Técnica. O atributo que você mais treina decide em que forma o seu bro evolui.</p>
+        <div class="stages">
+          <span class="stage">🥚 Ovo</span>
+          <span class="stage">Bebê <b>60 XP</b></span>
+          <span class="stage">Rookie <b>300 XP</b></span>
+          <span class="stage">Champion <b>1200 XP</b></span>
+          <span class="stage">Ultimate <b>3600 XP</b></span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>O que tem no app</h2>
+      <div class="grid">
+        <div class="card"><div class="ic">🏋️</div><h3>Musculação guiada</h3><p>Rotinas por dia da semana, cargas sugeridas pelo seu histórico, progressão automática, timer de descanso e recordes.</p></div>
+        <div class="card"><div class="ic">⏱️</div><h3>CrossFit</h3><p>For Time, AMRAP, EMOM e Tabata, benchmarks clássicos e o WOD do seu coach a partir do texto ou de um print.</p></div>
+        <div class="card"><div class="ic">🏆</div><h3>Ligas com os amigos</h3><p>Ranking de check-ins com foto, times, mural de recados, rodada diária e X1 contra quem você quiser.</p></div>
+        <div class="card"><div class="ic">❤️</div><h3>Apple Saúde</h3><p>Treinos do iPhone e do Apple Watch viram atividades sozinhos, sem contar nada duas vezes.</p></div>
+        <div class="card"><div class="ic">📍</div><h3>Academia e corrida</h3><p>O app percebe quando você chega na academia e grava o percurso de corridas, caminhadas e pedaladas.</p></div>
+        <div class="card"><div class="ic">📱</div><h3>Widgets</h3><p>O seu bro na tela inicial e na tela bloqueada, com humor, XP e sequência. Dá até para fazer carinho.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Privacidade</h2>
+      <div class="card">
+        <p>Sem anúncios, sem rastreamento e sem ferramentas de análise. Os dados do Apple Saúde nunca são usados para publicidade nem compartilhados com terceiros. Você pode excluir a conta e tudo dela a qualquer momento, pelo próprio app.</p>
+      </div>
+    </section>
+
+    <section id="suporte">
+      <h2>Suporte e informações legais</h2>
+      <div class="links">
+        <a href="https://github.com/Alonsojrr14/gymbros/issues">Suporte<span>Dúvidas, problemas e sugestões</span></a>
+        <a href="termos/">Termos de uso<span>Regras da comunidade e moderação</span></a>
+        <a href="privacidade/">Política de privacidade<span>O que o app guarda e para quê</span></a>
+        <a href="excluir-conta/">Excluir a conta<span>Passo a passo e o que é apagado</span></a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    © 2026 GymBros ·
+    <a href="termos/">Termos</a><a href="privacidade/">Privacidade</a><a href="excluir-conta/">Excluir conta</a>
+  </footer>
+</body>
+</html>

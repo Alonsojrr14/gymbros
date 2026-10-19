@@ -1,3 +1,8 @@
+---
+title: Documentação do GymBros
+permalink: /documentacao/
+---
+
 # Documentação do GymBros
 
 Documentação levantada a partir do código (outubro de 2026) e atualizada depois das correções de bugs, do design system revisado, da troca da biblioteca de exercícios para o wger, do login simulado com o backend CloudKit atrás de um interruptor e da espécie definida pela atividade. Cada requisito cita o arquivo de origem; quando o código mudar, atualize o requisito junto.
