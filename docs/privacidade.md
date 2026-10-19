@@ -1,4 +1,5 @@
 ---
+layout: pagina
 title: Política de privacidade do GymBros
 permalink: /privacidade/
 ---

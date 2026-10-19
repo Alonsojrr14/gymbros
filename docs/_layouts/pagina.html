@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page.title }}</title>
+<meta name="theme-color" content="#2335C8">
+<link rel="icon" href="{{ '/assets/icon.png' | relative_url }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ '/assets/site.css' | relative_url }}">
+</head>
+<body>
+  <nav class="topbar">
+    <a class="brand" href="{{ '/' | relative_url }}"><img src="{{ '/assets/icon.png' | relative_url }}" alt="">GymBros</a>
+    <div class="topnav">
+      <a href="{{ '/termos/' | relative_url }}"{% if page.url == '/termos/' %} aria-current="page"{% endif %}>Termos</a>
+      <a href="{{ '/privacidade/' | relative_url }}"{% if page.url == '/privacidade/' %} aria-current="page"{% endif %}>Privacidade</a>
+      <a href="{{ '/excluir-conta/' | relative_url }}"{% if page.url == '/excluir-conta/' %} aria-current="page"{% endif %}>Excluir conta</a>
+    </div>
+  </nav>
+
+  <header class="doc-head">
+    <h1>{{ page.title }}</h1>
+  </header>
+
+  <main class="doc">
+    <article>
+{{ content }}
+    </article>
+  </main>
+
+  <footer class="footer">
+    <p class="footer-row"><span>© 2026 GymBros</span><a href="{{ '/#suporte' | relative_url }}">Suporte</a></p>
+  </footer>
+</body>
+</html>

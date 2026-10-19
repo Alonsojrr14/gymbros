@@ -1,4 +1,5 @@
 ---
+layout: pagina
 title: Termos de uso do GymBros
 permalink: /termos/
 ---

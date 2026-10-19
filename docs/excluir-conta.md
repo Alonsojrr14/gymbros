@@ -1,4 +1,5 @@
 ---
+layout: pagina
 title: Como excluir sua conta do GymBros
 permalink: /excluir-conta/
 ---
