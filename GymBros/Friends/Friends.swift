@@ -307,7 +307,7 @@ struct FriendsView: View {
                 GMSection {
                     Button { duelsOpen = true } label: {
                         GMNavRow(icon: "bolt.shield.fill", tint: Theme.trophy, title: "X1",
-                                 value: "Desafie qualquer pessoa", badge: DuelStore.shared.duels.filter { $0.challenged.id == "me" && $0.isPending(now: .now) }.count)
+                                 value: "Desafie um amigo", badge: DuelStore.shared.duels.filter { $0.challenged.id == "me" && $0.isPending(now: .now) }.count)
                     }
                     .buttonStyle(GMPress())
                 }

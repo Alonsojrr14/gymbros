@@ -131,7 +131,8 @@ final class DuelTests: GymTestCase {
 
     private func mockServer(incoming: Bool = false) -> (MockDuelServer, UserDefaults) {
         let defaults = UserDefaults(suiteName: "duel-tests-\(UUID().uuidString)")!
-        return (MockDuelServer(defaults: defaults, simulatedIncoming: incoming), defaults)
+        let people = MockFriendsBackend.directory.map { DuelPerson(id: $0.id, name: $0.name, formID: $0.formID) }
+        return (MockDuelServer(defaults: defaults, simulatedIncoming: incoming, people: { people }), defaults)
     }
 
     func testSimulatedPersonAnswersAndTrains() async throws {
@@ -186,9 +187,34 @@ final class DuelTests: GymTestCase {
             }
         }
         guard let (server, defaults, incoming, now) = found else { return XCTFail("As pessoas simuladas deveriam desafiar você às vezes") }
-        XCTAssertTrue(MockDuelServer.people.contains { $0.id == incoming.challenger.id })
+        XCTAssertTrue(MockFriendsBackend.directory.contains { $0.id == incoming.challenger.id })
         try await server.respond(to: incoming.id, accept: true, now: now)
-        let again = await MockDuelServer(defaults: defaults).duels(now: now).first { $0.id == incoming.id }
+        let people = MockFriendsBackend.directory.map { DuelPerson(id: $0.id, name: $0.name, formID: $0.formID) }
+        let again = await MockDuelServer(defaults: defaults, people: { people }).duels(now: now).first { $0.id == incoming.id }
         XCTAssertEqual(again?.answer, .accepted)
+    }
+
+    func testSimulatedPeopleAlwaysHaveAChallengeWaiting() async {
+        let cal = Calendar.current
+        for k in 0..<10 {
+            let now = cal.startOfDay(for: .now).addingTimeInterval(Double(k) * 86_400 + Double(k % 24) * 3600 + 600)
+            let (server, _) = mockServer(incoming: true)
+            let pending = await server.duels(now: now).filter { $0.challenged.id == "me" && $0.isPending(now: now) }
+            XCTAssertFalse(pending.isEmpty, "sem desafio esperando em \(now)")
+        }
+    }
+
+    func testEachBroFightsOneDuelAtATime() {
+        var sent = duel("a", from: "me", to: "bruno", created: t0)
+        var active = duel("b", from: "carla", to: "me", created: t0)
+        active.answer = .accepted
+        active.answeredAt = t0 + 60
+        let waiting = duel("c", from: "diego", to: "me", created: t0)
+        let reps = ["a": "bro-1", "b": "bro-2"]
+        XCTAssertEqual(Duels.busyFighters([sent, active, waiting], representatives: reps, now: t0 + 3600), ["bro-1", "bro-2"])
+        // Acabou ou foi recusado: o bro fica livre de novo
+        sent.answer = .declined
+        sent.answeredAt = t0 + 60
+        XCTAssertEqual(Duels.busyFighters([sent, active], representatives: reps, now: t0 + Duels.window + 3600), [])
     }
 }

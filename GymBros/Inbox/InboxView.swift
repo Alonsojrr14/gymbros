@@ -64,7 +64,7 @@ struct InboxView: View {
         .termsGate($terms)
         .gmSheet(isPresented: Binding(get: { choosingFighter != nil }, set: { if !$0 { choosingFighter = nil } })) { close in
             if let e = choosingFighter {
-                FighterChoice(title: "Quem vai lutar?", confirm: "Aceitar X1") { id in
+                FighterBox(title: "Quem vai lutar?", selection: nil) { id in
                     close()
                     sendDuelAnswer(e, accept: true, monster: id)
                 }
@@ -155,7 +155,7 @@ struct InboxView: View {
     /// X1 é conteúdo das ligas: aceitar ou recusar só depois do aceite dos termos
     private func answerDuel(_ e: InboxEvent, accept: Bool) {
         terms.run {
-            if accept && DuelStore.shared.fighters().count > 1 {
+            if accept {
                 choosingFighter = e
             } else {
                 sendDuelAnswer(e, accept: accept, monster: nil)

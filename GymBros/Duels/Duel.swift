@@ -1,6 +1,6 @@
 import Foundation
 
-// X1: desafio direto entre duas pessoas quaisquer do GymBros (amigo, alguém de uma liga, um perfil público).
+// X1: desafio direto entre dois amigos do GymBros (só amigos: quem não é amigo não desafia nem é desafiado).
 // Não tem relação com ligas: não depende de liga, não usa a métrica nem o feed de nenhuma liga e não mexe em placar,
 // pontos nem rodada suíça. Quem desafia escolhe a métrica; aceito, vale tudo o que cada um registrar nas 24 h seguintes
 // ao aceite (qualquer atividade, inclusive as do Apple Saúde). Cada aparelho calcula o próprio valor das suas
@@ -160,6 +160,10 @@ enum DuelRefusal: LocalizedError, Equatable, Sendable {
     case yourself, notFound, blocked, alreadyOpen, notPending, notYours
     /// Só ovos na coleção: ovo não entra no X1
     case noHatchedBro
+    /// X1 só entre amigos
+    case notFriend
+    /// Cada bro luta um X1 por vez
+    case fighterBusy, allFightersBusy
 
     var errorDescription: String? {
         switch self {
@@ -170,6 +174,9 @@ enum DuelRefusal: LocalizedError, Equatable, Sendable {
         case .notPending: "Esse desafio não está mais aberto."
         case .notYours: "Esse desafio não é para você."
         case .noHatchedBro: "Ovos não entram no X1. Choque um ovo (no principal ou numa liga) para lutar."
+        case .notFriend: "X1 é só entre amigos. Adicione a pessoa como amiga para desafiar."
+        case .fighterBusy: "Esse bro já está num X1. Cada bro luta um X1 por vez."
+        case .allFightersBusy: "Todos os seus bros já estão em X1. Cada bro luta um X1 por vez: choque mais ovos para lutar mais."
         }
     }
 }
@@ -233,6 +240,11 @@ enum Duels {
                 && ($0.acceptedAt != nil || ($0.createdAt, $0.id) < (duel.createdAt, duel.id))
         }
         return other ? .alreadyOpen : nil
+    }
+
+    /// Bros ocupados: cada um luta um X1 por vez. Ocupa quem está num X1 valendo ou num desafio seu ainda sem resposta.
+    static func busyFighters(_ duels: [RemoteDuel], representatives: [String: String], me: String = "me", now: Date) -> Set<String> {
+        Set(duels.filter { $0.isOpen(now: now) && ($0.acceptedAt != nil || $0.challenger.id == me) }.compactMap { representatives[$0.id] })
     }
 
     /// Seu valor na janela de 24 h depois do aceite (até agora), com as suas atividades

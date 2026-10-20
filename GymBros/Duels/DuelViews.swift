@@ -12,12 +12,10 @@ struct DuelsView: View {
     @State private var terms = TermsGate()
     @State private var problem: String?
     @State private var busy = false
-    /// Desafio aceito esperando a escolha do bro (quando você tem mais de um)
-    @State private var accepting: RemoteDuel?
     @Query private var leagues: [League]
 
     var body: some View {
-        GMScreen("X1", subtitle: "Desafie qualquer pessoa: vence quem fizer mais nas 24 h depois do aceite", close: true, bottomInset: 40) {
+        GMScreen("X1", subtitle: "Desafie um amigo: vence quem fizer mais nas 24 h depois do aceite", close: true, bottomInset: 40) {
             GMIconButton(icon: "plus", label: "Novo X1") { picking = true }
         } content: {
             TimelineView(.periodic(from: .now, by: 30)) { ctx in content(now: ctx.date) }
@@ -37,70 +35,53 @@ struct DuelsView: View {
             DuelChallengeFlow(friends: candidates.friends, others: candidates.others) { close() }
         }
         .gmActions(isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } }), title: "X1", message: problem, actions: [])
-        .gmSheet(isPresented: Binding(get: { accepting != nil }, set: { if !$0 { accepting = nil } })) { close in
-            if let d = accepting {
-                FighterChoice(title: "Quem vai lutar contra \(d.challenger.name)?", confirm: "Aceitar X1") { id in
-                    close()
-                    send(d, accept: true, monster: id)
-                }
-            }
-        }
         .termsGate($terms)
     }
 
-    /// Amigos e gente das suas ligas (só para achar a pessoa; o X1 não tem nada a ver com a liga)
+    /// X1 só entre amigos
     private var candidates: (friends: [DuelPerson], others: [DuelPerson]) {
         var seen = Set<String>()
         let friends = FriendsStore.shared.friends.filter { seen.insert($0.id).inserted }
             .map { DuelPerson(id: $0.id, name: $0.name, formID: $0.formID) }
-        var others: [DuelPerson] = []
-        for l in leagues where !l.isPastSeason {
-            for m in LeagueRemoteStore.shared.remote(l).members where seen.insert(m.id).inserted && !ModerationStore.shared.isBlocked(m.id) {
-                others.append(DuelPerson(id: m.id, name: m.name, formID: m.form.id))
-            }
-        }
-        return (friends.sorted { $0.name < $1.name }, others.sorted { $0.name < $1.name })
+        return (friends.sorted { $0.name < $1.name }, [])
     }
 
     @ViewBuilder
     private func content(now: Date) -> some View {
         let duels = store.duels
-        let incoming = duels.filter { $0.challenged.id == "me" && $0.isPending(now: now) }
+        let incoming = duels.filter { $0.challenged.id == "me" && $0.isPending(now: now) }.sorted { $0.createdAt < $1.createdAt }
         let active = duels.filter { $0.acceptedAt != nil && $0.isOpen(now: now) }
+            .sorted { ($0.endsAt ?? .distantFuture) < ($1.endsAt ?? .distantFuture) }
         let sent = duels.filter { $0.challenger.id == "me" && $0.isPending(now: now) }
         let records = store.records(now: now)
 
-        tallyCard(records)
+        DuelRecordCard(tally: Duels.tally(records), form: store.me().form)
 
         if let e = store.lastError {
             GMEmptyState(icon: "icloud.slash", title: "X1 indisponível", message: e)
-        } else if duels.isEmpty && store.loaded {
-            GMEmptyState(icon: "bolt.shield", title: "Nenhum X1 ainda",
-                         message: "Escolha alguém, a métrica e mande o desafio. Vale qualquer atividade que vocês registrarem.")
-            GMButton("Novo X1", icon: "bolt.fill") { picking = true }
-        }
-        if !incoming.isEmpty {
-            GMSection("Desafios recebidos") {
+        } else {
+            if !incoming.isEmpty {
+                label("Te desafiaram", count: incoming.count, tint: Theme.trophy)
                 ForEach(incoming) { d in
-                    incomingRow(d, now: now)
-                    if d.id != incoming.last?.id { GMDivider() }
+                    DuelInviteCard(duel: d, now: now, busy: busy) { accept, monster in
+                        accept ? send(d, accept: true, monster: monster) : send(d, accept: false, monster: nil)
+                    }
                 }
             }
-        }
-        if !active.isEmpty {
-            GMSection("Valendo agora") {
-                ForEach(active) { d in
-                    DuelScoreboard(duel: d, score: store.score(d, now: now), now: now)
-                    if d.id != active.last?.id { GMDivider() }
+            if !active.isEmpty {
+                label("Valendo agora", count: active.count, tint: Theme.accent)
+                ForEach(active) { d in DuelScoreboard(duel: d, score: store.score(d, now: now), now: now) }
+            }
+            if !sent.isEmpty {
+                GMSection("Esperando resposta") {
+                    ForEach(sent) { d in
+                        sentRow(d, now: now)
+                        if d.id != sent.last?.id { GMDivider() }
+                    }
                 }
             }
-        }
-        if !sent.isEmpty {
-            GMSection("Esperando resposta") {
-                ForEach(sent) { d in
-                    sentRow(d, now: now)
-                    if d.id != sent.last?.id { GMDivider() }
-                }
+            if incoming.isEmpty && active.isEmpty && sent.isEmpty && store.loaded {
+                DuelIdleCard(friends: candidates.friends, me: store.me().form, hasHistory: !records.isEmpty) { picking = true }
             }
         }
         if !records.isEmpty {
@@ -113,42 +94,15 @@ struct DuelsView: View {
         }
     }
 
-    private func tallyCard(_ records: [DuelRecord]) -> some View {
-        let t = Duels.tally(records)
-        return HStack(spacing: 10) {
-            tally("\(t.v)", "Vitórias", Theme.accent)
-            tally("\(t.e)", "Empates", .white)
-            tally("\(t.d)", "Derrotas", Theme.danger)
+    private func label(_ text: String, count: Int, tint: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(tint).frame(width: 7, height: 7)
+            Text(text.uppercased()).font(.caption.weight(.bold)).foregroundStyle(Theme.dim).tracking(0.6)
+            if count > 1 { GMBadge(text: "\(count)", tint: tint) }
+            Spacer()
         }
-    }
-
-    private func tally(_ value: String, _ label: String, _ tint: Color) -> some View {
-        VStack(spacing: 2) {
-            Text(value).gmFont(26, weight: .heavy, design: .rounded, mono: true, relativeTo: .title).foregroundStyle(tint)
-            Text(label).font(.caption).foregroundStyle(Theme.dim)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
-        .accessibilityElement(children: .combine)
-    }
-
-    private func incomingRow(_ d: RemoteDuel, now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                MonsterSprite(form: d.challenger.form).frame(width: 40, height: 40)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(d.challenger.name) te desafiou").font(.subheadline.weight(.semibold))
-                    Label(d.metric.name, systemImage: d.metric.symbol).font(.caption.bold()).foregroundStyle(Theme.trophy)
-                    Text("Expira em \(Self.remaining(d.expiresAt, now: now))").font(.caption).foregroundStyle(Theme.dim)
-                }
-                Spacer()
-            }
-            HStack(spacing: 10) {
-                GMButton("Recusar", kind: .secondary, small: true, enabled: !busy) { respond(d, accept: false) }
-                GMButton("Aceitar", icon: "bolt.fill", small: true, enabled: !busy) { respond(d, accept: true) }
-            }
-        }
+        .padding(.horizontal, 4)
+        .padding(.top, 4)
     }
 
     private func sentRow(_ d: RemoteDuel, now: Date) -> some View {
@@ -156,20 +110,11 @@ struct DuelsView: View {
             MonsterSprite(form: d.challenged.form).frame(width: 40, height: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Aguardando \(d.challenged.name)").font(.subheadline.weight(.semibold))
-                Text("\(d.metric.name) · expira em \(Self.remaining(d.expiresAt, now: now))").font(.caption).foregroundStyle(Theme.dim)
+                Label(d.metric.name, systemImage: d.metric.symbol).font(.caption.bold()).foregroundStyle(d.metric.tint)
+                Text("Expira em \(Self.remaining(d.expiresAt, now: now))").font(.caption).foregroundStyle(Theme.dim)
             }
             Spacer()
             ProgressView().tint(Theme.dim)
-        }
-    }
-
-    private func respond(_ d: RemoteDuel, accept: Bool) {
-        guard accept else { return send(d, accept: false, monster: nil) }
-        // Ovo não luta; com mais de um bro chocado, você escolhe quem vai
-        switch store.fighters().count {
-        case 0: problem = DuelRefusal.noHatchedBro.errorDescription
-        case 1: send(d, accept: true, monster: store.fighters().first?.uuid)
-        default: accepting = d
         }
     }
 
@@ -195,41 +140,353 @@ struct DuelsView: View {
     }
 }
 
+// MARK: - Retrospecto
+
+/// Seu bro e o retrospecto V/E/D, com a barra de aproveitamento
+struct DuelRecordCard: View {
+    let tally: (v: Int, e: Int, d: Int)
+    let form: MonsterForm
+
+    var body: some View {
+        let total = tally.v + tally.e + tally.d
+        GMCard {
+            HStack(spacing: 14) {
+                LivingMonster(form: form)
+                    .frame(width: 64, height: 64)
+                    .frame(width: 76, height: 76)
+                    .background(Theme.raised, in: .circle)
+                    .overlay(Circle().stroke(Theme.trophy.opacity(0.5), lineWidth: 1.5))
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 0) {
+                        number(tally.v, "Vitórias", Theme.accent)
+                        number(tally.e, "Empates", .white)
+                        number(tally.d, "Derrotas", Theme.danger)
+                    }
+                    if total > 0 {
+                        GeometryReader { g in
+                            HStack(spacing: 2) {
+                                Capsule().fill(Theme.accent).frame(width: g.size.width * Double(tally.v) / Double(total))
+                                Capsule().fill(.white.opacity(0.7)).frame(width: g.size.width * Double(tally.e) / Double(total))
+                                Capsule().fill(Theme.danger).frame(width: g.size.width * Double(tally.d) / Double(total))
+                            }
+                        }
+                        .frame(height: 6)
+                        Text("\(Int((Double(tally.v) / Double(total) * 100).rounded()))% de vitórias em \(total) X1")
+                            .font(.caption).foregroundStyle(Theme.dim)
+                    } else {
+                        Text("Nenhum X1 encerrado ainda").font(.caption).foregroundStyle(Theme.dim)
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func number(_ value: Int, _ label: String, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("\(value)").gmFont(26, weight: .heavy, design: .rounded, mono: true, relativeTo: .title).foregroundStyle(tint)
+            Text(label).font(.caption2).foregroundStyle(Theme.dim)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Desafio recebido
+
+/// Alguém te desafiou: quem, valendo o quê, quanto tempo falta para responder e os botões.
+/// O seu lado começa vazio: você escolhe na Box quem vai lutar antes de aceitar.
+struct DuelInviteCard: View {
+    let duel: RemoteDuel
+    let now: Date
+    let busy: Bool
+    let answer: (_ accept: Bool, _ monster: UUID?) -> Void
+    @State private var fighter: UUID?
+    @State private var choosing = false
+
+    var body: some View {
+        let left = duel.expiresAt.timeIntervalSince(now) / Duels.window
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 6) {
+                Image(systemName: "bolt.fill").foregroundStyle(Theme.trophy)
+                Text("\(duel.challenger.name) te chamou pro X1").font(.headline).lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+                Text(duel.createdAt.formatted(.relative(presentation: .named))).font(.caption2).foregroundStyle(Theme.dim)
+            }
+            DuelVersus(left: (duel.challenger.form, duel.challenger.name), right: chosen.map { ($0.form, $0.name) },
+                       tint: duel.metric.tint) { choosing = true }
+            HStack(spacing: 10) {
+                Image(systemName: duel.metric.symbol)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.black)
+                    .frame(width: 32, height: 32)
+                    .background(duel.metric.tint, in: .rect(cornerRadius: Theme.radiusS))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Vale \(duel.metric.name.lowercased())").font(.subheadline.bold())
+                    Text(duel.metric.detail).font(.caption).foregroundStyle(Theme.dim).lineLimit(2)
+                }
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                GMProgressBar(value: left, tint: left < 0.25 ? Theme.danger : Theme.trophy, height: 6)
+                Text("Você tem \(DuelsView.remaining(duel.expiresAt, now: now)) para responder. Aceitou, valem as próximas 24 h.")
+                    .font(.caption).foregroundStyle(Theme.dim)
+            }
+            HStack(spacing: 10) {
+                GMButton("Recusar", kind: .secondary, enabled: !busy) { answer(false, nil) }
+                if fighter == nil {
+                    GMButton("Escolher bro", icon: "square.grid.3x3.fill", enabled: !busy) { choosing = true }
+                } else {
+                    GMButton("Aceitar X1", icon: "bolt.fill", enabled: !busy) { answer(true, fighter) }
+                }
+            }
+        }
+        .padding(16)
+        .background {
+            ZStack {
+                Theme.card
+                LinearGradient(colors: [Theme.trophy.opacity(0.14), .clear], startPoint: .top, endPoint: .bottom)
+            }
+            .clipShape(.rect(cornerRadius: Theme.radius))
+        }
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Theme.trophy.opacity(0.45), lineWidth: 1.5))
+        .gmSheet(isPresented: $choosing) { close in
+            FighterBox(title: "Quem vai lutar contra \(duel.challenger.name)?", selection: fighter) { id in
+                withAnimation(.snappy) { fighter = id }
+                close()
+            }
+        }
+    }
+
+    /// Bro escolhido, com a forma de agora
+    private var chosen: (form: MonsterForm, name: String)? {
+        guard let m = DuelStore.shared.fighters().first(where: { $0.uuid == fighter }) else { return nil }
+        let form = MonsterForm.byID(m.lastFormID) ?? .egg
+        return (form, m.displayName(form))
+    }
+}
+
+/// Dois bros frente a frente com o VS no meio. Sem o da direita, mostra um slot vazio para escolher (`pick`).
+struct DuelVersus: View {
+    let left: (MonsterForm, String)
+    let right: (MonsterForm, String)?
+    var tint: Color = Theme.accent
+    var size: CGFloat = 64
+    var pick: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            side(left.0, left.1)
+            ZStack {
+                Circle().fill(Theme.trophy.opacity(0.25)).frame(width: 60, height: 60).blur(radius: 14)
+                Text("VS").gmFont(16, weight: .black, design: .rounded, relativeTo: .headline)
+                    .foregroundStyle(.black)
+                    .frame(width: 42, height: 42)
+                    .background(LinearGradient(colors: [Theme.trophy, Theme.streak], startPoint: .topLeading, endPoint: .bottomTrailing), in: .circle)
+                    .overlay(Circle().stroke(Theme.card, lineWidth: 3))
+            }
+            .frame(width: 60)
+            if let right {
+                if let pick {
+                    Button(action: pick) { side(right.0, right.1) }.buttonStyle(GMPress()).accessibilityHint("Trocar o bro")
+                } else {
+                    side(right.0, right.1)
+                }
+            } else {
+                emptySlot
+            }
+        }
+        .padding(.vertical, 10)
+        .background {
+            LinearGradient(colors: [tint.opacity(0.16), Theme.raised, Theme.accent.opacity(0.16)], startPoint: .leading, endPoint: .trailing)
+                .clipShape(.rect(cornerRadius: Theme.radiusL))
+        }
+        .accessibilityElement(children: pick == nil ? .ignore : .contain)
+        .accessibilityLabel("\(left.1) contra \(right?.1 ?? "seu bro")")
+    }
+
+    /// Seu lado ainda sem bro: toque para abrir a Box
+    private var emptySlot: some View {
+        Button { pick?() } label: {
+            VStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(Theme.trophy)
+                    .frame(width: size, height: size)
+                    .background(Circle().strokeBorder(Theme.trophy.opacity(0.6), style: StrokeStyle(lineWidth: 2, dash: [6, 5])))
+                Text("Escolher bro").font(.subheadline.bold()).foregroundStyle(Theme.trophy).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(GMPress())
+        .accessibilityLabel("Escolher o bro que vai lutar")
+    }
+
+    private func side(_ form: MonsterForm, _ name: String) -> some View {
+        VStack(spacing: 6) {
+            LivingMonster(form: form).frame(width: size, height: size)
+            Text(name).font(.subheadline.bold()).lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
 // MARK: - Placar ao vivo
 
+/// X1 valendo: os dois lados, a barra de cabo de guerra e o tempo que falta
 struct DuelScoreboard: View {
     let duel: RemoteDuel
     let score: DuelScore
     let now: Date
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                side(name: "Você", form: DuelStore.shared.me().form, value: score.mine, ahead: score.mine > score.theirs)
-                VStack(spacing: 2) {
-                    Image(systemName: "bolt.fill").font(.title3).foregroundStyle(Theme.trophy)
-                    Text(duel.endsAt.map { "faltam \(DuelsView.remaining($0, now: now))" } ?? "").font(.caption2).foregroundStyle(Theme.dim)
-                }
-                .fixedSize()
-                let other = duel.opponent(of: "me")
-                side(name: other.name, form: other.form, value: score.theirs, ahead: score.theirs > score.mine)
+        let other = duel.opponent(of: "me")
+        let total = score.mine + score.theirs
+        let share = total == 0 ? 0.5 : Double(score.mine) / Double(total)
+        let left = (duel.endsAt?.timeIntervalSince(now) ?? 0) / Duels.window
+        let tint: Color = score.mine > score.theirs ? Theme.accent : score.mine < score.theirs ? Theme.danger : .white
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label(duel.metric.name, systemImage: duel.metric.symbol).font(.caption.bold()).foregroundStyle(duel.metric.tint)
+                Spacer()
+                Label(duel.endsAt.map { "faltam \(DuelsView.remaining($0, now: now))" } ?? "", systemImage: "timer")
+                    .font(.caption.bold().monospacedDigit()).foregroundStyle(Theme.dim)
             }
-            Label(duel.metric.name, systemImage: duel.metric.symbol).font(.caption2.bold()).foregroundStyle(Theme.dim)
+            HStack(spacing: 8) {
+                side("Você", DuelStore.shared.me().form, score.mine, ahead: score.mine > score.theirs)
+                Text("×").font(.title3.bold()).foregroundStyle(Theme.dim)
+                side(other.name, other.form, score.theirs, ahead: score.theirs > score.mine)
+            }
+            GeometryReader { g in
+                HStack(spacing: 3) {
+                    Capsule().fill(Theme.accent).frame(width: max(6, (g.size.width - 3) * share))
+                    Capsule().fill(Theme.danger.opacity(0.8))
+                }
+            }
+            .frame(height: 8)
+            .animation(.spring(duration: 0.5), value: share)
+            HStack {
+                Text(status).font(.caption.bold()).foregroundStyle(tint)
+                Spacer()
+                GMProgressBar(value: left, tint: Theme.dim, height: 4).frame(width: 80)
+            }
         }
+        .padding(16)
+        .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(tint.opacity(0.35), lineWidth: 1))
         .accessibilityElement(children: .combine)
     }
 
-    private func side(name: String, form: MonsterForm, value: Int, ahead: Bool) -> some View {
+    private var status: String {
+        let diff = abs(score.mine - score.theirs)
+        if diff == 0 { return score.mine == 0 ? "Ninguém pontuou ainda: bora treinar" : "Empatado" }
+        return score.mine > score.theirs ? "Você está na frente por \(duel.metric.short(diff))" : "Faltam \(duel.metric.short(diff)) para empatar"
+    }
+
+    private func side(_ name: String, _ form: MonsterForm, _ value: Int, ahead: Bool) -> some View {
         VStack(spacing: 4) {
-            MonsterSprite(form: form).frame(width: 44, height: 44)
+            LivingMonster(form: form).frame(width: 52, height: 52)
             Text(name).font(.caption.bold()).lineLimit(1)
             Text(duel.metric.short(value))
-                .font(.headline.monospacedDigit())
+                .gmFont(22, weight: .heavy, design: .rounded, mono: true, relativeTo: .title2)
                 .foregroundStyle(ahead ? Theme.accent : .white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Nenhum X1 agora
+
+/// Sem desafio aberto: seu bro esperando um rival, como funciona, atalhos para amigos e o botão de desafiar
+struct DuelIdleCard: View {
+    let friends: [DuelPerson]
+    let me: MonsterForm
+    let hasHistory: Bool
+    let challenge: () -> Void
+    @State private var target: DuelPerson?
+
+    var body: some View {
+        let quick = friends.filter { DuelStore.shared.refusal($0.id) == nil }.prefix(4)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 0) {
+                VStack(spacing: 6) {
+                    LivingMonster(form: me).frame(width: 72, height: 72)
+                    Text("Você").font(.subheadline.bold())
+                }
+                .frame(maxWidth: .infinity)
+                Text("VS").gmFont(16, weight: .black, design: .rounded, relativeTo: .headline)
+                    .foregroundStyle(Theme.dim)
+                    .frame(width: 42, height: 42)
+                    .overlay(Circle().stroke(Theme.dim.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [4, 4])))
+                VStack(spacing: 6) {
+                    Image(systemName: "questionmark")
+                        .font(.system(size: 30, weight: .black))
+                        .foregroundStyle(Theme.dim)
+                        .frame(width: 72, height: 72)
+                        .background(Circle().strokeBorder(Theme.dim.opacity(0.4), style: StrokeStyle(lineWidth: 2, dash: [6, 5])))
+                    Text("Rival").font(.subheadline.bold()).foregroundStyle(Theme.dim)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(hasHistory ? "Nenhum X1 rolando agora" : "Seu primeiro X1 te espera").font(.title3.bold())
+                Text("Desafie um amigo. Vence quem treinar mais nas 24 h depois do aceite.")
+                    .font(.subheadline).foregroundStyle(Theme.dim)
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                step(1, "person.2.fill", "Escolha alguém e o que vale: XP, treinos, minutos, distância ou calorias")
+                step(2, "hourglass", "A pessoa tem 24 h para aceitar")
+                step(3, "trophy.fill", "Aceitou, valem as 24 h seguintes. Qualquer treino conta, até do Apple Saúde")
+            }
+            if !quick.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("DESAFIO RÁPIDO").font(.caption.weight(.bold)).foregroundStyle(Theme.dim).tracking(0.6)
+                    HStack(spacing: 8) {
+                        ForEach(Array(quick)) { f in
+                            Button { target = f } label: {
+                                VStack(spacing: 4) {
+                                    MonsterSprite(form: f.form)
+                                        .frame(width: 36, height: 36)
+                                        .frame(width: 50, height: 50)
+                                        .background(Theme.raised, in: .circle)
+                                        .overlay(Circle().stroke(Theme.trophy.opacity(0.6), lineWidth: 1.5))
+                                    Text(f.name).font(.caption2.bold()).lineLimit(1)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .foregroundStyle(.white)
+                            }
+                            .buttonStyle(GMPress())
+                            .accessibilityLabel("Desafiar \(f.name)")
+                        }
+                    }
+                }
+            }
+            GMButton("Desafiar alguém", icon: "bolt.fill", action: challenge)
+        }
+        .padding(16)
+        .background {
+            ZStack {
+                Theme.card
+                RadialGradient(colors: [Theme.trophy.opacity(0.12), .clear], center: .top, startRadius: 10, endRadius: 260)
+            }
+            .clipShape(.rect(cornerRadius: Theme.radius))
+        }
+        .gmSheet(isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } })) { close in
+            if let target { DuelComposer(opponent: target) { close() } }
+        }
+    }
+
+    private func step(_ n: Int, _ icon: String, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.caption.bold())
+                .foregroundStyle(Theme.trophy)
+                .frame(width: 28, height: 28)
+                .background(Theme.trophy.opacity(0.14), in: .circle)
+            Text(text).font(.subheadline).foregroundStyle(.white.opacity(0.85)).fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Passo \(n): \(text)")
     }
 }
 
@@ -404,7 +661,7 @@ struct DuelComposer: View {
     }
 }
 
-/// Escolher quem desafiar: busca, recentes, amigos e gente das suas ligas; quem não dá para desafiar vai para o fim
+/// Escolher quem desafiar: busca, recentes e amigos (X1 só entre amigos); quem não dá para desafiar vai para o fim
 struct DuelPeoplePicker: View {
     let friends: [DuelPerson]
     let others: [DuelPerson]
@@ -416,8 +673,9 @@ struct DuelPeoplePicker: View {
     /// Últimos adversários, mais recentes primeiro
     private var recent: [DuelPerson] {
         var seen = Set<String>()
+        let friends = store.friendIDs()
         return store.duels.sorted { $0.createdAt > $1.createdAt }.map { $0.opponent(of: "me") }
-            .filter { seen.insert($0.id).inserted }.prefix(8).map { $0 }
+            .filter { friends.contains($0.id) && seen.insert($0.id).inserted }.prefix(8).map { $0 }
     }
 
     private func matches(_ p: DuelPerson) -> Bool {
@@ -426,24 +684,24 @@ struct DuelPeoplePicker: View {
     }
 
     var body: some View {
-        let free = { (list: [DuelPerson]) in list.filter { matches($0) && store.refusal($0.id) == nil } }
-        let busy = (friends + others).filter { matches($0) && store.refusal($0.id) != nil }
+        let block = store.fighterBlock()
+        let free = { (list: [DuelPerson]) in list.filter { matches($0) && store.personRefusal($0.id) == nil } }
+        let taken = (friends + others).filter { matches($0) && store.personRefusal($0.id) != nil }
         let f = free(friends), o = free(others)
         VStack(alignment: .leading, spacing: 12) {
             Text("Desafiar quem?").font(.headline).frame(maxWidth: .infinity)
+            if let block { blockBanner(block) }
             if friends.isEmpty && others.isEmpty {
-                GMEmptyState(icon: "person.2", title: "Ninguém por aqui", message: "Adicione amigos ou entre numa liga para achar gente para desafiar.")
+                GMEmptyState(icon: "person.2", title: "Ninguém por aqui", message: "X1 é só entre amigos. Adicione alguém pelo código de amigo para desafiar.")
             } else {
                 GMSearchField(placeholder: "Buscar pelo nome", text: $query)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        if query.isEmpty && !recent.isEmpty { recentStrip }
-                        group("Amigos", f)
-                        group("Das suas ligas", o)
-                        if !busy.isEmpty {
-                            group("Com X1 aberto ou indisponível", busy, enabled: false)
-                        }
-                        if f.isEmpty && o.isEmpty && busy.isEmpty {
+                        if query.isEmpty && !recent.isEmpty { recentStrip(enabled: block == nil) }
+                        group("Amigos", f, enabled: block == nil)
+                        group("Das suas ligas", o, enabled: block == nil)
+                        group("Já em X1 com você", taken, enabled: false)
+                        if f.isEmpty && o.isEmpty && taken.isEmpty {
                             Text("Ninguém com esse nome.").font(.subheadline).foregroundStyle(Theme.dim).frame(maxWidth: .infinity).padding(.top, 20)
                         }
                     }
@@ -455,14 +713,50 @@ struct DuelPeoplePicker: View {
         }
     }
 
+    /// Você não pode desafiar ninguém agora (só ovos ou todos os bros em X1): um aviso só, no topo
+    private func blockBanner(_ r: DuelRefusal) -> some View {
+        let busy = r == .allFightersBusy
+        let fighters = store.fighters().prefix(3)
+        return HStack(spacing: 12) {
+            ZStack {
+                if busy, !fighters.isEmpty {
+                    ForEach(Array(fighters.enumerated()), id: \.offset) { i, m in
+                        MonsterSprite(form: MonsterForm.byID(m.lastFormID) ?? .egg)
+                            .frame(width: 34, height: 34)
+                            .offset(x: CGFloat(i) * 10 - CGFloat(fighters.count - 1) * 5)
+                    }
+                } else {
+                    MonsterSprite(form: .egg).frame(width: 34, height: 34)
+                }
+            }
+            .frame(width: 52, height: 52)
+            .background(Theme.trophy.opacity(0.14), in: .circle)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(busy ? "Seus bros estão em X1" : "Seus bros ainda são ovos").font(.subheadline.bold())
+                Text(busy ? "Cada bro luta um X1 por vez. Choque mais ovos para lutar mais." : "Ovos não entram no X1. Treine para chocar um.")
+                    .font(.caption).foregroundStyle(Theme.dim).fixedSize(horizontal: false, vertical: true)
+                if busy, let at = store.nextFighterFree() {
+                    Label("Um bro fica livre em \(DuelsView.remaining(at, now: .now))", systemImage: "timer")
+                        .font(.caption.bold()).foregroundStyle(Theme.trophy)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Theme.trophy.opacity(0.08), in: .rect(cornerRadius: Theme.radiusL))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radiusL).stroke(Theme.trophy.opacity(0.35), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+    }
+
     /// Revanche: quem você já enfrentou, em bolinhas
-    private var recentStrip: some View {
+    private func recentStrip(enabled: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             label("Revanche")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
                     ForEach(recent) { p in
-                        let ok = store.refusal(p.id) == nil
+                        let taken = store.personRefusal(p.id) != nil
+                        let ok = enabled && !taken
                         Button { pick(p) } label: {
                             VStack(spacing: 4) {
                                 MonsterSprite(form: p.form)
@@ -470,10 +764,16 @@ struct DuelPeoplePicker: View {
                                     .frame(width: 54, height: 54)
                                     .background(Theme.raised, in: .circle)
                                     .overlay(Circle().stroke(ok ? Theme.trophy.opacity(0.7) : .clear, lineWidth: 1.5))
+                                    .overlay(alignment: .bottomTrailing) {
+                                        if taken {
+                                            Image(systemName: "bolt.fill").font(.system(size: 9, weight: .black)).foregroundStyle(.black)
+                                                .frame(width: 18, height: 18).background(Theme.trophy, in: .circle)
+                                        }
+                                    }
                                 Text(p.name).font(.caption2.bold()).lineLimit(1).frame(width: 60)
                             }
                             .foregroundStyle(.white)
-                            .opacity(ok ? 1 : 0.4)
+                            .opacity(ok || taken ? 1 : 0.5)
                         }
                         .buttonStyle(GMPress())
                         .disabled(!ok)
@@ -485,7 +785,7 @@ struct DuelPeoplePicker: View {
     }
 
     @ViewBuilder
-    private func group(_ title: String, _ list: [DuelPerson], enabled: Bool = true) -> some View {
+    private func group(_ title: String, _ list: [DuelPerson], enabled: Bool) -> some View {
         if !list.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 label("\(title) · \(list.count)")
@@ -502,17 +802,15 @@ struct DuelPeoplePicker: View {
     }
 
     private func row(_ p: DuelPerson, enabled: Bool) -> some View {
-        Button { pick(p) } label: {
+        let tag = store.personRefusal(p.id).map(Self.tag)
+        return Button { pick(p) } label: {
             HStack(spacing: 12) {
                 MonsterSprite(form: p.form).frame(width: 34, height: 34).frame(width: 40)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(p.name).font(.subheadline.weight(.semibold))
-                    if !enabled, let r = store.refusal(p.id) {
-                        Text(r.errorDescription ?? "").font(.caption2).foregroundStyle(Theme.dim)
-                    }
-                }
+                Text(p.name).font(.subheadline.weight(.semibold))
                 Spacer()
-                if enabled {
+                if let tag {
+                    GMBadge(text: tag, tint: Theme.trophy)
+                } else if enabled {
                     Image(systemName: "bolt.fill").font(.caption.bold()).foregroundStyle(.black)
                         .frame(width: 28, height: 28).background(Theme.trophy, in: .circle)
                 }
@@ -520,11 +818,19 @@ struct DuelPeoplePicker: View {
             .padding(.vertical, 8)
             .foregroundStyle(.white)
             .contentShape(Rectangle())
-            .opacity(enabled ? 1 : 0.45)
+            .opacity(enabled || tag != nil ? 1 : 0.6)
         }
         .buttonStyle(GMPress())
         .disabled(!enabled)
-        .accessibilityLabel(enabled ? "Desafiar \(p.name)" : p.name)
+        .accessibilityLabel(enabled ? "Desafiar \(p.name)" : tag.map { "\(p.name), \($0)" } ?? p.name)
+    }
+
+    /// Motivo curto da pessoa, numa etiqueta
+    private static func tag(_ r: DuelRefusal) -> String {
+        switch r {
+        case .alreadyOpen: "X1 aberto"
+        default: "Indisponível"
+        }
     }
 
     private func label(_ text: String) -> some View {
@@ -741,9 +1047,11 @@ struct FighterPicker: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                let busy = DuelStore.shared.busyFighters()
                 ForEach(DuelStore.shared.fighters()) { m in
                     let form = MonsterForm.byID(m.lastFormID) ?? .egg
                     let on = selection == m.uuid
+                    let free = !busy.contains(m.uuid)
                     let tint = form.attribute?.color ?? Theme.accent
                     Button {
                         UISelectionFeedbackGenerator().selectionChanged()
@@ -752,16 +1060,19 @@ struct FighterPicker: View {
                         VStack(spacing: 4) {
                             MonsterSprite(form: form).frame(width: 46, height: 46)
                             Text(m.displayName(form)).font(.caption.bold()).lineLimit(1).minimumScaleFactor(0.7)
-                            Text(form.stage.name).gmFont(9, mono: true, relativeTo: .caption2).foregroundStyle(Theme.dim)
+                            Text(free ? form.stage.name : "Em X1").gmFont(9, mono: true, relativeTo: .caption2)
+                                .foregroundStyle(free ? Theme.dim : Theme.trophy)
                         }
                         .frame(width: 84)
                         .padding(.vertical, 8)
                         .background(on ? tint.opacity(0.18) : Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
                         .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(on ? tint : .clear, lineWidth: 1.5))
                         .foregroundStyle(.white)
+                        .opacity(free ? 1 : 0.4)
                     }
                     .buttonStyle(GMPress())
-                    .accessibilityLabel("\(m.displayName(form)), \(form.stage.name)")
+                    .disabled(!free)
+                    .accessibilityLabel("\(m.displayName(form)), \(free ? form.stage.name : "já está num X1")")
                     .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
@@ -769,19 +1080,88 @@ struct FighterPicker: View {
     }
 }
 
-/// Folha para escolher o bro antes de aceitar um desafio
-struct FighterChoice: View {
+/// A Box dentro do X1: todos os seus bros em slots; ovos aparecem, mas não lutam. Escolha um e confirme.
+struct FighterBox: View {
     let title: String
-    let confirm: String
-    let done: (UUID?) -> Void
-    @State private var selection = DuelStore.shared.defaultFighter()?.uuid
+    let done: (UUID) -> Void
+    @State private var selection: UUID?
+
+    init(title: String, selection: UUID?, done: @escaping (UUID) -> Void) {
+        self.title = title
+        self.done = done
+        _selection = State(initialValue: selection)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let monsters = DuelStore.shared.allMonsters()
+        let busy = DuelStore.shared.busyFighters()
+        let fighters = Set(DuelStore.shared.fighters().map(\.uuid)).subtracting(busy)
+        let slots = max(8, Int((Double(monsters.count) / 4).rounded(.up)) * 4)
+        VStack(alignment: .leading, spacing: 14) {
             Text(title).font(.headline).frame(maxWidth: .infinity)
-            Text("Ovos não entram no X1.").font(.caption).foregroundStyle(Theme.dim).frame(maxWidth: .infinity)
-            FighterPicker(selection: $selection)
-            GMButton(confirm, icon: "bolt.fill", enabled: selection != nil) { done(selection) }
+            HStack {
+                Label("Box", systemImage: "square.grid.3x3.fill").font(.subheadline.bold())
+                Spacer()
+                Text("Cada bro luta um X1 por vez").font(.caption).foregroundStyle(Theme.dim)
+            }
+            // Grid normal (não lazy): a grade lazy montava os slots durante a subida da folha e eles apareciam antes dela
+            Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+                ForEach(0..<slots / 4, id: \.self) { row in
+                    GridRow {
+                        ForEach(row * 4..<row * 4 + 4, id: \.self) { i in
+                            if i < monsters.count {
+                                slot(monsters[i], canFight: fighters.contains(monsters[i].uuid), busy: busy.contains(monsters[i].uuid))
+                            } else {
+                                RoundedRectangle(cornerRadius: Theme.radiusM)
+                                    .strokeBorder(Theme.stroke, style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
+                                    .aspectRatio(0.82, contentMode: .fit)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                    }
+                }
+            }
+            if fighters.isEmpty {
+                Label((busy.isEmpty ? DuelRefusal.noHatchedBro : .allFightersBusy).errorDescription ?? "", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.bold()).foregroundStyle(Theme.danger)
+            }
+            GMButton(selectedName.map { "Lutar com \($0)" } ?? "Escolha um bro", icon: "bolt.fill", enabled: selection != nil) {
+                if let selection { done(selection) }
+            }
         }
+    }
+
+    private var selectedName: String? {
+        guard let m = DuelStore.shared.fighters().first(where: { $0.uuid == selection }) else { return nil }
+        return m.displayName(MonsterForm.byID(m.lastFormID) ?? .egg)
+    }
+
+    private func slot(_ m: Monster, canFight: Bool, busy: Bool) -> some View {
+        let form = MonsterForm.byID(m.lastFormID) ?? .egg
+        let on = selection == m.uuid
+        let tint = form.attribute?.color ?? Theme.accent
+        return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            withAnimation(.snappy) { selection = m.uuid }
+        } label: {
+            VStack(spacing: 2) {
+                MonsterSprite(form: form).frame(width: 48, height: 48).padding(.top, 8)
+                Text(m.displayName(form)).font(.caption2.bold()).lineLimit(1).minimumScaleFactor(0.7)
+                Text(busy ? "Em X1" : form.stage.name).gmFont(9, weight: .semibold, mono: true, relativeTo: .caption2)
+                    .foregroundStyle(busy ? Theme.trophy : Theme.dim)
+                    .padding(.bottom, 6)
+            }
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity)
+            .aspectRatio(0.82, contentMode: .fit)
+            .background(on ? tint.opacity(0.2) : Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(on ? tint : .clear, lineWidth: 2))
+            .opacity(canFight ? 1 : 0.4)
+            .foregroundStyle(.white)
+        }
+        .buttonStyle(GMPress())
+        .disabled(!canFight)
+        .accessibilityLabel("\(m.displayName(form)), \(canFight ? form.stage.name : busy ? "já está num X1" : "ovo, não luta")")
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
