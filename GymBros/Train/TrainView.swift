@@ -10,6 +10,7 @@ struct TrainView: View {
     @AppStorage(WodPlan.key) private var plannedRaw = ""
     @State private var importing = false
     @State private var coachWod: Wod?
+    @State private var wodRun = WodRun.shared
     @State private var planDetail: PlannedWod?
     @State private var active: WorkoutSession?
     @State private var templates = false
@@ -40,6 +41,14 @@ struct TrainView: View {
             GMScreen("Treino", avatar: true) {
                 deloadCard
                 pendingRoutineCard
+                if let w = wodRun.state {
+                    GMCard {
+                        card(title: w.wod.name, subtitle: w.startedAt != nil ? "WOD em andamento · \(w.wod.format.name)"
+                                 : w.sessionStart != nil ? "Em andamento · \(w.onWod ? "WOD" : w.wod.parts[w.phase].title)"
+                                 : "Aberto desde \(w.openedAt.formatted(date: .omitted, time: .shortened))",
+                             action: "Continuar") { coachWod = w.wod }
+                    }
+                }
                 if let s = inProgress {
                     GMCard {
                         card(title: s.title, subtitle: "Em andamento desde \(s.start.formatted(date: .omitted, time: .shortened))",
@@ -49,7 +58,7 @@ struct TrainView: View {
                 } else {
                     let todays = routines.filter { $0.weekdays.contains(today) }
                     GMSection(todays.isEmpty ? "Hoje" : "Hoje · \(Date.now.formatted(.dateTime.weekday(.wide)))") {
-                        if let p = plannedToday {
+                        if let p = plannedToday, wodRun.state == nil {
                             card(title: p.name, subtitle: "Treino do coach · \(p.format.name)", action: "Começar") { coachWod = p.wod }
                             GMRow(icon: "list.bullet", title: "Ver treino completo", subtitle: p.parts.isEmpty ? nil : p.parts.map(\.title).joined(separator: ", "),
                                   chevron: true) { planDetail = p }
@@ -274,6 +283,7 @@ struct TrainView: View {
     /// Chegou na academia: abre o treino em andamento ou começa a rotina do dia
     private func startToday() {
         if let s = inProgress { active = s; return }
+        if let w = wodRun.state { coachWod = w.wod; return }
         if let p = plannedToday { coachWod = p.wod; return }
         start(routines.first { $0.weekdays.contains(today) })
     }

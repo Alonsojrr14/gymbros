@@ -128,13 +128,15 @@ enum AttributeSplit {
 
     private static func wodFormat(_ f: WodFormat) -> Weights {
         switch f {
-        case .emom: return [.forca: 0.4, .tecnica: 0.3, .resistencia: 0.3]
+        case .emom, .every: return [.forca: 0.4, .tecnica: 0.3, .resistencia: 0.3]
         case .tabata: return [.agilidade: 0.5, .resistencia: 0.5]
         case .amrap(let m), .forTime(capMinutes: let m?):
             if m >= 15 { return [.resistencia: 0.6, .forca: 0.2, .agilidade: 0.2] }
             if m <= 8 { return [.agilidade: 0.4, .forca: 0.3, .resistencia: 0.3] }
             return [.resistencia: 0.4, .forca: 0.3, .agilidade: 0.3]
         case .forTime(capMinutes: nil): return [.resistencia: 0.4, .forca: 0.3, .agilidade: 0.3]
+        case .intervals(_, _, true): return wodFormat(.emom(minutes: 0))
+        case .intervals(let b, _, false): return wodFormat(.amrap(minutes: b.reduce(0, +)))
         }
     }
 

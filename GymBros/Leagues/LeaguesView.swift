@@ -284,7 +284,7 @@ struct LeagueDetailView: View {
     private var cover: some View {
         ZStack(alignment: .bottomLeading) {
             if let data = league.cover, let img = UIImage(data: data) {
-                Color.clear.overlay { Image(uiImage: img).resizable().scaledToFill() }
+                Color.clear.overlay { Image(uiImage: img).resizable().scaledToFill().allowsHitTesting(false) }
             } else {
                 LinearGradient(colors: [Theme.accent.opacity(0.55), Theme.card], startPoint: .topTrailing, endPoint: .bottomLeading)
                     .overlay(alignment: .topTrailing) {
@@ -630,7 +630,7 @@ struct CreateLeagueView: View {
                 PhotosPicker(selection: $coverPick, matching: .images) {
                     ZStack {
                         if let cover, let img = UIImage(data: cover) {
-                            Color.clear.overlay { Image(uiImage: img).resizable().scaledToFill() }
+                            Color.clear.overlay { Image(uiImage: img).resizable().scaledToFill().allowsHitTesting(false) }
                         } else {
                             Theme.raised
                             Label("Escolher foto de capa", systemImage: "photo").font(.subheadline.weight(.semibold))
@@ -1007,10 +1007,12 @@ struct LeaguePostSection: View {
             Text("FOTO").font(.caption.weight(.bold)).foregroundStyle(Theme.dim).tracking(0.6).padding(.horizontal, 4)
             if let photo, let img = UIImage(data: photo) {
                 PhotosPicker(selection: $pick, matching: .images) {
+                    // Foto em retrato transborda o quadro: sem isso, a parte cortada ainda pega os toques das linhas de cima
                     Color.clear
                         .frame(height: 200)
-                        .overlay { Image(uiImage: img).resizable().scaledToFill() }
+                        .overlay { Image(uiImage: img).resizable().scaledToFill().allowsHitTesting(false) }
                         .clipShape(.rect(cornerRadius: Theme.radius))
+                        .contentShape(.rect(cornerRadius: Theme.radius))
                         .overlay(alignment: .bottomLeading) {
                             Label("Trocar", systemImage: "arrow.triangle.2.circlepath")
                                 .font(.caption.weight(.bold))

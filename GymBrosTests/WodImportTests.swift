@@ -38,7 +38,7 @@ final class WodImportTests: GymTestCase {
 
     func testFormats() {
         XCTAssertEqual(WodParser.format(in: "EMOM 10"), .emom(minutes: 10))
-        XCTAssertEqual(WodParser.format(in: "E2MOM de 16 min"), .emom(minutes: 16))
+        XCTAssertEqual(WodParser.format(in: "E2MOM de 16 min"), .every(seconds: 120, minutes: 16))
         XCTAssertEqual(WodParser.format(in: "20' AMRAP"), .amrap(minutes: 20))
         XCTAssertEqual(WodParser.format(in: "Tabata 6 rounds"), .tabata(rounds: 6))
         XCTAssertEqual(WodParser.format(in: "3 rounds for time"), .forTime(capMinutes: nil))
@@ -114,7 +114,7 @@ final class WodBoxExportTests: GymTestCase {
 
     func testBlocksAndLines() {
         let d = WodParser.parse(tecnofit)
-        XCTAssertEqual(d.format, .amrap(minutes: 13))
+        XCTAssertEqual(d.format, .intervals(blocks: [3, 3, 3], rest: 120, emom: false))
         XCTAssertFalse(d.guessed)
         XCTAssertTrue(d.parts.isEmpty)
         XCTAssertEqual(d.lines, ["AMRAP 3'", "5 Wall ball", "7 Kettlebell swing (1 KB)", "9 Push up", "Descanso 2'",
@@ -122,6 +122,39 @@ final class WodBoxExportTests: GymTestCase {
                                  "AMRAP 3'", "5 Burpees", "7 Biceps (2 DB)", "9 Remada costa (2 DB)"])
         let c = Calendar.current.dateComponents([.year, .month, .day], from: d.day!)
         XCTAssertEqual([c.year, c.month, c.day], [2026, 10, 19])
+    }
+
+    func testBlocksTimeline() {
+        let f = WodParser.parse(tecnofit).format
+        XCTAssertEqual(f.totalSeconds, 13 * 60)
+        XCTAssertEqual(f.name, "3× AMRAP 3' · descanso 2'")
+        XCTAssertEqual(f.segment(at: 0)?.segment, WodSegment(block: 0, rest: false, seconds: 180))
+        XCTAssertEqual(f.segment(at: 200)?.segment.rest, true)
+        XCTAssertEqual(f.segment(at: 200)?.remaining, 100)
+        XCTAssertEqual(f.segment(at: 300)?.segment, WodSegment(block: 1, rest: false, seconds: 180))
+        XCTAssertEqual(f.segment(at: 600)?.segment.block, 2)
+    }
+
+    func testBlocksInOneLine() {
+        let d = WodParser.parse("WOD\n3x AMRAP 4' descanso 1'\n10 burpees\n10 wall balls")
+        XCTAssertEqual(d.format, .intervals(blocks: [4, 4, 4], rest: 60, emom: false))
+    }
+
+    func testOldPlanGetsBlocks() {
+        let p = PlannedWod(day: .now, name: "WOD", format: .amrap(minutes: 13), lines: WodParser.parse(tecnofit).lines)
+        XCTAssertEqual(p.wod.format, .intervals(blocks: [3, 3, 3], rest: 120, emom: false))
+    }
+
+    func testRoundsPerBlock() {
+        var st = WodRunState(wod: Wod(id: "x", name: "x", category: "Coach", format: WodParser.parse(tecnofit).format, lines: []))
+        let start = Date(timeIntervalSince1970: 1000)
+        st.startedAt = start
+        st.addRound(start.addingTimeInterval(10))
+        st.addRound(start.addingTimeInterval(20))
+        st.addRound(start.addingTimeInterval(200))
+        st.addRound(start.addingTimeInterval(310))
+        XCTAssertEqual(st.blockRounds, [2, 1, 0])
+        XCTAssertEqual(st.roundsShown(start.addingTimeInterval(320)), 1)
     }
 
     func testMovementsIdentified() {
@@ -164,7 +197,7 @@ final class WodBoxExportTests: GymTestCase {
         XCTAssertEqual(merged.filter { $0 == "PUSH JERKS" }.count, 1)
         XCTAssertEqual(merged.filter { $0 == "Wod - 19/10/2026" }.count, 1)
         let d = WodParser.parse(merged.joined(separator: "\n"))
-        XCTAssertEqual(d.format, .amrap(minutes: 13))
+        XCTAssertEqual(d.format, .intervals(blocks: [3, 3, 3], rest: 120, emom: false))
         XCTAssertEqual(d.parts.map(\.title), ["Aquecimento", "Força (Deadlift)", "LPO (Powerlifting)"])
         XCTAssertEqual(d.parts[2].lines.first, "Encontrar carga pra shoulder")
         XCTAssertEqual(d.parts.last?.lines.last, "Começando com a carga encontrada")

@@ -24,7 +24,15 @@ struct PlannedWod: Codable, Identifiable, Hashable {
     var parts: [WodPart] = []
 
     var wodID: String { "coach-" + id.uuidString }
-    var wod: Wod { Wod(id: wodID, name: name, category: "Coach", format: format, lines: lines, exercises: WodMovements.ids(lines)) }
+    var wod: Wod { Wod(id: wodID, name: name, category: "Coach", format: blocksFormat, lines: lines, exercises: WodMovements.ids(lines), parts: parts) }
+
+    /// Importados antes dos blocos viraram um AMRAP/EMOM só com o tempo somado: os blocos voltam a partir das linhas
+    private var blocksFormat: WodFormat {
+        switch format {
+        case .amrap, .emom: WodParser.intervals(lines) ?? format
+        default: format
+        }
+    }
 }
 
 /// WODs do coach importados, em `UserDefaults`. Ficam todos: são a linha do tempo dos seus WODs (WodTimelineView)
@@ -194,16 +202,30 @@ enum WodParser {
         return cal.date(from: DateComponents(year: y, month: mo, day: d))
     }
 
-    /// Blocos com descanso ("AMRAP 3' / Descanso 2' / AMRAP 3'…"): um cronômetro só, com o tempo total
-    private static func intervals(_ lines: [String]) -> WodFormat? {
+    /// Blocos com descanso ("AMRAP 3' / Descanso 2' / AMRAP 3'…" ou "3x AMRAP 3' descanso 1'"): cada bloco com o seu cronômetro
+    static func intervals(_ lines: [String]) -> WodFormat? {
+        let rest = lines.lazy.compactMap(restSeconds).first ?? lines.lazy.compactMap(inlineRest).first ?? 0
+        for line in lines {
+            guard let m = match("^(\\d{1,2})\\s*(?:x|×|rounds?|rodadas?|blocos?)\\s*(?:de\\s*)?(?:amrap|e\\d?mom)", line),
+                  let n = Int(m[1]), (2...12).contains(n) else { continue }
+            switch format(in: line) {
+            case .amrap(let mins): return .intervals(blocks: Array(repeating: mins, count: n), rest: rest, emom: false)
+            case .emom(let mins): return .intervals(blocks: Array(repeating: mins, count: n), rest: rest, emom: true)
+            default: continue
+            }
+        }
         let blocks = lines.filter(isOnlyFormat).compactMap(format(in:))
-        let rest = lines.compactMap(restSeconds).reduce(0, +)
         let amraps = blocks.compactMap { if case .amrap(let m) = $0 { m } else { nil } }
         let emoms = blocks.compactMap { if case .emom(let m) = $0 { m } else { nil } }
-        let total = { (m: [Int]) in min(90, m.reduce(0, +) + Int((Double(rest) / 60).rounded(.up))) }
-        if amraps.count > 1, emoms.isEmpty { return .amrap(minutes: total(amraps)) }
-        if emoms.count > 1, amraps.isEmpty { return .emom(minutes: total(emoms)) }
+        if amraps.count > 1, emoms.isEmpty { return .intervals(blocks: amraps, rest: rest, emom: false) }
+        if emoms.count > 1, amraps.isEmpty { return .intervals(blocks: emoms, rest: rest, emom: true) }
         return nil
+    }
+
+    /// "3x AMRAP 3' descanso 1'" (descanso na mesma linha)
+    private static func inlineRest(_ line: String) -> Int? {
+        guard let m = match("(?:descanso|rest|pausa)\\s*:?\\s*(\\d{1,3})\\s*('|’|min|s\\b|seg|\")?", line), let n = Int(m[1]) else { return nil }
+        return ["s", "seg", "\""].contains(m[2].lowercased()) ? n : n * 60
     }
 
     private static func blockMinutes(_ line: String) -> Int? {
@@ -257,7 +279,8 @@ enum WodParser {
            let n = Int(m[1]), (1...90).contains(n) {
             return .amrap(minutes: n)
         }
-        if let m = match("\\be\\d?mom\\s*(?:de|x|:|-)?\\s*" + minutes, line) ?? match("\\b" + minutes + "\\s*(?:de\\s*)?e\\d?mom\\b", line),
+        if let every = everyFormat(line) { return every }
+        if let m = match("\\be1?mom\\s*(?:de|x|:|-)?\\s*" + minutes, line) ?? match("\\b" + minutes + "\\s*(?:de\\s*)?e1?mom\\b", line),
            let n = Int(m[1]), (1...90).contains(n) {
             return .emom(minutes: n)
         }
@@ -271,6 +294,21 @@ enum WodParser {
         return nil
     }
 
+    /// "E2MOM 10'", "A CADA 2' DURANTE 10'", "Durante 10' a cada 2'", "every 3 min x 15", "A CADA 2,00" (sem fim)
+    private static func everyFormat(_ line: String) -> WodFormat? {
+        var seconds: Int?
+        if let m = match("\\be(\\d)mom\\b", line), let n = Int(m[1]), n >= 2 { seconds = n * 60 }
+        if let m = match("\\b(?:a\\s*cada|every)\\s*(\\d{1,2})(?:[:,.](\\d{2}))?\\s*('|’|min|minutos|s\\b|seg|\")?", line), let n = Int(m[1]) {
+            let isSeconds = ["s", "seg", "\""].contains(m[3].lowercased())
+            seconds = isSeconds ? n : n * 60 + (Int(m[2]) ?? 0)
+        }
+        guard let seconds, seconds >= 15, seconds != 60 || line.lowercased().contains("cada") || line.lowercased().contains("every") else { return nil }
+        let total = match("\\b(?:durante|por|for|x)\\s*(\\d{1,3})\\s*(?:'|’|min)", line).flatMap { Int($0[1]) }
+            ?? match("\\be\\dmom\\s*(?:de|x|:|-)?\\s*(\\d{1,3})", line).flatMap { Int($0[1]) }
+        let m = min(total ?? 0, 90)
+        return seconds == 60 && m > 0 ? .emom(minutes: m) : .every(seconds: seconds, minutes: m)
+    }
+
     private static func cap(in line: String) -> Int? {
         match("\\b(?:tc|time\\s*cap|cap)\\s*(?:de|:|=|-)?\\s*" + minutes, line).flatMap { Int($0[1]) }.flatMap { (1...90).contains($0) ? $0 : nil }
     }
@@ -279,7 +317,7 @@ enum WodParser {
     private static func isOnlyFormat(_ line: String) -> Bool {
         guard format(in: line) != nil else { return false }
         let rest = line.lowercased().replacingOccurrences(
-            of: "amrap|e\\d?mom|tabata|for\\s*time|\\bft\\b|por\\s*tempo|time\\s*cap|\\btc\\b|\\bcap\\b|min(?:utos|utes)?\\b|\\bde\\b|\\bem\\b|\\bin\\b|[0-9'’():=\\-–—.,\\s]",
+            of: "amrap|e\\d?mom|a\\s*cada|every|durante|tabata|for\\s*time|\\bft\\b|por\\s*tempo|time\\s*cap|\\btc\\b|\\bcap\\b|min(?:utos|utes)?\\b|\\bde\\b|\\bem\\b|\\bin\\b|[0-9'’():=\\-–—.,\\s]",
             with: "", options: .regularExpression)
         return rest.isEmpty
     }
@@ -449,6 +487,12 @@ struct ImportWodView: View {
     @State private var kind = 0
     @State private var minutes = 12
     @State private var rounds = 8
+    /// Blocos com descanso: minutos de cada um, descanso em segundos e se é EMOM
+    @State private var blocks: [Int] = [3, 3, 3]
+    @State private var blockRest = 120
+    /// EMOM: tamanho do intervalo (1 = a cada minuto; 2 = E2MOM…), em segundos
+    @State private var every = 60
+    @State private var blocksEmom = false
     @State private var linesText = ""
     @State private var parts: [WodPart] = []
     @State private var guessed = false
@@ -608,10 +652,21 @@ struct ImportWodView: View {
         }
 
         GMSection("Formato") {
-            GMChoiceChips(options: [(0, "For Time"), (1, "AMRAP"), (2, "EMOM"), (3, "Tabata")], selection: $kind)
+            GMChoiceChips(options: [(0, "For Time"), (1, "AMRAP"), (2, "EMOM"), (3, "Tabata"), (4, "Blocos")], selection: $kind)
             GMDivider()
-            if kind == 3 {
+            if kind == 4 {
+                GMChoiceChips(options: [(false, "AMRAP"), (true, "EMOM")], selection: $blocksEmom)
+                GMStepper(title: "Blocos", value: Binding(get: { blocks.count }, set: { n in
+                    blocks = n > blocks.count ? blocks + Array(repeating: blocks.last ?? 3, count: n - blocks.count) : Array(blocks.prefix(n))
+                }), range: 2...12)
+                GMStepper(title: "Cada bloco", value: Binding(get: { blocks.first ?? 3 }, set: { m in blocks = blocks.map { _ in m } }),
+                          range: 1...30, format: { "\($0) min" })
+                GMStepper(title: "Descanso entre eles", value: $blockRest, range: 0...600, step: 30, format: { $0 == 0 ? "Sem descanso" : WodFormat.restText($0) })
+            } else if kind == 3 {
                 GMStepper(title: "Rodadas", value: $rounds, range: 1...20)
+            } else if kind == 2 {
+                GMStepper(title: "A cada", value: $every, range: 30...300, step: 30, format: { clock($0) })
+                GMStepper(title: "Duração", value: $minutes, range: 0...90, format: { $0 == 0 ? "Sem fim" : "\($0) min" })
             } else {
                 GMStepper(title: kind == 0 ? "Time cap" : "Duração", value: $minutes, range: kind == 0 ? 0...90 : 1...90,
                           format: { kind == 0 && $0 == 0 ? "Sem limite" : "\($0) min" })
@@ -677,7 +732,8 @@ struct ImportWodView: View {
         switch kind {
         case 0: .forTime(capMinutes: minutes > 0 ? minutes : nil)
         case 1: .amrap(minutes: minutes)
-        case 2: .emom(minutes: minutes)
+        case 2: every == 60 && minutes > 0 ? .emom(minutes: minutes) : .every(seconds: every, minutes: minutes)
+        case 4: .intervals(blocks: blocks, rest: blockRest, emom: blocksEmom)
         default: .tabata(rounds: rounds)
         }
     }
@@ -716,8 +772,10 @@ struct ImportWodView: View {
         switch f {
         case .forTime(let cap): kind = 0; minutes = cap ?? 0
         case .amrap(let m): kind = 1; minutes = m
-        case .emom(let m): kind = 2; minutes = m
+        case .emom(let m): kind = 2; minutes = m; every = 60
+        case .every(let sec, let m): kind = 2; minutes = m; every = sec
         case .tabata(let r): kind = 3; rounds = r
+        case .intervals(let b, let rest, let emom): kind = 4; blocks = b; blockRest = rest; blocksEmom = emom
         }
     }
 
@@ -826,7 +884,7 @@ struct PlannedWodView: View {
                     }
                 }
             }
-            GMButton("Começar WOD", icon: "play.fill") { start = plan.wod }
+            GMButton(plan.parts.isEmpty ? "Começar WOD" : "Começar treino", icon: "play.fill") { start = plan.wod }
             GMButton("Editar", icon: "pencil", kind: .secondary) { editing = true }
             GMButton("Apagar treino", icon: "trash", kind: .danger) { confirmDelete = true }
         }

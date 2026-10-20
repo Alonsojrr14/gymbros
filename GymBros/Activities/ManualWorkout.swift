@@ -93,7 +93,7 @@ struct ManualWorkoutDraft: Equatable {
             } else {
                 r.seconds = minutesDone * 60 + secondsDone
             }
-        case .amrap: r.rounds = rounds; r.reps = reps
+        case .amrap, .intervals(_, _, false): r.rounds = rounds; r.reps = reps
         default: break
         }
         r.rx = rx
@@ -359,7 +359,7 @@ struct WorkoutDoneFlow: View {
                         GMStepper(title: "Minutos", value: $work.minutesDone, range: 0...90)
                         GMStepper(title: "Segundos", value: $work.secondsDone, range: 0...55, step: 5)
                     }
-                case .amrap:
+                case .amrap, .intervals(_, _, false):
                     GMStepper(title: "Rodadas", value: $work.rounds, range: 0...200)
                     GMStepper(title: "Reps extras", value: $work.reps, range: 0...300)
                 default:

@@ -10,6 +10,7 @@ struct GymBrosApp: App {
         URLCache.shared = URLCache(memoryCapacity: 40 * 1024 * 1024, diskCapacity: 300 * 1024 * 1024)
         WorkoutIntentBridge.completeSet = { await LiveWorkout.completeNextSet() }
         WorkoutIntentBridge.skipRest = { await LiveWorkout.skipRest() }
+        _ = WodRun.shared
         GymBrosShortcuts.updateAppShortcutParameters()
         NotificationRouter.shared.install()
         GymLocation.shared.startMonitoring()

@@ -122,11 +122,23 @@ func shareActivityStory(_ activity: Activity, context: ModelContext, photo chose
 private func presentStory(_ data: StoryData, photo: UIImage?) {
     let vc = UIHostingController(rootView: StoryComposerView(data: data, photo: photo).preferredColorScheme(.dark).tint(Theme.accent))
     vc.modalPresentationStyle = .fullScreen
-    // Espera menus e folhas fecharem antes de abrir
+    present(vc, attempts: 20)
+}
+
+/// Espera menus, folhas e o seletor de fotos terminarem de fechar: apresentar em cima de quem está saindo
+/// falha calado (era o que acontecia no "Stories com outra foto")
+@MainActor
+private func present(_ vc: UIViewController, attempts: Int) {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
         let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
         var top = scene?.keyWindow?.rootViewController
-        while let next = top?.presentedViewController { top = next }
+        var busy = top?.isBeingDismissed == true || top?.isBeingPresented == true
+        while let next = top?.presentedViewController {
+            if next.isBeingDismissed || next.isBeingPresented { busy = true }
+            if next.isBeingDismissed { break }
+            top = next
+        }
+        if busy && attempts > 0 { return present(vc, attempts: attempts - 1) }
         top?.present(vc, animated: true)
     }
 }

@@ -39,7 +39,7 @@ struct ActivityDetailView: View {
             if let data = photo, let img = UIImage(data: data) {
                 Color.clear
                     .frame(height: 260)
-                    .overlay { Image(uiImage: img).resizable().scaledToFill() }
+                    .overlay { Image(uiImage: img).resizable().scaledToFill().allowsHitTesting(false) }
                     .clipShape(.rect(cornerRadius: Theme.radius))
             }
             GMCard {

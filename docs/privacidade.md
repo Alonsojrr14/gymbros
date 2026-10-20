@@ -30,7 +30,7 @@ Com a sua permissão, o app usa a localização para salvar academias, avisar qu
 
 ## Fotos
 
-Fotos só entram no app quando você escolhe uma (atividade, perfil ou medidas) e fazem parte dos dados da sua conta. Ao compartilhar um Story, a imagem vai para o app que você escolher na tela de compartilhar.
+Fotos só entram no app quando você escolhe uma (atividade, perfil ou medidas) e fazem parte dos dados da sua conta. Ao compartilhar um Story, a imagem vai para o app que você escolher na tela de compartilhar. Se você escolher "Salvar imagem", o iPhone pede permissão só para adicionar a arte às suas fotos; o app não lê a sua galeria.
 
 ## Ligas, amigos e conta
 

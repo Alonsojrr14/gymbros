@@ -167,11 +167,13 @@ struct LogActivityView: View {
                     .font(.title2.weight(.heavy).monospacedDigit())
                     .foregroundStyle(Theme.accent)
                 Spacer()
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     ForEach(Attribute.allCases.filter { split[$0] != nil }) { a in
                         Label("+\(Int((Double(p.xp) * (split[a] ?? 0)).rounded()))", systemImage: a.symbol)
                             .foregroundStyle(a.color)
                             .font(.caption.weight(.semibold).monospacedDigit())
+                            .lineLimit(1)
+                            .fixedSize()
                     }
                 }
             }

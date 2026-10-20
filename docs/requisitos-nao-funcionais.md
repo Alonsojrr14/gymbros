@@ -131,9 +131,13 @@ e com pausa geral; na primeira busca de uma conta nada é notificado, e o que ch
 Critério: nenhum registro para push remoto (`registerForRemoteNotifications` ausente); `InboxTests` (tópico, pausa, conversa aberta, itens antigos).
 Fonte: `GymBros/App/SettingsPages.swift` (`NotificationSettingsPage`), `GymBros/Inbox/NotificationPrefs.swift` (`NotificationTopic`, `NotificationPrefs`, `SocialNotifier`), `GymBros/Inbox/Inbox.swift` (`InboxStore.refresh`), `GymBros/Train/LiveWorkout.swift`, `GymBros/Bros/Companion.swift`.
 
-**RNF-12 — Fotos sem permissão de biblioteca; sem câmera.** Fotos (perfil, check-in, capa de liga, corpo, story, prints do treino do coach)
+**RNF-12 — Fotos sem permissão de leitura da biblioteca; sem câmera.** Fotos (perfil, check-in, capa de liga, corpo, story, prints do treino do coach)
 são escolhidas pelo `PhotosPicker`, que roda fora do processo e dispensa permissão. O app não usa a câmera.
-Critério: não existem `NSPhotoLibraryUsageDescription` nem `NSCameraUsageDescription`, e nenhum uso de `AVCapture`/`UIImagePickerController`.
+Exceção: a arte do story é passada como `UIImage` para a folha de compartilhar, e o "Salvar imagem" nativo só aparece com
+`NSPhotoLibraryAddUsageDescription` ("Para salvar nas suas fotos a arte dos stories do seu treino."). É acesso só de escrita, pedido pelo
+iOS na primeira vez que a pessoa salva; o app nunca lê a galeria. A política de privacidade (seção Fotos) diz isso.
+Critério: não existem `NSPhotoLibraryUsageDescription` nem `NSCameraUsageDescription`, e nenhum uso de `AVCapture`/`UIImagePickerController`;
+`NSPhotoLibraryAddUsageDescription` é a única chave de fotos.
 Fonte: `Info.plist`, `pbxproj`; `GymBros/Profile/ProfileView.swift`, `GymBros/Leagues/LeaguesView.swift`, `GymBros/Profile/BodyTrackerView.swift`, `GymBros/Leagues/CheckInDetail.swift`, `GymBros/Activities/ActivityDetail.swift`, `GymBros/Train/WodImport.swift` (até 6 prints).
 **Recomendação:** se a câmera for adicionada, incluir `NSCameraUsageDescription` em pt-BR antes do primeiro uso.
 

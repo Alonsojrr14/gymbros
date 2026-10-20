@@ -259,9 +259,3 @@ enum LiveWod {
         for a in ActivityKit.Activity<WodAttributes>.activities { await a.end(nil, dismissalPolicy: .immediate) }
     }
 }
-
-/// Rodadas do WOD, compartilhadas com o botão "+1 rodada" do Live Activity
-@Observable
-final class WodCounter {
-    var rounds = 0
-}
