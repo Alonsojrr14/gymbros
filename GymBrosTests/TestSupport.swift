@@ -7,7 +7,7 @@ import XCTest
 /// é guardado antes e devolvido depois, para não bagunçar os dados de verdade.
 @MainActor
 class GymTestCase: XCTestCase {
-    private static let keys = ["exerciseGoals", "deloadUntil", "deloadSnooze", "barCountsBar"]
+    private static let keys = ["exerciseGoals", "deloadUntil", "deloadSnooze", "barCountsBar", RetiredActivities.key] + TradeLedger.keys
     private var saved: [String: Any] = [:]
     private var savedPRs: [String: [SetLog]] = [:]
 

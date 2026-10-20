@@ -38,7 +38,7 @@ struct MockAccountDataBackend: AccountDataBackend {
     let serverSuite: String?
 
     /// Estado dos outros servidores simulados (amigos, mensagens, denúncias, bloqueios e X1): no servidor real é por conta
-    static let socialKeys = ["mockFriends", "mockInbox", "mockReports", "mockBlocks", MockDuelServer.key]
+    static let socialKeys = ["mockFriends", "mockInbox", "mockReports", "mockBlocks", MockDuelServer.key, MockTradeServer.key]
 
     init(folder: URL = URL.applicationSupportDirectory.appending(path: "MockServer", directoryHint: .isDirectory), serverSuite: String? = nil) {
         self.folder = folder

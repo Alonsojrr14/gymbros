@@ -195,7 +195,8 @@ enum AccountData {
         "dexRevealAll", "deloadUntil", "deloadSnooze", "barCountsBar", PendingRoutineUpdate.key,
         "gymNotifyArrival", "gymAutoFinish", "gymInsideID", "gymArrival",
         "friendCode", "declinedFriendRequests", "pendingRetractions", DemoAccount.seededKey,
-        "recentWorkoutTypes", DuelStore.fightersKey, "duelScoreRecords",
+        "recentWorkoutTypes", DuelStore.fightersKey, "duelScoreRecords", RetiredActivities.key,
+        TradeLedger.basesKey, TradeLedger.goneKey, TradeLedger.appliedKey,
     ] + HealthSync.defaultsKeys + ModerationStore.defaultsKeys + Terms.defaultsKeys + InboxStore.defaultsKeys + NotificationPrefs.defaultsKeys
         + MusicShareStore.defaultsKeys + LiveShare.defaultsKeys
 
@@ -228,6 +229,7 @@ enum AccountData {
         for k in ModerationStore.defaultsKeys + Terms.defaultsKeys { defaults.removeObject(forKey: k) }
         LeagueRemoteStore.shared.reset()
         DuelStore.shared.reset()
+        TradeStore.shared.reset()
         FriendsStore.shared.reset()
         for k in InboxStore.defaultsKeys { defaults.removeObject(forKey: k) }
         InboxStore.shared.reset()
