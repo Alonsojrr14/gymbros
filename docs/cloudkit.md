@@ -26,7 +26,19 @@ A liga de exemplo (`AMIGOS`) continua simulada nos dois modos. A conta de demons
    Na mesma tela, **+ Sign in with Apple** (`com.apple.developer.applesignin` = `Default`). Sem ela, "Continuar com a Apple" no modo `.cloudKit` falha (erro 1000 do `ASAuthorizationController`). No `.mock` o botão oficial chama o login simulado e não precisa da capability.
 3. Criar o esquema abaixo no CloudKit Dashboard (ambiente Development), com índices e permissões.
 4. Trocar `Backend.mode` para `.cloudKit`, rodar no aparelho com uma conta do iCloud e testar com duas contas.
-5. Antes de publicar: **Deploy Schema Changes** para Production.
+5. Antes de publicar: **Deploy Schema Changes** para Production. TestFlight e App Store usam Production; sem o deploy, o app funciona no Xcode e falha para os usuários. Depois do deploy, o esquema de Production só aceita acréscimos (não dá para apagar nem renomear campos ou tipos).
+
+## Por que o banco local não sincroniza sozinho (SwiftData + CloudKit)
+
+O `AppData.container` (`GymBros/Models/Schema.swift`) usa `cloudKitDatabase: .none` de propósito. A combinação "SwiftData offline + iCloud sincronizando em segundo plano" parece resolver tudo, mas não serve ao GymBros:
+
+- **Só o banco privado.** A sincronização do SwiftData não fala com o banco público nem com o compartilhado. Ligas, amigos, perfis, X1 e moderação precisam de `CKDatabase` direto (é o que os backends `CloudKit*` fazem) e o trabalho offline fica na caixa de saída do próprio app.
+- **Apple Saúde não vai para o iCloud** (guideline 5.1.3(ii)). Treinos importados, kcal, distância e peso estão no mesmo banco local. Ligar a sincronização exigiria separar esses modelos num `ModelConfiguration` próprio, sem CloudKit.
+- **Separar contas por campo não é segurança.** O banco privado é do iCloud do aparelho, não da conta do app: filtrar por um id do app só esconde na tela. No banco público qualquer instalação lê tudo (World: Read); o CloudKit controla só quem escreve, e pelo usuário do iCloud. A identidade é o `userRecordID` + Sign in with Apple.
+- **Regras extras do `@Model` com CloudKit:** toda propriedade com valor padrão ou opcional, relacionamentos opcionais, sem `@Attribute(.unique)` e sem `deleteRule: .deny`.
+- **Comportamentos a tratar se algum dia ligar:** o banco privado ocupa o iCloud do usuário (cheio = sincronização para sem aviso); trocar de conta do iCloud apaga a cópia local sincronizada; apagar em Ajustes > iCloud remove só o privado, nunca o público (por isso "Excluir conta" dentro do app, guideline 5.1.1(v)).
+
+Custo: o banco público tem cota grátis que cresce com o número de usuários; acima dela a Apple limita (ou cobra). Na escala do GymBros, é zero.
 
 ## Esquema (banco público)
 
