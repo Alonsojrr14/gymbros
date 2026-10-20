@@ -6,8 +6,9 @@ import SwiftUI
 // jogador escolhe quem o representa: um que já tem ou um ovo novo adotado na hora.
 //
 // Para onde vai o XP de cada atividade:
-//   · postada em ligas → para os monstros que representam o jogador nessas ligas
-//   · não postada      → para o monstro que era o principal quando ela foi registrada
+//   · sempre, inteiro  → para o monstro que era o principal quando ela foi registrada
+//   · postada em ligas → também para quem representa o jogador em cada uma, com um pouco menos (`leagueShare`);
+//                        se o principal for o representante, ele recebe uma vez só, inteiro
 
 enum MainMonster {
     /// Chave no UserDefaults (telas observam com @AppStorage para trocar o principal na hora)
@@ -41,16 +42,28 @@ struct Roster {
         snapshots.values.reduce(into: [:]) { acc, s in acc.merge(s.xpByActivity) { max($0, $1) } }
     }
 
-    /// Quem recebe o XP: representantes das ligas marcadas (cada um uma vez); sem liga, o dono gravado ou o inicial
+    /// Parte do XP que o representante de uma liga recebe (o principal recebe tudo)
+    static let leagueShare = 0.8
+
+    /// Quanto do XP vai para cada bro: o principal da atividade (o dono gravado, ou o inicial) leva tudo, e o
+    /// representante de cada liga marcada leva `leagueShare`, cada um uma vez. Principal que também representa: só tudo.
+    /// Dono que saiu numa troca (`gone`): o XP dele foi junto e não passa para ninguém daqui.
+    static func shares(leagueIDs: Set<UUID>, owner: UUID?, known: Set<UUID>, leagueMonster: [UUID: UUID?], starter: UUID?,
+                       gone: Set<UUID> = []) -> [UUID: Double] {
+        var out: [UUID: Double] = [:]
+        for rep in leagueIDs.compactMap({ leagueMonster[$0] ?? nil }) where known.contains(rep) { out[rep] = leagueShare }
+        if let o = owner, gone.contains(o) { return out }
+        if let main = owner.flatMap({ known.contains($0) ? $0 : nil }) ?? starter { out[main] = 1 }
+        return out
+    }
+
     static func owners(leagueIDs: Set<UUID>, owner: UUID?, known: Set<UUID>, leagueMonster: [UUID: UUID?], starter: UUID?) -> Set<UUID> {
-        let reps = Set(leagueIDs.compactMap { leagueMonster[$0] ?? nil }.filter(known.contains))
-        if !reps.isEmpty { return reps }
-        return Set([owner.flatMap { known.contains($0) ? $0 : nil } ?? starter].compactMap { $0 })
+        Set(shares(leagueIDs: leagueIDs, owner: owner, known: known, leagueMonster: leagueMonster, starter: starter).keys)
     }
 
     /// Mesma regra, para uma atividade ainda não salva (prévia do XP)
-    func owners(leagueIDs: Set<UUID>, owner: UUID?) -> Set<UUID> {
-        Roster.owners(leagueIDs: leagueIDs, owner: owner, known: known, leagueMonster: leagueMonster, starter: starterID)
+    func shares(leagueIDs: Set<UUID>, owner: UUID?) -> [UUID: Double] {
+        Roster.shares(leagueIDs: leagueIDs, owner: owner, known: known, leagueMonster: leagueMonster, starter: starterID)
     }
 
     init(monsters: [Monster], activities: [Activity], checkIns: [LeagueCheckIn], leagues: [League]) {
@@ -68,20 +81,35 @@ struct Roster {
         for c in checkIns { posted[c.activityUUID, default: []].insert(c.leagueUUID) }
 
         var recs: [UUID: [ActivityRecord]] = [:]
+        let gone = TradeLedger.gone()
         for a in activities {
-            let owners = Roster.owners(leagueIDs: posted[a.uuid] ?? [], owner: a.monsterUUID, known: known,
-                                       leagueMonster: leagueMonster, starter: starter?.uuid)
-            for o in owners { recs[o, default: []].append(a.record) }
+            let shares = Roster.shares(leagueIDs: posted[a.uuid] ?? [], owner: a.monsterUUID, known: known,
+                                       leagueMonster: leagueMonster, starter: starter?.uuid, gone: gone)
+            for (o, share) in shares {
+                var r = a.record
+                r.share = share
+                recs[o, default: []].append(r)
+            }
+        }
+        // Apagadas: o XP continua com quem recebeu (se ainda não voltou, ex.: backup restaurado)
+        let live = Set(activities.map(\.uuid))
+        for e in RetiredActivities.all() where !live.contains(e.id) {
+            for o in e.owners where known.contains(o) {
+                var r = e.record
+                r.share = e.shares?[o.uuidString] ?? 1
+                recs[o, default: []].append(r)
+            }
         }
         records = recs
+        let bases = TradeLedger.bases()
         snapshots = Dictionary(uniqueKeysWithValues: monsters.map { m in
-            var s = Game.cachedSnapshot(recs[m.uuid] ?? [])
+            var s = Game.cachedSnapshot(recs[m.uuid] ?? [], base: bases[m.uuid])
             // Espécie gravada no monstro; se acabou de chocar e ainda não foi gravada, calcula pelos treinos do ovo
             if s.stage > .egg {
                 let hatched = s.evolutions.first?.date ?? .distantFuture
                 let species = m.speciesID ?? Species.hatch(records: (recs[m.uuid] ?? []).filter { $0.date <= hatched }, seed: m.uuid).id
                 // Híbrido sem arte ainda: segue a forma normal do atributo dominante
-                func resolve(_ f: MonsterForm) -> MonsterForm { let g = f.with(species: species); return g.hasArt ? g : g.single }
+                func resolve(_ f: MonsterForm) -> MonsterForm { f.with(species: species).resolved }
                 s.form = resolve(s.form)
                 s.evolutions = s.evolutions.map { Evolution(date: $0.date, form: resolve($0.form)) }
             }
@@ -116,8 +144,8 @@ struct Roster {
 
 // MARK: - Telas
 
-/// "Meus bros" como uma Box: todos os bros em slots e, embaixo, o resumo do selecionado
-/// (principal, apelido, ligas, atributos e a ficha no BroBook).
+/// "Meus bros" como uma Box: todos os bros em slots. Tocar num bro abre a ficha dele num modal
+/// (principal, apelido, ligas, atributos, evoluções, treinos e X1).
 struct MyBrosList: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Monster.createdAt) private var monsters: [Monster]
@@ -131,33 +159,96 @@ struct MyBrosList: View {
     @State private var newName = ""
     @State private var mainID = MainMonster.id
     @State private var dexEntry: MonsterForm?
+    @State private var trading = false
+    @State private var trades = TradeStore.shared
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 4)
 
     var body: some View {
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues)
-        let current = roster.monster(selectedID) ?? roster.main
         VStack(alignment: .leading, spacing: 16) {
-            box(roster, selected: current?.uuid)
-            if let m = current { summary(m, roster.snapshot(m.uuid), isMain: m.uuid == roster.mainID) }
-            Text("O principal aparece na tela inicial e nos widgets e recebe o XP das atividades que não vão para nenhuma liga. Cada liga dá XP só ao bro que te representa nela. Ovos novos você adota ao entrar numa liga.")
+            box(roster, selected: selectedID)
+            Text("Toque num bro para ver a ficha dele: treinos, evoluções e X1. O principal aparece na tela inicial e nos widgets e recebe o XP das atividades que não vão para nenhuma liga. Cada liga dá XP só ao bro que te representa nela. Ovos novos você adota ao entrar numa liga.")
                 .font(.caption).foregroundStyle(Theme.dim)
         }
-        .gmPrompt(isPresented: $renaming, title: "Apelido", message: "Vazio usa o nome da forma atual.",
-                  placeholder: "Apelido", text: $newName) {
-            current?.name = newName.trimmingCharacters(in: .whitespaces)
-            try? context.save()
+        .task { await trades.refresh() }
+        .gmModal(isPresented: $trading) { TradeHubView() }
+        .sheet(isPresented: Binding(get: { selectedID != nil }, set: { if !$0 { selectedID = nil } })) {
+            if let m = roster.monster(selectedID) { broSheet(m, roster) }
         }
-        .sheet(item: $dexEntry) { f in
-            let seen = Set(discovered.split(separator: ",").map(String.init))
-            DexEntryView(form: f, snapshot: roster.snapshot(current?.uuid), isKnown: { [revealAll] in revealAll || seen.contains($0.id) })
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .presentationCornerRadius(Theme.radiusXL)
-                .presentationBackground(Theme.bg)
-                .preferredColorScheme(.dark)
-                .tint(Theme.accent)
+    }
+
+    /// Onde você está entre os bros, no topo do modal. Até 7 bros: um ponto para cada. Com mais, uma janela de 7
+    /// pontos que anda junto (os das pontas menores, como no iOS) e o "3 de 24" ao lado, para não virar uma fila sem fim.
+    private func pager(_ current: UUID) -> some View {
+        let n = monsters.count
+        let i = monsters.firstIndex { $0.uuid == current } ?? 0
+        let window = 7
+        let start = n <= window ? 0 : min(max(i - window / 2, 0), n - window)
+        let range = start..<min(start + window, n)
+        return HStack(spacing: 10) {
+            HStack(spacing: 5) {
+                ForEach(Array(range), id: \.self) { k in
+                    let edge = n > window && ((k == range.lowerBound && k > 0) || (k == range.upperBound - 1 && k < n - 1))
+                    Capsule().fill(k == i ? Theme.accent : Theme.track)
+                        .frame(width: k == i ? 16 : (edge ? 4 : 6), height: edge ? 4 : 6)
+                }
+            }
+            if n > window {
+                Text("\(i + 1) de \(n)").font(.caption2.bold().monospacedDigit()).foregroundStyle(Theme.dim)
+            }
         }
+        .frame(height: 12)
+        .animation(.snappy, value: current)
+        .accessibilityElement()
+        .accessibilityLabel("Bro \(i + 1) de \(n). Arraste para os lados para trocar")
+    }
+
+    /// O modal do bro: resumo e histórico, com a ficha do BroBook e o apelido abrindo por cima.
+    /// Arrastar para os lados passa pelos outros bros da Box.
+    private func broSheet(_ m: Monster, _ roster: Roster) -> some View {
+        let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+        return NavigationStack {
+            VStack(spacing: 0) {
+                if monsters.count > 1 { pager(m.uuid).padding(.top, 14).padding(.bottom, 4) }
+                TabView(selection: Binding(get: { m.uuid }, set: { selectedID = $0 })) {
+                    ForEach(monsters) { b in
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 16) {
+                                summary(b, roster.snapshot(b.uuid), isMain: b.uuid == roster.mainID)
+                                BroHistory(monster: b, snapshot: roster.snapshot(b.uuid), records: roster.records[b.uuid] ?? [], activities: byID)
+                            }
+                            .padding(16)
+                            .padding(.top, 8)
+                        }
+                        .tag(b.uuid)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+            }
+            .background(Theme.bg)
+            .gmPrompt(isPresented: $renaming, title: "Apelido", message: "Vazio usa o nome da forma atual.",
+                      placeholder: "Apelido", text: $newName) {
+                m.name = newName.trimmingCharacters(in: .whitespaces)
+                try? context.save()
+            }
+            .sheet(item: $dexEntry) { f in
+                let seen = Set(discovered.split(separator: ",").map(String.init))
+                DexEntryView(form: f, snapshot: roster.snapshot(m.uuid), isKnown: { [revealAll] in revealAll || seen.contains($0.id) })
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(Theme.radiusXL)
+                    .presentationBackground(Theme.bg)
+                    .preferredColorScheme(.dark)
+                    .tint(Theme.accent)
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(Theme.radiusXL)
+        .presentationBackground(Theme.bg)
+        .preferredColorScheme(.dark)
+        .tint(Theme.accent)
     }
 
     // MARK: Box
@@ -171,6 +262,21 @@ struct MyBrosList: View {
                 Spacer()
                 Text("\(monsters.count) \(monsters.count == 1 ? "bro" : "bros")")
                     .font(.subheadline.bold().monospacedDigit()).foregroundStyle(Theme.dim)
+                let offers = trades.incoming().count
+                Button { trading = true } label: {
+                    Label("Trocar", systemImage: "arrow.left.arrow.right").font(.caption.bold())
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(Theme.trophy.opacity(0.15), in: .capsule)
+                        .foregroundStyle(Theme.trophy)
+                        .overlay(alignment: .topTrailing) {
+                            if offers > 0 {
+                                Text("\(offers)").font(.system(size: 10, weight: .black)).foregroundStyle(.white)
+                                    .frame(minWidth: 16, minHeight: 16).background(Theme.badge, in: .capsule).offset(x: 6, y: -6)
+                            }
+                        }
+                }
+                .buttonStyle(GMPress())
+                .accessibilityLabel(offers > 0 ? "Trocas, \(offers) proposta\(offers == 1 ? "" : "s") para você" : "Trocas")
             }
             LazyVGrid(columns: columns, spacing: 10) {
                 ForEach(0..<slots, id: \.self) { i in
@@ -255,6 +361,10 @@ struct MyBrosList: View {
                     }
                     Text(s.stage == .egg ? "Ovo · \(s.xpToNext ?? 0) XP para chocar" : "\(s.stage.name) · Nível \(s.level) · \(s.totalXP.formatted()) XP")
                         .font(.caption).foregroundStyle(Theme.dim)
+                    if let from = s.inherited.last, let at = s.arrivedAt {
+                        Label("Veio de \(from.name) em \(at.formatted(.dateTime.day().month(.abbreviated)))", systemImage: "arrow.left.arrow.right")
+                            .font(.caption.weight(.semibold)).foregroundStyle(Theme.trophy)
+                    }
                     GMProgressBar(value: s.progress, tint: color, height: 5)
                 }
             }

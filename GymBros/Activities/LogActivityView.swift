@@ -52,20 +52,22 @@ struct LogActivityView: View {
         return AttributeSplit.split(s)
     }
 
-    private var preview: (xp: Int, grows: [Stage]) {
+    private var preview: (xp: Int, grows: [Stage], gains: [BroGain]) {
         let id = editing?.uuid ?? UUID()
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
-        let owners = roster.owners(leagueIDs: leagues, owner: editing == nil ? roster.mainID : editing?.monsterUUID)
-        let new = ActivityRecord(id: id, kind: kind, date: date, minutes: minutes, effort: effort, weights: split)
-        var xp = 0, grows: [Stage] = []
-        for o in owners {
+        let shares = roster.shares(leagueIDs: leagues, owner: editing == nil ? roster.mainID : editing?.monsterUUID)
+        var xp = 0, grows: [Stage] = [], each: [UUID: Int] = [:]
+        for (o, share) in shares {
+            var new = ActivityRecord(id: id, kind: kind, date: date, minutes: minutes, effort: effort, weights: split)
+            new.share = share
             let current = roster.records[o] ?? []
             let before = Game.cachedSnapshot(current), after = Game.snapshot(current.filter { $0.id != id } + [new])
             // Vários donos: mostra o maior, como nas listas
             xp = max(xp, after.xpByActivity[id] ?? 0)
+            each[o] = after.xpByActivity[id] ?? 0
             if after.stage > before.stage { grows.append(before.stage) }
         }
-        return (xp, grows)
+        return (xp, grows, BroGain.preview(each, roster: roster, leagues: allLeagues, selected: leagues))
     }
 
     var body: some View {
@@ -176,6 +178,10 @@ struct LogActivityView: View {
                             .fixedSize()
                     }
                 }
+            }
+            if !p.gains.isEmpty {
+                GMDivider()
+                BroGainsView(gains: p.gains)
             }
             if !p.grows.isEmpty {
                 let eggs = p.grows.allSatisfy { $0 == .egg }, many = p.grows.count > 1

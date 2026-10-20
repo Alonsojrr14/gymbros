@@ -294,8 +294,10 @@ struct TrainView: View {
     }
 
     private func deleteSession(_ s: WorkoutSession) {
-        if let id = s.activityUUID {
-            try? context.delete(model: Activity.self, where: #Predicate { $0.uuid == id })
+        // A atividade leva junto o treino ligado a ela (e guarda o XP do bro)
+        if let id = s.activityUUID, let a = try? context.fetch(FetchDescriptor<Activity>(predicate: #Predicate { $0.uuid == id })).first {
+            deleteActivity(a, context: context)
+            return
         }
         context.delete(s)
         try? context.save()
@@ -331,6 +333,10 @@ struct SessionRow: View {
 struct SessionDetailView: View {
     let session: WorkoutSession
     @Environment(\.modelContext) private var context
+    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
+    @Query private var activities: [Activity]
+    @Query private var checkIns: [LeagueCheckIn]
+    @Query private var leagues: [League]
     /// Série tocada para corrigir
     @State private var editing: LoggedSet?
     @State private var weight: Double?
@@ -340,6 +346,13 @@ struct SessionDetailView: View {
         GMScreen(session.title, subtitle: session.start.formatted(date: .complete, time: .shortened), back: true) {
             GMIconButton(icon: "square.and.arrow.up", label: "Compartilhar treino") { shareWorkoutStory(session, context: context) }
         } content: {
+            if let a = activities.first(where: { $0.uuid == session.activityUUID }) {
+                let gains = BroGain.of(a, roster: Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues),
+                                       leagues: leagues, posted: Set(checkIns.filter { $0.activityUUID == a.uuid }.map(\.leagueUUID)))
+                if !gains.isEmpty {
+                    GMSection(gains.count == 1 ? "Bro do treino" : "Bros do treino") { BroGainsView(gains: gains) }
+                }
+            }
             Text("Toque numa série para corrigir carga ou reps.").font(.caption).foregroundStyle(Theme.dim)
             ForEach(Array(session.exerciseIDs.enumerated()), id: \.offset) { _, id in
                 GMSection(Exercise.name(id)) {

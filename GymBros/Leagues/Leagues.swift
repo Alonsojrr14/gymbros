@@ -4,8 +4,8 @@ import SwiftData
 // Ligas no estilo GymRats: cada liga é um ranking contínuo alimentado por check-ins de
 // qualquer tipo de atividade. Os outros participantes, times e o mural vêm de LeagueRemoteStore
 // (por enquanto simulados, ver LeagueRemote.swift). Ao entrar, você escolhe quem te representa (um bro
-// seu ou um ovo novo). A atividade postada em ligas dá XP só aos representantes delas; sem liga, vai para
-// o dono gravado na atividade ou o bro inicial (Roster.owners).
+// seu ou um ovo novo). Toda atividade dá XP inteiro ao principal (o dono gravado nela, ou o bro inicial); postada
+// em ligas, dá também um pouco menos a quem representa você em cada uma (Roster.shares).
 
 /// O que um check-in precisa para virar pontos em qualquer modo
 struct ScoreInput {
@@ -491,7 +491,7 @@ enum LeagueBoard {
         guard stage.branches, !attrs.isEmpty else { return (MonsterForm(stage: stage, attribute: nil), progress) }
         let (a, b) = Game.branch(attrs)
         let f = MonsterForm(stage: stage, attribute: a, attribute2: b)
-        return (f.hasArt ? f : f.single, progress)
+        return (f.resolved, progress)
     }
 
     /// Seu id no servidor (o mesmo que os outros aparelhos veem), para o pareamento suíço ser igual em todos

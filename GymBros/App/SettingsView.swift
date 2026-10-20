@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage("autoWarmup") private var autoWarmup = true
     @Query(sort: \Monster.createdAt) private var monsters: [Monster]
     @State private var confirmReset = false
+    @State private var testBroAdded = false
     @State private var confirmSignOut = false
     @State private var signOutError: String?
     @State private var auth = AuthStore.shared
@@ -85,7 +86,9 @@ struct SettingsView: View {
                 }
 
                 #if DEBUG
-                GMSection {
+                GMSection(footer: testBroAdded ? "Bro de teste criado: veja na Box (Meus bros)." : nil) {
+                    GMRow(icon: "plus.circle", tile: Theme.accent, title: "Ganhar bro de teste",
+                          subtitle: "Um bro já chocado, com treinos de teste") { addTestBro() }
                     GMRow(icon: "arrow.counterclockwise", iconTint: Theme.danger, tile: Theme.danger, title: "Recomeçar jornada") { confirmReset = true }
                 }
                 #endif
@@ -216,6 +219,25 @@ struct SettingsView: View {
     /// O que "Recomeçar jornada" faz (mostrado na confirmação)
     static let resetText = "Apaga as atividades e tudo ligado a elas (treinos guiados, check-ins no perfil e nas ligas, percursos, WODs), os bros, as conquistas já vistas e os carinhos do widget, e devolve um ovo novo. Você continua nas ligas, agora representado pelo ovo novo e com placar zerado."
 
+    #if DEBUG
+    /// Para testar o X1 com mais de um bro: um ovo novo com 8 corridas de teste nos últimos dias, que o fazem chocar (Lobo)
+    private func addTestBro() {
+        let bro = Monster()
+        bro.createdAt = .now
+        context.insert(bro)
+        let cal = Calendar.current
+        for day in 1...8 {
+            let date = cal.date(byAdding: .day, value: -day, to: cal.startOfDay(for: .now))!.addingTimeInterval(7 * 3600)
+            let run = Activity(kind: .corrida, date: date, minutes: 60, effort: 7, note: "Treino de teste do bro")
+            run.monsterUUID = bro.uuid
+            context.insert(run)
+        }
+        try? context.save()
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        testBroAdded = true
+    }
+    #endif
+
     private func reset() {
         // Tudo que depende das atividades sai junto, para nada ficar apontando para atividade apagada
         let ids = Set(((try? context.fetch(FetchDescriptor<Activity>())) ?? []).map(\.uuid))
@@ -230,6 +252,8 @@ struct SettingsView: View {
         ((try? context.fetch(FetchDescriptor<WorkoutSession>())) ?? []).filter { $0.activityUUID.map(ids.contains) ?? false }.forEach(context.delete)
         try? context.delete(model: Activity.self)
         try? context.save()
+        RetiredActivities.clear()
+        for k in TradeLedger.keys { UserDefaults.standard.removeObject(forKey: k) }
         // Só treinos do Saúde feitos daqui para frente alimentam o ovo novo
         HealthSync.lastSync = .now
         // Volta a ter um monstro só: o ovo inicial novo, que passa a representar você nas ligas

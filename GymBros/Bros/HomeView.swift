@@ -176,6 +176,7 @@ struct ActivityRow: View {
     let xp: Int
     @Query private var posts: [LeagueCheckIn]
     @Query private var leagues: [League]
+    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
 
     init(activity: Activity, xp: Int) {
         self.activity = activity
@@ -195,12 +196,28 @@ struct ActivityRow: View {
         return out.joined(separator: " · ") + (place.map { " · 📍 \($0)" } ?? "")
     }
 
+    /// Bros que ganharam XP: o dono gravado (ou o inicial) e quem te representa nas ligas marcadas
+    private var bros: [MonsterForm] {
+        let known = Set(monsters.map(\.uuid))
+        let starter = monsters.first { $0.isStarter } ?? monsters.first
+        let shares = Roster.shares(leagueIDs: Set(posts.map(\.leagueUUID)), owner: activity.monsterUUID, known: known,
+                                   leagueMonster: Dictionary(leagues.map { ($0.uuid, $0.monsterUUID) }, uniquingKeysWith: { a, _ in a }),
+                                   starter: starter?.uuid)
+        return shares.sorted { $0.value > $1.value }.compactMap { id, _ in
+            monsters.first { $0.uuid == id }.flatMap { MonsterForm.byID($0.lastFormID) }
+        }
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: activity.typeSymbol)
                 .font(.title3)
                 .frame(width: 40, height: 40)
                 .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusS))
+                .overlay(alignment: .bottomTrailing) {
+                    let b = bros
+                    if !b.isEmpty { BroAvatars(forms: b, size: 18).offset(x: 6, y: 6) }
+                }
             VStack(alignment: .leading, spacing: 2) {
                 Text(activity.typeName).font(.subheadline.weight(.semibold))
                 Text("\(durationText(activity.minutes)) · \(effortLabel(activity.effort)) · \(activity.date.formatted(.dateTime.day().month(.abbreviated)))")

@@ -12,7 +12,7 @@ final class League {
     /// Liga de exemplo, com participantes simulados
     var isMock: Bool = false
     var joinedAt: Date = Date.now
-    /// Monstro que representa o jogador nesta liga (recebe o XP dos check-ins dela)
+    /// Monstro que representa o jogador nesta liga (recebe parte do XP dos check-ins dela; o principal recebe tudo)
     var monsterUUID: UUID?
     /// Último dia da liga (fim do dia); nil = sem fim
     var end: Date?

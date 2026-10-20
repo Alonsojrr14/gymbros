@@ -34,6 +34,8 @@ struct WorkoutView: View {
     @State private var setMenu: LoggedSet?
     @Query(filter: #Predicate<WorkoutSession> { $0.end != nil }, sort: \WorkoutSession.start, order: .reverse) private var doneSessions: [WorkoutSession]
     @State private var headphones = HeadphoneControl.shared.isOn
+    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
+    @AppStorage(MainMonster.key) private var mainRaw: String?
     @State private var headphoneInfo = false
     @AppStorage("headphoneInfoSeen") private var headphoneInfoSeen = false
     @State private var scrollTarget: String?
@@ -178,11 +180,25 @@ struct WorkoutView: View {
     private var header: some View {
         HStack(spacing: 12) {
             GMIconButton(icon: "chevron.down", label: "Minimizar treino") { dismiss() }
+            // Bro que treina com você (o principal recebe o XP; as ligas você escolhe ao concluir)
+            let main = monsters.first { $0.uuid.uuidString == mainRaw } ?? monsters.first { $0.isStarter } ?? monsters.first
+            if let main, let form = MonsterForm.byID(main.lastFormID) {
+                MonsterSprite(form: form).frame(width: 30, height: 30)
+                    .frame(width: 38, height: 38)
+                    .background(Theme.accent.opacity(0.12), in: .circle)
+                    .overlay(Circle().stroke(Theme.accent.opacity(0.4), lineWidth: 1))
+                    .accessibilityLabel("Treinando com \(main.displayName(form))")
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text(session.title).font(.headline).lineLimit(1)
-                Text(timerInterval: session.start...Date.distantFuture, countsDown: false)
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(Theme.accent)
+                HStack(spacing: 4) {
+                    Text(timerInterval: session.start...Date.distantFuture, countsDown: false)
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(Theme.accent)
+                    if let main, let form = MonsterForm.byID(main.lastFormID) {
+                        Text("· com \(main.displayName(form))").font(.caption).foregroundStyle(Theme.dim).lineLimit(1)
+                    }
+                }
             }
             Spacer()
             // Modo fone: avisos do descanso falados no fone
@@ -835,6 +851,10 @@ struct FinishWorkoutView: View {
                     Spacer()
                     Label("Força", systemImage: Attribute.forca.symbol).foregroundStyle(Attribute.forca.color)
                 }
+                if !p.gains.isEmpty {
+                    GMDivider()
+                    BroGainsView(gains: p.gains)
+                }
                 if !p.grows.isEmpty {
                     let eggs = p.grows.allSatisfy { $0 == .egg }, many = p.grows.count > 1
                     Text(eggs ? (many ? "Isso vai fazer os ovos chocarem! 🥚" : "Isso vai fazer o ovo chocar! 🥚")
@@ -846,21 +866,24 @@ struct FinishWorkoutView: View {
         .onChange(of: postTitle) { blocked = false }
     }
 
-    /// XP do treino e o estágio de antes de cada bro que vai evoluir. O XP vai para os bros das ligas marcadas
-    /// (regra do Roster, como no registro de atividade); sem liga, o principal. Vários donos: mostra o maior.
-    private var preview: (xp: Int, grows: [Stage]) {
+    /// XP do treino e o estágio de antes de cada bro que vai evoluir. O principal leva tudo e o bro de cada liga marcada,
+    /// um pouco menos (regra do Roster, como no registro de atividade). Vários donos: mostra o maior.
+    private var preview: (xp: Int, grows: [Stage], gains: [BroGain]) {
         let sets = session.doneWorkSets.map { AttributeSplit.SetSignal(exerciseID: $0.exerciseID, reps: $0.reps, rest: $0.rest) }
         let split = AttributeSplit.split(.init(kind: .musculacao, minutes: minutes, effort: effort, sets: sets))
-        let new = ActivityRecord(id: UUID(), kind: .musculacao, date: session.start, minutes: minutes, effort: effort, weights: split)
+        let id = UUID()
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
-        var xp = 0, grows: [Stage] = []
-        for o in roster.owners(leagueIDs: leagues, owner: roster.mainID) {
+        var xp = 0, grows: [Stage] = [], each: [UUID: Int] = [:]
+        for (o, share) in roster.shares(leagueIDs: leagues, owner: roster.mainID) {
+            var new = ActivityRecord(id: id, kind: .musculacao, date: session.start, minutes: minutes, effort: effort, weights: split)
+            new.share = share
             let current = roster.records[o] ?? []
             let before = Game.cachedSnapshot(current), after = Game.snapshot(current + [new])
             xp = max(xp, after.xpByActivity[new.id] ?? 0)
+            each[o] = after.xpByActivity[new.id] ?? 0
             if after.stage > before.stage { grows.append(before.stage) }
         }
-        return (xp, grows)
+        return (xp, grows, BroGain.preview(each, roster: roster, leagues: allLeagues, selected: leagues))
     }
 
     private func stat(_ value: String, _ label: String) -> some View {

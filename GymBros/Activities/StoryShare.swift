@@ -28,7 +28,18 @@ struct StoryData {
     var records: [String] = []
     /// Trajeto do GPS (corrida, caminhada, bike)
     var route: [CLLocationCoordinate2D] = []
-    var sprite: String
+    /// Bros que ganharam XP com a atividade: o principal primeiro, depois quem a representa nas ligas
+    var bros: [StoryBro] = []
+
+    /// Bro do destaque (o principal)
+    var sprite: String { bros.first?.sprite ?? "sprite_baby" }
+    var totalXP: Int { bros.reduce(0) { $0 + $1.xp } }
+
+    /// "+52 XP para o Ursabro", "+130 XP para 3 bros"
+    var xpText: String? {
+        guard totalXP > 0 else { return nil }
+        return bros.count == 1 ? "+\(totalXP) XP para \(bros[0].name)" : "+\(totalXP) XP para \(bros.count) bros"
+    }
 
     /// Linha curta para a moldura mínima
     var summary: String { stats.map { $0.value }.joined(separator: " · ") }
@@ -69,7 +80,7 @@ struct StoryData {
         return StoryData(title: session.title, date: session.start, place: GymLocation.shared.gym(session.gymUUID)?.name,
                          stats: stats.map { (value: $0.0, label: $0.1) }, lines: lines.map { (name: $0.0, best: $0.1, sets: $0.2) },
                          records: Progression.records(in: session.log, history: finished.map(\.log)),
-                         sprite: WidgetData.load()?.sprite ?? "sprite_baby")
+                         bros: bros(activity, context: context))
     }
 
     /// Atividade sem treino guiado: corrida com GPS mostra distância, ritmo e o trajeto
@@ -92,7 +103,31 @@ struct StoryData {
         return StoryData(title: title, date: a.date,
                          place: posts.compactMap(\.place).first ?? GymLocation.shared.gym(a.gymUUID)?.name,
                          stats: stats.map { (value: $0.0, label: $0.1) }, route: route?.coordinates ?? [],
-                         sprite: WidgetData.load()?.sprite ?? "sprite_baby")
+                         bros: bros(a, context: context))
+    }
+
+    /// Quem ganhou XP com a atividade e quanto (regra do Roster: o principal tudo, cada liga um pouco menos).
+    /// Sem atividade ou sem XP, só o principal, sem número.
+    @MainActor
+    static func bros(_ activity: Activity?, context: ModelContext) -> [StoryBro] {
+        let monsters = (try? context.fetch(FetchDescriptor<Monster>(sortBy: [SortDescriptor(\.createdAt)]))) ?? []
+        let leagues = (try? context.fetch(FetchDescriptor<League>())) ?? []
+        let roster = Roster(monsters: monsters, activities: (try? context.fetch(FetchDescriptor<Activity>())) ?? [],
+                            checkIns: (try? context.fetch(FetchDescriptor<LeagueCheckIn>())) ?? [], leagues: leagues)
+        let fallback = [StoryBro(sprite: WidgetData.load()?.sprite ?? "sprite_baby", name: "", xp: 0, main: true)]
+        guard let activity else { return fallback }
+        let id = activity.uuid
+        let posted = Set(((try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []).map(\.leagueUUID))
+        let main = monsters.contains { $0.uuid == activity.monsterUUID } ? activity.monsterUUID : roster.mainID
+        let list = monsters.compactMap { m -> StoryBro? in
+            let snap = roster.snapshot(m.uuid)
+            guard let xp = snap.xpByActivity[id], xp > 0 else { return nil }
+            let league = leagues.first { $0.monsterUUID == m.uuid && posted.contains($0.uuid) }
+            return StoryBro(sprite: snap.form.spriteWithFallback, name: m.displayName(snap.form), xp: xp, main: m.uuid == main,
+                            league: m.uuid == main ? nil : league?.emoji)
+        }
+        .sorted { ($0.main ? 1 : 0, $0.xp) > ($1.main ? 1 : 0, $1.xp) }
+        return list.isEmpty ? fallback : list
     }
 
     /// Foto do check-in da atividade, se tiver
@@ -102,6 +137,17 @@ struct StoryData {
         let posts = (try? context.fetch(FetchDescriptor<LeagueCheckIn>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
         return posts.compactMap(\.photo).first.flatMap(UIImage.init(data:))
     }
+}
+
+/// Um bro na arte do story, com o XP que ganhou
+struct StoryBro: Hashable {
+    let sprite: String
+    let name: String
+    let xp: Int
+    /// O principal (recebe o XP inteiro)
+    let main: Bool
+    /// Emoji da liga em que ele te representou nesta atividade
+    var league: String?
 }
 
 /// Abre a escolha de moldura do story do treino (depois vem o compartilhar do iPhone)
@@ -145,7 +191,10 @@ private func present(_ vc: UIViewController, attempts: Int) {
 
 /// Molduras do story
 enum StoryFrame: String, CaseIterable, Identifiable {
-    case completo, minimo, polaroid, bro
+    case completo, minimo, polaroid, bro, time
+
+    /// "Time" só faz sentido quando mais de um bro ganhou XP
+    static func available(_ data: StoryData) -> [StoryFrame] { allCases.filter { $0 != .time || data.bros.count > 1 } }
 
     var id: String { rawValue }
 
@@ -155,6 +204,7 @@ enum StoryFrame: String, CaseIterable, Identifiable {
         case .minimo: "Mínimo"
         case .polaroid: "Polaroid"
         case .bro: "Bro"
+        case .time: "Time"
         }
     }
 }
@@ -167,7 +217,10 @@ struct StoryComposerView: View {
     @State private var pick: PhotosPickerItem?
     @Environment(\.dismiss) private var dismiss
 
-    private var frame: StoryFrame { StoryFrame(rawValue: frameRaw) ?? .completo }
+    private var frame: StoryFrame {
+        let f = StoryFrame(rawValue: frameRaw) ?? .completo
+        return StoryFrame.available(data).contains(f) ? f : .completo
+    }
 
     private func card(_ f: StoryFrame) -> WorkoutStoryCard {
         WorkoutStoryCard(data: data, photo: photo, frame: f)
@@ -204,7 +257,7 @@ struct StoryComposerView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(StoryFrame.allCases) { f in
+                    ForEach(StoryFrame.available(data)) { f in
                         Button {
                             UISelectionFeedbackGenerator().selectionChanged()
                             withAnimation(.snappy) { frameRaw = f.rawValue }
@@ -266,6 +319,7 @@ struct WorkoutStoryCard: View {
             case .minimo: minimo
             case .polaroid: polaroid
             case .bro: bro
+            case .time: time
             }
         }
         .frame(width: 360, height: 640)
@@ -297,12 +351,12 @@ struct WorkoutStoryCard: View {
                         Text(data.title).font(.system(size: 30, weight: .heavy, design: .rounded)).lineLimit(2).minimumScaleFactor(0.6)
                     }
                     Spacer(minLength: 0)
-                    Image(sprite).resizable().interpolation(.none).scaledToFit().frame(width: 78, height: 78)
-                        .shadow(color: .black.opacity(0.5), radius: 6)
+                    broStack(size: 78)
                 }
                 HStack(spacing: 8) {
                     ForEach(Array(data.stats.prefix(4).enumerated()), id: \.offset) { _, st in stat(st.value, st.label) }
                 }
+                xpChips
                 if !data.route.isEmpty {
                     RouteDrawing(coords: data.route)
                         .frame(height: photo == nil ? 220 : 150)
@@ -363,11 +417,14 @@ struct WorkoutStoryCard: View {
                         Text(data.title).font(.system(size: 22, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.6)
                     }
                     Spacer(minLength: 0)
-                    Image(sprite).resizable().interpolation(.none).scaledToFit().frame(width: 48, height: 48)
+                    broStack(size: 48)
                 }
                 Text(data.stats.map { $0.label == "kcal" ? "\($0.value) kcal" : $0.label == "séries" ? "\($0.value) séries" : $0.value }
                     .joined(separator: " · "))
                     .font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
+                if let xp = data.xpText {
+                    Text(xp).font(.caption.weight(.heavy)).foregroundStyle(Theme.accent)
+                }
             }
             .padding(.horizontal, 22)
             .padding(.bottom, 72)
@@ -413,6 +470,7 @@ struct WorkoutStoryCard: View {
                     ForEach(Array(data.stats.prefix(4).enumerated()), id: \.offset) { _, st in stat(st.value, st.label) }
                 }
                 .padding(.horizontal, 30)
+                xpChips.padding(.horizontal, 30)
                 Text("GymBros").font(.system(size: 16, weight: .black, design: .rounded)).foregroundStyle(Theme.accent)
             }
             .padding(.top, 40)
@@ -431,8 +489,7 @@ struct WorkoutStoryCard: View {
                     if !data.route.isEmpty {
                         RouteDrawing(coords: data.route, lineWidth: 5).frame(width: 260, height: 260).opacity(0.55)
                     }
-                    Image(sprite).resizable().interpolation(.none).scaledToFit().frame(width: 220, height: 220)
-                        .shadow(color: Theme.accent.opacity(0.6), radius: 24)
+                    broHero
                     if let photo {
                         Image(uiImage: photo).resizable().scaledToFill()
                             .frame(width: 92, height: 92).clipShape(.circle)
@@ -445,6 +502,9 @@ struct WorkoutStoryCard: View {
                 Text(data.date.formatted(.dateTime.day().month(.wide).year())).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.7))
                 HStack(spacing: 8) {
                     ForEach(Array(data.stats.prefix(4).enumerated()), id: \.offset) { _, st in stat(st.value, st.label) }
+                }
+                if let xp = data.xpText {
+                    Text(xp).font(.subheadline.weight(.heavy)).foregroundStyle(Theme.accent)
                 }
                 if let r = records.first {
                     Text("🏆 " + r).font(.caption.weight(.bold)).foregroundStyle(Theme.trophy).lineLimit(1).minimumScaleFactor(0.7)
@@ -473,6 +533,154 @@ struct WorkoutStoryCard: View {
                 .overlay(alignment: .center) {
                     Image(sprite).resizable().interpolation(.none).scaledToFit().frame(width: 220).opacity(0.25).offset(y: -90)
                 }
+        }
+    }
+
+    // MARK: Time: todos os bros que ganharam XP, cada um com o seu
+
+    /// Até 4 bros em destaque (2 lado a lado, 3 em triângulo, 4 em grade) e, com mais, o "+N bros" embaixo
+    private var time: some View {
+        let shown = Array(data.bros.prefix(4))
+        let extra = data.bros.count - shown.count
+        return ZStack {
+            if let photo {
+                Color.black.overlay { Image(uiImage: photo).resizable().scaledToFill() }.clipped().opacity(0.35)
+            }
+            RadialGradient(colors: [Theme.accent.opacity(0.4), Theme.bg.opacity(photo == nil ? 1 : 0.6)], center: .center, startRadius: 10, endRadius: 340)
+            VStack(spacing: 16) {
+                HStack {
+                    Text("GymBros").font(.system(size: 18, weight: .black, design: .rounded)).foregroundStyle(Theme.accent)
+                    Spacer()
+                    Text(data.date.formatted(.dateTime.day().month(.abbreviated))).font(.caption.bold())
+                        .padding(.horizontal, 10).padding(.vertical, 5).background(.black.opacity(0.45), in: .capsule)
+                }
+                Spacer(minLength: 0)
+                Text("+\(data.totalXP) XP").font(.system(size: 44, weight: .black, design: .rounded)).foregroundStyle(Theme.accent)
+                    .shadow(color: Theme.accent.opacity(0.5), radius: 12)
+                Text("\(data.bros.count) bros treinaram junto").font(.subheadline.weight(.bold)).foregroundStyle(.white.opacity(0.85))
+                Group {
+                    switch shown.count {
+                    case 2:
+                        HStack(spacing: 14) { ForEach(shown, id: \.self) { teamCard($0, size: 110) } }
+                    case 3:
+                        VStack(spacing: 12) {
+                            teamCard(shown[0], size: 110)
+                            HStack(spacing: 14) { teamCard(shown[1], size: 80); teamCard(shown[2], size: 80) }
+                        }
+                    default:
+                        // Grid normal: a arte sai pelo ImageRenderer, que não desenha grades lazy
+                        Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+                            GridRow { teamCard(shown[0], size: 84); teamCard(shown[1], size: 84) }
+                            GridRow { teamCard(shown[2], size: 84); teamCard(shown[3], size: 84) }
+                        }
+                    }
+                }
+                if extra > 0 {
+                    Text("+\(extra) \(extra == 1 ? "bro" : "bros")").font(.caption.weight(.heavy))
+                        .padding(.horizontal, 12).padding(.vertical, 6).background(.black.opacity(0.5), in: .capsule)
+                }
+                Text(data.title).font(.system(size: 22, weight: .heavy, design: .rounded)).lineLimit(1).minimumScaleFactor(0.6)
+                Text(data.stats.map { $0.label == "kcal" ? "\($0.value) kcal" : $0.label == "séries" ? "\($0.value) séries" : $0.value }
+                    .joined(separator: " · ")).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.75)).lineLimit(1).minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 56)
+            .padding(.bottom, 64)
+        }
+    }
+
+    private func teamCard(_ b: StoryBro, size: CGFloat) -> some View {
+        VStack(spacing: 4) {
+            Image(b.sprite).resizable().interpolation(.none).scaledToFit().frame(width: size, height: size)
+                .shadow(color: (b.main ? Theme.accent : .white).opacity(0.45), radius: 14)
+            HStack(spacing: 4) {
+                if b.main { Image(systemName: "star.fill").font(.system(size: 9, weight: .black)).foregroundStyle(Theme.accent) }
+                if let l = b.league { Text(l).font(.system(size: 11)) }
+                Text(b.name).font(.caption.weight(.bold)).lineLimit(1).minimumScaleFactor(0.6)
+            }
+            Text("+\(b.xp) XP").font(.caption.weight(.heavy).monospacedDigit()).foregroundStyle(b.main ? Theme.accent : .white)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(.black.opacity(0.45), in: .rect(cornerRadius: Theme.radiusL))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radiusL).stroke(b.main ? Theme.accent.opacity(0.6) : .clear, lineWidth: 1.5))
+    }
+
+    // MARK: Bros nas outras molduras
+
+    /// Bro(s) ao lado do título: o principal na frente e até mais 2 atrás, levemente sobrepostos
+    private func broStack(size: CGFloat) -> some View {
+        let shown = Array(data.bros.prefix(3))
+        return ZStack(alignment: .bottomTrailing) {
+            ForEach(Array(shown.enumerated().reversed()), id: \.offset) { i, b in
+                Image(b.sprite).resizable().interpolation(.none).scaledToFit()
+                    .frame(width: i == 0 ? size : size * 0.62, height: i == 0 ? size : size * 0.62)
+                    .shadow(color: .black.opacity(0.5), radius: 6)
+                    .offset(x: CGFloat(-i) * size * 0.55, y: i == 0 ? 0 : -size * 0.1)
+            }
+            if data.bros.count > 3 {
+                Text("+\(data.bros.count - 3)").font(.system(size: 10, weight: .black))
+                    .padding(.horizontal, 5).padding(.vertical, 2).background(Theme.accent, in: .capsule).foregroundStyle(.black)
+            }
+        }
+        .padding(.leading, CGFloat(max(shown.count - 1, 0)) * size * 0.55)
+    }
+
+    /// "+52 XP · Ursabro" em chips; com mais de 3 bros, os 2 primeiros e o "+N"
+    @ViewBuilder
+    private var xpChips: some View {
+        let withXP = data.bros.filter { $0.xp > 0 }
+        if !withXP.isEmpty {
+            let shown = withXP.count > 3 ? Array(withXP.prefix(2)) : withXP
+            HStack(spacing: 6) {
+                ForEach(shown, id: \.self) { b in
+                    HStack(spacing: 5) {
+                        Image(b.sprite).resizable().interpolation(.none).scaledToFit().frame(width: 22, height: 22)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text("+\(b.xp) XP").font(.caption2.weight(.heavy).monospacedDigit()).foregroundStyle(b.main ? Theme.accent : .white)
+                            Text(b.name).font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                        }
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(.black.opacity(0.5), in: .capsule)
+                }
+                if withXP.count > shown.count {
+                    Text("+\(withXP.count - shown.count) bros").font(.caption2.weight(.heavy))
+                        .padding(.horizontal, 8).padding(.vertical, 9).background(.black.opacity(0.5), in: .capsule)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    /// Destaque da moldura Bro: 1 bro grande; 2 lado a lado; 3 ou mais, o principal grande com os outros menores atrás
+    @ViewBuilder
+    private var broHero: some View {
+        let b = data.bros
+        if b.count <= 1 {
+            Image(sprite).resizable().interpolation(.none).scaledToFit().frame(width: 220, height: 220)
+                .shadow(color: Theme.accent.opacity(0.6), radius: 24)
+        } else if b.count == 2 {
+            HStack(spacing: -10) {
+                ForEach(b, id: \.self) { x in
+                    Image(x.sprite).resizable().interpolation(.none).scaledToFit().frame(width: 150, height: 150)
+                        .shadow(color: Theme.accent.opacity(0.5), radius: 18)
+                }
+            }
+        } else {
+            ZStack {
+                Image(b[1].sprite).resizable().interpolation(.none).scaledToFit().frame(width: 110, height: 110).offset(x: -85, y: -20).opacity(0.9)
+                Image(b[2].sprite).resizable().interpolation(.none).scaledToFit().frame(width: 110, height: 110).offset(x: 85, y: -20).opacity(0.9)
+                Image(b[0].sprite).resizable().interpolation(.none).scaledToFit().frame(width: 190, height: 190)
+                    .shadow(color: Theme.accent.opacity(0.6), radius: 24)
+                if b.count > 3 {
+                    Text("+\(b.count - 3)").font(.caption.weight(.black))
+                        .padding(.horizontal, 8).padding(.vertical, 3).background(Theme.accent, in: .capsule).foregroundStyle(.black)
+                        .offset(x: 110, y: 60)
+                }
+            }
+            .frame(width: 300, height: 220)
         }
     }
 

@@ -18,6 +18,9 @@ struct ActivityDetailView: View {
     @State private var showRoute = false
     @State private var storyPick: PhotosPickerItem?
     @Query private var sessions: [WorkoutSession]
+    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
+    @Query private var allActivities: [Activity]
+    @Query private var allCheckIns: [LeagueCheckIn]
 
     init(activity: Activity, snapshot: Snapshot) {
         self.activity = activity
@@ -61,6 +64,15 @@ struct ActivityDetailView: View {
                 GMValueRow(label: "Esforço", value: "\(activity.effort)/10 · \(effortLabel(activity.effort))")
                 if let place { GMValueRow(label: "Local", value: place) }
                 if activity.healthUUID != nil { GMValueRow(label: "Origem", value: "Apple Saúde") }
+                let gains = BroGain.of(activity, roster: Roster(monsters: monsters, activities: allActivities, checkIns: allCheckIns, leagues: leagues),
+                                       leagues: leagues, posted: Set(posts.map(\.leagueUUID)))
+                if !gains.isEmpty {
+                    GMDivider()
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(gains.count == 1 ? "Bro do treino" : "Bros do treino").font(.subheadline).foregroundStyle(Theme.dim)
+                        BroGainsView(gains: gains)
+                    }
+                }
                 if let r = routes.first {
                     GMDivider()
                     Button { showRoute = true } label: {
@@ -204,10 +216,12 @@ struct ActivityDetailView: View {
     }
 }
 
-/// Apaga a atividade e tudo ligado a ela (treino guiado, check-ins e seus comentários, percurso, resultado de WOD)
+/// Apaga a atividade e tudo ligado a ela (treino guiado, check-ins e seus comentários, percurso, resultado de WOD).
+/// O XP fica com os bros que o receberam (`RetiredActivities`): apagar não faz o bro voltar de forma.
 @MainActor
 func deleteActivity(_ a: Activity, context: ModelContext) {
     let id = a.uuid
+    RetiredActivities.retire(a, context: context)
     let linked = (try? context.fetch(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.activityUUID == id }))) ?? []
     linked.forEach(context.delete)
     if let h = a.healthUUID { HealthSync.ignored.insert(h) }

@@ -63,7 +63,7 @@ extension OnboardingStep {
                        message: "A rotina do dia aparece aqui para começar com um toque. Sem rotina? Use um modelo pronto em Minhas rotinas ou faça um treino livre.",
                        targets: [.trainToday], tab: .train, placement: .below),
         OnboardingStep(id: "ligas", title: "Ligas com a galera",
-                       message: "Rankings com amigos: cada check-in de treino pontua e dá XP ao bro que te representa na liga.",
+                       message: "Rankings com amigos: cada check-in de treino pontua e dá XP ao bro que te representa na liga, além do seu principal.",
                        targets: [.leaguesTab], tab: .train, placement: .above),
         OnboardingStep(id: "mapa-historico", title: "Mapa e histórico",
                        message: "No Mapa ficam suas academias e os percursos com GPS. No Histórico, todas as atividades, inclusive as do Apple Saúde.",

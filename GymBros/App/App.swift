@@ -327,7 +327,7 @@ struct MainView: View {
 
     private func publish(_ s: Snapshot, companion: Companion.Context) {
         WidgetData(monsterName: companion.name,
-                   formName: s.form.name, stageName: s.stage.name, sprite: s.form.sprite, hue: s.form.hue,
+                   formName: s.form.name, stageName: s.stage.name, sprite: s.form.spriteWithFallback, hue: s.form.hue,
                    isEgg: s.stage == .egg, level: s.level, totalXP: s.totalXP, progress: s.progress, xpToNext: s.xpToNext,
                    streak: s.streak, lastActivity: s.lastActivity, todayXP: s.todayXP, todayRoutine: routinesByWeekday,
                    updated: .now, lastEvolution: s.evolutions.last?.date, lastEvolutionName: s.evolutions.last?.form.name,

@@ -849,6 +849,10 @@ struct WodResultForm: View {
     @State private var rx = true
     @State private var effort = 8
     @State private var note = ""
+    @Query(sort: \Monster.createdAt) private var monsters: [Monster]
+    @Query private var activities: [Activity]
+    @Query private var checkIns: [LeagueCheckIn]
+    @Query private var allLeagues: [League]
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
     @State private var blocked = false
@@ -918,6 +922,13 @@ struct WodResultForm: View {
                 GMTextField(placeholder: "Carga usada, adaptações…", text: $note, axis: .vertical)
                 if blocked { ContentBlockedNote() }
             }
+            let gains = previewGains
+            if !gains.isEmpty {
+                GMSection(gains.count == 1 ? "Bro do treino" : "Bros do treino",
+                          footer: "O principal recebe o XP inteiro; quem te representa nas ligas marcadas, um pouco menos.") {
+                    BroGainsView(gains: gains)
+                }
+            }
             LeaguePostSection(selected: $leagues, photo: $photo)
         }
         .onAppear {
@@ -931,6 +942,18 @@ struct WodResultForm: View {
             minutes = min(max(Int(Date.now.timeIntervalSince(start) / 60), wodMinutes), Game.maxMinutes)
         }
         .onChange(of: note + partResults.joined()) { blocked = false }
+    }
+
+    /// Quem vai ganhar XP com este WOD e quanto (o principal e o bro de cada liga marcada)
+    private var previewGains: [BroGain] {
+        let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
+        var each: [UUID: Int] = [:]
+        for (o, share) in roster.shares(leagueIDs: leagues, owner: roster.mainID) {
+            var new = ActivityRecord(id: UUID(), kind: .crossfit, date: start, minutes: max(minutes, wodMinutes), effort: effort)
+            new.share = share
+            each[o] = Game.snapshot((roster.records[o] ?? []) + [new]).xpByActivity[new.id] ?? 0
+        }
+        return BroGain.preview(each, roster: roster, leagues: allLeagues, selected: leagues)
     }
 
     private func save() {
