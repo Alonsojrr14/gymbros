@@ -79,6 +79,31 @@ struct WodDraft: Equatable {
     var guessed = true
     /// Dia que veio no título ("WOD 19/10/2026", "Treino sexta 17/10")
     var day: Date?
+    /// Níveis do WOD ("SCALE", "AMADOR", "RX"…), cada um com as suas linhas; vazio quando o WOD é um só
+    var variants: [WodPart] = []
+    /// Nível escolhido entre `variants`
+    var level: String?
+    /// Partes do treino sem os outros níveis (que entram em `parts` como "Outro nível: …")
+    var baseParts: [WodPart] = []
+
+    /// O mesmo treino com outro nível no cronômetro; os demais ficam nas partes, para consulta
+    func picking(_ name: String) -> WodDraft {
+        guard let chosen = variants.first(where: { $0.title == name }) else { return self }
+        var d = self
+        d.level = name
+        WodParser.fill(&d, with: chosen.lines)
+        d.parts = baseParts + variants.filter { $0.title != name }.map { WodPart(title: "Outro nível: \($0.title)", lines: $0.lines) }
+        return d
+    }
+}
+
+/// Nível do WOD que você costuma fazer (Scale, Amador, RX…): já vem escolhido no próximo treino com níveis
+enum WodLevel {
+    static let key = "wodLevel"
+    static var preferred: String? {
+        get { UserDefaults.standard.string(forKey: key) }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
 }
 
 enum WodParser {
@@ -116,7 +141,27 @@ enum WodParser {
         var draft = WodDraft()
         draft.day = day
         guard let wodIndex else { return draft }
+        // Antes do primeiro título costuma vir "Treino de sexta 17/10" ou o nome do box: não é parte do treino
+        draft.baseParts = sections.enumerated().compactMap { i, s in
+            i == wodIndex || s.kind == nil || s.lines.isEmpty ? nil : WodPart(title: s.title, lines: s.lines)
+        }
+        draft.parts = draft.baseParts
         let wodLines = sections[wodIndex].lines
+        let (common, levels) = split(levels: wodLines)
+        if levels.count > 1 {
+            // O que vem antes do primeiro nível ("AMRAP 12'") vale para todos
+            draft.variants = levels.map { WodPart(title: $0.title, lines: common + $0.lines) }
+            let names = draft.variants.map(\.title)
+            return draft.picking(WodLevel.preferred.flatMap { names.contains($0) ? $0 : nil } ?? names[names.count - 1])
+        }
+        fill(&draft, with: wodLines)
+        return draft
+    }
+
+    /// Formato e linhas do WOD a partir das linhas dele
+    static func fill(_ draft: inout WodDraft, with wodLines: [String]) {
+        draft.guessed = true
+        draft.format = .forTime(capMinutes: nil)
         if let blocks = intervals(wodLines) {
             draft.format = blocks
             draft.guessed = false
@@ -130,11 +175,25 @@ enum WodParser {
         } else {
             draft.lines = wodLines.filter { !isOnlyFormat($0) }
         }
-        // Antes do primeiro título costuma vir "Treino de sexta 17/10" ou o nome do box: não é parte do treino
-        draft.parts = sections.enumerated().compactMap { i, s in
-            i == wodIndex || s.kind == nil || s.lines.isEmpty ? nil : WodPart(title: s.title, lines: s.lines)
+    }
+
+    /// Nomes de nível que o coach escreve sozinhos numa linha, dentro do WOD
+    private static let levelPattern = "^(scaled?|rx'?d?|rx\\+|amador|iniciantes?|intermedi[aá]rios?|avan[cç]ados?|elite|masters?|teens?|adaptados?|beginners?|intermediate|advanced|foundations?|(?:n[ií]vel|level)\\s*\\w{1,12})\\s*:?$"
+
+    /// "SCALE / 5 rounds… / AMADOR / 5 a 10 rounds…" → linhas comuns e cada nível com as suas
+    static func split(levels lines: [String]) -> (common: [String], levels: [(title: String, lines: [String])]) {
+        var common: [String] = [], levels: [(title: String, lines: [String])] = []
+        for line in lines {
+            if match(levelPattern, line) != nil {
+                let lower = line.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: " :"))
+                levels.append((lower.hasPrefix("rx") ? lower.uppercased() : lower.capitalizedFirst, []))
+            } else if levels.isEmpty {
+                common.append(line)
+            } else {
+                levels[levels.count - 1].lines.append(line)
+            }
         }
-        return draft
+        return (common, levels.filter { !$0.lines.isEmpty })
     }
 
     /// Tira negrito/itálico de mensagem (*, _, ~), emojis, marcadores de lista e espaços repetidos
@@ -150,10 +209,16 @@ enum WodParser {
         return s.trimmingCharacters(in: .whitespaces)
     }
 
-    /// Linha do jeito que o atleta lê: "03 DEVIL PRESS (2DB)" → "3 Devil press (2 DB)", "REST 2'" → "Descanso 2'"
+    /// Linha do jeito que o atleta lê: "03 DEVIL PRESS (2DB)" → "3 Devil press (2 DB)", "REST 2'" → "Descanso 2'",
+    /// "AQUECIMENTO MMSS/II" → "Aquecimento MMSS/MMII", "(OU ISOMETRIA )" → "(ou isometria)"
     static func tidy(_ line: String) -> String {
         var s = line.replacingOccurrences(of: "^0+(\\d)", with: "$1", options: .regularExpression)
             .replacingOccurrences(of: "(\\d)\\s*(kb|db|bb)\\b", with: "$1 $2", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "\\bMMSS\\s*/\\s*II\\b", with: "MMSS/MMII", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "\\bMMII\\s*/\\s*SS\\b", with: "MMII/MMSS", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "\\(\\s+", with: "(", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+\\)", with: ")", options: .regularExpression)
+            .replacingOccurrences(of: "\\s*\\(\\s*\\)", with: "", options: .regularExpression)
         let shouting = !s.contains(where: \.isLowercase) && s.filter(\.isLetter).count >= 4
         for (typo, fix) in typos {
             s = s.replacingOccurrences(of: "\\b\(typo)\\b", with: shouting ? fix.uppercased() : fix, options: [.regularExpression, .caseInsensitive])
@@ -169,9 +234,10 @@ enum WodParser {
                                 ("kettlebel", "kettlebell"), ("wallball", "wall ball"),
                                 ("shoud", "shoulder"), ("shouder", "shoulder"), ("sholder", "shoulder")]
 
-    private static let acronyms = "kb|db|bb|amrap|emom|e\\dmom|wod|hspu|t2b|ttb|c2b|ctb|ghd|rm|pr|bjo|bbjo|ohs|du|sdhp|tgu|hpc|rx|tc|ft|rdl|dl|bmu|rmu|k2e|hsw|lpo|mmss|mmii|ii"
+    private static let acronyms = "kb|db|bb|amrap|emom|e\\dmom|wod|hspu|t2b|ttb|c2b|ctb|ghd|rm|pr|bjo|bbjo|ohs|du|sdhp|tgu|hpc|rx|tc|ft|rdl|dl|bmu|rmu|k2e|hsw|lpo|mmss|mmii|ii|su|rft"
 
-    /// "5 WALL BALL" → "5 Wall ball", mantendo siglas (KB, DB, AMRAP…) em maiúsculas
+    /// "5 WALL BALL" → "5 Wall ball", mantendo siglas (KB, DB, AMRAP…) em maiúsculas. Não sobe a primeira letra de
+    /// "(ou isometria)", "2 a 4 reps" e "5 rounds": parêntese, conectivo e unidade ficam minúsculos
     private static func sentenceCase(_ line: String) -> String {
         var s = line.lowercased()
         if let re = try? NSRegularExpression(pattern: "\\b(?:\(acronyms))\\b") {
@@ -179,17 +245,24 @@ enum WodParser {
                 if let r = Range(m.range, in: s) { s.replaceSubrange(r, with: s[r].uppercased()) }
             }
         }
-        if let i = s.firstIndex(where: \.isLetter) { s.replaceSubrange(i...i, with: s[i].uppercased()) }
+        let first = s.split(whereSeparator: { !$0.isLetter }).first.map(String.init) ?? ""
+        let keepLower = s.hasPrefix("(")
+            || (s.first?.isNumber == true && ["a", "e", "x", "ou", "rounds", "round", "reps", "rep", "rodadas", "rodada"].contains(first))
+        if !keepLower, let i = s.firstIndex(where: \.isLetter) { s.replaceSubrange(i...i, with: s[i].uppercased()) }
         return s
     }
 
-    /// Marca d'água do app do box ("TECNOFIT" no rodapé do print)
+    /// Marca d'água do app do box ("TECNOFIT" no rodapé do print) e os botões da tela dele (Check-in, Ranking, Dicas…)
     static func isNoise(_ line: String) -> Bool {
         // Contador solto de curtidas/comentários ("0") e setas de navegação
         if line.range(of: "^[\\d<>‹›]{1,2}$", options: .regularExpression) != nil { return true }
         let key = line.lowercased().filter { $0.isLetter || $0 == " " || $0 == "-" }.trimmingCharacters(in: .whitespaces)
-        return ["tecnofit", "nextfit", "next fit", "wodify", "sugarwod", "btwb", "pushpress", "push press app", "zen planner",
-                "check-in", "checkin", "ações", "acoes", "cross"].contains(key)
+        if ["tecnofit", "nextfit", "next fit", "wodify", "sugarwod", "btwb", "pushpress", "push press app", "zen planner",
+            "check-in", "checkin", "ações", "acoes", "cross"].contains(key) { return true }
+        // Só palavras de botão, juntas ou não ("Ver Ranking", "Fazer check-in", "Ver RankingCheck-In")
+        let words = key.replacingOccurrences(of: "check-in", with: " checkin ").split(separator: " ")
+        let buttons: Set<String> = ["ver", "fazer", "ranking", "rankingcheckin", "checkin", "dicas", "nenhuma", "ações", "acoes", "curtir", "comentar"]
+        return !words.isEmpty && words.count <= 4 && words.allSatisfy { buttons.contains(String($0)) }
     }
 
     /// "19/10/2026", "17/10" (sem ano: este ano); cargas como "9/6kg" não contam
@@ -248,7 +321,11 @@ enum WodParser {
             for w in words where lower.hasPrefix(w) {
                 let rest = stripped.dropFirst(w.count)
                 guard rest.isEmpty || !(rest.first!.isLetter) else { continue }
+                // "FORÇA ()": parênteses vazios contam como título sem nada depois
                 let tail = rest.trimmingCharacters(in: CharacterSet(charactersIn: " :-–—|"))
+                    .replacingOccurrences(of: "^\\(\\s*\\)$", with: "", options: .regularExpression)
+                // Condicionamento dentro do treino é uma parte com nome próprio; o WOD principal é o último bloco desse tipo
+                let title = ["condicionamento", "conditioning"].contains(w) ? "Condicionamento" : title
                 if tail.range(of: "^\\d{1,2}/\\d{1,2}(/\\d{2,4})?$", options: .regularExpression) != nil { return (kind, title, "") }
                 if let inner = match("^\\(([^()]{2,30})\\)$", tail)?[1] {
                     let name = w == "lpo" ? "LPO" : title
@@ -284,6 +361,11 @@ enum WodParser {
            let n = Int(m[1]), (1...90).contains(n) {
             return .emom(minutes: n)
         }
+        // "5 ROUNDS", "5 A 10 ROUNDS" sem cronômetro: rounds para fazer, como For Time
+        if match("^(\\d{1,2})(?:\\s*(?:a|-|–|ou)\\s*\\d{1,2})?\\s*(?:rounds?|rodadas?|rfts?)\\b", line) != nil,
+           match("amrap|e\\d?mom|tabata", line) == nil {
+            return .forTime(capMinutes: cap(in: line))
+        }
         if match("\\btabata\\b", line) != nil {
             let rounds = match("(\\d{1,2})\\s*(?:x|rounds?|rodadas?)", line).flatMap { Int($0[1]) }.flatMap { (1...20).contains($0) ? $0 : nil }
             return .tabata(rounds: rounds ?? 8)
@@ -298,7 +380,11 @@ enum WodParser {
     private static func everyFormat(_ line: String) -> WodFormat? {
         var seconds: Int?
         if let m = match("\\be(\\d)mom\\b", line), let n = Int(m[1]), n >= 2 { seconds = n * 60 }
-        if let m = match("\\b(?:a\\s*cada|every)\\s*(\\d{1,2})(?:[:,.](\\d{2}))?\\s*('|’|min|minutos|s\\b|seg|\")?", line), let n = Int(m[1]) {
+        // "A CADA 1'30"", "a cada 1min30": minutos e segundos
+        if let m = match("\\b(?:a\\s*cada|every)\\s*(\\d{1,2})\\s*(?:'|’|min)\\s*(\\d{2})\\s*(?:\"|”|s\\b|seg)?", line),
+           let n = Int(m[1]), let sec = Int(m[2]) {
+            seconds = n * 60 + sec
+        } else if let m = match("\\b(?:a\\s*cada|every)\\s*(\\d{1,2})(?:[:,.](\\d{2}))?\\s*('|’|min|minutos|s\\b|seg|\")?", line), let n = Int(m[1]) {
             let isSeconds = ["s", "seg", "\""].contains(m[3].lowercased())
             seconds = isSeconds ? n : n * 60 + (Int(m[2]) ?? 0)
         }
@@ -496,6 +582,8 @@ struct ImportWodView: View {
     @State private var linesText = ""
     @State private var parts: [WodPart] = []
     @State private var guessed = false
+    /// Leitura do texto, para trocar de nível sem ler de novo
+    @State private var draft: WodDraft?
     @State private var start: Wod?
     /// 0 hoje, 1 amanhã, 2 outro dia (calendário)
     @State private var dayChoice = 0
@@ -673,6 +761,13 @@ struct ImportWodView: View {
             }
         }
 
+        if let d = draft, d.variants.count > 1 {
+            GMSection("Nível", footer: "O coach mandou o WOD em \(d.variants.count) níveis. O escolhido vai para o cronômetro e os outros ficam salvos no treino. O app lembra o seu nível na próxima vez.") {
+                GMChoiceChips(options: d.variants.map { ($0.title, $0.title) },
+                              selection: Binding(get: { d.level ?? "" }, set: { pick(level: $0) }))
+            }
+        }
+
         GMSection("WOD", footer: recognizedFooter) {
             WodTextEditor(text: $linesText, placeholder: "10 wall balls\n10 burpees", minHeight: 120)
         }
@@ -800,6 +895,16 @@ struct ImportWodView: View {
         await interpret()
     }
 
+    private func pick(level: String) {
+        guard let d = draft?.picking(level) else { return }
+        WodLevel.preferred = level
+        draft = d
+        apply(d.format)
+        linesText = d.lines.joined(separator: "\n")
+        parts = d.parts
+        guessed = d.guessed
+    }
+
     private func interpret() async {
         error = nil
         reading = true
@@ -810,6 +915,7 @@ struct ImportWodView: View {
             error = "Não achei os movimentos do WOD. Confira o texto."
             return
         }
+        self.draft = draft
         apply(draft.format)
         if let d = draft.day { setDay(d) }
         linesText = draft.lines.joined(separator: "\n")

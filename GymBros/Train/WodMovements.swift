@@ -10,6 +10,7 @@ enum WodMovements {
         ("swing", "kettlebell-swing"),
         ("kettlebell snatch", "cf-kb-snatch"),
         ("push up", "flexao"), ("flexao", "flexao"), ("flexao braco", "flexao"), ("hand release push up", "flexao"),
+        ("release push up", "flexao"),
         ("handstand push up", "cf-hspu"), ("hspu", "cf-hspu"), ("handstand walk", "cf-handstand-walk"), ("hsw", "cf-handstand-walk"),
         ("air squat", "agachamento-livre-corpo"), ("squat", "agachamento-livre-corpo"), ("agachamento livre corpo", "agachamento-livre-corpo"),
         ("agachamento sem carga", "agachamento-livre-corpo"),
@@ -36,9 +37,10 @@ enum WodMovements {
         ("bike", "cf-bike-cal"), ("assault bike", "cf-bike-cal"), ("air bike", "cf-bike-cal"), ("echo bike", "cf-bike-cal"),
         ("ski", "cf-ski-cal"), ("ski erg", "cf-ski-cal"),
         ("double under", "cf-double-under"), ("du", "cf-double-under"), ("dub", "cf-double-under"),
-        ("single under", "pular-corda"), ("pular corda", "pular-corda"),
+        ("single under", "pular-corda"), ("pular corda", "pular-corda"), ("su", "pular-corda"),
         ("rope climb", "cf-rope-climb"), ("subida corda", "cf-rope-climb"), ("corda naval", "corda-naval"), ("battle rope", "corda-naval"),
         ("pull up", "cf-kipping-pull-up"), ("barra fixa", "cf-kipping-pull-up"),
+        ("strict pull up", "barra-fixa"), ("pull up strict", "barra-fixa"),
         ("chest bar", "cf-chest-to-bar"), ("c2b", "cf-chest-to-bar"), ("ctb", "cf-chest-to-bar"),
         ("toe bar", "cf-toes-to-bar"), ("t2b", "cf-toes-to-bar"), ("ttb", "cf-toes-to-bar"),
         ("knee elbow", "cf-knees-to-elbows"), ("k2e", "cf-knees-to-elbows"),
@@ -53,8 +55,8 @@ enum WodMovements {
         ("sumo deadlift high pull", "cf-sdhp"), ("sdhp", "cf-sdhp"),
         ("romanian deadlift", "terra-romeno"), ("rdl", "terra-romeno"), ("terra romeno", "terra-romeno"), ("stiff", "terra-romeno"),
         ("snatch", "cf-snatch"), ("arranco", "cf-snatch"), ("power snatch", "cf-power-snatch"), ("hang snatch", "cf-hang-snatch"),
-        ("halter snatch", "cf-dumbbell-snatch"),
-        ("clean", "clean"), ("power clean", "clean"), ("squat clean", "cf-squat-clean"),
+        ("halter snatch", "cf-dumbbell-snatch"), ("halter power snatch", "cf-dumbbell-snatch"),
+        ("clean", "clean"), ("power clean", "clean"), ("squat clean", "cf-squat-clean"), ("hang squat clean", "cf-squat-clean"),
         ("hang power clean", "cf-hang-power-clean"), ("hpc", "cf-hang-power-clean"),
         ("clean jerk", "cf-clean-jerk"), ("arremesso", "cf-clean-jerk"),
         ("push press", "cf-push-press"), ("push jerk", "cf-push-jerk"), ("split jerk", "cf-split-jerk"),
@@ -85,10 +87,19 @@ enum WodMovements {
         return lines.flatMap(identify).filter { seen.insert($0).inserted }
     }
 
-    /// Exercícios de uma linha ("10 thrusters + 10 pull-ups" dá dois)
+    /// Exercícios de uma linha ("10 thrusters + 10 pull-ups" e "30 DU / 60 SU" dão dois). Entre parênteses vem a opção
+    /// mais fácil ("8 HSPU (RELEASE PUSH UP)") ou o equipamento ("(2DB)"): só o equipamento entra na conta.
     static func identify(_ line: String) -> [String] {
-        line.split(whereSeparator: { "+,;".contains($0) }).compactMap { best(tokens(String($0))) }
+        line.replacingOccurrences(of: "\\s+/\\s+", with: ";", options: .regularExpression)
+            .split(whereSeparator: { "+,;".contains($0) }).compactMap { piece in
+                let text = String(piece)
+                let outside = text.replacingOccurrences(of: "\\([^)]*\\)?", with: " ", options: .regularExpression)
+                let inside = text.matches(of: /\(([^)]*)\)/).flatMap { tokens(String($0.output.1)) }
+                return best(tokens(outside) + inside.filter(equipment.contains))
+            }
     }
+
+    private static let equipment: Set<String> = ["halter", "kettlebell", "barra"]
 
     private static func best(_ words: [String]) -> String? {
         var found: (tokens: [String], id: String)?
