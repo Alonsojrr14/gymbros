@@ -1,11 +1,35 @@
 import SwiftUI
 
 /// Pixel art do monstro, sem suavização. `hidden` mostra só a silhueta (BroBook).
+/// Lenda de virada ainda sem arte: um espaço reservado na cor do galho.
 struct MonsterSprite: View {
     let form: MonsterForm
     var hidden = false
 
     var body: some View {
+        if form.isVirada && !form.hasArt {
+            placeholder
+        } else {
+            art
+        }
+    }
+
+    private var placeholder: some View {
+        let tint = hidden ? Color.gray : (form.attribute?.color ?? .gray)
+        return Circle()
+            .strokeBorder(tint.opacity(0.6), style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+            .background(Circle().fill(tint.opacity(0.08)))
+            .overlay {
+                Image(systemName: hidden ? "questionmark" : "photo")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(tint.opacity(0.7))
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .padding(6)
+            .accessibilityHidden(true)
+    }
+
+    private var art: some View {
         Image(form.sprite)
             .resizable()
             .interpolation(.none)

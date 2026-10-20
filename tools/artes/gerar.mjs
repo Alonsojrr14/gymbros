@@ -38,6 +38,16 @@ async function gen(page, j) {
         .filter(i => i.naturalWidth >= 512 && !/blur/.test(getComputedStyle(i).filter || ''));
       return imgs.length ? imgs[imgs.length - 1].src : null;
     });
+    const limit = await page.evaluate(() => {
+      const t = [...document.querySelectorAll('[data-message-author-role="assistant"]')].pop()?.innerText || '';
+      return /limite (diário|de geração)|daily limit|usage limit|reached.*limit/i.test(t) ? t.slice(0, 200) : '';
+    });
+    if (limit) return 'limite: ' + limit.replace(/\n/g, ' ');
+    const refused = await page.evaluate(() => {
+      const t = [...document.querySelectorAll('[data-message-author-role="assistant"]')].pop()?.innerText || '';
+      return /não consegui gerar|couldn.t generate|unable to generate|não foi possível gerar/i.test(t) ? t.slice(0, 200) : '';
+    });
+    if (refused) return 'sem imagem: ' + refused.replace(/\n/g, ' ');
     if (!busy && src) {
       // confere que esta conversa é a deste job (com várias abas o ChatGPT chegou a misturar conversas)
       const key = j.prompt.match(/It is an? ([^:]+):/)?.[1] || '';
@@ -62,7 +72,7 @@ async function gen(page, j) {
 let queue = jobs.filter(j => !fs.existsSync(j.out) && (!only.length || only.includes(j.fname)));
 queue.sort((a, b) => (a.stage > b.stage) - (a.stage < b.stage)); // champions primeiro
 log('fila', queue.length);
-let stop = false;
+let stop = false, streak = 0;
 async function worker(k) {
   const page = await ctx.newPage();
   while (!stop) {
@@ -72,6 +82,9 @@ async function worker(k) {
     let r;
     try { r = await gen(page, j); } catch (e) { r = 'erro: ' + String(e).slice(0, 200); }
     log(`[${k}]`, r === 'ok' ? 'ok' : 'FALHOU', j.fname, r === 'ok' ? '' : r);
+    streak = r === 'ok' ? 0 : streak + 1;
+    // várias falhas seguidas = cota acabou (a mensagem de limite nem sempre aparece): para e deixa o lote-viradas.sh esperar
+    if (streak >= 8) { log('8 falhas seguidas, parando'); stop = true; }
     if (r !== 'ok') {
       await page.screenshot({ path: `${WORK}/logs/${j.fname}.png` }).catch(() => {});
       if (/limit|limite|try again|tente novamente|plano|upgrade/i.test(r)) { log('LIMITE atingido, parando'); stop = true; }
@@ -80,5 +93,5 @@ async function worker(k) {
   await page.close().catch(() => {});
 }
 await Promise.all([...Array(TABS)].map((_, k) => worker(k)));
-log('FIM', jobs.filter(j => fs.existsSync(j.out)).length, '/ 96');
+log('FIM', jobs.filter(j => fs.existsSync(j.out)).length, '/', jobs.length);
 process.exit(0);

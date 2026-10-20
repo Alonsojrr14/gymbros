@@ -365,15 +365,24 @@ enum DexEntry {
                 : "Choca do ovo com \(Stage.baby.threshold) XP quando os treinos do ovo são de \(list) (e parecidos no Apple Saúde)."
         case .rookie:
             return "Evolui do bebê com \(Stage.rookie.threshold.formatted()) XP, com qualquer treino."
-        case .champion, .ultimate:
-            let from = f.stage == .champion ? "do Novato" : "de qualquer Atleta"
+        case .champion:
             let rule: String
             if let a = f.attribute, let b = f.attribute2 {
                 rule = "se \(a.name) e \(b.name) forem os atributos mais treinados, quase empatados (até 10% de diferença)"
             } else {
                 rule = "se \(f.attribute?.name ?? "") for o atributo mais treinado"
             }
-            return "Evolui \(from) com \(f.stage.threshold.formatted()) XP, \(rule) desde a última evolução."
+            return "Evolui do Novato com \(f.stage.threshold.formatted()) XP, \(rule) desde a última evolução."
+        case .ultimate:
+            let rule: String
+            if let a = f.attribute, let b = f.attribute2 {
+                rule = "se \(a.name) e \(b.name) ficarem quase empatados (até 10% de diferença)"
+            } else {
+                rule = "se \(f.attribute?.name ?? "") for o atributo mais treinado"
+            }
+            let from = f.champion?.name ?? "Atleta"
+            let kind = f.isVirada ? "Lenda de virada: o bro mudou de treino." : "Lenda pura: o bro seguiu no mesmo treino."
+            return "Evolui do \(from) com \(f.stage.threshold.formatted()) XP, \(rule) na fase Atleta. \(kind)"
         }
     }
 
@@ -397,7 +406,7 @@ enum DexEntry {
         case .baby: [.egg]
         case .rookie: [MonsterForm(stage: .baby, attribute: nil, species: f.species)]
         case .champion: [MonsterForm(stage: .rookie, attribute: nil, species: f.species)]
-        case .ultimate: champions(f.species)
+        case .ultimate: f.champion.map { [$0] } ?? []
         }
     }
 
@@ -407,8 +416,8 @@ enum DexEntry {
         case .baby: [MonsterForm(stage: .rookie, attribute: nil, species: f.species)]
         case .rookie: champions(f.species)
         case .champion:
-            Attribute.allCases.map { MonsterForm(stage: .ultimate, attribute: $0, species: f.species) }
-                + MonsterForm.hybrids(species: f.species).filter { $0.stage == .ultimate && $0.hasArt }
+            [MonsterForm(stage: .ultimate, attribute: f.attribute, attribute2: f.attribute2, species: f.species)]
+                + MonsterForm.viradas(from: f)
         case .ultimate: []
         }
     }

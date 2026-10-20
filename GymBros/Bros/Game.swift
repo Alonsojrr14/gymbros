@@ -142,35 +142,66 @@ enum Stage: Int, CaseIterable, Comparable {
 }
 
 /// Uma forma = estágio + galho (atributo) + espécie. O ovo é igual para todas as espécies.
+/// A Lenda guarda também o galho do Atleta de onde veio: se for diferente do galho dela, é uma Lenda de virada.
 struct MonsterForm: Hashable, Identifiable {
     let stage: Stage
     let attribute: Attribute?
     /// Segundo atributo das formas híbridas (dois atributos empatados na fase)
     var attribute2: Attribute?
+    /// Galho do Atleta de origem, só nas Lendas de virada (nil nas Lendas puras e nos outros estágios)
+    var origin: Attribute?
+    var origin2: Attribute?
     var species: String = Species.standard.id
 
-    init(stage: Stage, attribute: Attribute?, attribute2: Attribute? = nil, species: String = Species.standard.id) {
+    init(stage: Stage, attribute: Attribute?, attribute2: Attribute? = nil,
+         origin: Attribute? = nil, origin2: Attribute? = nil, species: String = Species.standard.id) {
         self.stage = stage
-        // Dupla sempre na mesma ordem (força, resistência, agilidade, técnica)
-        if let a = attribute, let b = attribute2, a != b {
-            let order = Attribute.allCases
-            let swap = order.firstIndex(of: a)! > order.firstIndex(of: b)!
-            self.attribute = swap ? b : a
-            self.attribute2 = swap ? a : b
-        } else {
-            self.attribute = attribute
-            self.attribute2 = nil
-        }
+        (self.attribute, self.attribute2) = Self.ordered(attribute, attribute2)
+        let o = Self.ordered(origin, origin2)
+        let virada = stage == .ultimate && o.0 != nil && (o.0 != self.attribute || o.1 != self.attribute2)
+        (self.origin, self.origin2) = virada ? o : (nil, nil)
         self.species = stage == .egg ? Species.standard.id : species
     }
 
-    var isHybrid: Bool { attribute2 != nil }
+    /// Dupla sempre na mesma ordem (força, resistência, agilidade, técnica)
+    private static func ordered(_ a: Attribute?, _ b: Attribute?) -> (Attribute?, Attribute?) {
+        guard let a, let b, a != b else { return (a, nil) }
+        let order = Attribute.allCases
+        return order.firstIndex(of: a)! > order.firstIndex(of: b)! ? (b, a) : (a, b)
+    }
 
-    /// Chave da forma dentro da espécie (ex.: "champion_forca", "champion_forca_resistencia")
+    var isHybrid: Bool { attribute2 != nil }
+    var isVirada: Bool { origin != nil }
+
+    /// Chave da forma dentro da espécie (ex.: "champion_forca", "champion_forca_resistencia",
+    /// "ultimate_forca_to_resistencia")
     var key: String {
         guard let a = attribute else { return "\(stage)" }
-        return attribute2.map { "\(stage)_\(a.rawValue)_\($0.rawValue)" } ?? "\(stage)_\(a.rawValue)"
+        let branch = [a, attribute2].compactMap { $0 }.map(\.rawValue).joined(separator: "_")
+        guard let o = origin else { return "\(stage)_\(branch)" }
+        let from = [o, origin2].compactMap { $0 }.map(\.rawValue).joined(separator: "_")
+        return "\(stage)_\(from)_to_\(branch)"
     }
+
+    /// Atleta de onde a Lenda veio (para a Lenda pura, o do mesmo galho)
+    var champion: MonsterForm? {
+        guard stage == .ultimate else { return nil }
+        return isVirada ? MonsterForm(stage: .champion, attribute: origin, attribute2: origin2, species: species)
+                        : MonsterForm(stage: .champion, attribute: attribute, attribute2: attribute2, species: species)
+    }
+
+    /// Lenda pura da linha (a de virada sem arte usa ela)
+    var lineage: MonsterForm {
+        guard isVirada else { return self }
+        return MonsterForm(stage: .ultimate, attribute: origin, attribute2: origin2, species: species)
+    }
+
+    /// Forma que aparece no app: híbrido sem arte segue a forma normal do dominante.
+    /// A virada aparece mesmo sem arte (fica sem imagem até a arte chegar).
+    var resolved: MonsterForm { isVirada || hasArt ? self : single }
+
+    /// Arte para onde não dá para mostrar um espaço vazio (widget, Live Activity): a virada sem arte usa a da Lenda pura da linha
+    var spriteWithFallback: String { isVirada && !hasArt ? lineage.resolved.sprite : sprite }
 
     /// A espécie padrão mantém os ids antigos, para não perder descobertas do BroBook
     var id: String { species == Species.standard.id ? key : "\(species)/\(key)" }
@@ -193,20 +224,38 @@ struct MonsterForm: Hashable, Identifiable {
         }
     }
 
+    /// Os 10 galhos possíveis numa fase: os 4 atributos sozinhos e as 6 duplas
+    static let branches: [(Attribute, Attribute?)] = Attribute.allCases.map { ($0, nil) } + Attribute.pairs.map { ($0.0, $0.1) }
+
+    /// As Lendas de virada que saem de um Atleta (as 9 saídas diferentes do galho dele)
+    static func viradas(from champion: MonsterForm) -> [MonsterForm] {
+        branches.map { MonsterForm(stage: .ultimate, attribute: $0.0, attribute2: $0.1,
+                                   origin: champion.attribute, origin2: champion.attribute2, species: champion.species) }
+            .filter(\.isVirada)
+    }
+
+    /// As 90 Lendas de virada de uma espécie (10 Atletas × 9 saídas)
+    static func viradas(species: String = Species.standard.id) -> [MonsterForm] {
+        branches.flatMap { viradas(from: MonsterForm(stage: .champion, attribute: $0.0, attribute2: $0.1, species: species)) }
+    }
+
     static func byID(_ id: String) -> MonsterForm? {
         let parts = id.split(separator: "/").map(String.init)
         let species = parts.count == 2 ? parts[0] : Species.standard.id
+        if id.contains("_to_") { return viradas(species: species).first { $0.id == id } }
         return (all(species: species) + hybrids(species: species)).first { $0.id == id }
     }
 
-    func with(species: String) -> MonsterForm { MonsterForm(stage: stage, attribute: attribute, attribute2: attribute2, species: species) }
+    func with(species: String) -> MonsterForm {
+        MonsterForm(stage: stage, attribute: attribute, attribute2: attribute2, origin: origin, origin2: origin2, species: species)
+    }
 
     /// Sem o segundo atributo (forma normal do dominante)
     var single: MonsterForm { MonsterForm(stage: stage, attribute: attribute, species: species) }
 
-    /// Tem arte no app (híbridos chegam aos poucos; sem arte, o bro usa a forma normal)
+    /// Tem arte no app (híbridos e viradas chegam aos poucos)
     var hasArt: Bool {
-        guard isHybrid else { return true }
+        guard isHybrid || isVirada else { return true }
         #if canImport(UIKit)
         return UIImage(named: sprite) != nil
         #else
@@ -217,7 +266,7 @@ struct MonsterForm: Hashable, Identifiable {
     var speciesInfo: Species { Species.byID(species) ?? .standard }
     var name: String {
         if stage == .egg { return "Ovo" }
-        return speciesInfo.names[key] ?? (isHybrid ? "Híbrido" : key)
+        return speciesInfo.names[key] ?? Species.viradaNames[species]?[key] ?? (isHybrid ? "Híbrido" : key)
     }
     var sprite: String { stage == .egg ? "sprite_egg" : speciesInfo.sprite(key) }
 
@@ -341,6 +390,8 @@ struct ActivityRecord: Identifiable, Hashable {
     var healthType: UInt?
     /// Divisão do XP entre os atributos calculada para este treino; nil = tabela fixa da categoria
     var weights: [Attribute: Double]?
+    /// Parte do XP que vai para este bro: 1 no principal, `Roster.leagueShare` no que só representa uma liga
+    var share: Double = 1
 
     var split: [Attribute: Double] { weights ?? kind.weights }
 }
@@ -351,12 +402,40 @@ struct Evolution: Identifiable {
     var id: String { form.id + "\(date.timeIntervalSince1970)" }
 }
 
+/// XP que um dono deu a um bro (quem treinou e quanto)
+struct OwnerXP: Codable, Hashable, Sendable {
+    let name: String
+    let xp: Int
+}
+
+/// Ponto de partida de um bro que chegou por troca: a forma e o XP que ele tinha. Os treinos do novo dono
+/// continuam dali (a fase atual recomeça na chegada). O XP de antes é dos donos anteriores, não seu.
+struct SnapshotBase: Codable, Hashable {
+    let formID: String
+    let xp: Int
+    /// Atributos de tudo o que ele já treinou (rawValue → valor)
+    let attributes: [String: Double]
+    let date: Date
+    /// Quem treinou o bro antes e quanto XP cada um deu, do primeiro dono ao último (soma = `xp`)
+    var history: [OwnerXP]?
+
+    var form: MonsterForm { MonsterForm.byID(formID) ?? .egg }
+    var owners: [OwnerXP] { history ?? [OwnerXP(name: "Dono anterior", xp: xp)] }
+}
+
 struct Snapshot {
     var totalXP = 0
     var form = MonsterForm.egg
     /// Atributos acumulados desde a última evolução: decidem o próximo galho
     var stageAttributes: [Attribute: Double] = [:]
     var lifetimeAttributes: [Attribute: Double] = [:]
+    /// XP que veio com o bro numa troca, de quem o treinou antes (vazio se ele sempre foi seu)
+    var inherited: [OwnerXP] = []
+    var inheritedXP: Int { inherited.reduce(0) { $0 + $1.xp } }
+    /// XP que você deu a ele com os seus treinos
+    var myXP: Int { totalXP - inheritedXP }
+    /// Quando ele chegou por troca
+    var arrivedAt: Date?
     /// Atributos dos treinos que chocaram o ovo (definem a espécie)
     var hatchAttributes: [Attribute: Double] = [:]
     var evolutions: [Evolution] = []
@@ -382,8 +461,8 @@ struct Snapshot {
         guard let next = stage.next else { return nil }
         guard next.branches else { return MonsterForm(stage: next, attribute: nil, species: form.species) }
         let (a, b) = Game.branch(stageAttributes)
-        let f = MonsterForm(stage: next, attribute: a, attribute2: b, species: form.species)
-        return f.hasArt ? f : f.single
+        return MonsterForm(stage: next, attribute: a, attribute2: b,
+                           origin: form.attribute, origin2: form.attribute2, species: form.species).resolved
     }
 }
 
@@ -420,19 +499,27 @@ enum Game {
 
     /// Igual a `snapshot`, mas guarda o resultado: as telas recalculam a cada render com os mesmos registros.
     /// A chave é o conteúdo inteiro (na mesma ordem), o dia de hoje (sequência e XP do dia) e o calendário.
-    static func cachedSnapshot(_ records: [ActivityRecord], now: Date = .now, calendar: Calendar = .current) -> Snapshot {
-        SnapshotCache.shared.value(for: .init(records: records, day: calendar.startOfDay(for: now), calendar: calendar)) {
-            snapshot(records, now: now, calendar: calendar)
+    static func cachedSnapshot(_ records: [ActivityRecord], base: SnapshotBase? = nil, now: Date = .now, calendar: Calendar = .current) -> Snapshot {
+        SnapshotCache.shared.value(for: .init(records: records, base: base, day: calendar.startOfDay(for: now), calendar: calendar)) {
+            snapshot(records, base: base, now: now, calendar: calendar)
         }
     }
 
-    static func snapshot(_ records: [ActivityRecord], now: Date = .now, calendar: Calendar = .current) -> Snapshot {
+    static func snapshot(_ records: [ActivityRecord], base: SnapshotBase? = nil, now: Date = .now, calendar: Calendar = .current) -> Snapshot {
         var s = Snapshot()
+        if let base {
+            s.form = base.form
+            s.totalXP = base.xp
+            s.lifetimeAttributes = Dictionary(uniqueKeysWithValues: base.attributes.compactMap { k, v in Attribute(rawValue: k).map { ($0, v) } })
+            s.evolutions = [Evolution(date: base.date, form: base.form)]
+            s.inherited = base.owners
+            s.arrivedAt = base.date
+        }
         var dayTotals: [Date: Int] = [:]
         var dayGained: [Date: Int] = [:]
 
         for r in records.sorted(by: { $0.date < $1.date }) {
-            let raw = xp(kind: r.kind, minutes: r.minutes, effort: r.effort)
+            let raw = Int((Double(xp(kind: r.kind, minutes: r.minutes, effort: r.effort)) * r.share).rounded())
             let day = calendar.startOfDay(for: r.date)
             let before = dayTotals[day, default: 0]
             let full = max(min(raw, dailySoftCap - before), 0)
@@ -454,8 +541,9 @@ enum Game {
                 let attrs = s.stageAttributes.isEmpty ? carried : s.stageAttributes
                 if s.stage == .egg { s.hatchAttributes = attrs }
                 if next.branches {
+                    // A Lenda continua a linha do Atleta: galho diferente do dele vira Lenda de virada, só dele
                     let (a, b) = branch(attrs)
-                    s.form = MonsterForm(stage: next, attribute: a, attribute2: b)
+                    s.form = MonsterForm(stage: next, attribute: a, attribute2: b, origin: s.form.attribute, origin2: s.form.attribute2)
                 } else {
                     s.form = MonsterForm(stage: next, attribute: nil)
                 }
@@ -507,6 +595,7 @@ final class SnapshotCache: @unchecked Sendable {
 
     struct Key: Hashable {
         let records: [ActivityRecord]
+        var base: SnapshotBase?
         let day: Date
         let calendar: Calendar
     }

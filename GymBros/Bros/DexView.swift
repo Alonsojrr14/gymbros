@@ -147,7 +147,8 @@ struct DexView: View {
 
     /// Todas as formas de todas as espécies com arte (o ovo conta uma vez)
     static var allForms: [MonsterForm] {
-        [.egg] + Species.catalog.flatMap { MonsterForm.all(species: $0.id).filter { $0.stage != .egg } + MonsterForm.hybrids(species: $0.id).filter(\.hasArt) }
+        [.egg] + Species.catalog.flatMap { MonsterForm.all(species: $0.id).filter { $0.stage != .egg }
+            + MonsterForm.hybrids(species: $0.id).filter(\.hasArt) + MonsterForm.viradas(species: $0.id) }
     }
 
     @State private var speciesID = Species.standard.id
@@ -178,7 +179,8 @@ struct DexView: View {
     // MARK: Espécies
 
     private func forms(_ sp: Species) -> [MonsterForm] {
-        MonsterForm.all(species: sp.id).filter { $0.stage != .egg } + MonsterForm.hybrids(species: sp.id).filter(\.hasArt)
+        MonsterForm.all(species: sp.id).filter { $0.stage != .egg }
+            + MonsterForm.hybrids(species: sp.id).filter(\.hasArt) + MonsterForm.viradas(species: sp.id)
     }
     private func found(_ sp: Species) -> [MonsterForm] { forms(sp).filter { isKnown($0) } }
 
@@ -270,123 +272,8 @@ struct DexView: View {
                 }
             }
 
-            section("Começo", "Todo bro passa por aqui")
-            GMCard {
-                HStack(spacing: 2) {
-                    node(.egg, size: 60)
-                    connector(Theme.dim)
-                    node(MonsterForm(stage: .baby, attribute: nil, species: sp.id), size: 60)
-                    connector(Theme.dim)
-                    node(MonsterForm(stage: .rookie, attribute: nil, species: sp.id), size: 60)
-                }
-            }
-
-            section("Galhos", "O atributo mais treinado em cada fase escolhe o galho")
-            ForEach(Attribute.allCases) { a in
-                branch(colors: [a.color]) {
-                    Label(a.name, systemImage: a.symbol).foregroundStyle(a.color)
-                } champion: { MonsterForm(stage: .champion, attribute: a, species: sp.id) }
-                  ultimate: { MonsterForm(stage: .ultimate, attribute: a, species: sp.id) }
-            }
-
-            // Híbridos: dois atributos quase empatados na fase (aparecem quando houver arte)
-            if sp.hasHybrids {
-                section("Formas híbridas", "Os dois atributos mais treinados quase empatados (até 10% de diferença)")
-                ForEach(Array(Attribute.pairs.enumerated()), id: \.offset) { _, pair in
-                    let (a, b) = pair
-                    let champ = MonsterForm(stage: .champion, attribute: a, attribute2: b, species: sp.id)
-                    if champ.hasArt {
-                        branch(colors: [a.color, b.color]) {
-                            HStack(spacing: 4) {
-                                Image(systemName: a.symbol).foregroundStyle(a.color)
-                                Text("+").foregroundStyle(Theme.dim)
-                                Image(systemName: b.symbol).foregroundStyle(b.color)
-                                Text("\(a.name) e \(b.name)").foregroundStyle(.white)
-                            }
-                        } champion: { champ }
-                          ultimate: { MonsterForm(stage: .ultimate, attribute: a, attribute2: b, species: sp.id) }
-                    }
-                }
-            }
+            EvolutionMap(species: sp.id, current: snapshot.form, isKnown: isKnown) { entry = $0 }
+                .id(sp.id)
         }
-    }
-
-    private func section(_ title: String, _ detail: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title.uppercased()).font(.caption.weight(.bold)).foregroundStyle(Theme.dim).tracking(0.6)
-            Text(detail).font(.caption).foregroundStyle(Theme.dim)
-        }
-        .padding(.horizontal, 4)
-        .padding(.top, 4)
-    }
-
-    /// Um galho: faixa na cor do atributo, nome no topo e Atleta → Lenda
-    private func branch<L: View>(colors: [Color], @ViewBuilder label: () -> L,
-                                 champion: () -> MonsterForm, ultimate: () -> MonsterForm) -> some View {
-        let tint = colors.first ?? Theme.accent
-        return VStack(alignment: .leading, spacing: 10) {
-            label().font(.caption.bold())
-            HStack(spacing: 2) {
-                node(champion(), size: 76, tint: tint)
-                connector(tint)
-                node(ultimate(), size: 76, tint: colors.last ?? tint)
-            }
-        }
-        .padding(14)
-        .padding(.leading, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
-        .overlay(alignment: .leading) {
-            LinearGradient(colors: colors.count > 1 ? colors : [tint, tint.opacity(0.4)], startPoint: .top, endPoint: .bottom)
-                .frame(width: 4)
-                .clipShape(.capsule)
-                .padding(.vertical, 14)
-                .padding(.leading, 6)
-        }
-    }
-
-    private func connector(_ tint: Color) -> some View {
-        Image(systemName: "chevron.right")
-            .font(.caption2.bold())
-            .foregroundStyle(tint.opacity(0.7))
-            .accessibilityHidden(true)
-    }
-
-    private func node(_ f: MonsterForm, size: CGFloat, tint: Color = Theme.accent) -> some View {
-        let known = isKnown(f)
-        let current = snapshot.form == f
-        return Button {
-            UISelectionFeedbackGenerator().selectionChanged()
-            entry = f
-        } label: { nodeLabel(f, size: size, tint: tint, known: known, current: current) }
-        .buttonStyle(GMPress())
-        .accessibilityLabel(known ? "\(f.name), \(f.stage.name)\(current ? ", seu bro atual" : "")" : "Forma não descoberta")
-        .accessibilityHint("Abre a ficha")
-    }
-
-    private func nodeLabel(_ f: MonsterForm, size: CGFloat, tint: Color, known: Bool, current: Bool) -> some View {
-        VStack(spacing: 4) {
-            ZStack {
-                if known { Circle().fill(tint.opacity(0.16)).frame(width: size * 0.95, height: size * 0.95).blur(radius: 8) }
-                MonsterSprite(form: f, hidden: !known).frame(width: size, height: size)
-            }
-            Text(known ? f.name : "???").font(.caption.bold()).lineLimit(1).minimumScaleFactor(0.7)
-            Text(f.stage == .egg ? "início" : "\(f.stage.name) · \(f.stage.threshold) XP")
-                .gmFont(9, mono: true, relativeTo: .caption2).foregroundStyle(Theme.dim).lineLimit(1).minimumScaleFactor(0.5)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(current ? Theme.accent.opacity(0.12) : .clear, in: .rect(cornerRadius: Theme.radiusM))
-        .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(current ? Theme.accent : .clear, lineWidth: 1.5))
-        .overlay(alignment: .top) {
-            if current {
-                Text("VOCÊ").gmFont(8, weight: .black, relativeTo: .caption2)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Theme.accent, in: .capsule)
-                    .foregroundStyle(.black)
-                    .offset(y: -7)
-            }
-        }
-        .contentShape(Rectangle())
     }
 }

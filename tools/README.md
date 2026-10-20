@@ -35,3 +35,15 @@ swift folha.swift .work/folha.png .work/raw/*.png   # revise: confira se cada ar
 - O ChatGPT guarda o rascunho da caixa entre conversas: o `gerar.mjs` limpa a caixa e confere que a conversa tem só o prompt daquele arquivo antes de baixar. Mesmo assim, revise a folha.
 - Lendas têm aura: o `instalar.sh` recorta só o fundo liso ligado às bordas (`FLOOD=1`), porque o recorte do Vision apaga a aura.
 - `.work/` e a cópia do perfil (`~/Library/Caches/gymbros-chrome`) ficam fora do git.
+
+### Lendas de virada
+
+Mesmo fluxo, com outra pasta de trabalho (`.work-viradas`) e os pedidos do `viradas.py` (ver `VIRADAS.md`):
+
+```sh
+cd tools/artes && ./chrome.sh
+ARTES_WORK=.work-viradas python3 viradas.py
+ARTES_WORK=.work-viradas node gerar.mjs 2        # 720 artes; para sozinho no limite do plano, é só rodar de novo depois
+swift folha.swift .work-viradas/folha.png .work-viradas/raw/urso_*.png   # revise por espécie
+ARTES_WORK=.work-viradas ./instalar.sh
+```

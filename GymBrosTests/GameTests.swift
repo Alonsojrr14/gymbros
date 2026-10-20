@@ -37,6 +37,50 @@ final class GameTests: GymTestCase {
         XCTAssertNil(s.form.attribute2)
     }
 
+    func testLegendTurnsWithinChampionLine() {
+        // Vira Halterobro na musculação e passa a fase Atleta só correndo: Lenda de virada da linha da Força
+        let lifting = (0..<25).map { rec(.musculacao, 120, day: -100 + $0, effort: 8) }
+        let running = (0..<75).map { rec(.corrida, 120, day: -75 + $0, effort: 8) }
+        let s = Game.snapshot(lifting + running)
+        let virada = MonsterForm(stage: .ultimate, attribute: .resistencia, origin: .forca)
+        XCTAssertEqual(s.form, virada)
+        XCTAssertTrue(virada.isVirada)
+        XCTAssertEqual(virada.name, "Estivabro")
+        XCTAssertEqual(virada.champion, MonsterForm(stage: .champion, attribute: .forca))
+        XCTAssertNotEqual(virada, MonsterForm(stage: .ultimate, attribute: .resistencia))
+        // Sem arte ainda: aparece mesmo assim (sem imagem); só o widget usa a arte da Lenda pura da linha
+        XCTAssertEqual(virada.resolved, virada)
+        XCTAssertEqual(virada.spriteWithFallback, virada.hasArt ? virada.sprite : MonsterForm(stage: .ultimate, attribute: .forca).sprite)
+        let before = Game.snapshot(lifting + running.prefix(10))
+        XCTAssertEqual(before.stage, .champion)
+        XCTAssertEqual(before.nextForm, virada)
+        // Mesmo treino na fase Atleta: Lenda pura
+        let pure = Game.snapshot((0..<60).map { rec(.musculacao, 120, day: -60 + $0, effort: 8) })
+        XCTAssertEqual(pure.form, MonsterForm(stage: .ultimate, attribute: .forca))
+        XCTAssertFalse(pure.form.isVirada)
+    }
+
+    func testEveryChampionHasItsOwnTenLegends() {
+        var names: [String] = []
+        for sp in Species.all {
+            let viradas = MonsterForm.viradas(species: sp.id)
+            XCTAssertEqual(viradas.count, 90, sp.id)
+            for f in viradas {
+                XCTAssertNotNil(Species.viradaNames[sp.id]?[f.key], f.id)
+                XCTAssertEqual(MonsterForm.byID(f.id), f, f.id)
+            }
+            let pures = MonsterForm.all(species: sp.id).filter { $0.stage == .ultimate }
+                + MonsterForm.hybrids(species: sp.id).filter { $0.stage == .ultimate }
+            names += (viradas + pures).map(\.name)
+        }
+        XCTAssertEqual(names.count, 800)
+        XCTAssertEqual(Set(names).count, 800)
+        let halter = MonsterForm(stage: .champion, attribute: .forca)
+        XCTAssertEqual(MonsterForm.viradas(from: halter).count, 9)
+        XCTAssertEqual(MonsterForm(stage: .ultimate, attribute: .forca, attribute2: .resistencia, origin: .forca).name, "Strongmanbro")
+        XCTAssertEqual(MonsterForm(stage: .ultimate, attribute: .forca, attribute2: .resistencia).name, "Hércubro")
+    }
+
     func testHybridBranchNeedsNearTie() {
         let tie = Game.branch([.forca: 100, .resistencia: 95])
         XCTAssertEqual(tie.0, .forca)
@@ -74,21 +118,33 @@ final class GameTests: GymTestCase {
         XCTAssertEqual(Set(ActivityKind.allCases.flatMap { Hatch.species(for: $0) }), ids)
     }
 
-    func testXPOwnersFollowLeagues() {
+    func testMainAlwaysGetsXPAndLeagueRepGetsAShare() {
         let starter = UUID(), main = UUID(), rep = UUID(), gone = UUID()
-        let league = UUID(), league2 = UUID(), orphan = UUID()
+        let league = UUID(), league2 = UUID(), orphan = UUID(), mine = UUID()
         let known: Set<UUID> = [starter, main, rep]
-        let reps: [UUID: UUID?] = [league: rep, league2: rep, orphan: gone]
-        func owners(_ ids: Set<UUID>, _ owner: UUID?) -> Set<UUID> {
-            Roster.owners(leagueIDs: ids, owner: owner, known: known, leagueMonster: reps, starter: starter)
+        let reps: [UUID: UUID?] = [league: rep, league2: rep, orphan: gone, mine: main]
+        func shares(_ ids: Set<UUID>, _ owner: UUID?) -> [UUID: Double] {
+            Roster.shares(leagueIDs: ids, owner: owner, known: known, leagueMonster: reps, starter: starter)
         }
-        // Liga marcada: vai para o representante, uma vez só
-        XCTAssertEqual(owners([league, league2], main), [rep])
-        // Sem liga (ou só perfil/liga sem representante válido): vai para o dono gravado
-        XCTAssertEqual(owners([], main), [main])
-        XCTAssertEqual(owners([orphan, UUID()], main), [main])
+        // Liga marcada: o principal leva tudo e o representante (uma vez só) um pouco menos
+        XCTAssertEqual(shares([league, league2], main), [main: 1, rep: Roster.leagueShare])
+        // Sem liga (ou liga sem representante válido): só o principal
+        XCTAssertEqual(shares([], main), [main: 1])
+        XCTAssertEqual(shares([orphan, UUID()], main), [main: 1])
+        // O principal também representa a liga: recebe uma vez, inteiro
+        XCTAssertEqual(shares([mine, league], main), [main: 1, rep: Roster.leagueShare])
+        XCTAssertEqual(shares([mine], main), [main: 1])
         // Dono que não existe mais: vai para o inicial
-        XCTAssertEqual(owners([], gone), [starter])
+        XCTAssertEqual(shares([], gone), [starter: 1])
+    }
+
+    func testLeagueShareGivesLessXP() {
+        var full = ActivityRecord(id: UUID(), kind: .corrida, date: day(-1), minutes: 60, effort: 6)
+        let a = Game.snapshot([full]).totalXP
+        full.share = Roster.leagueShare
+        let b = Game.snapshot([full]).totalXP
+        XCTAssertLessThan(b, a)
+        XCTAssertGreaterThan(b, 0)
     }
 
     func testStreakCountsUntilYesterday() {
