@@ -55,6 +55,9 @@ struct ActivityDetailView: View {
                         Text(title).font(.headline)
                         Text(activity.date.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute()))
                             .font(.caption).foregroundStyle(Theme.dim)
+                        if let source = activity.source {
+                            Label("Gravado no \(source)", systemImage: "applewatch").font(.caption2).foregroundStyle(Theme.dim)
+                        }
                     }
                     Spacer()
                     Text("+\(snapshot.xpByActivity[activity.uuid] ?? 0) XP").font(.headline.monospacedDigit()).foregroundStyle(Theme.accent)

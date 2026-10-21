@@ -67,7 +67,7 @@ enum HealthSync {
         defer { exporting = false }
         let since = writeSince
         let list = ((try? context.fetch(FetchDescriptor<Activity>())) ?? [])
-            .filter { $0.healthUUID == nil && $0.healthWrittenUUID == nil && $0.date >= since
+            .filter { $0.healthUUID == nil && $0.healthWrittenUUID == nil && $0.date >= since && !WatchBridge.isRecordedOnWatch($0.date)
                 && $0.date.addingTimeInterval(Double($0.minutes) * 60) <= .now.addingTimeInterval(120) }
         guard !list.isEmpty else { return }
         let bodyWeight = ((try? context.fetch(FetchDescriptor<BodyEntry>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? [])

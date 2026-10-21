@@ -40,11 +40,26 @@ struct WorkoutView: View {
     @AppStorage("headphoneInfoSeen") private var headphoneInfoSeen = false
     @State private var scrollTarget: String?
     @Query private var notes: [ExerciseNote]
+    /// Modo guiado: uma série por vez, com "da última vez", alvo, registrar, desfazer e próxima
+    @AppStorage("guidedWorkout") private var guided = false
+    /// Série escolhida com Anterior/Próxima no modo guiado (nil = a próxima por fazer)
+    @State private var guidedFocus: LoggedSet?
+    /// Última série registrada no modo guiado, para o Desfazer
+    @State private var guidedLast: LoggedSet?
 
     var body: some View {
         VStack(spacing: 0) {
             header
             placeChip
+            if !session.exerciseIDs.isEmpty {
+                GMSegmented(options: [(false, "Lista"), (true, "Guiado")], selection: $guided)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 6)
+            }
+            if guided && !session.exerciseIDs.isEmpty {
+                ScrollView { guidedContent.padding(16).padding(.bottom, resting ? 180 : 90) }
+                    .scrollDismissesKeyboard(.immediately)
+            } else {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 12) {
@@ -73,6 +88,7 @@ struct WorkoutView: View {
                     withAnimation(.snappy) { proxy.scrollTo(target, anchor: .top) }
                     scrollTarget = nil
                 }
+            }
             }
         }
         .background(Theme.bg.ignoresSafeArea())
@@ -180,25 +196,11 @@ struct WorkoutView: View {
     private var header: some View {
         HStack(spacing: 12) {
             GMIconButton(icon: "chevron.down", label: "Minimizar treino") { dismiss() }
-            // Bro que treina com você (o principal recebe o XP; as ligas você escolhe ao concluir)
-            let main = monsters.first { $0.uuid.uuidString == mainRaw } ?? monsters.first { $0.isStarter } ?? monsters.first
-            if let main, let form = MonsterForm.byID(main.lastFormID) {
-                MonsterSprite(form: form).frame(width: 30, height: 30)
-                    .frame(width: 38, height: 38)
-                    .background(Theme.accent.opacity(0.12), in: .circle)
-                    .overlay(Circle().stroke(Theme.accent.opacity(0.4), lineWidth: 1))
-                    .accessibilityLabel("Treinando com \(main.displayName(form))")
-            }
             VStack(alignment: .leading, spacing: 1) {
                 Text(session.title).font(.headline).lineLimit(1)
-                HStack(spacing: 4) {
-                    Text(timerInterval: session.start...Date.distantFuture, countsDown: false)
-                        .font(.subheadline.monospacedDigit())
-                        .foregroundStyle(Theme.accent)
-                    if let main, let form = MonsterForm.byID(main.lastFormID) {
-                        Text("· com \(main.displayName(form))").font(.caption).foregroundStyle(Theme.dim).lineLimit(1)
-                    }
-                }
+                Text(timerInterval: session.start...Date.distantFuture, countsDown: false)
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(Theme.accent)
             }
             Spacer()
             // Modo fone: avisos do descanso falados no fone
@@ -206,6 +208,7 @@ struct WorkoutView: View {
                 if headphones { toggleHeadphones() } else if headphoneInfoSeen { toggleHeadphones() } else { headphoneInfo = true }
             }
             GMButton("Concluir", icon: "checkmark", full: false, small: true) { finishing = true }
+                .fixedSize()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -243,10 +246,34 @@ struct WorkoutView: View {
             }
             .buttonStyle(GMPress())
             LiveShareChip(workoutID: session.uuid.uuidString)
+            Spacer(minLength: 0)
+            broChip
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.bottom, 4)
+    }
+
+    /// Bro que treina com você (o principal recebe o XP; as ligas você escolhe ao concluir).
+    /// Sem espaço na linha, fica só a arte.
+    @ViewBuilder private var broChip: some View {
+        let main = monsters.first { $0.uuid.uuidString == mainRaw } ?? monsters.first { $0.isStarter } ?? monsters.first
+        if let main, let form = MonsterForm.byID(main.lastFormID) {
+            let name = main.displayName(form)
+            let art = MonsterSprite(form: form).frame(width: 22, height: 22)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 4) {
+                    art
+                    Text(name).font(.caption.bold()).lineLimit(1)
+                }
+                .padding(.leading, 6).padding(.trailing, 10).padding(.vertical, 3)
+                art.padding(4)
+            }
+            .background(Theme.accent.opacity(0.12), in: .capsule)
+            .overlay(Capsule().stroke(Theme.accent.opacity(0.4), lineWidth: 1))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Treinando com \(name)")
+        }
     }
 
     /// Lugar conhecido é escolhido sozinho; desconhecido, pergunta (uma vez por treino)
@@ -551,7 +578,8 @@ struct WorkoutView: View {
                 let prev = last.sets.filter { $0.exerciseID == id && $0.done }
                 if !prev.isEmpty {
                     Text("Última vez: " + prev.map { s in
-                        (ex?.type == .weighted || s.weight > 0 ? "\(Progression.fmt(s.weight))×\(s.reps)" : "\(s.reps)") + (s.reps < s.target ? "/\(s.target)" : "")
+                        ex?.type == .distance ? "\(meters(s.weight)) em \(clock(s.reps))"
+                            : (ex?.type == .weighted || s.weight > 0 ? "\(Progression.fmt(s.weight))×\(s.reps)" : "\(s.reps)") + (s.reps < s.target ? "/\(s.target)" : "")
                     }.joined(separator: ", "))
                         .font(.caption2)
                         .foregroundStyle(Theme.dim)
@@ -586,16 +614,137 @@ struct WorkoutView: View {
 
     private func add(_ ex: Exercise) {
         let order = (session.sets.map(\.exerciseOrder).max() ?? -1) + 1
-        let reps = ex.type == .time ? 30 : 10
+        let reps = ex.type == .time ? 30 : ex.type == .distance ? 300 : 10
         var s = Progression.suggest(exerciseID: ex.id, sets: 3, reps: reps, history: history)
         var count = 3
         // Treino de deload: o exercício adicionado segue a mesma regra dos da rotina (70 % e menos séries)
         if session.isDeload { (s, count) = Deload.apply(s, sets: 3, exerciseID: ex.id) }
+        // Distância × tempo começa em 1 km (o `weight` são metros)
+        let start = ex.type == .distance && s.weight == 0 ? 1000 : s.weight
         for k in 0..<count {
-            session.sets.append(LoggedSet(exerciseID: ex.id, exerciseOrder: order, index: k, weight: s.weight, reps: s.reps, rest: 90))
+            session.sets.append(LoggedSet(exerciseID: ex.id, exerciseOrder: order, index: k, weight: start, reps: s.reps, rest: 90))
         }
         collapsed.remove(ex.id)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { scrollTarget = ex.id }
+    }
+
+    // MARK: Guiado
+
+    /// A série em foco: a escolhida com Anterior/Próxima, ou a próxima por fazer (do exercício atual primeiro)
+    private var guidedSet: LoggedSet? {
+        if let f = guidedFocus, session.sets.contains(where: { $0 === f }) { return f }
+        let pending = session.orderedSets.filter { !$0.done }
+        if let cur = currentID, let s = pending.first(where: { $0.exerciseID == cur }) { return s }
+        return pending.first
+    }
+
+    @ViewBuilder
+    private var guidedContent: some View {
+        if let s = guidedSet {
+            let id = s.exerciseID
+            let ex = Exercise.byID(id)
+            let all = session.orderedSets
+            let mine = all.filter { $0.exerciseID == id }
+            let pos = (mine.firstIndex { $0 === s } ?? 0) + 1
+            let last = history.last { $0.sets.contains { $0.exerciseID == id } }?.sets.filter { $0.exerciseID == id && $0.done }
+            let lastSame = last.flatMap { l in l.indices.contains(pos - 1) ? l[pos - 1] : l.last }
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    if let ex { ExerciseThumb(exercise: ex, size: 56) }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(ex?.name ?? id).font(.title3.bold()).lineLimit(2)
+                        Text((s.warmup ? "Aquecimento · " : "") + "Série \(pos) de \(mine.count)").font(.subheadline).foregroundStyle(Theme.dim)
+                    }
+                    Spacer()
+                    GMIconButton(icon: "info.circle", size: 36, label: "Como fazer") { if let ex { info = ex } }
+                }
+                HStack(spacing: 10) {
+                    guidedChip("Da última vez", lastSame.map { guidedText($0.weight, $0.reps, ex?.type) } ?? "primeira vez")
+                    guidedChip("Alvo", guidedText(s.weight, s.targetReps, ex?.type), accent: true)
+                }
+                SetRow(set: s, label: s.warmup ? "A" : "\(pos)", type: ex?.type ?? .weighted, increment: ex?.increment ?? 2.5,
+                       unit: ex?.weightUnit(in: session) ?? "kg", onMenu: { setMenu = s }, onRemove: { removeSet(s) }) { done in
+                    if done { logged(s) } else { cancelRest() }
+                }
+                if s.done {
+                    Label("Série registrada", systemImage: "checkmark.circle.fill").font(.subheadline.bold()).foregroundStyle(Theme.accent)
+                } else {
+                    GMButton("Registrar série", icon: "checkmark") {
+                        s.done = true
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        logged(s)
+                    }
+                }
+                HStack(spacing: 10) {
+                    GMButton("Anterior", icon: "chevron.left", kind: .secondary, small: true, enabled: all.first !== s) { move(-1, from: s) }
+                    if let undo = guidedLast, undo.done {
+                        GMButton("Desfazer", icon: "arrow.uturn.backward", kind: .secondary, small: true) {
+                            undo.done = false
+                            cancelRest()
+                            session.currentExerciseID = undo.exerciseID
+                            guidedFocus = undo
+                            guidedLast = nil
+                        }
+                    }
+                    GMButton("Próxima", icon: "chevron.right", kind: .secondary, small: true, enabled: all.last !== s) { move(1, from: s) }
+                }
+                if let next = upNext(after: s) {
+                    Text("A seguir: \(Exercise.name(next.exerciseID)) · série \((session.orderedSets.filter { $0.exerciseID == next.exerciseID }.firstIndex { $0 === next } ?? 0) + 1)")
+                        .font(.caption).foregroundStyle(Theme.dim)
+                }
+            }
+            .padding(16)
+            .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
+            let done = all.filter(\.done).count
+            Text("\(done) de \(all.count) séries feitas").font(.caption.monospacedDigit()).foregroundStyle(Theme.dim)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
+        } else {
+            GMEmptyState(icon: "checkmark.seal", title: "Todas as séries feitas", message: "Toque em Concluir para salvar o treino.")
+        }
+    }
+
+    private func guidedChip(_ title: String, _ value: String, accent: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption).foregroundStyle(Theme.dim)
+            Text(value).font(.subheadline.bold().monospacedDigit()).foregroundStyle(accent ? Theme.accent : .white).lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
+    }
+
+    private func guidedText(_ weight: Double, _ reps: Int, _ type: ExerciseType?) -> String {
+        switch type ?? .weighted {
+        case .distance: "\(meters(weight)) em \(clock(reps))"
+        case .time: "\(reps) s" + (weight > 0 ? " · \(Progression.fmt(weight)) kg" : "")
+        case .bodyweight where weight == 0: "\(reps) reps"
+        default: "\(Progression.fmt(weight)) kg × \(reps)"
+        }
+    }
+
+    /// Registrou a série: descanso (ou o próximo do superset), e o foco volta para a próxima por fazer
+    private func logged(_ s: LoggedSet) {
+        guidedLast = s
+        guidedFocus = nil
+        if session.advance(after: s.exerciseID) { startRest(s.rest) } else { cancelRest() }
+        setToggled(s.exerciseID)
+    }
+
+    private func move(_ step: Int, from s: LoggedSet) {
+        let all = session.orderedSets
+        guard let i = all.firstIndex(where: { $0 === s }), all.indices.contains(i + step) else { return }
+        let target = all[i + step]
+        guidedFocus = target
+        session.currentExerciseID = target.exerciseID
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    /// Próxima série por fazer depois desta, na ordem do treino
+    private func upNext(after s: LoggedSet) -> LoggedSet? {
+        let all = session.orderedSets
+        guard let i = all.firstIndex(where: { $0 === s }) else { return nil }
+        return (all[(i + 1)...] + all[..<i]).first { !$0.done && $0 !== s }
     }
 
     // MARK: Descanso
@@ -721,6 +870,11 @@ private struct SetRow: View {
             .buttonStyle(GMPress())
             .accessibilityLabel("Opções da série \(label)")
 
+            if type == .distance {
+                // Distância (metros) e tempo (segundos)
+                GMCompactStepper(value: Binding(get: { set.weight }, set: { set.weight = max($0, 0) }), step: 100, label: Text("m"), editable: true)
+                GMCompactStepper(value: Binding(get: { Double(set.reps) }, set: { set.reps = max(Int($0), 0) }), step: 15, label: Text("s"), editable: true)
+            } else {
             // Peso do corpo e isometria aceitam carga extra (cinto, colete, halteres)
             GMCompactStepper(value: Binding(get: { set.weight }, set: { set.weight = max($0, 0) }),
                              step: type == .weighted ? increment : 2.5, label: Text(type == .weighted ? unit : "+kg"), decimals: true, editable: true)
@@ -728,6 +882,7 @@ private struct SetRow: View {
             GMCompactStepper(value: Binding(get: { Double(set.reps) }, set: { set.reps = max(Int($0), 0) }),
                              step: type == .time ? 5 : 1, label: repsLabel, editable: true)
                 .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(missed ? Theme.warning.opacity(0.7) : .clear, lineWidth: 1.5))
+            }
 
             Spacer(minLength: 0)
 
@@ -747,8 +902,8 @@ private struct SetRow: View {
         .opacity(set.done ? 0.75 : 1)
     }
 
-    /// Fez menos que o planejado
-    private var missed: Bool { !self.set.warmup && self.set.reps < self.set.targetReps }
+    /// Fez menos que o planejado (na distância, menos tempo é melhor: nunca "faltou")
+    private var missed: Bool { type != .distance && !self.set.warmup && self.set.reps < self.set.targetReps }
 
     private var repsLabel: Text {
         let unit = type == .time ? "s" : "reps"
@@ -775,6 +930,7 @@ struct FinishWorkoutView: View {
     @State private var updateRoutine = false
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
+    @State private var extraPhotos: [Data] = []
     @State private var postTitle: String?
     @State private var blocked = false
 
@@ -838,7 +994,8 @@ struct FinishWorkoutView: View {
                 }
             }
             GMSection { GMEffortPicker(value: $effort) }
-            LeaguePostSection(selected: $leagues, photo: $photo)
+            LeaguePostSection(selected: $leagues, photo: $photo, extras: $extraPhotos,
+                              subject: PostSubject(workoutTypeID: WorkoutType.of(.musculacao).id, date: session.start, minutes: minutes))
             if postTitle != nil && !leagues.isEmpty {
                 GMSection("Título do post") {
                     GMTextField(placeholder: "Título (ex.: Dia de perna 🦵)", text: Binding(get: { postTitle ?? "" }, set: { postTitle = $0 }))
@@ -901,6 +1058,8 @@ struct FinishWorkoutView: View {
     /// (exercício, reps feitas por série, meta) dos exercícios com alguma série abaixo do planejado
     private var missRows: [(String, String, Int)] {
         session.exerciseIDs.compactMap { id in
+            // Distância × tempo não tem "abaixo do planejado": menos tempo é melhor
+            guard Exercise.byID(id)?.type != .distance else { return nil }
             let sets = session.orderedSets.filter { $0.exerciseID == id && $0.done && !$0.warmup }
             guard let target = sets.map(\.targetReps).max(), sets.contains(where: { $0.reps < $0.targetReps }) else { return nil }
             return (Exercise.name(id), sets.map { "\($0.reps)" }.joined(separator: " · "), target)
@@ -916,7 +1075,7 @@ struct FinishWorkoutView: View {
             let s = Progression.suggest(exerciseID: id, sets: sets.count, reps: reps, history: history + [log])
             if s.weight > w { return (Exercise.name(id), "\(Progression.fmt(s.weight)) kg (+\(Progression.fmt(s.weight - w)))") }
             if s.reps > reps && s.weight == w {
-                return (Exercise.name(id), Exercise.byID(id)?.type == .time ? "\(s.reps) s" : "\(s.reps) reps")
+                return (Exercise.name(id), Exercise.byID(id)?.type == .time ? "\(s.reps) s" : Exercise.byID(id)?.type == .distance ? "\(meters(s.weight)) em \(clock(s.reps))" : "\(s.reps) reps")
             }
             return nil
         }
@@ -933,7 +1092,7 @@ struct FinishWorkoutView: View {
         activity.gymUUID = session.gymUUID
         context.insert(activity)
         let summary = records.isEmpty ? "" : "🏆 " + records.joined(separator: " · ")
-        postCheckIns(activity: activity, leagues: leagues, title: title, note: ContentFilter.publishable(summary), photo: photo, context: context)
+        postCheckIns(activity: activity, leagues: leagues, title: title, note: ContentFilter.publishable(summary), photo: photo, context: context, extraPhotos: extraPhotos)
         if updateRoutine, let r = routine, !session.routineChanges(r).isEmpty { session.apply(to: r, context: context) }
         session.end = .now
         LiveShare.end(session.uuid.uuidString)
