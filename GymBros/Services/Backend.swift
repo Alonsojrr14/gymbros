@@ -5,7 +5,8 @@ import UIKit
 
 // Onde moram os dados compartilhados (ligas, amigos, perfil público, login).
 //
-// Hoje: `.mock`. O app é assinado com o Personal Team, que não tem iCloud; tudo de outras pessoas é simulado.
+// Firebase (plano grátis) com as fotos no CloudKit: modo `.firebase`, liga sozinho com o GoogleService-Info.plist
+// (docs/firebase.md). Sem ele: `.mock`. O app é assinado com o Personal Team, que não tem iCloud; tudo de outras pessoas é simulado.
 // Com a conta paga do Apple Developer:
 //   1. Em Signing & Capabilities, adicione iCloud → CloudKit com o container `Backend.containerID`
 //      e **Sign in with Apple** (sem ela, a folha da Apple do modo `.cloudKit` falha com erro 1000).
@@ -33,12 +34,30 @@ enum BackendMode {
     case mock
     /// CloudKit, banco público do container do app
     case cloudKit
+    /// Firebase (Auth + Firestore no plano grátis) com as fotos no CloudKit (docs/firebase.md)
+    case firebase
+
+    var label: String {
+        switch self {
+        case .mock: "Simulado"
+        case .cloudKit: "CloudKit"
+        case .firebase: "Firebase"
+        }
+    }
 }
 
 enum Backend {
-    /// Troque aqui quando o app tiver iCloud
-    static let mode: BackendMode = .mock
+    /// `.firebase` assim que o GoogleService-Info.plist estiver em GymBros/Resources; nos testes, sempre `.mock`
+    static let mode: BackendMode = !AppRuntime.isTesting && Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist") != nil
+        ? .firebase : .mock
     static let containerID = "iCloud.com.alonsoalmeida.gymbros"
+
+    /// iCloud (CloudKit) e Sign in with Apple ligados em Signing & Capabilities. Só existem com a conta paga do
+    /// Apple Developer: sem eles, o CKContainer derruba o app e a folha da Apple falha com erro 1000.
+    static let appleCapabilities = false
+
+    /// Onde ficam as fotos dos check-ins no modo `.firebase`
+    static let photos: any PhotoStore = appleCapabilities ? CloudKitPhotoStore() : NoPhotoStore()
 
     /// Liga os contratos ao backend escolhido. Chamado uma vez, ao abrir o app.
     @MainActor
@@ -66,7 +85,34 @@ enum Backend {
             AccountSync.shared.backend = ServerAccountDataBackend()
             InboxStore.shared.backend = ServerInboxBackend()
             DuelStore.shared.backend = CloudKitDuelBackend()
+        case .firebase:
+            Fire.configure()
+            adoptLocalSession()
+            AuthStore.shared.backend = FirebaseAuthBackend()
+            LeagueRemoteStore.shared.backend = FirebaseLeagueBackend()
+            FriendsStore.shared.backend = FirebaseFriendsBackend()
+            ModerationStore.shared.backend = FirebaseModerationBackend()
+            AccountSync.shared.backend = FirebaseAccountDataBackend()
+            InboxStore.shared.backend = FirebaseInboxBackend()
+            DuelStore.shared.backend = FirebaseDuelBackend()
+            TradeStore.shared.backend = FirebaseTradeBackend()
+            PublicRoutinesStore.shared.backend = FirebaseRoutinesBackend()
+            AccessStore.shared.backend = FirebaseRoleBackend()
+            FireSync.start()
         }
+    }
+
+    /// Sessão do login simulado (de antes do Firebase): sai sem apagar nada. Os dados do aparelho ficam sem dono e
+    /// passam para a primeira conta do Firebase que entrar (AccountSync.enter adota dados sem dono).
+    @MainActor
+    private static func adoptLocalSession() {
+        guard let user = AuthStore.shared.user, user.id != FirebaseSession.uid else { return }
+        // Ids do login simulado têm prefixo ("email-…", "apple-…"); o uid do Firebase não tem hífen. Uma conta do
+        // Firebase que perdeu a sessão continua dona dos dados (a próxima conta guarda uma cópia antes de limpar).
+        if user.id.contains("-"), UserDefaults.standard.string(forKey: AccountSync.ownerKey) == AccountSync.digest(user.id) {
+            UserDefaults.standard.removeObject(forKey: AccountSync.ownerKey)
+        }
+        AuthStore.shared.forgetSession()
     }
 }
 
@@ -138,7 +184,8 @@ enum CloudError: LocalizedError {
 /// Tipos de registro do banco público (esquema em docs/cloudkit.md)
 enum CloudType {
     static let profile = "Profile", league = "League", member = "Member", checkIn = "CheckIn",
-               message = "Message", friendLink = "FriendLink", report = "Report", block = "Block", duel = "Duel"
+               message = "Message", friendLink = "FriendLink", report = "Report", block = "Block", duel = "Duel",
+               joinRequest = "JoinRequest"
     /// Liga reservada aos posts do perfil
     static let profileFeed = "profile"
 }
@@ -188,7 +235,7 @@ final class AppleIDAuthorization: NSObject, ASAuthorizationControllerDelegate, A
     private var continuation: CheckedContinuation<ASAuthorizationAppleIDCredential, Error>?
     private static var current: AppleIDAuthorization?
 
-    static func request() async throws -> ASAuthorizationAppleIDCredential {
+    static func request(hashedNonce: String? = nil) async throws -> ASAuthorizationAppleIDCredential {
         let flow = AppleIDAuthorization()
         current = flow
         defer { current = nil }
@@ -196,6 +243,7 @@ final class AppleIDAuthorization: NSObject, ASAuthorizationControllerDelegate, A
             flow.continuation = c
             let request = ASAuthorizationAppleIDProvider().createRequest()
             request.requestedScopes = [.fullName, .email]
+            request.nonce = hashedNonce
             let controller = ASAuthorizationController(authorizationRequests: [request])
             controller.delegate = flow
             controller.presentationContextProvider = flow
@@ -244,6 +292,7 @@ struct CloudKitLeagueBackend: LeagueBackend {
         // Só a temporada atual (do início dela até agora ou até o fim)
         async let checkIns = Cloud.query(CloudType.checkIn, NSPredicate(format: "league == %@ AND date >= %@", ref, league.start as NSDate))
         async let messages = Cloud.query(CloudType.message, byLeague, sort: [NSSortDescriptor(key: "date", ascending: true)])
+        async let requests = Cloud.query(CloudType.joinRequest, byLeague)
 
         // Os seus vêm do aparelho; daqui só os dos outros
         let others = try await members.filter { $0["user"] as? String != me }
@@ -263,7 +312,14 @@ struct CloudKitLeagueBackend: LeagueBackend {
             guard let user = r["user"] as? String, let date = r["date"] as? Date else { return nil }
             return RemoteMessage(id: r.recordID.recordName, memberID: user, date: date, text: r["text"] as? String ?? "")
         }
-        return RemoteLeague(members: remoteMembers, checkIns: remoteCheckIns, teams: teams, messages: remoteMessages)
+        // Pedidos de quem ainda não é membro (o dono decide; aceitar vira `settings.approved`)
+        let memberIDs = Set(remoteMembers.map(\.id))
+        let remoteRequests = ((try? await requests) ?? []).compactMap { r -> RemoteMember? in
+            guard let user = r["user"] as? String, user != me, !memberIDs.contains(user) else { return nil }
+            return RemoteMember(id: user, name: r["name"] as? String ?? "", formID: r["formID"] as? String ?? MonsterForm.egg.id,
+                                joinedAt: r.creationDate)
+        }
+        return RemoteLeague(members: remoteMembers, checkIns: remoteCheckIns, teams: teams, messages: remoteMessages, requests: remoteRequests)
     }
 
     func send(_ messages: [OutgoingMessage], to league: LeagueKey) async throws -> [UUID] {
@@ -290,6 +346,8 @@ struct CloudKitLeagueBackend: LeagueBackend {
         r["weights"] = league.weights
         r["tieBreak"] = league.tieBreak
         r["photoRule"] = league.photoRule
+        r["activityRule"] = league.activityRule
+        r["settings"] = league.settings
         r["swiss"] = league.swiss
         r["teams"] = league.teams
         r["start"] = league.start
@@ -303,7 +361,8 @@ struct CloudKitLeagueBackend: LeagueBackend {
         return LeagueDraft(uuid: UUID(), code: code, name: r["name"] as? String ?? code, emoji: r["emoji"] as? String ?? "🏆",
                            scoring: r["scoring"] as? String ?? LeagueScoring.pontos.rawValue, weights: r["weights"] as? String ?? "",
                            tieBreak: r["tieBreak"] as? String ?? LeagueTieBreak.primeiro.rawValue,
-                           photoRule: r["photoRule"] as? String ?? PhotoRule.livre.rawValue, teams: r["teams"] as? String ?? "",
+                           photoRule: r["photoRule"] as? String ?? PhotoRule.livre.rawValue,
+                           activityRule: r["activityRule"] as? String, settings: r["settings"] as? String, teams: r["teams"] as? String ?? "",
                            start: start, end: r["end"] as? Date, autoRenew: (r["autoRenew"] as? Int ?? 0) == 1,
                            swiss: r["swiss"] as? String)
     }
@@ -346,6 +405,31 @@ struct CloudKitLeagueBackend: LeagueBackend {
         let me = try await Cloud.me()
         let mine = try await Cloud.query(CloudType.checkIn, NSPredicate(format: "league == %@ AND user == %@", leagueRef(league), me))
         try await Cloud.delete(mine.map(\.recordID.recordName) + ["\(leagueRef(league))-\(me)"])
+    }
+
+    func requestJoin(code: String, membership: Membership) async throws {
+        let me = try await Cloud.me()
+        let r = await Cloud.record(CloudType.joinRequest, "\(code)-pedido-\(me)")
+        r["league"] = code
+        r["user"] = me
+        r["name"] = membership.name
+        r["formID"] = membership.formID
+        _ = try await Cloud.save([r])
+    }
+
+    /// Aceito = o dono pôs você em `approved` nas regras da liga
+    func isApproved(code: String) async throws -> Bool {
+        let me = try await Cloud.me()
+        guard let d = try await join(code: code) else { return false }
+        return LeagueSettings(rawValue: d.settings ?? "").approved.contains(me)
+    }
+
+    /// No banco público só quem criou o registro grava nele: o novo dono fica no campo `owner` (o servidor próprio
+    /// vai precisar respeitar isso; com CloudKit, editar as regras continua com quem criou)
+    func transfer(_ league: LeagueKey, to memberID: String) async throws {
+        guard let r = try? await Cloud.db.record(for: CKRecord.ID(recordName: leagueRef(league))) else { return }
+        r["owner"] = memberID
+        _ = try await Cloud.save([r])
     }
 }
 
@@ -531,6 +615,11 @@ struct CloudKitFriendsBackend: FriendsBackend {
             p.stats = extra.stats
             p.achievements = extra.achievements
         }
+        // A pessoa escondeu os treinos de você: sem posts e sem números
+        if let hidden = r["hiddenFrom"] as? [String], hidden.contains(try await Cloud.me()) {
+            p.stats = nil
+            return p
+        }
         let posts = try await Cloud.query(CloudType.checkIn, NSPredicate(format: "league == %@ AND user == %@", CloudType.profileFeed, id),
                                           sort: [NSSortDescriptor(key: "date", ascending: false)])
         p.posts = posts.compactMap { r in
@@ -550,6 +639,15 @@ struct CloudKitFriendsBackend: FriendsBackend {
         r["broFormID"] = profile.bro?.formID
         let extra = PublicProfile.Extra(bro: profile.bro, stats: profile.stats, achievements: profile.achievements)
         r["public"] = (try? JSONEncoder().encode(extra)).flatMap { String(data: $0, encoding: .utf8) }
+        r["hiddenFrom"] = FriendPrefs.hiddenFrom()
+        _ = try await Cloud.save([r])
+    }
+
+    /// No banco público o campo é legível por todos: o app de quem foi escondido respeita, mas não é sigilo
+    func setHidden(from ids: [String]) async throws {
+        let me = try await Cloud.me()
+        let r = await Cloud.record(CloudType.profile, me)
+        r["hiddenFrom"] = ids
         _ = try await Cloud.save([r])
     }
 }
@@ -631,7 +729,8 @@ extension RemoteCheckIn {
         self.init(id: r.recordID.recordName, memberID: user, date: date, kindRaw: r["kind"] as? String ?? ActivityKind.outro.rawValue,
                   minutes: r["minutes"] as? Int ?? 0, effort: r["effort"] as? Int ?? 5, meters: r["meters"] as? Double, kcal: r["kcal"] as? Double,
                   title: r["title"] as? String ?? "", note: r["note"] as? String ?? "", hasPhoto: (r["hasPhoto"] as? Int ?? 0) == 1,
-                  photoURL: (r["photo"] as? CKAsset)?.fileURL)
+                  photoURL: (r["photo"] as? CKAsset)?.fileURL, workoutTypeID: (r["workoutType"] as? Int).map { UInt($0) },
+                  place: r["place"] as? String, proof: (r["proof"] as? String).map(CheckInProof.init(rawValue:)))
     }
 }
 
@@ -649,5 +748,8 @@ extension CKRecord {
         self["title"] = c.title
         self["note"] = c.note
         self["hasPhoto"] = c.hasPhoto ? 1 : 0
+        self["workoutType"] = c.workoutTypeID.map { Int($0) }
+        self["place"] = c.place
+        self["proof"] = c.proof.map(\.rawValue)
     }
 }

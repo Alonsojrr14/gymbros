@@ -43,6 +43,19 @@ protocol AuthBackend: Sendable {
     func signOut(_ user: AuthUser) async
     /// Apaga a conta e tudo o que ela publicou no servidor (perfil, lugar nas ligas, check-ins, recados, amizades, denúncias, bloqueios)
     func deleteAccount(_ user: AuthUser) async throws
+    /// Manda o e-mail com o link para criar uma senha nova
+    func resetPassword(email: String) async throws
+    /// Manda (de novo) o e-mail de confirmação do endereço
+    func sendVerification() async throws
+    /// O e-mail da conta já foi confirmado; nil = não se aplica (login simulado ou da Apple)
+    func isVerified() async -> Bool?
+}
+
+/// Sem servidor de e-mail (simulado e CloudKit): nada a mandar
+extension AuthBackend {
+    func resetPassword(email: String) async throws {}
+    func sendVerification() async throws {}
+    func isVerified() async -> Bool? { nil }
 }
 
 // MARK: - Sessão
@@ -87,6 +100,19 @@ final class AuthStore {
         endSession()
     }
 
+    /// E-mail da conta confirmado (nil: não se aplica); atualizado por `checkVerification`
+    private(set) var emailVerified: Bool?
+
+    func resetPassword(email: String) async throws {
+        let e = Self.clean(email)
+        guard e.contains("@"), e.contains(".") else { throw AuthError.invalidEmail }
+        try await backend.resetPassword(email: e)
+    }
+
+    func sendVerification() async throws { try await backend.sendVerification() }
+
+    func checkVerification() async { emailVerified = user?.provider == .email ? await backend.isVerified() : nil }
+
     /// Apaga a conta no servidor e, só se der certo, tudo dela neste aparelho e a sessão.
     /// Os dados da conta no servidor saem antes, pelo AccountSync (que chama este método).
     func deleteAccount(context: ModelContext, defaults: UserDefaults = .standard, widget: UserDefaults? = WidgetData.defaults,
@@ -105,6 +131,9 @@ final class AuthStore {
         finish(account.user)
     }
     #endif
+
+    /// Esquece a sessão sem falar com o servidor (login simulado de antes do Firebase)
+    func forgetSession() { endSession() }
 
     private func endSession() {
         user = nil
@@ -196,7 +225,8 @@ enum AccountData {
         "gymNotifyArrival", "gymAutoFinish", "gymInsideID", "gymArrival",
         "friendCode", "declinedFriendRequests", "pendingRetractions", DemoAccount.seededKey,
         "recentWorkoutTypes", DuelStore.fightersKey, "duelScoreRecords", RetiredActivities.key,
-        TradeLedger.basesKey, TradeLedger.goneKey, TradeLedger.appliedKey,
+        TradeLedger.basesKey, TradeLedger.goneKey, TradeLedger.appliedKey, PendingJoins.key, BroDeck.seenKey, ComingFeedback.key,
+        MockRoutinesBackend.publishedKey, MockRoutinesBackend.likedKey, MockRoutinesBackend.savedKey, HealthAutoPost.key, StartIntentRouter.askedKey, WhatsNew.seenKey,
     ] + HealthSync.defaultsKeys + ModerationStore.defaultsKeys + Terms.defaultsKeys + InboxStore.defaultsKeys + NotificationPrefs.defaultsKeys
         + MusicShareStore.defaultsKeys + LiveShare.defaultsKeys
 
@@ -218,6 +248,7 @@ enum AccountData {
 
     static func wipeSocial(context: ModelContext, defaults: UserDefaults = .standard) throws {
         try context.delete(model: CheckInComment.self)
+        try context.delete(model: CheckInReview.self)
         try context.delete(model: LeagueMessage.self)
         try context.delete(model: LeagueCheckIn.self)
         try context.delete(model: League.self)
@@ -328,6 +359,7 @@ struct LoginView: View {
     @State private var error: String?
     @State private var showTerms = false
     @State private var showPrivacy = false
+    @State private var notice: String?
 
     var body: some View {
         ScrollView {
@@ -354,6 +386,13 @@ struct LoginView: View {
                 if let error {
                     Text(error).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.danger).multilineTextAlignment(.center)
                 }
+                if let notice {
+                    Text(notice).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accent).multilineTextAlignment(.center)
+                }
+                if !creating, Backend.mode == .firebase {
+                    Button("Esqueci minha senha", action: forgot)
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accent).disabled(busy)
+                }
                 GMButton(creating ? "Criar conta" : "Entrar", icon: busy ? nil : "arrow.right", enabled: !busy && !email.isEmpty && !password.isEmpty) {
                     run { creating ? try await store.signUp(name: name, email: email, password: password)
                                    : try await store.signIn(email: email, password: password) }
@@ -364,7 +403,7 @@ struct LoginView: View {
                     Rectangle().fill(Theme.stroke).frame(height: 1)
                 }
 
-                if Backend.mode == .cloudKit {
+                if Backend.mode == .cloudKit || (Backend.mode == .firebase && Backend.appleCapabilities) {
                     appleButton
                 }
 
@@ -425,8 +464,27 @@ struct LoginView: View {
         .accessibilityAddTraits(.isButton)
     }
 
+    /// Link para criar uma senha nova, no e-mail digitado
+    private func forgot() {
+        error = nil
+        notice = nil
+        guard !email.trimmingCharacters(in: .whitespaces).isEmpty else { return error = "Digite seu e-mail acima e toque de novo." }
+        busy = true
+        Task {
+            do {
+                try await store.resetPassword(email: email)
+                // Por segurança o Firebase não diz se o e-mail tem conta: a mensagem é a mesma
+                notice = "Se \(AuthStore.clean(email)) tiver conta, chega um link para criar uma senha nova. Veja também o spam."
+            } catch {
+                self.error = error.localizedDescription
+            }
+            busy = false
+        }
+    }
+
     private func run(_ action: @escaping () async throws -> Void) {
         error = nil
+        notice = nil
         busy = true
         Task {
             do {

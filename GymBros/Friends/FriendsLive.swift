@@ -27,12 +27,18 @@ struct LiveFriend: Identifiable {
     var lastSeen: String = ""
     /// O que está ouvindo (só quem liga "Mostrar o que estou ouvindo")
     var music: NowPlayingTrack?
+    /// Amigo de verdade (modo `.firebase`): posição e percurso reais, sem números inventados
+    var real = false
+    var location: CLLocationCoordinate2D?
+    var route: [CLLocationCoordinate2D] = []
+    var sets: Int?
+    var endedAt: Date?
 
     var isLive: Bool { start != nil }
 
     func elapsed(at date: Date) -> Int { start.map { max(0, Int(date.timeIntervalSince($0))) } ?? 0 }
 
-    var moves: Bool { !path.isEmpty }
+    var moves: Bool { real ? route.count > 1 : !path.isEmpty }
 
     /// Metros percorridos (corrida)
     func meters(at date: Date) -> Double { speed * Double(elapsed(at: date)) }
@@ -49,6 +55,7 @@ struct LiveFriend: Identifiable {
     }
 
     func coordinate(base: CLLocationCoordinate2D, at date: Date) -> CLLocationCoordinate2D {
+        if real { return location ?? route.last ?? base }
         let p = moves ? point(meters(at: date)) : (0, 0)
         return base.moved(east: offset.east + p.0, north: offset.north + p.1)
     }
@@ -56,6 +63,7 @@ struct LiveFriend: Identifiable {
     /// Rastro dos últimos ~800 m, como o traço que fica atrás de quem corre
     func trail(base: CLLocationCoordinate2D, at date: Date) -> [CLLocationCoordinate2D] {
         guard moves else { return [] }
+        if real { return route }
         let total = meters(at: date)
         return stride(from: max(0, total - 800), through: total, by: 10).map { d in
             let p = point(d)
@@ -72,7 +80,9 @@ struct LiveFriend: Identifiable {
             let m = meters(at: date)
             return [(clock(s), "tempo"), (kmText(m), "distância"), (paceText(kind: kind, meters: m, seconds: s), "ritmo")]
         case .musculacao:
-            return [(clock(s), "tempo"), ("\(8 + s / 300)", "séries"), ("\(kcal)", "kcal")]
+            return [(clock(s), "tempo"), (real ? "\(sets ?? 0)" : "\(8 + s / 300)", "séries"), ("\(kcal)", "kcal")]
+        case _ where real:
+            return [(clock(s), "tempo"), ("\(kcal)", "kcal")]
         case .natacao:
             return [(clock(s), "tempo"), ("\(s / 60 * 50 / 2) m", "nadados"), ("\(kcal)", "kcal")]
         default:
@@ -122,7 +132,14 @@ enum FriendsLive {
                    kind: .yoga, start: nil, place: "Studio", offset: (300, 90), lastSeen: "Yoga há 3 h"),
     ]
 
-    @MainActor static var all: [LiveFriend] { simulated.filter { FriendsStore.shared.friendIDs.contains($0.id) } }
+    @MainActor static var all: [LiveFriend] {
+        Backend.mode == .firebase ? LiveFriendsStore.shared.friends : simulated.filter { FriendsStore.shared.friendIDs.contains($0.id) }
+    }
+
+    /// O amigo, se estiver no mapa (de verdade ou simulado)
+    @MainActor static func find(_ id: String) -> LiveFriend? {
+        Backend.mode == .firebase ? LiveFriendsStore.shared.friends.first { $0.id == id } : simulated.first { $0.id == id }
+    }
 
     @MainActor static var liveCount: Int { all.filter(\.isLive).count }
 }

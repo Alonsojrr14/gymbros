@@ -50,6 +50,8 @@ protocol FriendsBackend: Sendable {
     func profile(_ id: String) async throws -> PublicProfile
     /// Publica o seu perfil público (o que você deixou aparecer) com o seu código de amigo
     func publish(_ profile: PublicProfile, friendCode: String) async throws
+    /// Amigos que não veem seus treinos (o perfil deles mostra você sem posts nem números)
+    func setHidden(from ids: [String]) async throws
 }
 
 // MARK: - Cache
@@ -83,7 +85,11 @@ final class FriendsStore {
     var friendIDs: Set<String> { Set(friends.map(\.id)) }
 
     /// Publica o seu perfil se mudou desde o último envio
+    /// Bro do seu perfil público (o mesmo que aparece no mapa ao vivo)
+    static let broFormKey = "publicBroFormID"
+
     func publish(_ profile: PublicProfile) async {
+        if let form = profile.bro?.formID { UserDefaults.standard.set(form, forKey: Self.broFormKey) }
         // Hash estável entre aberturas do app (o hashValue do Swift muda a cada execução)
         let fingerprint = (try? JSONEncoder().encode(profile)).map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() } ?? ""
         // Por backend: trocar de mock para CloudKit publica de novo
@@ -102,6 +108,7 @@ final class FriendsStore {
 
     func refresh() async {
         if let s = try? await backend.fetch() { state = s }
+        LiveFriendsStore.shared.follow(state.friends.map(\.id))
     }
 
     /// Esquece o que veio do servidor (conta excluída)
@@ -298,6 +305,7 @@ struct FriendsView: View {
     @State private var message: String?
     @State private var opened: RemoteFriend?
     @State private var duelsOpen = false
+    @State private var qr = false
     @Query(sort: \League.joinedAt) private var leagues: [League]
 
     var body: some View {
@@ -353,6 +361,7 @@ struct FriendsView: View {
         .task(id: AuthStore.shared.isSignedIn) { if AuthStore.shared.isSignedIn { await store.refresh() } }
         .gmModal(item: $opened) { FriendProfileView(friend: $0) }
         .gmModal(isPresented: $duelsOpen) { DuelsView() }
+        .gmModal(isPresented: $qr) { FriendQRView(myCode: store.myCode) { add($0) } }
     }
 
     @ViewBuilder
@@ -383,7 +392,8 @@ struct FriendsView: View {
                     Text(store.myCode).gmFont(26, weight: .heavy, design: .monospaced, relativeTo: .title).lineLimit(1).minimumScaleFactor(0.5)
                 }
                 Spacer()
-                ShareLink(item: "Me adiciona no GymBros! Meu código de amigo: \(store.myCode)") {
+                GMIconButton(icon: "qrcode", label: "QR do código") { qr = true }
+                ShareLink(item: "Me adiciona no GymBros! Meu código de amigo: \(store.myCode) (\(FriendQR.link(store.myCode)))") {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 17, weight: .semibold))
                         .frame(width: 40, height: 40)
@@ -415,11 +425,11 @@ struct FriendsView: View {
         .foregroundStyle(.white)
     }
 
-    private func isLive(_ f: RemoteFriend) -> Bool { FriendsLive.simulated.first { $0.id == f.id }?.isLive ?? false }
+    private func isLive(_ f: RemoteFriend) -> Bool { FriendsLive.find(f.id)?.isLive ?? false }
 
     /// Treinando agora (do mapa) ou a forma do bro
     private func status(_ f: RemoteFriend) -> String {
-        if let live = FriendsLive.simulated.first(where: { $0.id == f.id }) {
+        if let live = FriendsLive.find(f.id) {
             if live.isLive { return "\(live.kind.name) agora · \(live.place)" }
             if !live.lastSeen.isEmpty { return live.lastSeen }
         }

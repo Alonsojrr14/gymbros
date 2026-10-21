@@ -2,3 +2,7 @@ build/
 xcuserdata/
 *.xcuserstate
 .DS_Store
+graphify-out/
+
+# Configuração do projeto Firebase (cada um baixa a sua do console)
+GymBros/Resources/GoogleService-Info.plist

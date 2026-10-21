@@ -1,0 +1,186 @@
+rules_version = '2';
+
+// GymBros: só quem está logado lê; cada um só grava e apaga o que é seu (campo `user` = seu uid).
+// Mesmo modelo do banco público do CloudKit. Publicar: firebase deploy --only firestore (pasta firebase/).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    // Documento novo ou alterado em seu nome
+    function writesAsMe() { return signedIn() && request.resource.data.user == uid(); }
+    // Documento que já era seu
+    function wasMine() { return signedIn() && resource.data.user == uid(); }
+    function doc(c, id) { return /databases/$(database)/documents/$(c)/$(id); }
+    // Role ADMIN em roles/{uid} (o primeiro é criado à mão no console)
+    function isAdmin() {
+      return signedIn() && exists(doc('roles', uid())) && 'ADMIN' in get(doc('roles', uid())).data.roles;
+    }
+    // `other` adicionou você (amigo, ou pediu amizade) e não te bloqueou
+    function reachable(other) {
+      return exists(doc('friendLinks', other + '->' + uid())) && !exists(doc('blocks', other + '->' + uid()));
+    }
+    // Só estes campos mudaram
+    function only(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    match /profiles/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn() && id == uid();
+      // Admin tira do ar nome, bio e o resto do perfil denunciado
+      allow update: if isAdmin() && only(['name', 'username', 'bio', 'public']);
+    }
+
+    // "eu->você": só quem pede cria e apaga; só as duas pontas leem
+    match /friendLinks/{id} {
+      allow read: if signedIn() && (resource.data.from == uid() || resource.data.to == uid());
+      allow create, update: if signedIn() && request.resource.data.from == uid()
+                            && id == uid() + '->' + request.resource.data.to;
+      allow delete: if signedIn() && resource.data.from == uid();
+    }
+
+    // Liga: o dono (`owner`) edita as regras e pode passar a liga para outra pessoa
+    match /leagues/{code} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.owner == uid() && request.resource.data.code == code;
+      allow update: if signedIn() && resource.data.owner == uid();
+      allow delete: if false;
+    }
+
+    match /members/{id} {
+      allow read: if signedIn();
+      allow create: if writesAsMe() && id == request.resource.data.league + '-' + uid();
+      allow update: if wasMine() && writesAsMe();
+      allow delete: if wasMine();
+    }
+
+    match /checkIns/{id} {
+      allow read: if signedIn();
+      allow create: if writesAsMe();
+      allow update: if wasMine() && writesAsMe();
+      allow delete: if wasMine() || isAdmin();
+    }
+
+    match /messages/{id} {
+      allow read: if signedIn();
+      allow create: if writesAsMe() && request.resource.data.text.size() <= 1000;
+      allow update: if wasMine() && writesAsMe();
+      allow delete: if wasMine() || isAdmin();
+    }
+
+    match /joinRequests/{id} {
+      allow read: if signedIn();
+      allow create, update: if writesAsMe() && id == request.resource.data.league + '-pedido-' + uid();
+      allow delete: if wasMine();
+    }
+
+    // Mensagem direta: só as duas pontas leem; manda quem é você, para alguém que adicionou você (amigo ou
+    // quem já tinha te adicionado). Não se edita nem se apaga ("limpar conversa" é só do seu lado).
+    match /directMessages/{id} {
+      allow read: if signedIn() && uid() in resource.data.participants;
+      allow create: if signedIn()
+                    && request.resource.data.from == uid()
+                    && request.resource.data.to != uid()
+                    && request.resource.data.participants == [uid(), request.resource.data.to]
+                    && request.resource.data.text is string && request.resource.data.text.size() <= 2000
+                    && reachable(request.resource.data.to);
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // X1: quem desafia cria (só amigo que não te bloqueou); o desafiado responde uma vez; cada lado só escreve o próprio valor.
+    // Datas do servidor: ninguém adianta nem atrasa o relógio do X1.
+    match /duels/{id} {
+      allow read: if signedIn() && uid() in resource.data.participants;
+      allow create: if signedIn()
+                    && request.resource.data.challenger == uid()
+                    && request.resource.data.challenged != uid()
+                    && request.resource.data.participants == [uid(), request.resource.data.challenged]
+                    && request.resource.data.createdAt == request.time
+                    && !('answer' in request.resource.data)
+                    && reachable(request.resource.data.challenged);
+      allow update: if signedIn() && (
+                      (uid() == resource.data.challenged && !('answer' in resource.data)
+                        && only(['answer', 'answeredAt', 'challengedFormID'])
+                        && request.resource.data.answer in ['accepted', 'declined']
+                        && request.resource.data.answeredAt == request.time
+                        && request.time < resource.data.createdAt + duration.value(24, 'h'))
+                      || (uid() in resource.data.participants && only(['score_' + uid()])
+                        && request.resource.data['score_' + uid()] is int));
+      allow delete: if false;
+    }
+
+    // Trocas: quem propõe cria; o outro aceita ou recusa em até 48 h; quem propôs pode cancelar antes da resposta
+    match /trades/{id} {
+      allow read: if signedIn() && uid() in resource.data.participants;
+      allow create: if signedIn()
+                    && request.resource.data.from == uid()
+                    && request.resource.data.to != uid()
+                    && request.resource.data.participants == [uid(), request.resource.data.to]
+                    && request.resource.data.createdAt == request.time
+                    && !('answer' in request.resource.data)
+                    && reachable(request.resource.data.to);
+      allow update: if signedIn() && !('answer' in resource.data)
+                    && only(['answer', 'answeredAt']) && request.resource.data.answeredAt == request.time
+                    && ((uid() == resource.data.to && request.resource.data.answer in ['accepted', 'declined']
+                          && request.time < resource.data.createdAt + duration.value(48, 'h'))
+                        || (uid() == resource.data.from && request.resource.data.answer == 'canceled'));
+      allow delete: if false;
+    }
+
+    // Bros que cada um pode trocar: lê quem a pessoa adicionou
+    match /tradeBros/{id} {
+      allow get: if signedIn() && (id == uid() || exists(doc('friendLinks', id + '->' + uid())));
+      allow write: if signedIn() && id == uid() && request.resource.data.user == uid();
+      allow delete: if signedIn() && id == uid();
+    }
+
+    // Denúncias: você cria e troca o motivo das suas; só admin lê e resolve
+    match /reports/{id} {
+      allow create, update: if writesAsMe() && id.matches(uid() + '-.*') && request.resource.data.date == request.time;
+      allow read: if isAdmin();
+      allow delete: if wasMine() || isAdmin();
+    }
+
+    // Bloqueios: cada um vê e mexe só nos seus; as regras de mensagem, X1 e troca leem o do outro lado
+    match /blocks/{id} {
+      allow read: if wasMine();
+      allow create, update: if writesAsMe() && id == uid() + '->' + request.resource.data.blocked;
+      allow delete: if wasMine();
+    }
+
+    // Roles: você lê as suas; só admin dá roles, e nunca para si mesmo
+    match /roles/{id} {
+      allow get: if signedIn() && (id == uid() || isAdmin());
+      allow write: if isAdmin() && id != uid();
+    }
+
+    // Rotinas públicas: o autor edita e apaga; os outros só curtem e contam cópias, de 1 em 1
+    match /routines/{id} {
+      allow read: if signedIn();
+      allow create: if writesAsMe() && request.resource.data.likes == 0 && request.resource.data.saves == 0
+                    && request.resource.data.createdAt == request.time;
+      allow update: if signedIn() && (
+                      (wasMine() && writesAsMe() && request.resource.data.likes == resource.data.likes
+                        && request.resource.data.saves == resource.data.saves && request.resource.data.createdAt == resource.data.createdAt)
+                      || (only(['likes']) && (request.resource.data.likes == resource.data.likes + 1
+                                             || request.resource.data.likes == resource.data.likes - 1))
+                      || (only(['saves']) && request.resource.data.saves == resource.data.saves + 1));
+      allow delete: if wasMine() || isAdmin();
+    }
+
+    // Cópia da conta: só o dono
+    match /accounts/{id} {
+      allow read, write: if signedIn() && id == uid();
+      match /chunks/{n} {
+        allow read, write: if signedIn() && id == uid();
+      }
+    }
+
+    // Treino ao vivo: um documento por pessoa; lê quem ela adicionou como amigo
+    match /live/{id} {
+      allow get: if signedIn() && (id == uid()
+                  || exists(/databases/$(database)/documents/friendLinks/$(id + '->' + uid())));
+      allow list: if false;
+      allow write: if signedIn() && id == uid() && request.resource.data.user == uid();
+    }
+  }
+}

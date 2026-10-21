@@ -102,7 +102,7 @@ struct TrustedServerRequired: AdminBackend {
 @MainActor
 struct AdminActions {
     var access: AccessStore = .shared
-    var backend: any AdminBackend = TrustedServerRequired()
+    var backend: any AdminBackend = Backend.mode == .firebase ? FirebaseAdminBackend() : TrustedServerRequired()
 
     func reports() async throws -> [PendingReport] {
         try access.authorize(.moderationReview)

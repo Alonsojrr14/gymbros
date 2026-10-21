@@ -78,9 +78,9 @@ Privacy policy and Terms are linked on the login screen and in Settings > Privac
 - [ ] `Backend.mode = .cloudKit` em `GymBros/Services/Backend.swift` (e implementar o `ServerAccountDataBackend`/`ServerInboxBackend` ou o servidor próprio; ver [servidor-real.md](servidor-real.md)). Com isso o botão de demonstração some (`DemoAccount.isAvailable`).
 - [ ] Conta de demonstração **real** no servidor (e-mail e senha que funcionem de verdade, com dados de exemplo e pelo menos uma liga com outras pessoas) e notas acima atualizadas. Sign in with Apple não serve como conta demo.
 - [ ] Capabilities no alvo GymBros (conta paga): **iCloud → CloudKit** com `Backend.containerID` e **Sign in with Apple** ([cloudkit.md](cloudkit.md) > "Ligar o CloudKit").
-- [ ] `PrivacyInfo.xcprivacy` do app: preencher `NSPrivacyCollectedDataTypes` com o bloco abaixo. O do widget continua vazio (não coleta nada).
+- [x] `PrivacyInfo.xcprivacy` do app: `NSPrivacyCollectedDataTypes` preenchido em 21/10/2026 para o modo Firebase (nome, e-mail, id, fotos, mensagens, conteúdo, fitness, saúde, localização precisa; tudo vinculado, sem tracking, só funcionalidade). O do widget continua vazio (não coleta nada).
 - [ ] App Privacy no App Store Connect igual ao manifesto (Data Linked to You, sem tracking).
-- [ ] Política de privacidade (`App/PrivacyPolicyView.swift`, `docs/privacidade.md`, `PrivacyPolicy.updated`) e termos (`App/TermsView.swift`, `docs/termos.md`, `Terms.version`) sem "modo de demonstração / nada sai do aparelho".
+- [x] Política de privacidade (`App/PrivacyPolicyView.swift`, `docs/privacidade.md`, `PrivacyPolicy.updated`) reescrita para o Firebase em 21/10/2026. Termos (`App/TermsView.swift`, `docs/termos.md`, `Terms.version`) sem "modo de demonstração / nada sai do aparelho".
 - [ ] Fila de moderação com resposta em até 24 h: quem lê `Report` no Dashboard (ou servidor com chave em cofre), remove o conteúdo para todos e expulsa o autor ([cloudkit.md](cloudkit.md) > "Checklist do que falta no servidor (moderação)").
 - [ ] Revogação do token do Sign in with Apple ao excluir a conta (servidor com a chave .p8 em cofre).
 - [ ] Remover das notas a frase "nothing leaves the iPhone" e trocar a frase de denúncia por "reports are reviewed within 24 hours" só quando a fila existir.

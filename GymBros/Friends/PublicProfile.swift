@@ -169,8 +169,10 @@ struct FriendProfileView: View {
     @State private var dueling = false
     @State private var cheered = false
     @State private var terms = TermsGate()
+    /// Lido para a tela atualizar quando você esconde os treinos ou silencia
+    @AppStorage(FriendPrefs.key) private var friendPrefsRaw = ""
 
-    private var live: LiveFriend? { FriendsLive.simulated.first { $0.id == friend.id && $0.isLive } }
+    private var live: LiveFriend? { FriendsLive.find(friend.id).flatMap { $0.isLive ? $0 : nil } }
 
     var body: some View {
         let profile = store.profiles[friend.id]
@@ -179,6 +181,12 @@ struct FriendProfileView: View {
             VStack(spacing: 18) {
                 header(profile)
                 if store.friendIDs.contains(friend.id) { friendActions }
+                let prefs = friendPrefsRaw.isEmpty ? FriendPrefs() : FriendPrefs.of(friend.id)
+                if prefs.hideMine || prefs.muted {
+                    Text([prefs.hideMine ? "Seus treinos estão escondidos de \(friend.name) (nas ligas em comum continuam aparecendo)." : nil,
+                          prefs.muted ? "Notificações de \(friend.name) silenciadas." : nil].compactMap { $0 }.joined(separator: " "))
+                        .font(.caption).foregroundStyle(Theme.dim).multilineTextAlignment(.center)
+                }
                 GMButton("Desafiar para um X1", icon: "bolt.shield.fill", kind: .secondary) { dueling = true }
                 if mod.isHidden(.profile, friend.id) {
                     GMEmptyState(icon: "flag", title: "Perfil denunciado",
@@ -232,6 +240,14 @@ struct FriendProfileView: View {
     private var menuActions: [GMAction] {
         var list: [GMAction] = []
         if store.friendIDs.contains(friend.id) {
+            let prefs = FriendPrefs.of(friend.id)
+            let id = friend.id
+            list.append(prefs.hideMine
+                ? GMAction("Mostrar meus treinos para \(friend.name)", icon: "eye") { Task { await store.setHideMine(id, false) } }
+                : GMAction("Esconder meus treinos de \(friend.name)", icon: "eye.slash") { Task { await store.setHideMine(id, true) } })
+            list.append(prefs.muted
+                ? GMAction("Reativar notificações de \(friend.name)", icon: "bell") { FriendPrefs.set(id) { $0.muted = false } }
+                : GMAction("Silenciar \(friend.name)", icon: "bell.slash") { FriendPrefs.set(id) { $0.muted = true } })
             list.append(GMAction("Desfazer amizade", icon: "person.badge.minus", destructive: true) { confirmRemove = true })
         }
         let target = ModerationTarget(userID: friend.id, userName: friend.name, content: mod.isHidden(.profile, friend.id) ? nil : .profile,

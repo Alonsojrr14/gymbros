@@ -162,6 +162,14 @@ final class DuelStore {
         return fighters().first { $0.uuid == id }
     }
 
+    /// Bro que luta por você neste X1 (o escolhido, com a forma de agora), não o principal.
+    /// X1 de antes da escolha: o que veio do servidor; sem nada, o principal
+    func myForm(in duel: RemoteDuel) -> MonsterForm {
+        if let m = representative(duel.id) { return MonsterForm.byID(m.lastFormID) ?? .egg }
+        let mine = duel.side(of: "me").formID
+        return mine.isEmpty ? me().form : (MonsterForm.byID(mine) ?? me().form)
+    }
+
     func refusal(_ opponentID: String, now: Date = .now) -> DuelRefusal? {
         if let r = fighterRefusal(nil, now: now) { return r }
         return personRefusal(opponentID, now: now)
@@ -235,7 +243,7 @@ final class DuelStore {
 
     /// Seu id no servidor vira "me", como no resto do app
     private func local(_ d: RemoteDuel) -> RemoteDuel {
-        guard let me = Cloud.knownID else { return withFighter(d) }
+        guard let me = Backend.myID else { return withFighter(d) }
         func swap(_ p: DuelPerson) -> DuelPerson { p.id == me ? DuelPerson(id: "me", name: p.name, formID: p.formID) : p }
         var out = RemoteDuel(id: d.id, challenger: swap(d.challenger), challenged: swap(d.challenged), metric: d.metric, createdAt: d.createdAt,
                              answer: d.answer, answeredAt: d.answeredAt)

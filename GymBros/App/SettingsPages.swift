@@ -179,6 +179,7 @@ struct MusicSettingsPage: View {
 
 struct HealthSettingsPage: View {
     @Environment(\.modelContext) private var context
+    @AppStorage(HealthAutoPost.key) private var autoPost = false
     @State private var healthOn = HealthSync.enabled
     @State private var healthWrite = HealthSync.writeEnabled
     @State private var status: String?
@@ -192,6 +193,11 @@ struct HealthSettingsPage: View {
                 if healthOn {
                     GMButton(syncing ? "Sincronizando…" : "Sincronizar agora", icon: "arrow.triangle.2.circlepath",
                              kind: .secondary, small: true, enabled: !syncing) { Task { await syncNow() } }
+                }
+            }
+            if healthOn {
+                GMSection(footer: "Os treinos novos do Saúde viram check-in no seu perfil e nas ligas em andamento que aceitam o treino. Vários do mesmo dia entram num check-in só. Do Saúde, o post leva só tipo, data e duração.") {
+                    GMToggle(title: "Postar automaticamente", subtitle: "Perfil e ligas", isOn: $autoPost)
                 }
             }
             GMSection("Gravar", footer: "O que você registra aqui (musculação, WOD, corrida…) vai para o Saúde com calorias estimadas e conta nos anéis do Fitness.") {
@@ -241,6 +247,7 @@ struct HealthSettingsPage: View {
         defer { syncing = false }
         do {
             let r = try await HealthSync.sync(context: context)
+            HealthAutoPost.post(r.imported, context: context)
             var parts = [r.imported.isEmpty ? "Nenhum treino novo" : "\(r.imported.count) treino(s) importado(s)"]
             if r.skippedOverlap > 0 { parts.append("\(r.skippedOverlap) já registrado(s) aqui") }
             status = parts.joined(separator: ", ") + ". Se esperava algo, confira em Ajustes do iPhone → Saúde → Acesso a Dados → GymBros."
@@ -324,6 +331,7 @@ struct AccountSettingsPage: View {
     @State private var confirmDelete = false
     @State private var deleting = false
     @State private var message: String?
+    @State private var verifySent = false
 
     var body: some View {
         GMScreen("Conta", back: true, bottomInset: 40) {
@@ -336,6 +344,21 @@ struct AccountSettingsPage: View {
                     GMDivider()
                     GMValueRow(label: "Função", value: rolesText)
                 }
+                if auth.emailVerified == false {
+                    GMSection(footer: "Confirmar o e-mail garante que dá para recuperar a conta se você esquecer a senha.") {
+                        GMRow(icon: "envelope.badge", iconTint: Theme.warning, tile: Theme.warning, title: "Confirme seu e-mail",
+                              subtitle: verifySent ? "Link enviado para \(user.email)" : "Toque para mandar o link de novo") {
+                            Task {
+                                do {
+                                    try await auth.sendVerification()
+                                    verifySent = true
+                                } catch {
+                                    message = error.localizedDescription
+                                }
+                            }
+                        }
+                    }
+                }
                 GMSection("Zona de perigo") {
                     GMRow(icon: "person.crop.circle.badge.xmark", iconTint: Theme.danger, tile: Theme.danger, title: deleting ? "Excluindo…" : "Excluir conta",
                           subtitle: "Apaga a conta e todos os dados") {
@@ -344,6 +367,7 @@ struct AccountSettingsPage: View {
                 }
             }
         }
+        .task { await auth.checkVerification() }
         .gmActions(isPresented: $confirmDelete, title: "Excluir sua conta?", message: SettingsView.deleteAccountText,
                    actions: [GMAction("Excluir conta", icon: "trash", destructive: true) { Task { await deleteAccount() } }])
     }
@@ -437,7 +461,7 @@ struct DiagnosticsSettingsPage: View {
         GMScreen("Diagnóstico", back: true, bottomInset: 40) {
             if access.can(.diagnosticsRead) {
                 GMSection(footer: "Visível só para a role DEVELOPER.") {
-                    GMValueRow(label: "Backend", value: Backend.mode == .mock ? "Simulado" : "CloudKit")
+                    GMValueRow(label: "Backend", value: Backend.mode.label)
                     GMDivider()
                     GMValueRow(label: "Origem das roles", value: roleSourceText)
                     GMDivider()

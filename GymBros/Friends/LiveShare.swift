@@ -22,6 +22,7 @@ enum LiveShare {
     }
 
     static func set(_ on: Bool, for workoutID: String, defaults: UserDefaults = .standard) {
+        if !on { Task { @MainActor in LivePresence.shared.end(workoutID) } }
         var o = overrides(defaults)
         o[workoutID] = on
         defaults.set(o, forKey: overridesKey)
@@ -29,6 +30,7 @@ enum LiveShare {
 
     /// Treino encerrado ou descartado: a escolha dele não vale mais
     static func end(_ workoutID: String, defaults: UserDefaults = .standard) {
+        Task { @MainActor in LivePresence.shared.end(workoutID) }
         var o = overrides(defaults)
         guard o.removeValue(forKey: workoutID) != nil else { return }
         defaults.set(o, forKey: overridesKey)
