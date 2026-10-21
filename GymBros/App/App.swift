@@ -3,6 +3,11 @@ import SwiftData
 import SwiftUI
 import WidgetKit
 
+/// O app está aberto como hospedeiro dos testes (XCTest)
+enum AppRuntime {
+    static let isTesting = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+}
+
 @main
 struct GymBrosApp: App {
     init() {
@@ -10,6 +15,11 @@ struct GymBrosApp: App {
         URLCache.shared = URLCache(memoryCapacity: 40 * 1024 * 1024, diskCapacity: 300 * 1024 * 1024)
         WorkoutIntentBridge.completeSet = { await LiveWorkout.completeNextSet() }
         WorkoutIntentBridge.skipRest = { await LiveWorkout.skipRest() }
+        // Rodando os testes no iPhone, o app é só o hospedeiro: não abre telas nem fala com relógio e localização,
+        // para os testes (que zeram chaves como as das trocas) não mexerem nos seus bros de verdade
+        guard !AppRuntime.isTesting else { Backend.install(); return }
+        WatchBridge.shared.activate()
+        MirroredWorkout.shared.install()
         _ = WodRun.shared
         GymBrosShortcuts.updateAppShortcutParameters()
         NotificationRouter.shared.install()
@@ -24,7 +34,18 @@ struct GymBrosApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            Group {
+                if AppRuntime.isTesting {
+                    // Hospedeiro dos testes: nada de RootView (ela grava a forma de cada bro e sincroniza)
+                    Color.black
+                } else {
+                    #if DEBUG
+                    if UserDefaults.standard.bool(forKey: "demoTradeScene") { TradeSceneDemo() } else { RootView() }
+                    #else
+                    RootView()
+                    #endif
+                }
+            }
                 .onAppear { GMKeyboardDismisser.shared.install() }
                 .preferredColorScheme(.dark)
                 .tint(Theme.accent)
@@ -113,6 +134,10 @@ struct MainView: View {
     /// O BroBook abre pela tela do bro (saiu da barra para o bro ficar no centro)
     @State private var dex = false
     @State private var tour = OnboardingCoordinator.shared
+    @State private var watchWorkout = MirroredWorkout.shared
+    @State private var trades = TradeStore.shared
+    @State private var asking = false
+    @State private var whatsNew = false
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var phase
 
@@ -168,6 +193,9 @@ struct MainView: View {
                 await LeagueRemoteStore.shared.flush(context: context)
                 await ModerationStore.shared.refresh()
                 await InboxStore.shared.refresh(context: context)
+                BrosWidgetFeed.update(context: context)
+                // Troca aceita enquanto o app estava fechado: vira notificação (receber é na tela de trocas)
+                await TradeStore.shared.refresh()
                 if Terms.isAccepted() {
                     await FriendsStore.shared.publish(PublicProfile.mine(roster: roster, activities: activities, checkIns: checkIns,
                                                                          leagues: leagues, unlocked: achievements.filter(\.unlocked)))
@@ -179,8 +207,14 @@ struct MainView: View {
             // Ligas com renovação automática que acabaram ganham a próxima temporada
             LeagueRenewal.run(context: context)
             let running = (try? context.fetchCount(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end == nil }))) ?? 0
-            if running == 0 { await LiveWorkout.endAll() }
+            if running == 0 { await LiveWorkout.endAll() } else if let s = LiveWorkout.runningSession { await LiveWorkout.refresh(s) }
             // Chegou na academia há pouco e ainda não começou: oferece começar
+            // Treino começado pelo relógio com o iPhone em segundo plano: abre a tela dele
+            if WatchBridge.shared.consumeOpenRequest() {
+                tab = 1
+                try? await Task.sleep(for: .milliseconds(300))
+                NotificationCenter.default.post(name: NotificationRouter.startWorkout, object: nil)
+            }
             if running == 0, let arrived = GymLocation.shared.pendingArrival, Date.now.timeIntervalSince(arrived) < 3600 {
                 arrivalPrompt = true
             }
@@ -205,6 +239,28 @@ struct MainView: View {
         }
         .overlay { OnboardingOverlay() }
         .animation(.easeInOut(duration: 0.25), value: tour.isActive)
+        // Depois do tutorial: o que quer fazer aqui (uma vez) ou o que há de novo nesta versão
+        .task(id: tour.isActive) {
+            guard !tour.isActive, [.completed, .dismissed].contains(tour.persistence.state) else { return }
+            try? await Task.sleep(for: .seconds(1.2))
+            if !StartIntentRouter.asked {
+                UserDefaults.standard.set(true, forKey: StartIntentRouter.askedKey)
+                // Quem já usava o app não precisa da pergunta: vê as novidades
+                if activities.isEmpty && leagues.isEmpty { WhatsNew.markSeen(); asking = true; return }
+            }
+            if WhatsNew.shouldShow { WhatsNew.markSeen(); whatsNew = true }
+        }
+        .gmSheet(isPresented: $asking) { close in
+            StartIntentSheet { intent in
+                close()
+                guard intent != .solo else { return }
+                tab = MainTab.leagues.rawValue
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NotificationCenter.default.post(name: intent == .create ? StartIntentRouter.createLeague : StartIntentRouter.joinLeague, object: nil)
+                }
+            }
+        }
+        .gmSheet(isPresented: $whatsNew) { close in WhatsNewView { close() } }
         .onChange(of: AuthStore.shared.user?.id, initial: true) { _, id in tour.setAccount(id) }
         .onDisappear { tour.suspend() }
         .onChange(of: tour.current?.id) {
@@ -233,12 +289,26 @@ struct MainView: View {
         .onChange(of: inbox.route) { _, r in if r != nil { tab = 0 } }
         // Widget "Treino do dia": gymbros://start abre o treino em andamento ou começa a rotina de hoje
         .onOpenURL { url in
+            // QR ou link de amigo: gymbros://amigo/CODIGO adiciona a pessoa
+            if url.scheme == "gymbros", url.host == "amigo", let code = FriendQR.code(in: url.absoluteString) {
+                Task { _ = try? await FriendsStore.shared.add(code: code) }
+                return
+            }
             guard url.scheme == "gymbros", url.host == "start" else { return }
             tab = 1
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 NotificationCenter.default.post(name: NotificationRouter.startWorkout, object: nil)
             }
         }
+        .fullScreenCover(isPresented: Binding(get: { watchWorkout.active && !watchWorkout.minimized },
+                                              set: { if !$0 { watchWorkout.minimized = true } })) {
+            WatchWorkoutView()
+                .preferredColorScheme(.dark)
+                .tint(Theme.accent)
+        }
+        .overlay(alignment: .bottom) { WatchWorkoutPill().padding(.bottom, 92) }
+        // Toque na notificação de troca
+        .gmModal(isPresented: Binding(get: { trades.openHub }, set: { trades.openHub = $0 })) { TradeHubView() }
         .gmActions(isPresented: $recovered, title: "Não deu para abrir seus dados",
                    message: "O app começou do zero para não travar. O arquivo antigo foi guardado (\(AppData.recoveredCopy?.lastPathComponent ?? "")) e dá para voltar com um backup em Ajustes → Backup.",
                    actions: [GMAction("Entendi", icon: "checkmark") {}])
@@ -333,6 +403,13 @@ struct MainView: View {
                    updated: .now, lastEvolution: s.evolutions.last?.date, lastEvolutionName: s.evolutions.last?.form.name,
                    lastEvolutionHatch: s.evolutions.last?.form.stage == .baby).save()
         WidgetBridge.reload()
+        WatchBridge.shared.update(bro: WatchBro(name: companion.name, formName: s.form.name, stageName: s.stage.name,
+                                                moodEmoji: companion.mood.emoji, isEgg: s.stage == .egg, level: s.level,
+                                                totalXP: s.totalXP, progress: s.progress, xpToNext: s.xpToNext, streak: s.streak,
+                                                lastActivity: s.lastActivity, todayXP: s.todayXP,
+                                                attributes: Dictionary(uniqueKeysWithValues: s.lifetimeAttributes.map { ($0.key.rawValue, $0.value) }),
+                                                updated: .now),
+                                  sprite: s.form.spriteWithFallback, hue: s.form.hue)
         Reminders.schedule(enabled: remindersOn && !notificationsPaused, minuteOfDay: reminderMinute, onlyRoutineDays: reminderRoutineOnly,
                            routines: routinesByWeekday, name: companion.name, streak: s.streak,
                            trainedToday: companion.trainedToday, isEgg: s.stage == .egg)
@@ -367,6 +444,7 @@ struct MainView: View {
                            checkIns: (try? context.fetch(FetchDescriptor<LeagueCheckIn>())) ?? checkIns,
                            leagues: (try? context.fetch(FetchDescriptor<League>())) ?? leagues).xpByActivity
         let xp = r.imported.reduce(0) { $0 + (fresh[$1.uuid] ?? 0) }
+        HealthAutoPost.post(r.imported, context: context)
         let n = r.imported.count
         show(Banner(symbol: "heart.fill", text: "\(n) treino\(n == 1 ? "" : "s") do Saúde · +\(xp) XP"))
     }

@@ -45,6 +45,7 @@ struct ProfileView: View {
     @State private var logging = false
     @State private var editing = false
     @State private var day: Date?
+    @State private var retro = false
 
     private var roster: Roster { Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues) }
     private var activeDays: Int { Set(activities.map { Calendar.current.startOfDay(for: $0.date) }).count }
@@ -69,6 +70,7 @@ struct ProfileView: View {
             }
             .gmModal(isPresented: $settings) { SettingsView() }
             .gmModal(isPresented: $editing) { EditProfileView() }
+            .gmModal(isPresented: $retro) { RetrospectiveView() }
             .gmModal(isPresented: $logging) { LogActivityView(snapshot: roster.mainSnapshot) }
             .gmSheet(isPresented: Binding(get: { day != nil }, set: { if !$0 { day = nil } })) { _ in dayDetail }
             .onChange(of: pick) { _, item in
@@ -131,7 +133,17 @@ struct ProfileView: View {
 
             calendar
 
+            NavigationLink { ConstancyView() } label: {
+                GMCard { GMRow(icon: "flame.fill", iconTint: Theme.streak, title: "Sequências e recordes", subtitle: "Dias, semanas e meses seguidos; melhor dia, semana, mês e ano", chevron: true) }
+            }
+            .buttonStyle(GMPress())
+            GMCard {
+                GMRow(icon: "film.stack", iconTint: Theme.accent, title: "Retrospectiva em vídeo", subtitle: "As fotos dos seus check-ins do ano, com os seus números", chevron: true) { retro = true }
+            }
+
             DuelHistorySection()
+
+            titles
 
             HStack(spacing: 10) {
                 NavigationLink { AllActivitiesView() } label: {
@@ -148,6 +160,28 @@ struct ProfileView: View {
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(GMPress())
+            }
+        }
+    }
+
+    /// Vitórias de semana, mês e ano nos clubes
+    @ViewBuilder
+    private var titles: some View {
+        let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+        let wins = ClubWinners.myWins(leagues: leagues, checkIns: checkIns, activities: byID, me: name, avatar: .egg)
+        if !wins.isEmpty {
+            GMSection("Títulos nos clubes", footer: "Cada semana, mês e ano que você terminou em primeiro num clube (empate divide o título).") {
+                HStack {
+                    ForEach(WinPeriod.allCases) { p in
+                        VStack(spacing: 2) {
+                            Text("🏆 \(wins[p] ?? 0)").font(.headline.monospacedDigit())
+                            Text(p.name).font(.caption).foregroundStyle(Theme.dim)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(p.wins(wins[p] ?? 0))
+                    }
+                }
             }
         }
     }
@@ -421,64 +455,3 @@ struct ProfileStatsView: View {
 
 // MARK: - Metas
 
-struct GoalsView: View {
-    @Query(sort: \Activity.date) private var activities: [Activity]
-    @Query(sort: \BodyEntry.date, order: .reverse) private var body_: [BodyEntry]
-    @AppStorage("goalWeekly") private var weekly = 4
-    @AppStorage("goalMinutes") private var minutesGoal = 180
-    @AppStorage("goalWeight") private var weightGoal = 0.0
-
-    var body: some View {
-        let week = Calendar.current.dateInterval(of: .weekOfYear, for: .now)!
-        let thisWeek = activities.filter { week.contains($0.date) }
-        let minutes = thisWeek.reduce(0) { $0 + $1.minutes }
-        let weight = body_.compactMap(\.weight).first
-
-        GMScreen("Metas", back: true) {
-            BodyProfileSection()
-            GMSection("Treinos na semana") {
-                ring(Double(thisWeek.count) / Double(weekly), "\(thisWeek.count)/\(weekly)", "treinos")
-                GMDivider()
-                GMLockedRow(title: "Meta", value: "\(weekly) por semana") {
-                    GMStepper(value: $weekly, range: 1...14, format: { "\($0)×" })
-                }
-            }
-            GMSection("Tempo na semana") {
-                ring(Double(minutes) / Double(minutesGoal), hoursText(minutes), "de \(hoursText(minutesGoal))")
-                GMDivider()
-                GMLockedRow(title: "Meta", value: "\(hoursText(minutesGoal)) por semana") {
-                    GMStepper(value: $minutesGoal, range: 30...1200, step: 30, format: hoursText)
-                }
-            }
-            GMSection("Peso", footer: "Use Peso e medidas para registrar ou importar do Apple Saúde.") {
-                GMLockedRow(title: "Peso alvo", value: weightGoal > 0 ? "\(Progression.fmt(weightGoal)) kg" : "") {
-                    GMDecimalField(title: "", value: Binding(get: { weightGoal > 0 ? weightGoal : nil }, set: { weightGoal = $0 ?? 0 }),
-                                   step: 0.5, start: weight ?? 70)
-                }
-                if let weight, weightGoal > 0 {
-                    let diff = ((weight - weightGoal) * 10).rounded() / 10
-                    Text(diff == 0 ? "Você chegou no peso alvo! 🎯" : "Atual \(Progression.fmt(weight)) kg · faltam \(Progression.fmt(abs(diff))) kg para \(diff > 0 ? "perder" : "ganhar")")
-                        .font(.subheadline.weight(.semibold))
-                }
-            }
-        }
-    }
-
-    private func ring(_ value: Double, _ big: String, _ small: String) -> some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle().stroke(Theme.raised, lineWidth: 10)
-                Circle().trim(from: 0, to: min(value, 1))
-                    .stroke(Theme.accent, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                if value >= 1 { Image(systemName: "checkmark").font(.title2.bold()).foregroundStyle(Theme.accent) }
-            }
-            .frame(width: 76, height: 76)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(big).font(.title2.weight(.heavy).monospacedDigit())
-                Text(small).font(.caption).foregroundStyle(Theme.dim)
-            }
-            Spacer()
-        }
-    }
-}

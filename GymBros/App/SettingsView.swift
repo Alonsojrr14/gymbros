@@ -65,6 +65,16 @@ struct SettingsView: View {
                     }
                 }
 
+                group("GymBros") {
+                    link(ProPage()) {
+                        GMNavRow(icon: "star.fill", tint: Theme.accent, title: "GymBros Pro", value: ProStore.shared.isPro ? "Ativo" : nil)
+                    }
+                    GMDivider()
+                    link(ComingSoonPage()) {
+                        GMNavRow(icon: "sparkles.rectangle.stack", tint: Attribute.tecnica.color, title: "Vem aí")
+                    }
+                }
+
                 group("Ajuda") {
                     link(HowItWorksPage()) {
                         GMNavRow(icon: "questionmark", tint: Attribute.agilidade.color, title: "Como funciona")

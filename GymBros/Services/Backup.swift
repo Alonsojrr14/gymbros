@@ -48,6 +48,12 @@ struct Backup: Codable, Sendable {
     var prs: [PRDTO]? = nil
     var comments: [CommentDTO]? = nil
     var messages: [MessageDTO]? = nil
+    /// Suas decisões como dono de liga com revisão
+    var reviews: [ReviewDTO]? = nil
+
+    struct ReviewDTO: Codable {
+        var uuid: UUID, leagueUUID: UUID, itemID: String, approved: Bool, date: Date
+    }
     /// Foto do perfil (já é pequena: 512 px)
     var profilePhoto: Data? = nil
     /// Ligas e check-ins trazem o estado no servidor (`syncedAt`, `joined`); backups antigos não
@@ -81,6 +87,8 @@ struct Backup: Codable, Sendable {
         var autoRenew: Bool? = nil, season: Int? = nil, seriesID: UUID? = nil, nextUUID: UUID? = nil
         var weights: String? = nil, tieBreak: String? = nil
         var photoRule: String? = nil, teams: String? = nil, myTeamID: String? = nil
+        var activityRule: String? = nil
+        var settings: String? = nil
         /// Capa reduzida, só na temporada atual de cada liga (as passadas usam a mesma ao restaurar)
         var cover: Data? = nil
         var syncedAt: Date? = nil, joined: Bool? = nil
@@ -89,6 +97,8 @@ struct Backup: Codable, Sendable {
 
     struct MessageDTO: Codable {
         var uuid: UUID, leagueUUID: UUID, text: String, date: Date, syncedAt: Date?
+        /// Só na cópia da conta
+        var photo: Data? = nil
     }
 
     /// Fotos ficam de fora para o arquivo não ficar enorme; `hadPhoto` guarda que tinha, para a pontuação das ligas não mudar
@@ -96,6 +106,9 @@ struct Backup: Codable, Sendable {
         var uuid: UUID, leagueUUID: UUID, activityUUID: UUID, title: String, note: String, date: Date
         var hadPhoto: Bool? = nil, place: String? = nil
         var syncedAt: Date? = nil
+        var proof: String? = nil, review: String? = nil
+        /// Fotos a mais do post; só na cópia da conta
+        var extraPhotos: Data? = nil
         /// Só na cópia da conta
         var photo: Data? = nil
     }
@@ -142,7 +155,7 @@ struct Backup: Codable, Sendable {
         var uuid: UUID, name: String, group: String, equipment: String, type: String, notes: String
     }
 
-    static let settingKeys = ["trainerName", "monsterNick", "lastFormID", "discovered", "bodyGender", "mainMonster", "profileUsername", "profileBio", "exerciseGoals", "autoWarmup", "restNotification", "barWeight", WodPlan.key] + BodyProfile.keys
+    static let settingKeys = ["trainerName", "monsterNick", "lastFormID", "discovered", "bodyGender", "mainMonster", "profileUsername", "profileBio", "exerciseGoals", "autoWarmup", "restNotification", "barWeight", WodPlan.key, "personalGoals"] + BodyProfile.keys
 
     enum Setting: Codable {
         case bool(Bool), number(Double), text(String)
@@ -198,6 +211,7 @@ struct Backup: Codable, Sendable {
                 LeagueDTO(uuid: $0.uuid, name: $0.name, emoji: $0.emoji, scoring: $0.scoringRaw, start: $0.start, code: $0.code,
                           isMock: $0.isMock, joinedAt: $0.joinedAt, monsterUUID: $0.monsterUUID, end: $0.end, autoRenew: $0.autoRenew, season: $0.season, seriesID: $0.seriesID, nextUUID: $0.nextUUID,
                           weights: $0.weightsRaw, tieBreak: $0.tieBreakRaw, photoRule: $0.photoRuleRaw, teams: $0.teamsRaw, myTeamID: $0.myTeamID,
+                          activityRule: $0.activityRuleRaw, settings: $0.settingsRaw,
                           cover: account ? $0.cover : $0.isPastSeason ? nil : $0.cover.flatMap { smallCover($0) },
                           syncedAt: $0.syncedAt, joined: $0.joined, swiss: $0.swissRaw)
             },
@@ -212,7 +226,8 @@ struct Backup: Codable, Sendable {
             notes: try context.fetch(FetchDescriptor<ExerciseNote>()).map { NoteDTO(exerciseID: $0.exerciseID, text: $0.text, updated: $0.updated) },
             checkIns: try context.fetch(FetchDescriptor<LeagueCheckIn>()).map {
                 CheckInDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, activityUUID: $0.activityUUID, title: $0.title, note: $0.note, date: $0.date,
-                           hadPhoto: $0.hasPhoto, place: $0.place, syncedAt: $0.syncedAt, photo: account ? $0.photo : nil)
+                           hadPhoto: $0.hasPhoto, place: $0.place, syncedAt: $0.syncedAt, proof: $0.proofRaw, review: $0.reviewRaw,
+                           extraPhotos: account ? $0.extraPhotosData : nil, photo: account ? $0.photo : nil)
             },
             routes: try context.fetch(FetchDescriptor<RouteRecord>()).map {
                 RouteDTO(uuid: $0.uuid, activityUUID: $0.activityUUID, kind: $0.kindRaw, start: $0.start, seconds: $0.seconds,
@@ -236,7 +251,11 @@ struct Backup: Codable, Sendable {
                 CommentDTO(uuid: $0.uuid, itemID: $0.itemID, text: $0.text, date: $0.date, authorID: $0.authorID, authorName: $0.authorName)
             },
             messages: try context.fetch(FetchDescriptor<LeagueMessage>()).map {
-                MessageDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, text: $0.text, date: $0.date, syncedAt: $0.syncedAt)
+                MessageDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, text: $0.text, date: $0.date, syncedAt: $0.syncedAt,
+                           photo: account ? $0.photo : nil)
+            },
+            reviews: try context.fetch(FetchDescriptor<CheckInReview>()).map {
+                ReviewDTO(uuid: $0.uuid, leagueUUID: $0.leagueUUID, itemID: $0.itemID, approved: $0.approved, date: $0.date)
             },
             profilePhoto: d.data(forKey: "profilePhoto"),
             hasSyncState: true,
@@ -298,6 +317,7 @@ struct Backup: Codable, Sendable {
         try context.delete(model: Gym.self)
         try context.delete(model: PersonalRecord.self)
         try context.delete(model: CheckInComment.self)
+        try context.delete(model: CheckInReview.self)
     }
 
     @MainActor
@@ -373,6 +393,8 @@ struct Backup: Codable, Sendable {
             league.weightsRaw = l.weights ?? ""
             league.tieBreakRaw = l.tieBreak ?? LeagueTieBreak.primeiro.rawValue
             league.photoRuleRaw = l.photoRule ?? PhotoRule.livre.rawValue
+            league.activityRuleRaw = l.activityRule ?? ""
+            league.settingsRaw = l.settings ?? ""
             league.swissRaw = l.swiss ?? SwissCriterion.pontos.rawValue
             league.teamsRaw = l.teams ?? ""
             league.myTeamID = l.myTeamID
@@ -437,11 +459,18 @@ struct Backup: Codable, Sendable {
             x.date = c.date
             context.insert(x)
         }
+        for r in reviews ?? [] {
+            let x = CheckInReview(leagueUUID: r.leagueUUID, itemID: r.itemID, approved: r.approved)
+            x.uuid = r.uuid
+            x.date = r.date
+            context.insert(x)
+        }
         for m in messages ?? [] {
             let x = LeagueMessage(leagueUUID: m.leagueUUID, text: m.text)
             x.uuid = m.uuid
             x.date = m.date
             x.syncedAt = m.syncedAt
+            x.photo = m.photo
             context.insert(x)
         }
         for p in prs ?? [] {
@@ -460,6 +489,9 @@ struct Backup: Codable, Sendable {
             ci.uuid = c.uuid
             ci.hadPhoto = c.hadPhoto ?? false
             ci.place = c.place
+            ci.proofRaw = c.proof ?? ""
+            ci.reviewRaw = c.review ?? ""
+            ci.extraPhotosData = c.extraPhotos
             ci.syncedAt = hasSyncState == true ? c.syncedAt : exportedAt
             context.insert(ci)
         }

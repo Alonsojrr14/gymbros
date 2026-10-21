@@ -10,8 +10,12 @@ struct RoutineEditView: View {
     var body: some View {
         GMScreen(routine.name.isEmpty ? "Rotina" : routine.name, back: true) {
             GMSection("Nome") {
-                GMTextField(placeholder: "Nome da rotina", text: $routine.name)
+                HStack(spacing: 12) {
+                    RoutineArt(exerciseID: routine.sortedItems.first?.exerciseID, size: 48)
+                    GMTextField(placeholder: "Nome da rotina", text: $routine.name)
+                }
             }
+            RoutineStatsSection(routine: routine)
             GMSection("Dias") {
                 HStack(spacing: 6) {
                     ForEach(weekdaySymbols, id: \.0) { day, label in
@@ -113,7 +117,7 @@ private struct ItemEditor: View {
             }
             HStack(spacing: 8) {
                 GMCompactStepper(value: $item.sets, range: 1...10, step: 1, label: "séries")
-                GMCompactStepper(value: $item.reps, range: 1...300, step: ex?.type == .time ? 5 : 1, label: ex?.type == .time ? "seg" : "reps")
+                GMCompactStepper(value: $item.reps, range: 1...300, step: ex?.type == .time || ex?.type == .distance ? 5 : 1, label: ex?.type == .time || ex?.type == .distance ? "seg" : "reps")
                 // Descanso: toque para escolher o tempo exato na roleta
                 Button {
                     draft = item.rest
