@@ -19,6 +19,9 @@ App de iPhone (SwiftUI + SwiftData, iOS 17) em que seus treinos chocam e evoluem
 - Recordes de carga e 1RM estimado (Epley, até 12 reps), gráfico por exercício.
 - Biblioteca com imagens, vídeos, instruções e músculos trabalhados; exercícios personalizados.
 - Peso do corpo e isometria aceitam carga extra (cinto de peso, colete); com carga, a progressão volta a ser por peso.
+- **Rotinas públicas**: publique as suas, curta e salve cópias das dos bros (mais salvas, curtidas, novas ou dos amigos); cada rotina mostra a sua frequência e o tempo médio.
+- **Modo guiado**: uma série por vez, com "da última vez", alvo, registrar, desfazer, anterior e próxima.
+- Exercícios de **distância × tempo** (remo, esteira, bike, elíptico): metros e segundos por série, progressão por tempo e recorde de maior distância.
 - Mapa muscular (frente e costas): por exercício, por rotina, ao concluir o treino e por período (7/30 dias/tudo), com a lista do que ficou sem treino.
 - Concluir um treino gera uma atividade de musculação, que dá XP ao bro.
 - Esqueceu de dar "Começar"? Ao registrar a atividade dá para informar o que foi feito depois: uma rotina, um treino livre, o WOD do coach ou um WOD clássico (`GymBros/Activities/ManualWorkout.swift`).
@@ -29,9 +32,18 @@ O app quase não usa controles padrão do iOS: telas, cabeçalhos, barra de abas
 
 ## Ligas
 
-- Inspiradas no GymRats: cada liga é um ranking contínuo de check-ins de qualquer atividade, com ranking da liga toda, da semana e do mês, e feed com foto.
+- Inspiradas no GymRats: escolha entre um **Clube** permanente, com ranking total, semanal e mensal, ou um **Desafio** com início, fim, vencedor e temporadas renováveis. Ambos recebem check-ins de qualquer atividade e têm feed com foto.
 - Pontuação (`GymBros/Leagues/Leagues.swift`): pontos (XP da atividade), treinos, minutos, distância (GPS do app ou Apple Saúde) ou calorias (do Saúde ou estimadas). No modo pontos, cada liga define um peso de 0× a 3× por atributo (ex.: Resistência 2× favorece cardio; 0× tira o atributo da conta).
+- Quem cria define se **todos** os tipos de treino contam, se contam **só os selecionados** (ex.: musculação e crossfit) ou se todos contam **exceto os selecionados** (ex.: bike e skate). A escolha usa os ~80 tipos do catálogo, não só categorias genéricas.
 - Desempate escolhido na liga: quem chegou antes à pontuação, maior sequência de dias seguidos ou mais check-ins. O ranking mostra quando a posição foi decidida no desempate.
+- Mais modos de pontuação: **dias ativos** (um por dia, por mais treinos que a pessoa faça) e **por atividade** (o dono monta a tabela: cada tipo vale pontos por vez ou por quantidade, e pode até tirar pontos). **Limite de pontos** por dia, semana, mês e total, por pessoa e por time, e **metas** com barra de progresso, com ou sem ranking. O dono escolhe o dia em que a semana começa.
+- **Verificação do check-in** (`GymBros/Leagues/LeagueRules.swift`): presets Padrão, Bro-verificação e Personalizar (foto obrigatória, galeria só com hora verificada pelo EXIF, mesmo dia, retroativo, aparelho e local obrigatórios). A câmera do app vale como foto verificada; liga que barra o check-in aparece bloqueada em "Postar em" com o que fazer. **Revisão do dono** (aprovar ou negar cada check-in) e **pose do dia** na foto.
+- Clube guarda os **campeões** da semana, do mês e do ano (títulos no perfil); desafio encerrado mostra a classificação final para compartilhar e pode ser **reiniciado** com as mesmas pessoas e regras.
+- **Moderação**: moderadores, remover e banir, pedidos de entrada com aprovação, prévia da liga antes de entrar, quem fica de dono quando o dono sai, exportar os check-ins em CSV e notificações por liga (mural com @menções, check-ins, reações, campeões e moderação).
+- Check-in com **várias atividades do mesmo dia** somando juntas e **até 5 fotos**; mural com fotos e a aba **Mídia**.
+- **Visita verificada** (a localização registrou você na academia durante o treino) vale como prova; modo **"Você diz"** (cada um informa os pontos); **treino do dia** do dono e **desafios dentro do clube**.
+- **Feed** com Todos, Amigos e cada liga, sem repetir o mesmo post, e **Ranking dos bros** entre amigos sem precisar de liga.
+- **Deck dos Bros** (`GymBros/Friends/SocialExtras.swift`): os check-ins que você ainda não viu, um por vez; arrasta para passar, toque duplo manda força, e responde no check-in ou por mensagem.
 - Foto do treino: opcional, sem foto vale metade, ou obrigatória (sem foto não pontua). O formulário de check-in avisa quando falta a foto.
 - Rodada suíça diária (`GymBros/Leagues/Swiss.swift`): todo dia cada membro enfrenta alguém com pontuação suíça parecida, pelo critério da liga (mais pontos, mais check-ins ou presença). Vitória ou folga dá um bônus pequeno no placar. O pareamento é determinístico, igual em todos os aparelhos do mesmo fuso.
 - Times: o placar do time é a soma dos membros, e cada time tem um bro que cresce com a média de XP dos membros e evolui pelo atributo que o time mais treina. Você escolhe o time tocando nele no ranking.
@@ -42,8 +54,17 @@ O app quase não usa controles padrão do iOS: telas, cabeçalhos, barra de abas
 - Perfil do amigo (toque na lista de amigos, `GymBros/Friends/PublicProfile.swift`): foto, nome, @usuário, bio, se está treinando agora, e o mesmo card público da prévia do seu perfil (bro principal, números e conquistas, respeitando o que a pessoa escondeu), ligas em comum e posts em calendário (toque no dia para ver os posts). Vem de `FriendsBackend.profile`.
 - Seu perfil: a aba Público é exatamente o que os amigos veem (card público e posts em calendário); a aba Privado tem seus números, recordes, estatísticas, metas, peso e o calendário de todas as atividades. Nome, @usuário, bio e o que aparece para os outros ficam em "Editar perfil".
 - Check-in em várias ligas de uma vez: ao registrar atividade, ao concluir treino guiado ou pelo botão da liga (nova atividade ou uma já registrada, inclusive do Saúde).
+- Por amigo: esconder os seus treinos, silenciar, arquivar e limpar a conversa (só do seu lado), reagir às mensagens e aos comentários, e adicionar por **QR** (`gymbros://amigo/CÓDIGO`).
 - Coleção de bros (`GymBros/Bros/Monsters.swift`): ao entrar numa liga você escolhe quem te representa, um bro seu ou um ovo novo adotado na hora. Os check-ins da liga dão XP só para ele; atividades fora de ligas vão para o bro principal (tela inicial e widgets), que pode ser trocado em "Meus bros".
 - Sem servidor ainda: tudo o que envolve servidor passa por sete contratos (login, dados da conta, ligas, amigos, moderação, caixa de entrada e X1). Um interruptor em `GymBros/Services/Backend.swift` (`Backend.mode`) escolhe quem responde: hoje é `.mock`, com dados simulados e determinísticos no próprio iPhone; as implementações do CloudKit já existem e esperam a conta paga do Apple Developer ([docs/cloudkit.md](docs/cloudkit.md), [docs/servidor-real.md](docs/servidor-real.md)). A "Liga dos Bros" (código `AMIGOS`) tem 8 participantes simulados divididos em dois times (Gui, Lia e Rafa ainda não são seus amigos).
+
+## Metas e constância
+
+- **Metas pessoais** (`GymBros/Profile/Constancy.swift`): treinos, dias ativos, minutos, km ou kcal por dia, semana, mês ou ano (ou até uma data), só com os treinos que você escolher; bater a meta mantém a sequência viva. 11 modelos prontos.
+- **Sequências e recordes**: dias, semanas e meses seguidos (atual e melhor), melhor dia, semana, mês e ano, dia e hora mais ativos, madrugador e coruja.
+- **Retrospectiva em vídeo** (`GymBros/Activities/Retrospective.swift`): as fotos dos check-ins do ano, em 9:16, 1:1 ou 3:4, abrindo com os seus números.
+- Widget **"Último treino dos bros"** com o check-in mais recente das suas ligas.
+- Ajustes → GymBros: **GymBros Pro** (fica tudo liberado até o app estar na App Store) e **Vem aí**, para votar no que sai primeiro.
 
 ## Biblioteca e CrossFit
 

@@ -65,6 +65,14 @@ Amizade é um vínculo em cada direção: pedir é criar `eu->você`, aceitar é
 
 `CloudKitAuthBackend.deleteAccount` consulta por `user == <eu>` em `Member`, `CheckIn` (ligas e posts do perfil), `Message`, `Report`, `Block` e `Duel`, por `from == <eu>` em `FriendLink`, e apaga tudo junto com o `Profile` (nome do registro = id do usuário), em lotes de 300. Por isso `user` precisa ser Queryable em `Member`, `CheckIn`, `Message`, `Report`, `Block` e `Duel`. Os desafios, respostas e valores de outras pessoas nos seus X1 continuam (são delas). Com a permissão Creator: Write, o usuário só consegue apagar o que criou. Depois o app apaga os dados sociais do aparelho e a sessão.
 
+### Campos novos (regras de liga, prova e moderação)
+
+- `League.settings`: `LeagueSettings` em JSON (verificação, revisão, pose do dia, pontos por atividade, limites, metas, início da semana, aprovação de entrada, moderadores, removidos, banidos, pedidos aceitos e ignorados). Quem grava é o dono (o criador do registro).
+- `CheckIn.workoutType` (tipo do catálogo do Saúde), `CheckIn.place` e `CheckIn.proof` (`CheckInProof` em JSON: origem e hora da foto, se tem local, aparelho, pose e as atividades agrupadas com o que pontuam).
+- `JoinRequest` (`<código>-pedido-<usuário>`): `league`, `user`, `name`, `formID`. Aceitar é o dono pôr o usuário em `settings.approved`; quem pediu confere com `isApproved`.
+- `League.owner` passa a mudar quando o dono sai e escolhe quem fica (`transfer`). No banco público só o criador grava no registro, então o novo dono não consegue editar as regras: o servidor próprio precisa resolver isso.
+- `Profile.hiddenFrom`: ids de quem não vê os seus treinos. O app de quem foi escondido respeita, mas o campo é legível por todos no banco público.
+
 ## Permissões (Security Roles)
 
 Em todos os tipos: **World: Read · Authenticated: Create · Creator: Write**. Nunca dar Write para Authenticated ou World: cada um só altera o que criou.

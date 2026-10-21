@@ -483,16 +483,16 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 
 ## 11. Perfil privado: metas e estatísticas
 ### RF-TRE-37 — Metas
-**Descrição:** O app deve acompanhar metas semanais e de peso.  
+**Descrição:** O app deve acompanhar metas pessoais com cadência, sequência e histórico, e o peso alvo.  
 **Regras de negócio:**
-- Treinos na semana: meta de 1 a 14 (padrão 4); conta todas as atividades da semana do calendário.
-- Tempo na semana: 30 a 1200 min em passos de 30 (padrão 180). Anéis de progresso com check ao bater a meta.
-- Peso alvo (passo 0,5): mostra "faltam X kg para perder/ganhar" ou "Você chegou no peso alvo! 🎯".
-- Valores salvos ficam travados: a linha mostra o valor ("4 por semana", "3h por semana", "75 kg" ou "Não informado") e um lápis; só o lápis abre o controle de edição, e o check fecha (`GMLockedRow`). Vale para as três metas e para o perfil físico (RF-TRE-41).
-- A tela Metas abre com o perfil físico (RF-TRE-41) antes das metas.
+- Cada meta tem métrica (treinos, dias ativos, minutos, distância em km ou calorias), alvo, cadência (dia, semana, mês, ano) ou prazo (conta tudo do início até a data, uma vez só) e os treinos que contam (todos ou só os tipos escolhidos do catálogo).
+- Sequência: períodos seguidos batendo a meta. O período atual só entra na sequência quando a meta é batida e não a quebra antes de acabar ("Bater a meta mantém a sequência viva"). O detalhe mostra sequência atual, melhor sequência, períodos batidos e o histórico (12 mais recentes, com "Ver todos").
+- "Nova meta" abre 11 modelos prontos (ex.: 4 treinos por semana, 8 km de corrida por semana, 200 dias ativos no ano com prazo em 31/12) ou uma meta do zero.
+- Na primeira abertura, as metas antigas de treinos e de tempo por semana (`goalWeekly`, `goalMinutes`) viram as duas primeiras metas da lista. As metas ficam em `personalGoals` (JSON em texto), que vai no backup e com a conta.
+- Peso alvo (passo 0,5): mostra "faltam X kg para perder/ganhar" ou "Você chegou no peso alvo! 🎯". Fica travado até tocar no lápis (`GMLockedRow`). A tela Metas abre com o perfil físico (RF-TRE-41).
 
-**Critério de aceitação:** 4 atividades na semana com meta 4 mostram o anel completo com check; rolar a tela sem tocar no lápis não altera nenhuma meta.  
-**Fonte:** `GymBros/Profile/ProfileView.swift` (`GoalsView`), `GymBros/DesignSystem/GMFields.swift` (`GMLockedRow`)
+**Critério de aceitação:** meta de 2 treinos por semana com 2 treinos em cada uma das 3 semanas passadas e nenhum nesta mostra sequência 3 (a semana atual não quebra); meta de 200 dias ativos com dois treinos no mesmo dia conta 1.  
+**Fonte:** `GymBros/Profile/Constancy.swift` (`PersonalGoal`, `PersonalGoals`), `GymBros/Profile/GoalsViews.swift` (`GoalsView`, `GoalFormView`), `GymBrosTests/ConstancyTests.swift`
 ### RF-TRE-38 — Estatísticas
 **Descrição:** O app deve mostrar estatísticas de todas as atividades.  
 **Regras de negócio:**
@@ -515,3 +515,48 @@ Este documento descreve os requisitos funcionais da área de treino do GymBros, 
 
 **Critério de aceitação:** 80 kg, 180 cm, 30 anos, homem, 4 treinos por semana e objetivo Ganhar massa → gasto ≈ 2.759 kcal, para o objetivo ≈ 3.059 kcal, proteína 128–176 g e água 2,8 L; sem altura, a seção pede os dados.  
 **Fonte:** `GymBros/Profile/BodyProfile.swift` (`BodyProfile`, `BodyProfileSection`, `FitnessGoal`, `Experience`), `GymBros/Profile/ProfileView.swift` (`GoalsView`), `GymBros/Services/HealthSync.swift`
+
+## 12. Modo guiado, distância × tempo e constância
+
+### RF-TRE-46 — Modo guiado no treino
+**Descrição:** O treino deve ter, além da lista, um modo guiado que mostra uma série por vez.  
+**Regras de negócio:**
+- "Lista / Guiado" fica no topo do treino e a escolha é lembrada (`guidedWorkout`).
+- A série em foco é a próxima por fazer do exercício atual (ou a primeira por fazer do treino). Mostra o exercício, "Série X de N", "Da última vez" (a série de mesma posição do último treino com o exercício) e "Alvo" (carga e reps planejadas), com os mesmos controles da lista.
+- "Registrar série" marca feita, começa o descanso (no superset vai para o próximo do bloco sem descanso) e volta o foco para a próxima por fazer. "Desfazer" desmarca a última registrada no modo guiado; "Anterior" e "Próxima" andam pelas séries sem registrar. "A seguir" mostra a próxima por fazer.
+- Com todas as séries feitas, mostra "Todas as séries feitas" para concluir.
+
+**Critério de aceitação:** registrar uma série no modo guiado conta igual a marcar na lista (mesmo descanso, mesmo Live Activity).  
+**Fonte:** `GymBros/Train/WorkoutView.swift` (`guidedContent`, `logged`, `move`, `upNext`)
+
+### RF-TRE-47 — Distância × tempo
+**Descrição:** Exercícios de máquina de cardio devem registrar distância e tempo.  
+**Regras de negócio:**
+- Tipo `distance` ("Distância × tempo"): a série guarda os metros em `weight` e os segundos em `reps` (sem mudar o banco). Remo ergômetro, bike ergométrica, elíptico e corrida na esteira passam a ser desse tipo; exercício personalizado também pode ser.
+- A série tem passo de 100 m e de 15 s; começa em 1 km quando não há histórico. Texto: "1.500 m em 6:40".
+- Progressão: mesma distância, com a meta de baixar do melhor tempo da última vez. Não há "abaixo do planejado" (menos tempo é melhor).
+- Recorde: "maior distância". Séries de distância ficam fora do volume do treino e das toneladas do companheiro; o gráfico do exercício mostra a maior distância (m). A divisão de atributos conta como cardio.
+
+**Critério de aceitação:** um treino com 1.500 m de remo e 60 kg × 10 no supino tem volume 600 kg.  
+**Fonte:** `GymBros/Exercises/Exercises.swift` (`ExerciseType`), `GymBros/Train/Progression.swift` (`core`, `records`, `meters`), `GymBros/Models/Training.swift` (`volume`), `GymBrosTests/TrainingExtrasTests.swift`
+
+### RF-TRE-48 — Sequências e recordes de constância
+**Descrição:** O perfil privado deve mostrar sequências e recordes de constância.  
+**Regras de negócio:**
+- Sequências de dias, semanas e meses seguidos com treino: a atual e a melhor, com as datas ("de 1 set a 13 out", "e continua agora").
+- Recordes: melhor dia (mais minutos), melhor semana, mês e ano (mais dias ativos).
+- Seu jeito de treinar: dia da semana e hora com mais dias diferentes de treino, madrugador (treino que começou antes das 7 h) e coruja (a partir das 21 h).
+
+**Critério de aceitação:** treinos hoje, ontem e anteontem mostram sequência atual e melhor de 3 dias.  
+**Fonte:** `GymBros/Profile/Constancy.swift` (`Constancy`), `GymBros/Profile/GoalsViews.swift` (`ConstancyView`)
+
+### RF-TRE-49 — Retrospectiva em vídeo
+**Descrição:** O app deve gerar no iPhone um vídeo com as fotos dos check-ins do ano.  
+**Regras de negócio:**
+- Escolha do ano, das fotos (uma por atividade; tocar tira do vídeo), do formato (9:16, 1:1 ou 3:4) e da velocidade (de bem lento, 2,5 s por foto, a bem rápido, 0,35 s).
+- O vídeo abre com "{ano} no GymBros" e os números do ano (treinos, dias ativos, horas e maior sequência), mostra cada foto com a marca "@usuário · GymBros" e termina com "Bora pra mais um ano 💪".
+- Compartilhar pela folha do sistema ou salvar nas Fotos (só adicionar).
+
+**Critério de aceitação:** 2 fotos em bem rápido e 1:1 geram um vídeo de 1080×1080 com cerca de 4,9 s.  
+**Fonte:** `GymBros/Activities/Retrospective.swift` (`RetroVideo`, `RetrospectiveView`), `GymBrosTests/RetroAndProTests.swift`
+

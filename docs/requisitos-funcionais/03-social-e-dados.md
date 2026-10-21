@@ -180,7 +180,9 @@ Este documento cobre a parte social do GymBros (ligas, rodada suíça, check-ins
 - Mostra a foto em destaque com fundo desfocado ou, sem foto, o bro e o tipo. Também mostra autor, quando ("Hoje, 07:30", "Ontem, …"), lugar, título, descrição e os chips de duração, tipo, "+valor" e lugar.
 - O chip de valor mostra a unidade da liga ("+5,2 km", "+1 h 30 min"); post do perfil mostra "XP".
 - Comentários: texto não vazio, de até 4 linhas no campo de escrita. As reações rápidas são 💪 🔥 👏 😮‍💨 🏆 ❤️ e ficam salvas como comentários. Um comentário de até 3 caracteres feito só de emoji aparece em tamanho grande.
-- Cada comentário guarda o autor (`authorID`: "me" ou o `memberID` de outra pessoa, e `authorName`). Os seus aparecem com sua foto e seu nome atual; os de outras pessoas, com a inicial e o nome guardado. Comentários antigos, sem autor, contam como seus. Tocar e segurar permite apagar os seus; nos dos outros, denunciar ou bloquear quem escreveu (RF-SOC-30).
+- Cada comentário guarda o autor (`authorID`: "me" ou o `memberID` de outra pessoa, e `authorName`). Os seus aparecem com sua foto e seu nome atual; os de outras pessoas, com a inicial e o nome guardado. Comentários antigos, sem autor, contam como seus. Tocar e segurar abre as reações rápidas do comentário (👍 ❤️‍🔥 💪 😂) e permite apagar os seus; nos dos outros, denunciar (RF-SOC-30).
+- Reação a um comentário fica guardada como comentário no id `c:<uuid do comentário>` e aparece embaixo dele ("💪 2 · 👍"). As reações do check-in somam numa linha ("💪 3 · 🔥") que abre "Quem reagiu", por emoji. @menções aparecem em destaque.
+- O detalhe mostra a prova do check-in (foto da câmera do app, da galeria com a hora gravada, aparelho que gravou), a pose do dia sobre a foto, "Em revisão" quando o dono ainda não aprovou e o corte do teto de pontos. Dono e moderadores têm "Remover check-in da liga" no menu dos outros.
 - Menu: "Compartilhar" (foto e o texto "{título} · {tipo}, {duração} no GymBros 💪") está sempre disponível. Nos check-ins do próprio usuário também há "Editar" (abre a edição da atividade com os destinos) e "Apagar check-in" (tira o check-in desta liga e apaga os comentários dele, mas a atividade continua).
 **Critérios de aceitação:**
 - Um comentário enviado aparece na lista com o nome do usuário e a data relativa.
@@ -605,6 +607,157 @@ Este documento cobre a parte social do GymBros (ligas, rodada suíça, check-ins
 **Fonte:** `GymBros/App/SettingsPages.swift` (`NotificationSettingsPage`), `GymBros/Inbox/NotificationPrefs.swift`, `GymBros/App/App.swift`, `GymBros/Train/LiveWorkout.swift`
 
 ---
+
+
+### RF-SOC-40 · Clube ou desafio, treinos que valem e regras novas de pontuação
+**Descrição:** Cada liga deve ser um clube (sem fim) ou um desafio (com início e fim) e ter regras de quais treinos e quanto valem.
+**Regras:**
+- Clube não tem data de fim; desafio sempre tem. O tipo vem do período (`League.format`), então ligas antigas viram clube ou desafio sem migração.
+- "Treinos que valem": todos, só os selecionados ou todos exceto os selecionados, pelos ~80 tipos do catálogo. Liga que não aceita o treino aparece bloqueada em "Postar em", com o motivo.
+- Modos novos: "Dias ativos" (só o primeiro check-in de cada pessoa em cada dia vale 1) e "Por atividade" (tabela do dono: cada linha vale para tipos ou seções do catálogo, por vez ou por quantidade, a cada X min, km ou kcal, e pode tirar pontos; treino fora da tabela vale 0; vale a linha mais específica).
+- Limite de pontos: teto por dia, semana, mês e total, por pessoa e por time; o que passa do teto não conta (o corte cai nos check-ins mais novos).
+- Metas no lugar do ranking: meta por pessoa e por time com barra de progresso; "Esconder o ranking" deixa só as metas.
+- Início da semana do ranking semanal escolhido pelo dono.
+- As regras ficam em `League.settingsRaw` (`LeagueSettings` em JSON; campo novo entra sem mudar o banco) e sobem com a liga (`LeagueDraft.settings`).
+**Critérios de aceitação:** dois check-ins da mesma pessoa no mesmo dia valem 1 em "Dias ativos"; com teto de 90 min por dia, 60 + 60 min contam 90.
+**Situação:** Local, igual em todos os aparelhos pelas regras da liga.
+**Fonte:** `GymBros/Leagues/LeagueRules.swift`, `GymBros/Leagues/LeagueRulesViews.swift`, `GymBros/Leagues/Leagues.swift` (`LeagueBoard.feed`), `GymBrosTests/LeagueRulesTests.swift`
+
+### RF-SOC-41 · Verificação do check-in
+**Descrição:** O dono deve escolher como os check-ins da liga são verificados.
+**Regras:**
+- Presets: Desligada (ligas antigas), Padrão (liga nova: foto ou treino gravado por aparelho; câmera e galeria; qualquer data), Bro-verificação (foto da galeria só com hora verificada; só treino de hoje) e Personalizar.
+- Regras do personalizado: foto obrigatória (sempre, dispensada com aparelho, opcional), foto da galeria (liberada, só verificada, proibida), horário (livre, mesmo dia, exato), retroativo (só hoje, 1, 7, 30 dias ou qualquer), aparelho obrigatório e local obrigatório.
+- Hora verificada: a do treino gravado por aparelho (Apple Saúde, Apple Watch, GPS do app), a da foto da galeria (EXIF `DateTimeOriginal`, lida do arquivo original antes de reduzir) ou, na câmera do app, a do post. "Exato" aceita de 30 min antes do início a 1 h depois do fim.
+- Em "Postar em", liga com problema aparece bloqueada com o motivo e o que fazer ("Para postar aqui: adicione uma foto"); trocar a foto ou o treino libera de novo. `postCheckIns` não posta onde as regras barram.
+- "Tirar foto" abre a câmera do app (com a pose do dia, quando alguma liga cobra). A prova vai junto do check-in (`LeagueCheckIn.proofRaw`: origem e hora da foto, se tem local, aparelho, pose).
+**Critérios de aceitação:** no Padrão, check-in sem foto e sem aparelho é barrado; na Bro-verificação, foto da galeria de ontem é barrada.
+**Situação:** Local; o servidor vai precisar conferir as mesmas regras (docs/servidor-real.md).
+**Fonte:** `GymBros/Leagues/LeagueRules.swift` (`CheckInVerification`), `GymBros/Leagues/CheckInProof.swift`, `GymBros/Leagues/LeaguesView.swift` (`LeaguePostSection`, `postCheckIns`)
+
+### RF-SOC-42 · Revisão do dono e pose do dia
+**Descrição:** O dono deve poder aprovar cada check-in antes de pontuar e cobrar a pose do dia.
+**Regras:**
+- Com "Revisar check-ins", check-in de outra pessoa feito depois de ligar fica "em revisão": aparece no feed sem pontuar e sem contar como check-in. O do dono (e o de um moderador) entra aprovado.
+- "N check-ins para revisar" abre a fila com a prova de cada um: Aprovar pontua; Negar (com confirmação) tira da liga. As decisões ficam em `CheckInReview` (SchemaV4).
+- Pose do dia: uma pose sorteada por dia (igual em todos os aparelhos), mostrada na câmera do app e no formulário ("Sem a pose do dia na foto, o check-in não pontua"); fica gravada no check-in e aparece sobre a foto. Quem fiscaliza é o dono, negando.
+**Critério de aceitação:** um check-in negado some do feed e do ranking; aprovado, pontua.
+**Fonte:** `GymBros/Leagues/LeagueReviewViews.swift`, `GymBros/Leagues/LeagueRules.swift` (`DailyPose`)
+
+### RF-SOC-43 · Campeões do clube, fim do desafio e reiniciar
+**Descrição:** Clubes devem guardar o campeão de cada semana, mês e ano; desafios, a classificação final.
+**Regras:**
+- Campeões de cada período encerrado, derivados do feed (empate no primeiro lugar divide o título), em "Campeões" (semana, mês, ano; 6 mais recentes e "Ver todos"). O ranking mostra as vitórias de cada um e o perfil mostra "Títulos nos clubes".
+- Desafio encerrado mostra "Classificação final", os parabéns ("por dividirem o primeiro lugar" no empate), o resumo ("{total} em {dias} dias, somados por {n} bros") e uma arte 9:16 para compartilhar.
+- "Reiniciar desafio" (dono, desafio encerrado): nova temporada começando hoje com as mesmas pessoas, regras, times e duração; a anterior fica guardada.
+**Fonte:** `GymBros/Leagues/LeagueWinners.swift`
+
+### RF-SOC-44 · Moderação, pedidos de entrada e prévia
+**Descrição:** O dono deve moderar a liga com ajuda de moderadores.
+**Regras:**
+- Tocando em alguém no ranking, dono e moderadores têm "Ver perfil", "Remover da liga" e, só o dono, "Tornar/Tirar moderador" e "Banir da liga" (não volta nem pelo código; desbanir em Editar liga). Quem sai ou é banido some do ranking, do feed e do mural.
+- "Novos membros precisam de aprovação": entrar pelo código manda um pedido ("Esperando aprovação" na lista de ligas, com "Cancelar"); o dono vê "Pedidos para entrar" e aceita ou ignora. A liga entra no aparelho quando o pedido é aceito.
+- Antes de entrar, a prévia mostra tipo, pontuação, treinos que valem, verificação, revisão, pose, limites e se precisa de aprovação.
+- O dono que sai de uma liga com outras pessoas escolhe quem fica de dono (sem escolha, sorteia, dando preferência a moderadores).
+- As decisões ficam nas regras da liga e sobem com ela.
+**Situação:** A liga de exemplo simula dois pedidos (Paula e Téo). Pedidos e troca de dono reais dependem de servidor (`requestJoin`, `isApproved`, `transfer`).
+**Fonte:** `GymBros/Leagues/LeagueModerationViews.swift`, `GymBros/Leagues/LeagueRemote.swift` (`RemoteLeague.applying`)
+
+### RF-SOC-45 · Notificações de cada liga
+**Descrição:** Cada liga deve ter as próprias preferências de notificação.
+**Regras:**
+- Mural (tudo, quando me marcam com @usuário ou @nome, nada), check-ins dos outros (desligado por padrão), reações e comentários nos seus check-ins, campeões e moderação (pedidos, check-ins para revisar, check-in seu removido). Valem para todas as temporadas da liga.
+- Os eventos entram na aba Notificações e no tópico "Ligas" de Ajustes → Notificações.
+**Fonte:** `GymBros/Leagues/LeagueNotifications.swift`, `GymBros/Inbox/Inbox.swift` (`leagueEvents`)
+
+### RF-SOC-46 · Check-in com várias atividades
+**Descrição:** Atividades do mesmo dia devem poder ir juntas num check-in.
+**Regras:**
+- Em "Já registrada", tocar em mais de uma atividade do mesmo dia junta todas; de outro dia, recomeça a escolha. A primeira é a principal.
+- O check-in soma minutos e pontos de todas (`CheckInProof.grouped` e `groupedParts`, que sobem para os outros aparelhos pontuarem igual).
+**Fonte:** `GymBros/Leagues/CheckInProof.swift` (`ScorePart`), `GymBros/Leagues/LeaguesView.swift` (`CheckInForm`)
+
+### RF-SOC-47 · Deck dos Bros
+**Descrição:** O app deve mostrar, um por vez, os check-ins dos outros que você ainda não viu.
+**Regras:**
+- Check-ins dos últimos 3 dias das suas ligas, do mais antigo ao mais novo; um leque com até 3 bros abre o deck ("Novos dos bros" na lista de ligas, "Novos em {liga}" dentro dela).
+- Arrastar para o lado passa; toque duplo manda 💪; a barra tem 👍 ❤️‍🔥 💪 🥚. "Responder" escolhe entre comentar no check-in (todo mundo da liga vê) e mensagem direta (só vocês dois; só entre amigos). No fim, "Ver de novo".
+- Visto fica em `deck.seen` (vai com a conta).
+**Fonte:** `GymBros/Friends/SocialExtras.swift` (`BroDeck`, `BroDeckView`, `DeckPeek`)
+
+### RF-SOC-48 · Privacidade por amigo e conversa
+**Descrição:** O usuário deve controlar o que cada amigo vê e recebe.
+**Regras:**
+- No perfil do amigo: "Esconder meus treinos de {nome}" (o perfil público dele mostra você sem posts nem números; o que você posta numa liga em comum continua lá) e "Silenciar" (as mensagens e eventos chegam, mas não tocam).
+- Na conversa: "Arquivar conversa" (some da lista até chegar mensagem nova; "Arquivadas" na caixa de entrada) e "Limpar conversa" (só do seu lado). Segurar uma mensagem reage (👍 ❤️‍🔥 💪 😂); a reação aparece embaixo do balão e notifica no tópico de reações.
+**Situação:** Local; com CloudKit, quem foi escondido fica em `hiddenFrom` no perfil público (o app de quem foi escondido respeita, mas o campo é legível).
+**Fonte:** `GymBros/Friends/SocialExtras.swift` (`FriendPrefs`), `GymBros/Inbox/Inbox.swift`, `GymBros/Inbox/ConversationView.swift`
+
+### RF-SOC-49 · QR do código de amigo
+**Descrição:** Amigos lado a lado devem poder se adicionar por QR.
+**Regras:**
+- "QR do código" mostra o QR de `gymbros://amigo/{código}` e lê o QR de outra pessoa pela câmera; ler adiciona o amigo. O link também abre o app e adiciona.
+**Fonte:** `GymBros/Friends/SocialExtras.swift` (`FriendQR`, `FriendQRView`), `GymBros/App/App.swift` (`onOpenURL`)
+
+### RF-SOC-50 · Widget "Último treino dos bros", "Vem aí" e Pro
+**Descrição:** O app deve ter o widget do último check-in das ligas, uma lista do que vem por aí e a página do Pro.
+**Regras:**
+- Widget (pequeno e médio): o check-in mais recente das suas ligas, com a foto (só a sua, por enquanto) ou o bro, quem, quando e a liga. Atualiza ao abrir o app e as ligas.
+- "Vem aí" (Ajustes → GymBros): recursos que ainda não existem, com "Quero!" e "Não pra mim" (`featureFeedback`).
+- GymBros Pro: ligas ilimitadas (sem Pro, 2 criadas), limites de pontuação, moderadores, exportar a liga em CSV, recordes e constância e retrospectiva. Assinatura por StoreKit 2; enquanto o app não estiver na App Store (`ProStore.enforced = false`), tudo fica liberado.
+- Exportar dados (dono e moderadores): CSV com data, pessoa, título, atividade, minutos, pontos, foto e situação.
+**Fonte:** `GymBrosWidget/BrosWidget.swift`, `GymBros/Leagues/BrosWidgetFeed.swift`, `GymBros/App/ProAndComingSoon.swift`, `GymBros/Leagues/LeagueModerationViews.swift` (`LeagueExport`)
+
+
+### RF-SOC-51 · Várias fotos no check-in e fotos no mural
+**Descrição:** O check-in deve aceitar até 5 fotos e o mural, recados com foto.
+**Regras:**
+- Depois da primeira foto, a faixa de miniaturas aceita mais 4 (câmera do app ou galeria, várias de uma vez); tirar a principal sobe a próxima. As fotos a mais ficam em `LeagueCheckIn.extraPhotosData` (SchemaV5) e vão com a conta.
+- O detalhe passa as fotos de lado; a linha do tempo mostra "+N".
+- Mural: recado com foto (texto opcional) e a aba "Mídia" com as fotos do mural e dos check-ins da liga (`LeagueMessage.photo`, SchemaV5).
+**Situação:** Local; as fotos a mais e as do mural sobem quando houver servidor (hoje só a principal tem campo no CloudKit).
+**Fonte:** `GymBros/Leagues/LeaguesView.swift` (`extraStrip`), `GymBros/Leagues/LeagueMural.swift`
+
+### RF-SOC-52 · Rotinas públicas
+**Descrição:** O usuário deve poder publicar rotinas e usar as dos outros.
+**Regras:**
+- Em Treinar → Minhas rotinas → "Rotinas públicas": ordenar por mais salvas, mais curtidas, novas ou dos amigos; cada rotina mostra arte (o primeiro exercício), autor, exercícios, séries, curtidas e cópias salvas.
+- No detalhe: "Curtir" e "Salvar cópia" (vira uma rotina sua, sem dias fixos). O menu de uma rotina sua tem "Publicar rotina" e "Tirar das rotinas públicas"; a lista mostra "pública".
+- A rotina mostra os seus números com ela: última vez, quantas vezes, tempo médio e as últimas 8 semanas.
+**Situação:** Simulado (`MockRoutinesBackend`, com rotinas dos participantes de exemplo montadas dos modelos prontos); contrato `RoutinesBackend` para o servidor.
+**Fonte:** `GymBros/Train/PublicRoutines.swift`
+
+### RF-SOC-53 · Ranking dos bros e feed unificado
+**Descrição:** O app deve comparar você com os amigos sem liga e juntar todos os check-ins num feed.
+**Regras:**
+- Ranking dos bros: XP, treinos, dias ativos ou minutos, na semana, no mês ou sempre, pelo que cada um postou no perfil (o que os amigos veem).
+- Feed: pílulas Todos, Amigos e cada liga (a escolha fica salva); o mesmo treino postado em várias ligas aparece uma vez, com "Em N lugares".
+**Fonte:** `GymBros/Friends/FriendsFeed.swift`
+
+### RF-SOC-54 · Visita verificada, "Você diz" e treino do dia
+**Descrição:** As ligas devem aceitar mais formas de prova e de pontuação.
+**Regras:**
+- Visita verificada: se a localização registrou uma visita numa academia salva durante o treino, o check-in leva "📍 Visita verificada na {academia}". Vale como local, como hora verificada e, na verificação Padrão, dispensa a foto.
+- Modo "Você diz": cada pessoa informa de 0 a 100 pontos por check-in (em "Quanto vale", no formulário).
+- Treino do dia (dono e moderadores): título, exercícios copiados de uma rotina e texto livre; quem abre a liga no dia vê o card e começa o treino com um toque.
+- Desafios dentro do clube: "Criar desafio no clube" já vem com as regras, os times e o tipo de liga do clube; a seção "Desafios do clube" lista os desafios dele.
+**Fonte:** `GymBros/Leagues/LeagueRules.swift` (`DailyWorkout`, `PostSubject.gymVisit`), `GymBros/Leagues/LeagueModerationViews.swift` (`ClubChallengesSection`, `DailyWorkoutEditor`), `GymBros/Services/Location.swift` (`visit`)
+
+### RF-SOC-55 · Apple Saúde: origem e postar sozinho
+**Descrição:** Treinos importados devem mostrar de onde vieram e poder virar check-in sozinhos.
+**Regras:**
+- O detalhe da atividade mostra "Gravado no {aparelho ou app}".
+- "Postar automaticamente" (Ajustes → Apple Saúde): os treinos novos viram check-in no perfil e nas ligas em andamento que aceitam o treino; vários do mesmo dia entram num check-in só. Do Saúde, o post leva só tipo, data e duração.
+**Fonte:** `GymBros/Leagues/BrosWidgetFeed.swift` (`HealthAutoPost`), `GymBros/App/SettingsPages.swift`
+
+### RF-SOC-56 · Força pela notificação, pergunta inicial e novidades
+**Descrição:** O app deve encurtar caminhos no começo e nas notificações.
+**Regras:**
+- A notificação de amigo que começou a treinar tem o botão "Mandar força 💪".
+- Depois do tutorial, quem ainda não tem atividades nem ligas responde "O que você quer fazer aqui?" (criar uma liga, entrar com código ou só acompanhar os treinos); as duas primeiras abrem a tela da liga.
+- A cada versão com novidades, quem já usava o app vê "Novidades no GymBros" uma vez.
+**Fonte:** `GymBros/Onboarding/IntentAndWhatsNew.swift`, `GymBros/Inbox/NotificationPrefs.swift` (`forceCategory`)
+
 
 ## Comportamentos ambíguos ou possíveis bugs
 
