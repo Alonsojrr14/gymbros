@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftData
+import UserNotifications
 
 // Troca de bros entre amigos, 1 por 1: você oferece um bro seu e pede um da pessoa; ela aceita ou recusa em até 48 h.
 // Ovos não entram. O bro chega com a forma e o XP que tinha (`SnapshotBase`) e evolui dali com os treinos do novo
@@ -63,7 +64,7 @@ enum TradeRefusal: LocalizedError, Equatable {
         case .main: "É o seu principal. Escolha outro principal na Box antes de trocar."
         case .league(let name): "Representa você na liga \(name)."
         case .inDuel: "Está num X1 agora."
-        case .busy: "Já está numa troca esperando resposta."
+        case .busy: "Já está numa troca em andamento."
         case .notPending: "Essa troca não está mais aberta."
         case .gone: "Esse bro não está mais com você."
         }
@@ -90,7 +91,9 @@ enum TradeLedger {
     static let basesKey = "tradeBases"
     static let goneKey = "tradeGone"
     static let appliedKey = "tradeApplied"
-    static let keys = [basesKey, goneKey, appliedKey]
+    /// Trocas que já viraram notificação (aceita ou oferta nova), para avisar uma vez só
+    static let notifiedKey = "tradeNotified"
+    static let keys = [basesKey, goneKey, appliedKey, notifiedKey]
 
     static func bases(_ d: UserDefaults = .standard) -> [UUID: SnapshotBase] {
         let raw = d.data(forKey: basesKey).flatMap { try? JSONDecoder().decode([String: SnapshotBase].self, from: $0) } ?? [:]
@@ -150,6 +153,8 @@ final class TradeStore {
     private(set) var lastError: String?
     /// Bro que acabou de chegar, para a tela de comemoração
     var arrived: (bro: Monster, proposal: TradeProposal)?
+    /// Toque na notificação de troca: abre a tela de trocas
+    var openHub = false
 
     private var context: ModelContext { AppData.container.mainContext }
 
@@ -167,8 +172,23 @@ final class TradeStore {
         all.filter { $0.from.id == "me" && $0.isPending(now: now) }.sorted { $0.createdAt > $1.createdAt }
     }
 
+    /// Trocas que você propôs, o amigo aceitou e falta receber: o bro só chega quando você toca em Receber
+    func ready() -> [TradeProposal] {
+        let applied = TradeLedger.applied()
+        return all.filter { $0.isDone && $0.from.id == "me" && !applied.contains($0.id) }
+            .sorted { ($0.answeredAt ?? $0.createdAt) < ($1.answeredAt ?? $1.createdAt) }
+    }
+
     func done() -> [TradeProposal] {
-        all.filter(\.isDone).sorted { ($0.answeredAt ?? $0.createdAt) > ($1.answeredAt ?? $1.createdAt) }
+        let waiting = Set(ready().map(\.id))
+        return all.filter { $0.isDone && !waiting.contains($0.id) }
+            .sorted { ($0.answeredAt ?? $0.createdAt) > ($1.answeredAt ?? $1.createdAt) }
+    }
+
+    /// Recebe a troca aceita: o seu bro vai, o do amigo chega na Box e a cena da troca começa
+    func receive(_ p: TradeProposal) {
+        guard ready().contains(where: { $0.id == p.id }), let bro = TradeLedger.apply(p, context: context) else { return }
+        arrived = (bro, p)
     }
 
     /// Seus bros como entram na troca (forma e XP de agora)
@@ -196,6 +216,8 @@ final class TradeStore {
         if let l = leagues.first(where: { $0.monsterUUID == m.uuid && !$0.isPastSeason }) { return .league(l.name) }
         if DuelStore.shared.busyFighters(now: now).contains(m.uuid) { return .inDuel }
         if sent(now: now).contains(where: { $0.give.id == m.uuid.uuidString }) { return .busy }
+        // Aceita e ainda não recebida: ele já é do amigo
+        if ready().contains(where: { $0.give.id == m.uuid.uuidString }) { return .busy }
         return nil
     }
 
@@ -209,6 +231,7 @@ final class TradeStore {
         }
         loaded = true
         applyAccepted()
+        notifyNew(now: now)
     }
 
     func bros(of friendID: String) async -> [TradeBro] { (try? await backend.bros(of: friendID)) ?? [] }
@@ -220,6 +243,11 @@ final class TradeStore {
         let p = try await backend.propose(to: TradePerson(id: friend.id, name: friend.name, formID: friend.formID), from: me(),
                                           give: mine, get: get, now: now)
         all.append(p)
+        // A resposta pode chegar em segundos: confere de novo para avisar mesmo fora da tela de trocas
+        Task {
+            try? await Task.sleep(for: .seconds(12))
+            await refresh()
+        }
     }
 
     func respond(_ p: TradeProposal, accept: Bool, now: Date = .now) async throws {
@@ -241,11 +269,45 @@ final class TradeStore {
         all.removeAll { $0.id == p.id }
     }
 
-    /// Trocas aceitas que ainda não mudaram a sua Box (inclusive as que o amigo aceitou enquanto o app estava fechado)
+    /// Trocas que você aceitou e ainda não mudaram a sua Box (ex.: o app fechou no meio). As que você propôs
+    /// esperam você tocar em Receber (`receive`)
     private func applyAccepted() {
-        for p in all where p.isDone {
+        for p in all where p.isDone && p.to.id == "me" {
             if let bro = TradeLedger.apply(p, context: context) { arrived = (bro, p) }
         }
+    }
+
+    /// Avisa uma vez quando aceitam uma troca sua (falta receber) ou quando um amigo te oferece uma troca
+    private func notifyNew(now: Date) {
+        let d = UserDefaults.standard
+        var seen = Set(d.stringArray(forKey: TradeLedger.notifiedKey) ?? [])
+        let fresh = ready().filter { !seen.contains("ok-" + $0.id) }
+        let offers = incoming(now: now).filter { !seen.contains("in-" + $0.id) }
+        guard !fresh.isEmpty || !offers.isEmpty else { return }
+        let on = NotificationPrefs.isOn(.trades)
+        for p in fresh {
+            seen.insert("ok-" + p.id)
+            if on { Self.notify(p, title: "\(p.friend.name) aceitou sua troca! 🤝", body: "Vá em Trocas para receber \(p.theirs.name).") }
+        }
+        for p in offers {
+            seen.insert("in-" + p.id)
+            if on {
+                Self.notify(p, title: "\(p.friend.name) quer trocar com você",
+                            body: "\(p.theirs.name) pelo seu \(p.mine.name). Você tem 48 h para responder.")
+            }
+        }
+        d.set(Array(seen), forKey: TradeLedger.notifiedKey)
+    }
+
+    private static func notify(_ p: TradeProposal, title: String, body: String) {
+        let c = UNMutableNotificationContent()
+        c.title = title
+        c.body = body
+        c.sound = .default
+        c.threadIdentifier = "trades"
+        c.userInfo = ["trade": p.id]
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "trade-\(p.id)-\(p.answer == nil ? "in" : "ok")",
+                                                                     content: c, trigger: nil))
     }
 
     func reset() {
@@ -253,6 +315,7 @@ final class TradeStore {
         loaded = false
         lastError = nil
         arrived = nil
+        openHub = false
     }
 }
 

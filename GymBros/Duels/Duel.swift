@@ -118,6 +118,7 @@ struct RemoteDuel: Codable, Hashable, Identifiable, Sendable {
     func isPair(_ a: String, _ b: String) -> Bool { involves(a) && involves(b) && a != b }
 
     func opponent(of id: String) -> DuelPerson { challenger.id == id ? challenged : challenger }
+    func side(of id: String) -> DuelPerson { challenger.id == id ? challenger : challenged }
 
     var acceptedAt: Date? { answer == .accepted ? answeredAt : nil }
 

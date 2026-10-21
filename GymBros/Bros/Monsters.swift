@@ -262,7 +262,8 @@ struct MyBrosList: View {
                 Spacer()
                 Text("\(monsters.count) \(monsters.count == 1 ? "bro" : "bros")")
                     .font(.subheadline.bold().monospacedDigit()).foregroundStyle(Theme.dim)
-                let offers = trades.incoming().count
+                // Ofertas para responder e trocas aceitas para receber
+                let offers = trades.incoming().count + trades.ready().count
                 Button { trading = true } label: {
                     Label("Trocar", systemImage: "arrow.left.arrow.right").font(.caption.bold())
                         .padding(.horizontal, 10).padding(.vertical, 6)

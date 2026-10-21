@@ -29,18 +29,30 @@ struct TradeHubView: View {
         .gmActions(isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
                    title: confirming.map { "Trocar \($0.mine.name) por \($0.theirs.name)?" },
                    message: confirming.map { "\($0.mine.name) vai para \($0.friend.name) com o XP dele, e \($0.theirs.name) chega com \($0.theirs.xp.formatted()) XP. Não dá para desfazer." },
-                   actions: [GMAction("Trocar", icon: "arrow.left.arrow.right") { if let p = confirming { answer(p, true) } }])
+                   // A ação roda depois que a folha fecha (e zera `confirming`): a proposta vai capturada
+                   actions: confirming.map { p in [GMAction("Trocar", icon: "arrow.left.arrow.right") { answer(p, true) }] } ?? [])
         .gmActions(isPresented: Binding(get: { problem != nil }, set: { if !$0 { problem = nil } }), title: "Troca", message: problem, actions: [])
-        .gmModal(isPresented: Binding(get: { store.arrived != nil }, set: { if !$0 { store.arrived = nil } })) {
-            if let a = store.arrived { TradeArrivedView(bro: a.bro, proposal: a.proposal) }
+        // Cena da troca em tela cheia (TradeSwapScene)
+        .fullScreenCover(isPresented: Binding(get: { store.arrived != nil }, set: { if !$0 { store.arrived = nil } })) {
+            if let a = store.arrived {
+                TradeArrivedView(bro: a.bro, proposal: a.proposal)
+                    .preferredColorScheme(.dark)
+                    .tint(Theme.accent)
+            }
         }
     }
 
     @ViewBuilder
     private func content(now: Date) -> some View {
-        let incoming = store.incoming(now: now), sent = store.sent(now: now), done = store.done()
+        let incoming = store.incoming(now: now), sent = store.sent(now: now), done = store.done(), ready = store.ready()
         if let e = store.lastError {
             GMEmptyState(icon: "icloud.slash", title: "Trocas indisponíveis", message: e)
+        }
+        if !ready.isEmpty {
+            label("Chegou para você", count: ready.count, tint: Theme.accent)
+            ForEach(ready) { p in
+                TradeReadyCard(proposal: p) { store.receive(p) }
+            }
         }
         if !incoming.isEmpty {
             label("Te ofereceram", count: incoming.count, tint: Theme.trophy)
@@ -58,7 +70,7 @@ struct TradeHubView: View {
                 }
             }
         }
-        if incoming.isEmpty && sent.isEmpty && store.loaded {
+        if incoming.isEmpty && sent.isEmpty && ready.isEmpty && store.loaded {
             TradeIdleCard { composing = true }
         }
         if !done.isEmpty {
@@ -215,6 +227,27 @@ struct TradeVersus: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// Troca sua que o amigo aceitou: o bro dele só chega quando você toca em Receber (e aí vem a cena da troca)
+struct TradeReadyCard: View {
+    let proposal: TradeProposal
+    let receive: () -> Void
+
+    var body: some View {
+        GMCard {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.seal.fill").foregroundStyle(Theme.accent)
+                Text("\(proposal.friend.name) aceitou a troca").font(.subheadline.weight(.bold))
+                Spacer()
+            }
+            TradeVersus(give: (proposal.mine.form, proposal.mine.name, proposal.mine.xp),
+                        get: (proposal.theirs.form, proposal.theirs.name, proposal.theirs.xp),
+                        friend: proposal.friend.name, getOwners: proposal.theirs.history)
+            GMButton("Receber \(proposal.theirs.name)", icon: "gift.fill", action: receive)
+        }
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius).strokeBorder(Theme.accent.opacity(0.5), lineWidth: 1.5))
     }
 }
 
@@ -506,36 +539,5 @@ struct TradeComposer: View {
         Label { Text(text).font(.caption).foregroundStyle(.white.opacity(0.85)) } icon: {
             Image(systemName: icon).font(.caption.bold()).foregroundStyle(Theme.trophy)
         }
-    }
-}
-
-// MARK: - Chegou
-
-/// O bro que veio na troca, em destaque
-struct TradeArrivedView: View {
-    let bro: Monster
-    let proposal: TradeProposal
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        let form = MonsterForm.byID(bro.lastFormID) ?? .egg
-        VStack(spacing: 18) {
-            Spacer()
-            Text("TROCA FEITA").font(.caption.weight(.heavy)).tracking(1.2).foregroundStyle(Theme.trophy)
-            ZStack {
-                Circle().fill(Theme.accent.opacity(0.25)).frame(width: 240, height: 240).blur(radius: 40)
-                LivingMonster(form: form).frame(width: 200, height: 200)
-            }
-            Text("Chegou o \(form.name)!").font(.title.bold()).multilineTextAlignment(.center)
-            Text("Veio de \(proposal.friend.name) com \(proposal.theirs.xp.formatted()) XP, que ficam marcados como de quem o treinou. O XP dele com você começa agora. \(proposal.mine.name) foi para \(proposal.friend.name).")
-                .font(.subheadline).foregroundStyle(Theme.dim).multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            Spacer()
-            GMButton("Ver na Box", icon: "square.grid.3x3.fill") { dismiss() }.padding(.horizontal, 16)
-        }
-        .padding(.bottom, 24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RadialGradient(colors: [Theme.accent.opacity(0.18), Theme.bg], center: .center, startRadius: 20, endRadius: 420).ignoresSafeArea())
-        .sensoryFeedback(.success, trigger: true)
     }
 }

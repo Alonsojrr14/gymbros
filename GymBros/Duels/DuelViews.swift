@@ -351,7 +351,7 @@ struct DuelScoreboard: View {
                     .font(.caption.bold().monospacedDigit()).foregroundStyle(Theme.dim)
             }
             HStack(spacing: 8) {
-                side("Você", DuelStore.shared.me().form, score.mine, ahead: score.mine > score.theirs)
+                side("Você", DuelStore.shared.myForm(in: duel), score.mine, ahead: score.mine > score.theirs)
                 Text("×").font(.title3.bold()).foregroundStyle(Theme.dim)
                 side(other.name, other.form, score.theirs, ahead: score.theirs > score.mine)
             }
@@ -975,7 +975,7 @@ struct DuelHomeCard: View {
         let other = d.opponent(of: "me")
         let tint: Color = s.mine > s.theirs ? Theme.accent : s.mine < s.theirs ? Theme.danger : .white
         return HStack(spacing: 10) {
-            MonsterSprite(form: DuelStore.shared.me().form).frame(width: 32, height: 32)
+            MonsterSprite(form: store.myForm(in: d)).frame(width: 32, height: 32)
             Text("\(d.metric.short(s.mine))").font(.headline.monospacedDigit()).foregroundStyle(tint).lineLimit(1).minimumScaleFactor(0.7)
             Text("×").font(.subheadline.bold()).foregroundStyle(Theme.dim)
             Text("\(d.metric.short(s.theirs))").font(.headline.monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
