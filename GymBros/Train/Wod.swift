@@ -90,6 +90,16 @@ struct Wod: Identifiable, Hashable, Codable {
     var exercises: [String] = []
     /// Resto do treino do coach (aquecimento, força, skill…): entra no registro junto com o WOD
     var parts: [WodPart] = []
+    /// Níveis do WOD do coach (Scale, Amador, RX…), cada um com o seu formato e linhas; `level` é o que está no cronômetro
+    var levels: [WodLevelOption]? = nil
+    var level: String? = nil
+
+    /// O mesmo treino com outro nível no cronômetro
+    func with(level title: String) -> Wod {
+        guard let o = levels?.first(where: { $0.title == title }) else { return self }
+        return Wod(id: id, name: name, category: category, format: o.format, lines: o.lines,
+                   exercises: WodMovements.ids(o.lines), parts: parts, levels: levels, level: title)
+    }
 
     static let benchmarks: [Wod] = [
         Wod(id: "fran", name: "Fran", category: "Girls", format: .forTime(capMinutes: 10),
@@ -130,6 +140,30 @@ struct Wod: Identifiable, Hashable, Codable {
     ]
 
     static func byID(_ id: String) -> Wod? { benchmarks.first { $0.id == id } }
+}
+
+/// Linha do treino; movimento de um complex aparece recuado, com a etiqueta "complex"
+struct WodLineText: View {
+    let line: String
+    var font: Font = .subheadline
+
+    var body: some View {
+        if line.hasPrefix(WodParser.complexMark) {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 1).fill(Theme.accent.opacity(0.6)).frame(width: 2)
+                Text(line.dropFirst(WodParser.complexMark.count)).font(font)
+                Text("complex")
+                    .font(.caption2.weight(.bold)).foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Theme.accent.opacity(0.15), in: .capsule)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.leading, 12)
+            .accessibilityElement(children: .combine)
+        } else {
+            Text(line).font(font)
+        }
+    }
 }
 
 func clock(_ s: Int) -> String {
@@ -301,7 +335,7 @@ struct WodTimerView: View {
                 if overview {
                     overviewList
                     GMButton("Começar treino", icon: "play.fill") {
-                        update { $0.sessionStart = .now; $0.phase = 0; $0.phaseStart = .now }
+                        update { $0.work(on: 0) }
                     }
                 } else if !s.onWod {
                     partView(now)
@@ -391,7 +425,7 @@ struct WodTimerView: View {
                 HStack(spacing: 6) {
                     ForEach(0...parts.count, id: \.self) { i in
                         let title = i < parts.count ? parts[i].title : "WOD"
-                        let done = i < s.phase, here = i == s.phase
+                        let done = i < s.working && i != s.phase, here = i == s.phase
                         Button { go(to: i) } label: {
                             Group {
                                 if done {
@@ -403,7 +437,9 @@ struct WodTimerView: View {
                             .font(.caption.bold()).lineLimit(1)
                             .padding(.horizontal, done ? 9 : 12).padding(.vertical, 7)
                             .background(here ? Theme.accent : done ? Theme.accent.opacity(0.15) : Theme.raised, in: .capsule)
-                            .foregroundStyle(here ? .black : done ? Theme.accent : Theme.dim)
+                            // Olhando outra parte: a que está com o relógio correndo fica contornada
+                            .overlay(Capsule().strokeBorder(Theme.accent, lineWidth: i == s.working && !here ? 1.5 : 0))
+                            .foregroundStyle(here ? .black : done || i == s.working ? Theme.accent : Theme.dim)
                         }
                         .buttonStyle(GMPress())
                         .disabled(s.startedAt != nil)
@@ -422,7 +458,7 @@ struct WodTimerView: View {
     private func go(to i: Int) {
         guard s.startedAt == nil, i != s.phase else { return }
         UISelectionFeedbackGenerator().selectionChanged()
-        update { $0.phase = i; $0.phaseStart = .now; $0.partTimerStart = nil; $0.sessionStart = $0.sessionStart ?? .now }
+        update { $0.view(i) }
     }
 
     private var loadsBinding: Binding<[WodLoad]> {
@@ -433,6 +469,7 @@ struct WodTimerView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(parts.enumerated()), id: \.offset) { _, p in partCard(p) }
+                levelPicker
                 wodCard
             }
         }
@@ -442,7 +479,7 @@ struct WodTimerView: View {
     private func partCard(_ p: WodPart) -> some View {
         GMCard {
             Text(p.title.uppercased()).font(.caption.weight(.bold)).foregroundStyle(Theme.dim)
-            ForEach(Array(p.lines.enumerated()), id: \.offset) { Text($0.element).font(.subheadline) }
+            ForEach(Array(p.lines.enumerated()), id: \.offset) { WodLineText(line: $0.element) }
         }
     }
 
@@ -450,7 +487,10 @@ struct WodTimerView: View {
     private var wodCard: some View {
         if !current.lines.isEmpty {
             GMCard {
-                if !parts.isEmpty { Text("WOD · \(current.format.name)").font(.caption.weight(.bold)).foregroundStyle(Theme.accent) }
+                if !parts.isEmpty || current.level != nil {
+                    Text((["WOD", current.format.name] + [current.level].compactMap { $0 }).joined(separator: " · "))
+                        .font(.caption.weight(.bold)).foregroundStyle(Theme.accent)
+                }
                 if chipper && s.startedAt != nil {
                     // Chipper: risca cada movimento ao terminar
                     ForEach(Array(current.lines.enumerated()), id: \.offset) { i, line in
@@ -469,13 +509,26 @@ struct WodTimerView: View {
                         .buttonStyle(GMPress())
                     }
                 } else {
-                    ForEach(Array(current.lines.enumerated()), id: \.offset) { Text($0.element).font(.subheadline.weight(.semibold)) }
+                    ForEach(Array(current.lines.enumerated()), id: \.offset) { WodLineText(line: $0.element, font: .subheadline.weight(.semibold)) }
                 }
             }
         }
     }
 
     private var chipper: Bool { WodScheme.isChipper(current) }
+
+    /// Níveis do WOD do coach: dá para trocar até o cronômetro do WOD começar (o app lembra o seu nível)
+    @ViewBuilder
+    private var levelPicker: some View {
+        if let levels = current.levels, levels.count > 1, s.startedAt == nil, s.countdownEnd == nil {
+            GMChoiceChips(options: levels.map { ($0.title, $0.title) }, selection: Binding(get: { current.level ?? "" }, set: { t in
+                UISelectionFeedbackGenerator().selectionChanged()
+                WodLevel.preferred = t
+                update { $0.wod = $0.wod.with(level: t); $0.checked = [] }
+            }))
+            .accessibilityLabel("Nível do WOD")
+        }
+    }
 
     /// Movimentos de cada bloco do WOD em blocos (nil se as linhas não baterem com os blocos)
     private var blockGroups: [[String]]? {
@@ -502,7 +555,7 @@ struct WodTimerView: View {
                             }
                             .foregroundStyle(here ? Theme.accent : Theme.dim)
                             ForEach(Array(groups[i].enumerated()), id: \.offset) { _, line in
-                                Text(line).font(.subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+                                WodLineText(line: line, font: .subheadline.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
                             }
                             if i < groups.count - 1 && rest > 0 {
                                 Spacer(minLength: 0)
@@ -529,28 +582,80 @@ struct WodTimerView: View {
     @ViewBuilder
     private func partView(_ now: Date) -> some View {
         let p = parts[s.phase]
-        VStack(spacing: 4) {
+        let running = s.phase == s.working
+        let spent = Int(s.partElapsed(s.phase, now: now))
+        VStack(spacing: 6) {
             Text(p.title).font(.title3.bold())
-            big(clock(Int(now.timeIntervalSince(s.phaseStart ?? now))))
-            Text("nesta parte").font(.caption).foregroundStyle(Theme.dim)
+            big(clock(spent))
+                .foregroundStyle(running ? .white : Theme.dim)
+            if running {
+                HStack(spacing: 6) {
+                    Text("nesta parte").font(.caption).foregroundStyle(Theme.dim)
+                    if spent > 0 { resetButton }
+                }
+            } else {
+                // Só olhando: o relógio continua na parte em andamento até você começar esta
+                HStack(spacing: 8) {
+                    GMButton(spent > 0 ? "Continuar aqui" : "Começar aqui", icon: "play.fill", full: false, small: true) {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        update { $0.work(on: $0.phase) }
+                    }
+                    if spent > 0 { resetButton }
+                }
+                workingLink(now)
+            }
         }
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(p.lines.enumerated()), id: \.offset) { Text($0.element).font(.headline) }
+                    ForEach(Array(p.lines.enumerated()), id: \.offset) { WodLineText(line: $0.element, font: .headline) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
                 .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
-                PartTimerCard(lines: p.lines, start: Binding(get: { s.partTimerStart }, set: { v in update { $0.partTimerStart = v } }), now: now)
-                WodLoadsEditor(loads: loadsBinding, part: s.phase, lines: p.lines)
+                PartTimerCard(lines: p.lines, start: Binding(get: { s.partTimers?[s.phase] }, set: { v in
+                    update { st in
+                        var timers = st.partTimers ?? [:]
+                        timers[st.phase] = v
+                        st.partTimers = timers
+                    }
+                }), now: now)
+                WodLoadsEditor(loads: loadsBinding, part: s.phase, lines: p.lines, title: "Séries", bodyweight: true)
             }
         }
         .scrollBounceBehavior(.basedOnSize)
         let next = s.phase + 1 < parts.count ? parts[s.phase + 1].title : nil
         GMButton(next.map { "Próxima: \($0)" } ?? "Ir para o WOD", icon: next == nil ? "flame.fill" : "forward.fill") {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            update { $0.phase += 1; $0.phaseStart = .now; $0.partTimerStart = nil }
+            update { $0.work(on: $0.phase + 1) }
+        }
+    }
+
+    /// Zera o relógio da parte na tela
+    private var resetButton: some View {
+        Button {
+            UISelectionFeedbackGenerator().selectionChanged()
+            update { $0.resetPart($0.phase) }
+        } label: {
+            Label("Zerar", systemImage: "arrow.counterclockwise")
+                .font(.caption.weight(.bold)).foregroundStyle(Theme.dim)
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(Theme.raised, in: .capsule)
+        }
+        .buttonStyle(GMPress())
+        .accessibilityLabel("Zerar o tempo desta parte")
+    }
+
+    /// Olhando outra parte: atalho de volta para a que está em andamento, com o tempo dela correndo
+    @ViewBuilder
+    private func workingLink(_ now: Date) -> some View {
+        if s.sessionStart != nil, s.phase != s.working {
+            let title = s.working < parts.count ? parts[s.working].title : "WOD"
+            Button { update { $0.view($0.working) } } label: {
+                Label("Em andamento: \(title) · \(clock(Int(s.partElapsed(s.working, now: now))))", systemImage: "arrow.uturn.forward")
+                    .font(.caption.weight(.bold)).foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(GMPress())
         }
     }
 
@@ -558,6 +663,8 @@ struct WodTimerView: View {
 
     @ViewBuilder
     private func wodView(_ now: Date, _ e: TimeInterval) -> some View {
+        if s.startedAt == nil && s.countdownEnd == nil { workingLink(now) }
+        levelPicker
         if let groups = blockGroups {
             blockList(groups, now: now, e)
         } else if !current.lines.isEmpty {
@@ -707,7 +814,10 @@ struct WodTimerView: View {
         if s.startedAt == nil {
             GMButton(s.countdownEnd == nil ? (parts.isEmpty ? "Começar (10 s)" : "Começar WOD (10 s)") : "Começando…",
                      icon: "play.fill", enabled: s.countdownEnd == nil) {
-                update { $0.countdownEnd = Date.now.addingTimeInterval(10) }
+                update {
+                    $0.countdownEnd = Date.now.addingTimeInterval(10)
+                    if !$0.wod.parts.isEmpty { $0.work(on: $0.wod.parts.count) }
+                }
             }
         } else {
             HStack(spacing: 10) {
@@ -746,11 +856,21 @@ struct WodTimerView: View {
     }
 
     private func liveKey(_ e: TimeInterval) -> String {
-        "\(s.startedAt?.timeIntervalSince1970 ?? 0)|\(s.pausedAt != nil)|\(s.roundsShown(.now))|\(label(e))|\(s.pausedTotal)"
+        "\(s.sessionStart?.timeIntervalSince1970 ?? 0)|\(s.working)|\(s.startedAt?.timeIntervalSince1970 ?? 0)|\(s.pausedAt != nil)|\(s.roundsShown(.now))|\(label(e))|\(s.pausedTotal)"
     }
 
     private func publishLive(_ e: TimeInterval) async {
-        guard s.startedAt != nil, finished == nil else { return }
+        guard finished == nil else { return }
+        // Antes do cronômetro do WOD (aquecimento, força… ou esperando o WOD): relógio do treino todo, com a parte atual
+        guard s.startedAt != nil else {
+            guard let session = s.sessionStart else { return }
+            let w = s.working
+            let here = w >= parts.count ? "WOD · prepare-se" : parts[w].title
+            let state = WodAttributes.ContentState(countsDown: false, start: session, end: nil, pausedText: nil, rounds: 0, showRounds: false,
+                                                   label: parts.isEmpty ? here : "\(here) · \(min(w, parts.count) + 1) de \(parts.count + 1)")
+            await LiveWod.show(name: current.name, format: "Treino", state: state)
+            return
+        }
         let start = Date.now.addingTimeInterval(-e)
         var end: Date?
         let sec = Int(e)
@@ -855,6 +975,7 @@ struct WodResultForm: View {
     @Query private var allLeagues: [League]
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
+    @State private var extraPhotos: [Data] = []
     @State private var blocked = false
     @State private var minutes = 0
     /// O que foi feito em cada parte do treino (cargas, reps), na ordem de `wod.parts`
@@ -905,8 +1026,8 @@ struct WodResultForm: View {
                 }
             }
             ForEach(Array(wod.parts.enumerated()), id: \.offset) { i, part in
-                if !WodLoads.weighted(part.lines).isEmpty || loadsDone.contains(where: { $0.part == i }) {
-                    WodLoadsEditor(loads: $loadsDone, part: i, lines: part.lines, title: "Cargas · \(part.title)")
+                if !WodLoads.tracked(part.lines, bodyweight: true).isEmpty || loadsDone.contains(where: { $0.part == i }) {
+                    WodLoadsEditor(loads: $loadsDone, part: i, lines: part.lines, title: "Séries · \(part.title)", bodyweight: true)
                 }
             }
             WodLoadsEditor(loads: $loadsDone, part: wod.parts.count, lines: wod.lines, title: wod.parts.isEmpty ? "Cargas" : "Cargas · WOD")
@@ -929,7 +1050,8 @@ struct WodResultForm: View {
                     BroGainsView(gains: gains)
                 }
             }
-            LeaguePostSection(selected: $leagues, photo: $photo)
+            LeaguePostSection(selected: $leagues, photo: $photo, extras: $extraPhotos,
+                              subject: PostSubject(workoutTypeID: WorkoutType.of(.crossfit).id, date: start, minutes: max(minutes, wodMinutes)))
         }
         .onAppear {
             roundsDone = rounds
@@ -974,14 +1096,15 @@ struct WodResultForm: View {
         r.rx = rx
         r.note = note
         // Começa quando o treino abriu (aquecimento, força…); `seconds` é só o tempo ativo do WOD
-        let activity = Activity(kind: .crossfit, date: start, minutes: max(minutes, wodMinutes), effort: effort, note: "\(wod.name) · \(r.text)")
+        let level = wod.level.map { " · \($0)" } ?? ""
+        let activity = Activity(kind: .crossfit, date: start, minutes: max(minutes, wodMinutes), effort: effort, note: "\(wod.name)\(level) · \(r.text)")
         activity.gymUUID = gymID
         context.insert(activity)
         r.activityUUID = activity.uuid
         context.insert(r)
         WodLoads.save(loadsDone, title: wod.parts.isEmpty ? wod.name : "\(wod.name) · cargas", activity: activity, context: context)
         ActivitySplits.stamp(activity, context: context)
-        postCheckIns(activity: activity, leagues: leagues, title: "\(wod.name) · \(r.text)\(rx ? " RX" : "")", note: post, photo: photo, context: context)
+        postCheckIns(activity: activity, leagues: leagues, title: "\(wod.name)\(level) · \(r.text)\(rx ? " RX" : "")", note: post, photo: photo, context: context, extraPhotos: extraPhotos)
         try? context.save()
         PRBook.reload()
         UINotificationFeedbackGenerator().notificationOccurred(.success)

@@ -1,9 +1,9 @@
 import SwiftData
 import SwiftUI
 
-// Cargas do treino do coach: cada movimento com peso (terra, push jerk, wall ball…) ganha séries de carga × reps.
-// Na força com várias séries a próxima já vem com a carga subindo (progressão), e no fim tudo vira um treino
-// com séries de verdade, ligado à atividade: entra na progressão, nos recordes e no "Ver séries".
+// Cargas do treino do coach: cada movimento com peso (terra, push jerk, wall ball…) ganha séries de carga × reps;
+// os sem peso (corda, burpee, pull up…) ganham séries só de repetições. "x% do PR" vira a carga sugerida.
+// No fim tudo vira um treino com séries de verdade, ligado à atividade: entra na progressão, nos recordes e no "Ver séries".
 
 struct WodSet: Codable, Hashable {
     /// Total levantado, com a barra
@@ -31,12 +31,62 @@ struct WodLoad: Codable, Hashable {
     /// Parte do treino (índice em `wod.parts`; `wod.parts.count` é o WOD)
     var part: Int
     var sets: [WodSet] = []
+    /// Tirado da lista: os lidos do treino não voltam sozinhos
+    var removed: Bool? = nil
 }
 
 enum WodLoads {
     /// Movimentos com carga citados nas linhas
     static func weighted(_ lines: [String]) -> [String] {
-        WodMovements.ids(lines).filter { Exercise.byID($0)?.type == .weighted }
+        WodMovements.ids(lines).filter(isWeighted)
+    }
+
+    /// Movimentos para registrar: com carga e, fora do WOD cronometrado, também os sem peso (só repetições)
+    static func tracked(_ lines: [String], bodyweight: Bool) -> [String] {
+        bodyweight ? WodMovements.ids(lines) : weighted(lines)
+    }
+
+    static func isWeighted(_ id: String) -> Bool { Exercise.byID(id)?.type == .weighted }
+
+    /// Reps escritas junto do movimento ("30 DU / 60 SU" → 30 para double under, 60 para corda)
+    static func reps(of id: String, in lines: [String]) -> Int? {
+        for line in lines {
+            for piece in line.components(separatedBy: CharacterSet(charactersIn: "/,+;")) where WodMovements.ids([piece]).contains(id) {
+                let t = piece.trimmingCharacters(in: .whitespaces)
+                if let n = Int(t.prefix { $0.isNumber }), n > 0 { return n }
+            }
+        }
+        return nil
+    }
+
+    /// Percentuais do PR na prescrição, na ordem: "75% do PR", "@80%", "70-75-80% 1RM", "65%/70%" → [0.75…]
+    static func percents(in lines: [String]) -> [Double] {
+        guard let re = try? NSRegularExpression(pattern: "(\\d{2,3}(?:\\s*%?\\s*[-/–,e]\\s*\\d{2,3})*)\\s*%") else { return [] }
+        var out: [Double] = []
+        for line in lines {
+            for m in re.matches(in: line, range: NSRange(line.startIndex..., in: line)) {
+                guard let r = Range(m.range(at: 1), in: line) else { continue }
+                out += line[r].split(whereSeparator: { !$0.isNumber }).compactMap { Double($0) }
+                    .filter { (30...110).contains($0) }.map { $0 / 100 }
+            }
+        }
+        return out
+    }
+
+    /// 1RM estimado do exercício (PRs registrados à mão e séries dos treinos), como total com a barra
+    static func oneRM(_ id: String, history: [SessionLog], manual: [SetLog], bar: Double = WodBar.current) -> Double? {
+        let ex = Exercise.byID(id)
+        let platesOnly = ex?.usesBar == true && !(ex?.weightIncludesBar ?? true)
+        let sets = history.flatMap(\.sets).filter { $0.exerciseID == id && $0.done } + manual.filter { $0.exerciseID == id }
+        return sets.compactMap { Progression.oneRM(weight: platesOnly ? $0.weight + bar : $0.weight, reps: $0.reps) }.max()
+    }
+
+    /// Carga de `pct` do 1RM, arredondada ao incremento (nunca abaixo da barra)
+    static func weight(_ pct: Double, of oneRM: Double, exerciseID: String, bar: Double = WodBar.current) -> Double {
+        let ex = Exercise.byID(exerciseID)
+        let inc = ex?.increment ?? 2.5
+        let w = (pct * oneRM / inc).rounded() * inc
+        return ex?.usesBar == true ? max(w, bar) : w
     }
 
     /// Reps da prescrição ("5 REPS", "3x5", "5-4-3-2-1" → 5); sem número, 5
@@ -52,11 +102,18 @@ enum WodLoads {
         return 5
     }
 
-    /// Próxima série: com séries feitas, sobe uma carga (progressão); a primeira vem do histórico ou do PR
-    static func next(after sets: [WodSet], exerciseID: String, reps: Int, history: [SessionLog], bar: Double = WodBar.current) -> WodSet {
+    /// Próxima série: com "x% do PR" e o PR conhecido, a carga do percentual desta série; senão repete a anterior.
+    /// A primeira vem do histórico ou do PR. Sem peso, só as repetições.
+    static func next(after sets: [WodSet], exerciseID: String, reps: Int, history: [SessionLog], bar: Double = WodBar.current,
+                     percents: [Double] = [], oneRM: Double? = nil) -> WodSet {
         let ex = Exercise.byID(exerciseID)
-        let inc = ex?.increment ?? 2.5
-        if let last = sets.last { return WodSet(weight: last.weight > 0 ? last.weight + inc : 0, reps: last.reps, bar: last.bar) }
+        guard isWeighted(exerciseID) else { return WodSet(weight: 0, reps: sets.last?.reps ?? reps) }
+        if let oneRM, !percents.isEmpty {
+            let pct = percents[min(sets.count, percents.count - 1)]
+            return WodSet(weight: weight(pct, of: oneRM, exerciseID: exerciseID, bar: bar), reps: sets.last?.reps ?? reps,
+                          bar: ex?.usesBar == true ? (sets.last?.bar ?? bar) : nil)
+        }
+        if let last = sets.last { return last }
         let s = Progression.suggest(exerciseID: exerciseID, sets: 1, reps: reps, history: history)
         guard ex?.usesBar == true else { return WodSet(weight: s.weight, reps: reps) }
         // Na musculação a carga anotada é só das anilhas: aqui é sempre o total, com a barra
@@ -66,8 +123,13 @@ enum WodLoads {
 
     static func text(_ loads: [WodLoad]) -> String {
         loads.filter { !$0.sets.isEmpty }.map { l in
-            "\(Exercise.name(l.exerciseID)) " + l.sets.map { "\(Progression.fmt($0.weight))×\($0.reps)" }.joined(separator: ", ")
+            "\(Exercise.name(l.exerciseID)) " + l.sets.map { setText($0, l.exerciseID) }.joined(separator: ", ")
         }.joined(separator: "; ")
+    }
+
+    static func setText(_ s: WodSet, _ id: String, spaced: Bool = false) -> String {
+        guard isWeighted(id) else { return "\(s.reps) reps" }
+        return spaced ? "\(Progression.fmt(s.weight)) kg × \(s.reps)" : "\(Progression.fmt(s.weight))×\(s.reps)"
     }
 
     /// Vira um treino com séries feitas, ligado à atividade (progressão, recordes e "Ver séries")
@@ -96,40 +158,71 @@ enum WodLoads {
     }
 }
 
-/// Cargas de uma parte do treino: movimentos com peso que aparecem nela, mais os que você adicionar
+/// Séries de uma parte do treino: movimentos com peso (carga × reps) e, fora do WOD cronometrado, os sem peso
+/// (só reps), mais os que você adicionar. "x% do PR" na prescrição vira a carga de cada série.
 struct WodLoadsEditor: View {
     @Binding var loads: [WodLoad]
     let part: Int
     let lines: [String]
     var title = "Cargas"
+    /// Lista também os movimentos sem peso (partes como força e condicionamento); no WOD só os com carga
+    var bodyweight = false
     @Query(filter: #Predicate<WorkoutSession> { $0.end != nil }, sort: \WorkoutSession.start) private var sessions: [WorkoutSession]
+    @Query private var records: [PersonalRecord]
     @State private var editing: (exercise: String, index: Int)?
     @State private var weight: Double?
     @State private var reps: Double?
     @State private var bar: Double = WodBar.current
     @State private var picking = false
+    @State private var registeringPR: IDBox?
+    @State private var confirmRemove: String?
 
     private var exercises: [String] {
-        var ids = WodLoads.weighted(lines)
-        for l in loads where l.part == part && !ids.contains(l.exerciseID) { ids.append(l.exerciseID) }
+        let mine = loads.filter { $0.part == part }
+        let removed = Set(mine.filter { $0.removed == true }.map(\.exerciseID))
+        var ids = WodLoads.tracked(lines, bodyweight: bodyweight).filter { !removed.contains($0) }
+        for l in mine where l.removed != true && !ids.contains(l.exerciseID) { ids.append(l.exerciseID) }
         return ids
     }
 
+    /// Tira o exercício e as séries dele; o lido do treino fica marcado para não voltar
+    private func remove(_ id: String) {
+        loads.removeAll { $0.exerciseID == id && $0.part == part }
+        if WodLoads.tracked(lines, bodyweight: bodyweight).contains(id) {
+            loads.append(WodLoad(exerciseID: id, part: part, removed: true))
+        }
+    }
+
+    private var percents: [Double] { WodLoads.percents(in: lines) }
+
+    private func oneRM(_ id: String) -> Double? {
+        WodLoads.oneRM(id, history: sessions.map(\.log), manual: records.map(\.log))
+    }
+
     var body: some View {
-        GMSection(title, footer: exercises.isEmpty ? "Nenhum movimento com carga reconhecido. Adicione o que você fez com peso." :
-                    "Cada + já vem com a carga subindo. Toque numa série para corrigir.") {
+        GMSection(title, footer: exercises.isEmpty ? "Nenhum movimento reconhecido. Adicione o que você fez." :
+                    "O + repete a série anterior\(percents.isEmpty ? "" : " (ou usa o próximo % do PR)"). Toque numa série para corrigir.") {
             ForEach(exercises, id: \.self) { id in
                 if id != exercises.first { GMDivider() }
                 row(id)
             }
             if !exercises.isEmpty { GMDivider() }
-            GMRow(icon: "plus", iconTint: Theme.accent, title: "Outro exercício com carga", chevron: true) { picking = true }
+            GMRow(icon: "plus", iconTint: Theme.accent, title: "Outro exercício", chevron: true) { picking = true }
         }
         .gmModal(isPresented: $picking) {
             ExercisePicker { e in
-                if !exercises.contains(e.id) { loads.append(WodLoad(exerciseID: e.id, part: part)) }
+                guard !exercises.contains(e.id) else { return }
+                loads.removeAll { $0.exerciseID == e.id && $0.part == part }
+                loads.append(WodLoad(exerciseID: e.id, part: part))
             }
         }
+        .gmActions(isPresented: Binding(get: { confirmRemove != nil }, set: { if !$0 { confirmRemove = nil } }),
+                   title: "Tirar \(confirmRemove.map(Exercise.name) ?? "exercício")?",
+                   message: "As séries registradas dele saem junto.",
+                   actions: confirmRemove.map { id in [GMAction("Tirar exercício", icon: "trash", destructive: true) {
+                       withAnimation(.snappy) { remove(id) }
+                   }] } ?? [])
+        .gmModal(item: $registeringPR) { PRSessionView(only: $0.id) }
         .gmSheet(isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) { close in
             if let e = editing { editor(e, close: close) }
         }
@@ -145,20 +238,29 @@ struct WodLoadsEditor: View {
     private func row(_ id: String) -> some View {
         let list = sets(id)
         let bars = Set(list.compactMap(\.bar))
+        let weighted = WodLoads.isWeighted(id)
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(Exercise.name(id)).font(.subheadline.weight(.semibold))
-                    if let b = bars.first, bars.count == 1 {
+                    if !weighted {
+                        Text("Sem peso · conta as repetições").font(.caption).foregroundStyle(Theme.dim)
+                    } else if let b = bars.first, bars.count == 1 {
                         Text("Total com a barra de \(Progression.fmt(b)) kg").font(.caption).foregroundStyle(Theme.dim)
                     } else if Exercise.byID(id)?.usesBar == true && list.isEmpty {
                         Text("Barra + anilhas").font(.caption).foregroundStyle(Theme.dim)
                     }
+                    if weighted && !percents.isEmpty { percentNote(id) }
                 }
                 Spacer()
+                GMIconButton(icon: "trash", size: 30, tint: Theme.dim, label: "Tirar \(Exercise.name(id))") {
+                    if list.isEmpty { withAnimation(.snappy) { remove(id) } } else { confirmRemove = id }
+                }
                 Button {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    let n = WodLoads.next(after: list, exerciseID: id, reps: WodLoads.reps(in: lines), history: sessions.map(\.log))
+                    let reps = WodLoads.reps(of: id, in: lines) ?? WodLoads.reps(in: lines)
+                    let n = WodLoads.next(after: list, exerciseID: id, reps: reps, history: sessions.map(\.log),
+                                          percents: percents, oneRM: oneRM(id))
                     setSets(id, list + [n])
                 } label: {
                     Label(list.isEmpty ? "Série" : "+ série", systemImage: "plus")
@@ -174,7 +276,7 @@ struct WodLoadsEditor: View {
                 GMFlow {
                     ForEach(Array(list.enumerated()), id: \.offset) { k, s in
                         Button { open(id, k, s) } label: {
-                            Text("\(k + 1)  \(Progression.fmt(s.weight)) kg × \(s.reps)")
+                            Text("\(k + 1)  \(WodLoads.setText(s, id, spaced: true))")
                                 .font(.caption.weight(.semibold).monospacedDigit())
                                 .padding(.horizontal, 10).padding(.vertical, 6)
                                 .background(Theme.raised, in: .capsule)
@@ -187,6 +289,26 @@ struct WodLoadsEditor: View {
         }
     }
 
+    /// "75% do PR (100 kg) = 75 kg"; sem PR, atalho para registrar
+    @ViewBuilder
+    private func percentNote(_ id: String) -> some View {
+        let pcts = percents.map { "\(Int(($0 * 100).rounded()))%" }
+        let pctText = pcts.count == 1 ? pcts[0] : "\(pcts.first!)–\(pcts.last!)"
+        if let orm = oneRM(id) {
+            let kgs = percents.map { WodLoads.weight($0, of: orm, exerciseID: id) }
+            let kgText = Set(kgs).count == 1 ? "\(Progression.fmt(kgs[0])) kg" : "\(Progression.fmt(kgs.first!))–\(Progression.fmt(kgs.last!)) kg"
+            Label("\(pctText) do PR (\(Progression.fmt(orm.rounded())) kg) = \(kgText)", systemImage: "trophy.fill")
+                .font(.caption.weight(.semibold)).foregroundStyle(Theme.trophy)
+        } else {
+            Button { registeringPR = IDBox(id: id) } label: {
+                Label("\(pctText) do PR · registre seu PR", systemImage: "trophy")
+                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.trophy)
+            }
+            .buttonStyle(GMPress())
+            .accessibilityHint("Abre o registro do seu PR de \(Exercise.name(id)) para calcular a carga")
+        }
+    }
+
     private func open(_ id: String, _ k: Int, _ s: WodSet) {
         weight = s.weight
         reps = Double(s.reps)
@@ -196,22 +318,25 @@ struct WodLoadsEditor: View {
 
     private func editor(_ e: (exercise: String, index: Int), close: @escaping () -> Void) -> some View {
         let ex = Exercise.byID(e.exercise)
+        let weighted = WodLoads.isWeighted(e.exercise)
         return VStack(alignment: .leading, spacing: 14) {
             Text("\(Exercise.name(e.exercise)) · série \(e.index + 1)").font(.headline)
-            if ex?.usesBar == true {
-                barFields
-            } else {
-                GMDecimalField(title: "Carga", value: $weight, step: ex?.increment ?? 2.5, unit: "kg", start: 20, clearable: false)
+            if weighted {
+                if ex?.usesBar == true {
+                    barFields
+                } else {
+                    GMDecimalField(title: "Carga", value: $weight, step: ex?.increment ?? 2.5, unit: "kg", start: 20, clearable: false)
+                }
+                GMDivider()
             }
-            GMDivider()
             GMDecimalField(title: "Reps", value: Binding(get: { reps }, set: { reps = $0.map { max(0, $0.rounded()) } }),
                            step: 1, unit: "reps", start: 5, clearable: false)
             GMButton("Salvar") {
                 var list = sets(e.exercise)
                 if list.indices.contains(e.index) {
-                    let usesBar = ex?.usesBar == true
+                    let usesBar = weighted && ex?.usesBar == true
                     if usesBar { WodBar.current = bar }
-                    list[e.index] = WodSet(weight: max(weight ?? 0, usesBar ? bar : 0), reps: Int(reps ?? 0), bar: usesBar ? bar : nil)
+                    list[e.index] = WodSet(weight: weighted ? max(weight ?? 0, usesBar ? bar : 0) : 0, reps: Int(reps ?? 0), bar: usesBar ? bar : nil)
                     setSets(e.exercise, list)
                 }
                 close()

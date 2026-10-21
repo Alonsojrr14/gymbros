@@ -44,7 +44,7 @@ struct TrainView: View {
                 if let w = wodRun.state {
                     GMCard {
                         card(title: w.wod.name, subtitle: w.startedAt != nil ? "WOD em andamento · \(w.wod.format.name)"
-                                 : w.sessionStart != nil ? "Em andamento · \(w.onWod ? "WOD" : w.wod.parts[w.phase].title)"
+                                 : w.sessionStart != nil ? "Em andamento · \(w.working >= w.wod.parts.count ? "WOD" : w.wod.parts[w.working].title)"
                                  : "Aberto desde \(w.openedAt.formatted(date: .omitted, time: .shortened))",
                              action: "Continuar") { coachWod = w.wod }
                     }
@@ -81,8 +81,8 @@ struct TrainView: View {
 
                 GMSection("Minhas rotinas") {
                     ForEach(routines) { r in
-                        GMRow(icon: "list.bullet.rectangle", title: r.name,
-                              subtitle: weekdaysText(r.weekdays) + " · \(r.items.count) exercícios",
+                        GMRow(icon: nil, title: r.name,
+                              subtitle: weekdaysText(r.weekdays) + " · \(r.items.count) exercícios" + (PublicRoutinesStore.shared.isPublished(r) ? " · pública" : ""),
                               action: { editing = r }) {
                             GMIconButton(icon: "ellipsis", size: 32) { routineMenu = r }
                         }
@@ -91,6 +91,11 @@ struct TrainView: View {
                     GMRow(icon: "plus", iconTint: Theme.accent, title: "Nova rotina", action: newRoutine)
                     GMDivider()
                     GMRow(icon: "square.stack", iconTint: Theme.accent, title: "Usar modelo pronto", chevron: true) { templates = true }
+                    GMDivider()
+                    NavigationLink { PublicRoutinesView() } label: {
+                        GMRow(icon: "person.2.fill", iconTint: Theme.accent, title: "Rotinas públicas", subtitle: "Dos bros e dos amigos: curta e salve uma cópia", chevron: true)
+                    }
+                    .buttonStyle(GMPress())
                 }
 
                 GMSection("CrossFit") {
@@ -165,6 +170,7 @@ struct TrainView: View {
             .navigationDestination(item: $editing) { RoutineEditView(routine: $0) }
             .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.startWorkout)) { _ in startToday() }
             .gmModal(isPresented: $importing) { ImportWodView() }
+            .task { await PublicRoutinesStore.shared.refresh() }
             .gmModal(item: $coachWod) { WodTimerView(wod: $0) }
             .gmModal(item: $planDetail) { PlannedWodView(initial: $0) }
             .gmModal(isPresented: $templates) { TemplatesView(startingOrder: routines.count) }
@@ -193,6 +199,14 @@ struct TrainView: View {
         var list: [GMAction] = []
         if inProgress == nil { list.append(GMAction("Começar agora", icon: "play.fill") { start(r) }) }
         list.append(GMAction("Editar", icon: "pencil") { editing = r })
+        let pub = PublicRoutinesStore.shared
+        if pub.isPublished(r) {
+            list.append(GMAction("Tirar das rotinas públicas", icon: "eye.slash") { Task { await pub.unpublish(r) } })
+        } else if !r.items.isEmpty {
+            let me = UserDefaults.standard.string(forKey: "trainerName") ?? ""
+            let form = UserDefaults.standard.string(forKey: "lastFormID") ?? MonsterForm.egg.id
+            list.append(GMAction("Publicar rotina", icon: "person.2") { Task { await pub.publish(r, name: me, formID: form) } })
+        }
         list.append(GMAction("Apagar rotina", icon: "trash", destructive: true) { confirmDeleteRoutine = r })
         return list
     }
@@ -421,6 +435,7 @@ struct SessionDetailView: View {
 
 func setText(_ s: LoggedSet) -> String {
     switch Exercise.byID(s.exerciseID)?.type ?? .weighted {
+    case .distance: return "\(meters(s.weight)) em \(clock(s.reps))"
     case .time: return "\(s.reps) s" + (s.weight > 0 ? " · \(Progression.fmt(s.weight)) kg" : "")
     case .bodyweight where s.weight == 0: return "\(s.reps) reps"
     default: return "\(Progression.fmt(s.weight)) kg × \(s.reps)"

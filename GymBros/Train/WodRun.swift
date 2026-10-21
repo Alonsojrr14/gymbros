@@ -17,19 +17,55 @@ struct WodRunState: Codable, Equatable {
     var liveID = UUID().uuidString
     /// "Começar treino": relógio do treino inteiro (aquecimento, força… e o WOD)
     var sessionStart: Date?
-    /// Parte em que está (índice em `wod.parts`); igual a `wod.parts.count` é o WOD
+    /// Parte na tela (índice em `wod.parts`); igual a `wod.parts.count` é o WOD
     var phase = 0
+    /// Começo do trecho atual da parte em andamento (o relógio dela soma `partSeconds` mais o tempo desde aqui)
     var phaseStart: Date?
+    /// Parte em andamento: a mais adiantada que você alcançou. Voltar numa anterior só mostra o tempo feito lá
+    var workingPhase: Int?
+    /// Tempo já feito em cada parte, sem o trecho em andamento
+    var partSeconds: [Int: TimeInterval]?
+    /// Início do cronômetro de cada parte (força "a cada 2'"…): navegar não zera
     /// Rodadas de cada bloco, nos WODs em blocos
     var blockRounds: [Int] = []
     /// Cargas registradas em cada parte e no WOD
     var loads: [WodLoad] = []
-    /// Cronômetro da parte atual (força "a cada 2'"…)
-    var partTimerStart: Date?
+    var partTimers: [Int: Date]?
     /// Linhas riscadas no chipper
     var checked: [Int] = []
 
     var onWod: Bool { phase >= wod.parts.count }
+
+    var working: Int { workingPhase ?? phase }
+
+    /// Tempo feito na parte `i`; só a parte em andamento corre
+    func partElapsed(_ i: Int, now: Date) -> TimeInterval {
+        (partSeconds?[i] ?? 0) + (i == working ? max(now.timeIntervalSince(phaseStart ?? now), 0) : 0)
+    }
+
+    /// Só mostra a parte `i`: o relógio continua na parte em andamento
+    mutating func view(_ i: Int) {
+        phase = i
+    }
+
+    /// A parte `i` passa a ser a em andamento: o relógio dela continua de onde parou e o da anterior para
+    mutating func work(on i: Int, now: Date = .now) {
+        sessionStart = sessionStart ?? now
+        if phaseStart != nil, i != working {
+            partSeconds = (partSeconds ?? [:]).merging([working: partElapsed(working, now: now)]) { $1 }
+        }
+        if phaseStart == nil || i != working {
+            workingPhase = i
+            phaseStart = now
+        }
+        phase = i
+    }
+
+    /// Zera o relógio da parte `i` (na em andamento, recomeça agora)
+    mutating func resetPart(_ i: Int, now: Date = .now) {
+        partSeconds?[i] = nil
+        if i == working { phaseStart = now }
+    }
 
     func elapsed(_ now: Date) -> TimeInterval {
         guard let startedAt else { return 0 }

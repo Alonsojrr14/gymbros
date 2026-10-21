@@ -42,7 +42,10 @@ enum LiveWorkout {
     // MARK: Live Activity
 
     static func refresh(_ s: WorkoutSession) async {
-        await show(title: s.title, start: s.start, state: state(for: s))
+        let st = state(for: s)
+        await show(title: s.title, start: s.start, state: st)
+        WatchBridge.shared.update(workout: WatchBridge.workout(s.title, start: s.start, state: st, restTotal: s.restTotal))
+        LivePresence.shared.workout(s, state: st)
     }
 
     /// Começa (ou atualiza, se já existe) o Live Activity do treino
@@ -60,6 +63,7 @@ enum LiveWorkout {
     }
 
     static func endAll() async {
+        WatchBridge.shared.update(workout: nil)
         for a in ActivityKit.Activity<WorkoutAttributes>.activities {
             await a.end(nil, dismissalPolicy: .immediate)
         }
@@ -182,8 +186,9 @@ enum LiveWorkout {
         return "\(s.title): \(durationText(minutes)), \(done.count) séries. +\(xp) XP pro seu bro." + routineNote
     }
 
-    /// Começa um treino (de rotina ou livre) já com as cargas sugeridas pelo histórico
-    static func startSession(routine: Routine?) -> WorkoutSession {
+    /// Começa um treino (de rotina ou livre) já com as cargas sugeridas pelo histórico.
+    /// Começado no iPhone, abre o app no relógio também.
+    static func startSession(routine: Routine?, fromWatch: Bool = false) -> WorkoutSession {
         let ctx = AppData.container.mainContext
         let finished = (try? ctx.fetch(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end != nil },
                                                                       sortBy: [SortDescriptor(\.start)]))) ?? []
@@ -234,6 +239,7 @@ enum LiveWorkout {
         try? ctx.save()
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         GymLocation.shared.pendingArrival = nil
+        if !fromWatch { WatchBridge.shared.startOnWatch() }
         return session
     }
 
@@ -245,9 +251,11 @@ enum LiveWorkout {
 @MainActor
 enum LiveWod {
     static func show(name: String, format: String, state: WodAttributes.ContentState) async {
+        LivePresence.shared.wod(label: state.label)
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         let content = ActivityContent(state: state, staleDate: nil)
-        if let a = ActivityKit.Activity<WodAttributes>.activities.first, a.attributes.name == name {
+        // Das partes do treino para o cronômetro do WOD o formato muda: recria para mostrar o do WOD
+        if let a = ActivityKit.Activity<WodAttributes>.activities.first, a.attributes.name == name, a.attributes.format == format {
             await a.update(content)
             return
         }

@@ -15,6 +15,20 @@ struct WodPart: Codable, Hashable {
     var lines: [String]
 }
 
+/// Um nível do WOD (Scale, Amador, RX…) com o seu formato e as suas linhas
+struct WodLevelOption: Codable, Hashable {
+    var title: String
+    var format: WodFormat
+    var lines: [String]
+
+    /// Nível lido do texto: formato e linhas a partir das linhas dele
+    static func parsing(_ title: String, _ lines: [String]) -> WodLevelOption {
+        var d = WodDraft()
+        WodParser.fill(&d, with: lines.filter { !WodParser.isNoise($0) })
+        return WodLevelOption(title: title, format: d.format, lines: d.lines)
+    }
+}
+
 struct PlannedWod: Codable, Identifiable, Hashable {
     var id = UUID()
     var day: Date
@@ -22,9 +36,31 @@ struct PlannedWod: Codable, Identifiable, Hashable {
     var format: WodFormat
     var lines: [String]
     var parts: [WodPart] = []
+    /// Níveis do WOD (o escolhido é `level`, com `format` e `lines`); nil quando o coach mandou um nível só
+    var levels: [WodLevelOption]? = nil
+    var level: String? = nil
+
+    static let otherLevelPrefix = "Outro nível: "
 
     var wodID: String { "coach-" + id.uuidString }
-    var wod: Wod { Wod(id: wodID, name: name, category: "Coach", format: blocksFormat, lines: lines, exercises: WodMovements.ids(lines), parts: parts) }
+    var wod: Wod {
+        var parts = self.parts
+        var levels = self.levels
+        // Importados antes da troca de nível no treino: os outros níveis estavam nas partes
+        let others = parts.filter { $0.title.hasPrefix(Self.otherLevelPrefix) }
+        if levels == nil, !others.isEmpty {
+            parts.removeAll { $0.title.hasPrefix(Self.otherLevelPrefix) }
+            let otherTitles = others.map { String($0.title.dropFirst(Self.otherLevelPrefix.count)) }
+            let mine = level ?? WodLevel.preferred.flatMap { otherTitles.contains($0) ? nil : $0 } ?? "Escolhido"
+            levels = [WodLevelOption(title: mine, format: blocksFormat, lines: lines)]
+                + zip(otherTitles, others).map { WodLevelOption.parsing($0, $1.lines) }
+        }
+        let chosen = level ?? levels?.first?.title
+        return Wod(id: wodID, name: name, category: "Coach", format: blocksFormat, lines: WodParser.expandComplexes(lines),
+                   exercises: WodMovements.ids(lines), parts: parts.map { WodPart(title: $0.title, lines: WodParser.expandComplexes($0.lines)) },
+                   levels: levels?.map { WodLevelOption(title: $0.title, format: $0.format, lines: WodParser.expandComplexes($0.lines)) },
+                   level: chosen)
+    }
 
     /// Importados antes dos blocos viraram um AMRAP/EMOM só com o tempo somado: os blocos voltam a partir das linhas
     private var blocksFormat: WodFormat {
@@ -83,16 +119,16 @@ struct WodDraft: Equatable {
     var variants: [WodPart] = []
     /// Nível escolhido entre `variants`
     var level: String?
-    /// Partes do treino sem os outros níveis (que entram em `parts` como "Outro nível: …")
+    /// Partes do treino (aquecimento, força…), sem o WOD
     var baseParts: [WodPart] = []
 
-    /// O mesmo treino com outro nível no cronômetro; os demais ficam nas partes, para consulta
+    /// O mesmo treino com outro nível no cronômetro; os demais ficam salvos no treino para trocar na hora
     func picking(_ name: String) -> WodDraft {
         guard let chosen = variants.first(where: { $0.title == name }) else { return self }
         var d = self
         d.level = name
         WodParser.fill(&d, with: chosen.lines)
-        d.parts = baseParts + variants.filter { $0.title != name }.map { WodPart(title: "Outro nível: \($0.title)", lines: $0.lines) }
+        d.parts = baseParts
         return d
     }
 }
@@ -196,6 +232,48 @@ enum WodParser {
         return (common, levels.filter { !$0.lines.isEmpty })
     }
 
+    /// Marca das linhas que são movimentos de um complex (desenhadas recuadas, com a etiqueta "complex")
+    static let complexMark = "↳ "
+
+    /// "1 Complex" seguido de "1 Power clean + 1 front squat" (ou "Complex: 1 clean + 1 jerk"): cada movimento numa linha
+    /// marcada como parte do complex, depois de um título que explica o que é. Linhas já abertas ficam como estão.
+    static func expandComplexes(_ lines: [String]) -> [String] {
+        var out: [String] = []
+        var i = 0
+        while i < lines.count {
+            let line = lines[i]
+            guard let m = match("^(\\d{1,2}\\s*(?:x|×)?)?\\s*complex(?:o|es)?\\b\\s*[:\\-–]?\\s*(.*)$", line) else {
+                out.append(line)
+                i += 1
+                continue
+            }
+            var pieces = m[2].isEmpty ? [] : [m[2]]
+            var j = i + 1
+            if pieces.isEmpty {
+                while j < lines.count, lines[j].contains("+"), !lines[j].hasPrefix(complexMark) {
+                    pieces.append(lines[j])
+                    j += 1
+                }
+            }
+            let movements = pieces.flatMap { $0.components(separatedBy: "+") }
+                .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            guard movements.count >= 2 else {
+                out.append(line)
+                i += 1
+                continue
+            }
+            let count = m[1].trimmingCharacters(in: .whitespaces)
+            out.append("\(count.isEmpty ? "" : count + " ")Complex: \(movements.count) movimentos seguidos, sem soltar a barra")
+            out += movements.map { m in
+                var t = m
+                if let i = t.firstIndex(where: \.isLetter) { t.replaceSubrange(i...i, with: t[i].uppercased()) }
+                return complexMark + t
+            }
+            i = j
+        }
+        return out
+    }
+
     /// Tira negrito/itálico de mensagem (*, _, ~), emojis, marcadores de lista e espaços repetidos
     static func clean(_ line: String) -> String {
         let scalars = line.unicodeScalars.filter { s in
@@ -261,7 +339,9 @@ enum WodParser {
             "check-in", "checkin", "ações", "acoes", "cross"].contains(key) { return true }
         // Só palavras de botão, juntas ou não ("Ver Ranking", "Fazer check-in", "Ver RankingCheck-In")
         let words = key.replacingOccurrences(of: "check-in", with: " checkin ").split(separator: " ")
-        let buttons: Set<String> = ["ver", "fazer", "ranking", "rankingcheckin", "checkin", "dicas", "nenhuma", "ações", "acoes", "curtir", "comentar"]
+        // "Banking", "Rankinq": o OCR erra o botão "Ver Ranking"
+        let buttons: Set<String> = ["ver", "fazer", "ranking", "banking", "rankinq", "rankingcheckin", "checkin", "dicas", "nenhuma", "ações", "acoes",
+                                    "curtir", "comentar"]
         return !words.isEmpty && words.count <= 4 && words.allSatisfy { buttons.contains(String($0)) }
     }
 
@@ -343,7 +423,7 @@ enum WodParser {
         return nil
     }
 
-    private static func match(_ pattern: String, _ text: String) -> [String]? {
+    static func match(_ pattern: String, _ text: String) -> [String]? {
         guard let re = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
               let m = re.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else { return nil }
         return (0..<m.numberOfRanges).map { Range(m.range(at: $0), in: text).map { String(text[$0]) } ?? "" }
@@ -782,10 +862,10 @@ struct ImportWodView: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(part.lines.enumerated()), id: \.offset) { _, line in
+                    ForEach(Array(WodParser.expandComplexes(part.lines).enumerated()), id: \.offset) { _, line in
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Circle().fill(Theme.accent).frame(width: 5, height: 5)
-                            Text(line).font(.subheadline)
+                            if !line.hasPrefix(WodParser.complexMark) { Circle().fill(Theme.accent).frame(width: 5, height: 5) }
+                            WodLineText(line: line)
                         }
                     }
                 }
@@ -840,7 +920,14 @@ struct ImportWodView: View {
         p.name = name.trimmingCharacters(in: .whitespaces).isEmpty ? "WOD do coach" : name.trimmingCharacters(in: .whitespaces)
         p.format = format
         p.lines = lines
-        p.parts = parts
+        p.parts = parts.filter { !$0.title.hasPrefix(PlannedWod.otherLevelPrefix) }
+        // Níveis: o escolhido com o que está na tela (formato e linhas podem ter sido corrigidos), os outros como vieram
+        if let d = draft, d.variants.count > 1, let chosen = d.level {
+            p.levels = d.variants.map { $0.title == chosen ? WodLevelOption(title: chosen, format: format, lines: lines) : .parsing($0.title, $0.lines) }
+            p.level = chosen
+        } else if let chosen = p.level, let i = p.levels?.firstIndex(where: { $0.title == chosen }) {
+            p.levels?[i] = WodLevelOption(title: chosen, format: format, lines: lines)
+        }
         WodPlan.save(p)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         return p

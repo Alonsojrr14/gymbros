@@ -37,11 +37,11 @@ final class WodFormatsTests: GymTestCase {
         XCTAssertEqual(WodLoads.reps(in: ["Push jerks"]), 5)
     }
 
-    func testNextSetProgresses() {
+    func testNextSetRepeatsThePrevious() {
         let first = WodLoads.next(after: [], exerciseID: "levantamento-terra", reps: 5, history: [])
         XCTAssertEqual(first.reps, 5)
         let next = WodLoads.next(after: [WodSet(weight: 80, reps: 5)], exerciseID: "levantamento-terra", reps: 5, history: [])
-        XCTAssertEqual(next, WodSet(weight: 85, reps: 5))
+        XCTAssertEqual(next, WodSet(weight: 80, reps: 5), "o + repete a série anterior, sem subir a carga")
     }
 
     @MainActor
@@ -87,7 +87,7 @@ final class WodBarTests: GymTestCase {
         XCTAssertGreaterThanOrEqual(s.weight, 15)
         let n = WodLoads.next(after: [WodSet(weight: 50, reps: 2, bar: 15)], exerciseID: "cf-push-jerk", reps: 2, history: [])
         XCTAssertEqual(n.bar, 15)
-        XCTAssertEqual(n.weight, 52.5)
+        XCTAssertEqual(n.weight, 50)
     }
 
     @MainActor
