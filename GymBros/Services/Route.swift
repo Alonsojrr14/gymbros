@@ -159,6 +159,8 @@ struct RouteRunView: View {
             tracker.prepare()
             UIApplication.shared.isIdleTimerDisabled = true
         }
+        // Ao vivo: posição e percurso para os amigos (LivePresence limita a uma gravação a cada 30 s)
+        .onChange(of: tracker.coords.count) { LivePresence.shared.route(liveID, tracker: tracker) }
         .onDisappear {
             tracker.stop()
             LiveShare.end(liveID)
@@ -189,6 +191,7 @@ struct RouteFinishView: View {
     @State private var effort = 6
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
+    @State private var extraPhotos: [Data] = []
 
     var body: some View {
         let secs = tracker.elapsed()
@@ -204,7 +207,9 @@ struct RouteFinishView: View {
                 }
             }
             GMSection { GMEffortPicker(value: $effort) }
-            LeaguePostSection(selected: $leagues, photo: $photo)
+            LeaguePostSection(selected: $leagues, photo: $photo, extras: $extraPhotos,
+                              subject: PostSubject(workoutTypeID: WorkoutType.of(tracker.kind).id, date: tracker.start ?? .now, minutes: max(secs / 60, 1),
+                                                   deviceRecorded: true, place: GymLocation.shared.placeNow))
         }
     }
 
@@ -222,6 +227,8 @@ struct RouteFinishView: View {
         let activity = Activity(kind: tracker.kind, date: start, minutes: max(secs / 60, 1), effort: effort,
                                 note: kmText(tracker.meters) + " · " + paceText(kind: tracker.kind, meters: tracker.meters, seconds: secs))
         activity.meters = tracker.meters
+        // Gravada pelo GPS do app: vale como treino gravado por aparelho nas regras das ligas
+        activity.source = "GPS do iPhone"
         context.insert(activity)
         let route = RouteRecord(kind: tracker.kind, start: start)
         route.activityUUID = activity.uuid
@@ -230,7 +237,7 @@ struct RouteFinishView: View {
         route.points = RouteRecord.encode(tracker.coords)
         context.insert(route)
         ActivitySplits.stamp(activity, context: context)
-        postCheckIns(activity: activity, leagues: leagues, title: "\(tracker.kind.name) · \(kmText(tracker.meters))", note: "", photo: photo, context: context)
+        postCheckIns(activity: activity, leagues: leagues, title: "\(tracker.kind.name) · \(kmText(tracker.meters))", note: "", photo: photo, context: context, extraPhotos: extraPhotos)
         try? context.save()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         dismiss()

@@ -49,9 +49,17 @@ struct RemoteCheckIn: Codable, Identifiable, Sendable {
     /// Teve foto (a imagem em si virá por URL quando houver servidor)
     var hasPhoto = false
     var photoURL: URL?
+    /// Tipo do catálogo do Saúde (skate, bike…); ausente em check-ins antigos = o tipo padrão da categoria
+    var workoutTypeID: UInt?
+    /// Onde foi (ex.: academia)
+    var place: String?
+    /// Origem da foto, aparelho e pose do dia; ausente em check-ins antigos
+    var proof: CheckInProof?
 
     var kind: ActivityKind { ActivityKind(rawValue: kindRaw) ?? .outro }
-    var input: ScoreInput { ScoreInput(kind: kind, minutes: minutes, effort: effort, meters: meters, kcal: kcal) }
+    var input: ScoreInput {
+        ScoreInput(kind: kind, minutes: minutes, effort: effort, meters: meters, kcal: kcal, workoutTypeID: workoutTypeID ?? WorkoutType.of(kind).id)
+    }
 }
 
 struct RemoteTeam: Codable, Identifiable, Hashable, Sendable {
@@ -73,10 +81,33 @@ struct RemoteLeague: Sendable {
     var checkIns: [RemoteCheckIn] = []
     var teams: [RemoteTeam] = []
     var messages: [RemoteMessage] = []
+    /// Quem pediu para entrar (liga com aprovação; só o dono e os moderadores recebem)
+    var requests: [RemoteMember] = []
 
     static let empty = RemoteLeague()
 
     func member(_ id: String) -> RemoteMember? { members.first { $0.id == id } }
+
+    /// Com as decisões do dono: quem saiu ou foi banido some (com check-ins e recados), pedido aceito vira membro
+    /// e os pedidos que sobram são os ainda sem resposta. Aplicar duas vezes dá o mesmo resultado.
+    @MainActor
+    func applying(_ league: League) -> RemoteLeague {
+        let s = league.settings
+        let out = Set(s.removed + s.banned)
+        var r = self
+        var asked = requests
+        if league.isMock && s.requiresApproval {
+            for m in MockLeague.requesters where !asked.contains(where: { $0.id == m.id }) { asked.append(m) }
+        }
+        let memberIDs = Set(members.map(\.id))
+        for m in asked where s.approved.contains(m.id) && !memberIDs.contains(m.id) && !out.contains(m.id) { r.members.append(m) }
+        r.members.removeAll { out.contains($0.id) }
+        r.checkIns.removeAll { out.contains($0.memberID) }
+        r.messages.removeAll { out.contains($0.memberID) }
+        let now = Set(r.members.map(\.id))
+        r.requests = asked.filter { !now.contains($0.id) && !s.ignored.contains($0.id) && !s.banned.contains($0.id) && !s.approved.contains($0.id) }
+        return r
+    }
 }
 
 /// Recado seu ainda não confirmado pelo servidor
@@ -99,13 +130,19 @@ struct OutgoingCheckIn: Codable, Sendable {
     let note: String
     let hasPhoto: Bool
     var photo: Data?
+    /// Tipo do catálogo do Saúde, para as regras de "treinos que valem" darem o mesmo resultado em todos os aparelhos
+    var workoutTypeID: UInt?
+    var place: String?
+    /// Origem da foto, aparelho e pose: o dono revisa e as regras da liga conferem com isso
+    var proof: CheckInProof?
 }
 
 extension OutgoingCheckIn {
     /// O que sobe do check-in. De atividade do Saúde, só tipo, data e duração; kcal, distância e esforço de lá ficam no aparelho.
     init(_ c: LeagueCheckIn, activity a: Activity) {
         self.init(id: c.uuid, date: c.date, kindRaw: a.kindRaw, minutes: a.minutes, effort: a.publishableEffort,
-                  meters: a.publishableMeters, kcal: a.publishableKcal, title: c.title, note: c.note, hasPhoto: c.hasPhoto, photo: c.photo)
+                  meters: a.publishableMeters, kcal: a.publishableKcal, title: c.title, note: c.note, hasPhoto: c.hasPhoto, photo: c.photo,
+                  workoutTypeID: a.workoutType.id, place: c.place, proof: c.proof)
     }
 }
 
@@ -119,6 +156,10 @@ struct LeagueDraft: Codable, Sendable {
     let weights: String
     let tieBreak: String
     let photoRule: String
+    /// Regra de tipos de treino; ausente em ligas anteriores = todos contam.
+    var activityRule: String? = nil
+    /// `LeagueSettings` em JSON (verificação, revisão, pose, limites, metas, moderação); ausente = nada ligado
+    var settings: String? = nil
     let teams: String
     let start: Date
     let end: Date?
@@ -153,6 +194,19 @@ protocol LeagueBackend: Sendable {
     func retract(_ checkInIDs: [UUID], from league: LeagueKey) async throws
     /// Sai da liga (some do ranking; seus check-ins saem junto)
     func leave(_ league: LeagueKey) async throws
+    /// Pede para entrar numa liga com aprovação: o dono aceita ou ignora
+    func requestJoin(code: String, membership: Membership) async throws
+    /// Seu pedido foi aceito (a liga já pode entrar no aparelho)
+    func isApproved(code: String) async throws -> Bool
+    /// Passa a liga para outra pessoa antes de sair (o dono que sai escolhe; sem escolha, sorteia)
+    func transfer(_ league: LeagueKey, to memberID: String) async throws
+}
+
+/// Servidor sem pedidos de entrada nem troca de dono (os servidores de teste)
+extension LeagueBackend {
+    func requestJoin(code: String, membership: Membership) async throws {}
+    func isApproved(code: String) async throws -> Bool { false }
+    func transfer(_ league: LeagueKey, to memberID: String) async throws {}
 }
 
 // MARK: - Cache
@@ -173,8 +227,8 @@ final class LeagueRemoteStore {
     /// O que já se sabe da liga. Sem resposta ainda, o exemplo é calculado na hora (para não piscar vazio).
     func remote(_ league: League) -> RemoteLeague {
         let key = league.key
-        if let r = cache[key] { return r }
-        return backend(for: key) is MockLeagueBackend ? MockLeagueBackend.build(key) : .empty
+        if let r = cache[key] { return r.applying(league) }
+        return (backend(for: key) is MockLeagueBackend ? MockLeagueBackend.build(key) : .empty).applying(league)
     }
 
     /// Esquece o que veio do servidor (conta excluída)
@@ -342,6 +396,8 @@ extension League {
         weightsRaw = d.weights
         tieBreakRaw = d.tieBreak
         photoRuleRaw = d.photoRule
+        activityRuleRaw = d.activityRule ?? ""
+        settingsRaw = d.settings ?? ""
         swissRaw = d.swiss ?? SwissCriterion.pontos.rawValue
         teamsRaw = d.teams
         end = d.end
@@ -351,7 +407,7 @@ extension League {
 
     var draft: LeagueDraft {
         LeagueDraft(uuid: seriesKey, code: code, name: name, emoji: emoji, scoring: scoringRaw, weights: weightsRaw, tieBreak: tieBreakRaw,
-                    photoRule: photoRuleRaw, teams: teamsRaw, start: start, end: end, autoRenew: autoRenew, swiss: swissRaw)
+                    photoRule: photoRuleRaw, activityRule: activityRuleRaw, settings: settingsRaw, teams: teamsRaw, start: start, end: end, autoRenew: autoRenew, swiss: swissRaw)
     }
 }
 
@@ -383,8 +439,16 @@ struct MockLeagueBackend: LeagueBackend {
 
         let checkIns = MockLeague.checkIns(league: league, now: now).map { f in
             var photo = SeededRandom(seed: "\(f.id)-foto")
+            let hasPhoto = photo.next() < 0.75
+            // Sorteado depois da foto, para não mudar o que já saía: de onde veio a foto e se um relógio gravou
+            var proof = SeededRandom(seed: "\(f.id)-prova")
+            let camera = proof.next() < 0.7
+            let watch = f.meters != nil && proof.next() < 0.8
             return RemoteCheckIn(id: f.id, memberID: f.member.id, date: f.date, kindRaw: f.kind.rawValue, minutes: f.minutes, effort: f.effort,
-                                 meters: f.meters, title: f.title, hasPhoto: photo.next() < 0.75)
+                                 meters: f.meters, title: f.title, hasPhoto: hasPhoto,
+                                 proof: CheckInProof(photo: hasPhoto ? PhotoProof(source: camera ? .camera : .library,
+                                                                                  takenAt: f.date.addingTimeInterval(Double(f.minutes) * 60)) : nil,
+                                                     deviceRecorded: watch, device: watch ? "Apple Watch" : nil))
         }
         return RemoteLeague(members: members, checkIns: checkIns, teams: teams,
                             messages: messages(league, members: members, teams: teams, now: now))

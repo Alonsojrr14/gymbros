@@ -21,6 +21,7 @@ struct LogActivityView: View {
     @State private var note = ""
     @State private var leagues: Set<UUID> = []
     @State private var photo: Data?
+    @State private var extraPhotos: [Data] = []
     // Post (na edição)
     @State private var postTitle = ""
     @State private var postNote = ""
@@ -34,6 +35,12 @@ struct LogActivityView: View {
     /// Editando uma atividade que não estava postada em lugar nenhum (ex.: importada do Saúde): pode salvar sem destino
     @State private var wasUnposted = false
     @State private var blocked = false
+
+    /// O que vai ser postado, para as regras das ligas (editando, mantém de onde a atividade veio)
+    private var subject: PostSubject {
+        PostSubject(workoutTypeID: type, date: date, minutes: minutes, deviceRecorded: editing?.isDeviceRecorded ?? false,
+                    place: editing == nil ? GymLocation.shared.placeNow : place)
+    }
 
     /// XP desta atividade e o estágio de antes de cada bro que vai evoluir com ela. Os donos seguem a
     /// regra do Roster com os destinos marcados agora; na edição, a versão antiga sai da conta
@@ -111,9 +118,10 @@ struct LogActivityView: View {
             GMCard { previewView }
 
             if editing == nil {
-                LeaguePostSection(selected: $leagues, photo: $photo)
+                LeaguePostSection(selected: $leagues, photo: $photo, extras: $extraPhotos, subject: subject)
             } else {
-                LeaguePostSection(selected: $leagues, photo: $photo, selectAllByDefault: false, fromHealth: editing?.isFromHealth ?? false)
+                LeaguePostSection(selected: $leagues, photo: $photo, selectAllByDefault: false, fromHealth: editing?.isFromHealth ?? false,
+                                  subject: subject)
                 if !leagues.isEmpty {
                     GMSection("Post", footer: "Vale para todos os destinos marcados. Tirar um destino apaga o check-in de lá.") {
                         GMTextField(placeholder: "Título (ex.: Dia de perna 🦵)", text: $postTitle)
@@ -229,7 +237,7 @@ struct LogActivityView: View {
         activity.gymUUID = gyms.first(where: { $0.name == place })?.uuid
         context.insert(activity)
         workout.save(for: activity, context: context)
-        postCheckIns(activity: activity, leagues: leagues, title: title, note: "", photo: photo, context: context)
+        postCheckIns(activity: activity, leagues: leagues, title: title, note: "", photo: photo, context: context, extraPhotos: extraPhotos)
         try? context.save()
         ActivitySplits.stamp(activity, context: context)
         UINotificationFeedbackGenerator().notificationOccurred(.success)

@@ -20,7 +20,18 @@ class GymTestCase: XCTestCase {
         PRBook.manual = [:]
     }
 
+    /// UserDefaults só do teste, apagado no fim (no iPhone, o hospedeiro é o app de verdade)
+    func scratchDefaults(_ name: String = "teste") -> UserDefaults {
+        let suite = "\(name)-\(UUID().uuidString)"
+        scratchSuites.append(suite)
+        return UserDefaults(suiteName: suite)!
+    }
+
+    private var scratchSuites: [String] = []
+
     override func tearDown() async throws {
+        for s in scratchSuites { UserDefaults.standard.removePersistentDomain(forName: s) }
+        scratchSuites = []
         let d = UserDefaults.standard
         for k in Self.keys { d.removeObject(forKey: k) }
         for (k, v) in saved { d.set(v, forKey: k) }
@@ -29,7 +40,7 @@ class GymTestCase: XCTestCase {
 
     /// Banco em memória, separado do banco do app
     func memoryContext() throws -> ModelContext {
-        let container = try ModelContainer(for: Activity.self, WorkoutSession.self, LoggedSet.self, League.self, LeagueCheckIn.self,
+        let container = try ModelContainer(for: Activity.self, WorkoutSession.self, LoggedSet.self, League.self, LeagueCheckIn.self, CheckInReview.self, Routine.self, RoutineItem.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         return ModelContext(container)
     }

@@ -16,11 +16,18 @@ struct ConversationView: View {
     @State private var profile: RemoteFriend?
     @State private var moderation: ModerationRequest?
     @State private var terms = TermsGate()
+    /// Mensagem com o menu de reações aberto (segurar)
+    @State private var reactingTo: DirectMessage?
+    @State private var confirmClear = false
     @FocusState private var typing: Bool
 
     private var peer: InboxPeer { store.peer(peerID) }
-    private var live: LiveFriend? { FriendsLive.simulated.first { $0.id == peerID && $0.isLive } }
-    private var messages: [DirectMessage] { store.messages(with: peerID) }
+    private var live: LiveFriend? { FriendsLive.find(peerID).flatMap { $0.isLive ? $0 : nil } }
+    /// Reações ficam embaixo da mensagem, não como balão
+    private var messages: [DirectMessage] { store.messages(with: peerID).filter { $0.kind != .reaction } }
+    private var reactions: [String: [DirectMessage]] {
+        Dictionary(grouping: store.messages(with: peerID).filter { $0.kind == .reaction && $0.replyTo != nil }) { $0.replyTo! }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,11 +43,10 @@ struct ConversationView: View {
                             run { try await store.reply(to: m, accepted: yes) }
                         }
                         .id(m.id)
-                        // A dos outros: denunciar ou bloquear quem mandou
-                        .onLongPressGesture {
-                            guard !m.outgoing else { return }
-                            moderation = ModerationRequest(target: ModerationTarget(userID: peerID, userName: peer.name,
-                                                                                     content: .directMessage, id: m.id))
+                        // Segurar: reagir (e, na dos outros, denunciar ou bloquear quem mandou)
+                        .onLongPressGesture { reactingTo = m }
+                        if let list = reactions[m.id], !list.isEmpty {
+                            reactionRow(list, outgoing: m.outgoing)
                         }
                     }
                 }
@@ -71,6 +77,12 @@ struct ConversationView: View {
             }
         }
         .gmActions(isPresented: $menu, title: peer.name, actions: menuActions)
+        .gmActions(isPresented: Binding(get: { reactingTo != nil }, set: { if !$0 { reactingTo = nil } }), title: "Reagir",
+                   actions: reactingTo.map(messageActions) ?? [])
+        .gmActions(isPresented: $confirmClear, title: "Limpar a conversa?",
+                   message: "As mensagens somem só do seu lado. \(peer.name) continua com todas.", actions: [
+            GMAction("Limpar conversa", icon: "trash", destructive: true) { store.clear(peerID) }
+        ])
         .gmSheet(isPresented: $dueling) { close in
             DuelComposer(opponent: DuelPerson(id: peer.id, name: peer.name, formID: peer.formID)) { close() }
         }
@@ -112,8 +124,38 @@ struct ConversationView: View {
     }
 
     private var menuActions: [GMAction] {
-        [GMAction("Ver perfil", icon: "person.crop.circle") { openProfile() }]
+        [GMAction("Ver perfil", icon: "person.crop.circle") { openProfile() },
+         GMAction("Arquivar conversa", icon: "archivebox") { store.archive(peerID); dismiss() },
+         GMAction("Limpar conversa", icon: "trash") { confirmClear = true }]
             + ModerationTarget(userID: peerID, userName: peer.name).actions { moderation = $0 }
+    }
+
+    /// Reações rápidas na mensagem; na dos outros, também denunciar
+    private func messageActions(_ m: DirectMessage) -> [GMAction] {
+        var list = ["👍", "❤️‍🔥", "💪", "😂"].map { e in
+            GMAction("Reagir \(e)", icon: "face.smiling") { run { try await store.send(.reaction, to: peerID, text: e, replyTo: m.id) } }
+        }
+        if !m.outgoing {
+            list.append(GMAction("Denunciar mensagem", icon: "flag", destructive: true) {
+                moderation = ModerationRequest(target: ModerationTarget(userID: peerID, userName: peer.name, content: .directMessage, id: m.id))
+            })
+        }
+        return list
+    }
+
+    /// "💪 2 · 👍" embaixo do balão
+    private func reactionRow(_ list: [DirectMessage], outgoing: Bool) -> some View {
+        let counts = Dictionary(grouping: list, by: \.text).mapValues(\.count).sorted { $0.value > $1.value }
+        return HStack {
+            if outgoing { Spacer() }
+            Text(counts.map { $0.value > 1 ? "\($0.key) \($0.value)" : $0.key }.joined(separator: " · "))
+                .font(.caption)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Theme.raised, in: .capsule)
+                .accessibilityLabel("Reações: " + counts.map { "\($0.key) \($0.value)" }.joined(separator: ", "))
+            if !outgoing { Spacer() }
+        }
+        .padding(.top, -4)
     }
 
     private func openProfile() {
@@ -233,6 +275,8 @@ private struct MessageView: View {
         case .cheer: cheer
         case .invite: invite
         case .inviteReply: inviteReply
+        // Mostrada embaixo da mensagem que recebeu a reação
+        case .reaction: EmptyView()
         }
     }
 

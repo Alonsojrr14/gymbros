@@ -18,6 +18,8 @@ enum DirectKind: String, Codable, Sendable {
     case invite
     /// Resposta a um convite (`replyTo` + `accepted`)
     case inviteReply
+    /// Reação (emoji em `text`) a uma mensagem (`replyTo`)
+    case reaction
 }
 
 struct TrainInvite: Codable, Hashable, Sendable {
@@ -68,6 +70,7 @@ struct DirectMessage: Codable, Hashable, Identifiable, Sendable {
         case .text: .messages
         case .cheer: .cheers
         case .invite, .inviteReply: .invites
+        case .reaction: .reactions
         }
     }
 }
@@ -93,6 +96,9 @@ struct InboxEvent: Codable, Hashable, Identifiable, Sendable {
         case cheer, invite, inviteReply
         /// X1 (`targetID` = id do X1): desafio recebido, aceito, recusado, expirado e resultado
         case duelChallenge, duelAccepted, duelDeclined, duelExpired, duelResult
+        /// Ligas (`targetID` = uuid da liga): campeão, check-in para revisar, pedido de entrada, seu check-in removido,
+        /// recado no mural e check-in de outra pessoa
+        case leagueWinner, leagueReview, leagueRequest, leagueRemoved, leagueMural, leagueCheckIn
     }
 
     let id: String
@@ -117,6 +123,7 @@ struct InboxEvent: Codable, Hashable, Identifiable, Sendable {
         case .cheer: .cheers
         case .invite, .inviteReply: .invites
         case .duelChallenge, .duelAccepted, .duelDeclined, .duelExpired, .duelResult: .duels
+        case .leagueWinner, .leagueReview, .leagueRequest, .leagueRemoved, .leagueMural, .leagueCheckIn: .leagues
         }
     }
 }
@@ -167,9 +174,9 @@ final class InboxStore {
     static let shared = InboxStore()
 
     static let seenKey = "inboxSeenAt", readKey = "inboxReadUntil", notifiedKey = "inboxNotified", requestsKey = "inboxRequestsSeen",
-               firstSeenKey = "inboxFirstSeen"
+               firstSeenKey = "inboxFirstSeen", archivedKey = "inboxArchived", clearedKey = "inboxCleared"
     /// Vão com a conta (AccountSync) e saem do aparelho ao sair
-    static let defaultsKeys = [seenKey, readKey, notifiedKey, requestsKey, firstSeenKey]
+    static let defaultsKeys = [seenKey, readKey, notifiedKey, requestsKey, firstSeenKey, archivedKey, clearedKey, FriendPrefs.key]
 
     var backend: any InboxBackend = MockInboxBackend() {
         didSet { state = InboxState() }
@@ -188,6 +195,10 @@ final class InboxStore {
     private(set) var state = InboxState()
     /// Eventos de X1 da última busca
     private(set) var duelEvents: [InboxEvent] = []
+    /// Eventos das ligas (campeões, revisão, pedidos, mural, check-ins) da última busca
+    private(set) var leagueEvents: [InboxEvent] = []
+    /// Check-ins de ligas com reações e comentários desligados nas notificações da liga
+    private var mutedCheckIns: Set<String> = []
     private(set) var lastError: String?
     private(set) var loaded = false
     /// Até quando a aba Notificações foi vista
@@ -220,12 +231,52 @@ final class InboxStore {
         state.messages.filter { !moderation.isBlocked($0.peerID) && ($0.outgoing || !moderation.isHidden(.directMessage, $0.id)) }
     }
 
+    /// A conversa, sem o que você limpou do seu lado
     func messages(with peerID: String) -> [DirectMessage] {
-        visibleMessages.filter { $0.peerID == peerID }.sorted { $0.date < $1.date }
+        let since = cleared(peerID)
+        return visibleMessages.filter { $0.peerID == peerID && $0.date > since }.sorted { $0.date < $1.date }
     }
 
-    var conversations: [Conversation] {
+    // MARK: Arquivar e limpar (só do seu lado)
+
+    private func dates(_ key: String) -> [String: Date] {
+        (defaults.dictionary(forKey: key) as? [String: Double] ?? [:]).mapValues(Date.init(timeIntervalSince1970:))
+    }
+
+    private func setDate(_ key: String, _ peer: String, _ date: Date?) {
+        var d = defaults.dictionary(forKey: key) as? [String: Double] ?? [:]
+        d[peer] = date?.timeIntervalSince1970
+        defaults.set(d, forKey: key)
+        archiveVersion += 1
+    }
+
+    /// Muda a cada arquivar ou limpar, para as telas atualizarem
+    private(set) var archiveVersion = 0
+
+    func cleared(_ peer: String) -> Date { dates(Self.clearedKey)[peer] ?? .distantPast }
+
+    /// Apaga a conversa só do seu lado: a outra pessoa continua com todas as mensagens
+    func clear(_ peer: String) { setDate(Self.clearedKey, peer, .now) }
+
+    /// Some da lista até chegar mensagem nova
+    func archive(_ peer: String) { setDate(Self.archivedKey, peer, .now) }
+
+    func unarchive(_ peer: String) { setDate(Self.archivedKey, peer, nil) }
+
+    func isArchived(_ c: Conversation) -> Bool { dates(Self.archivedKey)[c.peer.id].map { $0 >= c.last.date } ?? false }
+
+    /// Conversas (sem as arquivadas que não têm mensagem nova); `archived` traz só as arquivadas
+    func conversations(archived: Bool) -> [Conversation] {
+        _ = archiveVersion
+        return allConversations.filter { isArchived($0) == archived }
+    }
+
+    var conversations: [Conversation] { conversations(archived: false) }
+
+    private var allConversations: [Conversation] {
         Dictionary(grouping: visibleMessages, by: \.peerID).compactMap { id, list in
+            let since = cleared(id)
+            let list = list.filter { $0.date > since }
             guard let last = list.max(by: { $0.date < $1.date }) else { return nil }
             return Conversation(peer: peer(id), last: last, unread: unread(in: list, peer: id))
         }
@@ -234,8 +285,11 @@ final class InboxStore {
 
     /// Notificações: atividade do servidor, força e convites recebidos e pedidos de amizade, mais novas primeiro
     var activity: [InboxEvent] {
-        var out = (state.events + duelEvents).filter { !moderation.isBlocked($0.actorID) && !moderation.isHidden(.comment, $0.id) }
-        for m in visibleMessages where !m.outgoing && m.kind != .text {
+        var out = (state.events + duelEvents + leagueEvents).filter {
+            !moderation.isBlocked($0.actorID) && !moderation.isHidden(.comment, $0.id)
+                && !(($0.kind == .reaction || $0.kind == .comment) && $0.targetID.map(mutedCheckIns.contains) == true)
+        }
+        for m in visibleMessages where !m.outgoing && m.kind != .text && m.kind != .reaction {
             let p = peer(m.peerID)
             let kind: InboxEvent.Kind = m.kind == .cheer ? .cheer : m.kind == .invite ? .invite : .inviteReply
             out.append(InboxEvent(id: "dm-\(m.id)", kind: kind, actorID: p.id, actorName: p.name, actorFormID: p.formID, date: m.date,
@@ -307,7 +361,11 @@ final class InboxStore {
         loaded = true
         duelEvents = Self.events(from: await duelNotices(), firstSeen: firstSeen)
         rememberRequests()
-        if let context { applyReactions(context) }
+        if let context {
+            applyReactions(context)
+            leagueEvents = LeagueNotices.events(context: context)
+            mutedCheckIns = LeagueNotices.mutedCheckIns(context: context)
+        }
         deliverNew()
     }
 
@@ -401,12 +459,13 @@ final class InboxStore {
         var notices: [InboxNotice] = []
         for m in visibleMessages where !m.outgoing && !notified.contains(m.id) {
             notified.insert(m.id)
-            guard !first, m.date > recent, openPeer != m.peerID else { continue }
+            // Amigo silenciado: a mensagem chega, mas não toca
+            guard !first, m.date > recent, openPeer != m.peerID, !FriendPrefs.of(m.peerID, defaults).muted else { continue }
             notices.append(InboxNotice(message: m, peer: peer(m.peerID)))
         }
         for e in activity where !e.id.hasPrefix("dm-") && !notified.contains(e.id) {
             notified.insert(e.id)
-            guard !first, e.date > recent else { continue }
+            guard !first, e.date > recent, !FriendPrefs.of(e.actorID, defaults).muted else { continue }
             notices.append(InboxNotice(event: e))
         }
         // Só os últimos (a lista não cresce para sempre)
@@ -455,6 +514,7 @@ final class InboxStore {
     func reset() {
         state = InboxState()
         duelEvents = []
+        leagueEvents = []
         loaded = false
         lastError = nil
         openPeer = nil

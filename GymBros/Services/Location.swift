@@ -30,6 +30,13 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
 
     var gyms: [Gym] { (try? ctx.fetch(FetchDescriptor<Gym>(sortBy: [SortDescriptor(\.createdAt)]))) ?? [] }
 
+    /// Visita registrada pela localização que cruza o treino (de `start` até `minutes` depois)
+    func visit(from start: Date, minutes: Int) -> GymVisit? {
+        let end = start.addingTimeInterval(TimeInterval(max(minutes, 1) * 60))
+        let visits = (try? ctx.fetch(FetchDescriptor<GymVisit>(predicate: #Predicate { $0.start <= end }))) ?? []
+        return visits.last { ($0.end ?? .now) >= start }
+    }
+
     func gym(_ id: UUID?) -> Gym? {
         guard let id else { return nil }
         return try? ctx.fetch(FetchDescriptor<Gym>(predicate: #Predicate { $0.uuid == id })).first
@@ -257,6 +264,11 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         // Força, convites, mensagens e reações: abre a caixa de entrada ou responde pelo botão
         if await SocialNotifier.handle(response) { return }
+        // Troca aceita ou oferta nova: abre a tela de trocas (receber o bro é lá)
+        if response.notification.request.content.userInfo["trade"] != nil {
+            await MainActor.run { TradeStore.shared.openHub = true }
+            return
+        }
         if response.notification.request.content.categoryIdentifier == "ARRIVAL" {
             await MainActor.run { NotificationCenter.default.post(name: NotificationRouter.startWorkout, object: nil) }
         }

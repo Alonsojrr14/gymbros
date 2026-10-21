@@ -6,9 +6,9 @@ enum SchemaV1: VersionedSchema {
     static var versionIdentifier: Schema.Version { Schema.Version(1, 0, 0) }
     static var models: [any PersistentModel.Type] {
         [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
-         CustomExercise.self, SchemaV1.League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
+         CustomExercise.self, SchemaV1.League.self, SchemaV1.LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
          WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self,
-         LeagueMessage.self]
+         SchemaV1.LeagueMessage.self]
     }
 
     /// League como foi publicada na V1 (congelada: não mexer)
@@ -39,6 +39,35 @@ enum SchemaV1: VersionedSchema {
 
         init() {}
     }
+
+    /// LeagueMessage como ficou da V1 à V4 (congelado: não mexer)
+    @Model
+    final class LeagueMessage {
+        var uuid: UUID = UUID()
+        var leagueUUID: UUID = UUID()
+        var text: String = ""
+        var date: Date = Date.now
+        var syncedAt: Date?
+
+        init() {}
+    }
+
+    /// LeagueCheckIn como ficou da V1 à V3 (congelado: não mexer)
+    @Model
+    final class LeagueCheckIn {
+        var uuid: UUID = UUID()
+        var leagueUUID: UUID = UUID()
+        var activityUUID: UUID = UUID()
+        var title: String = ""
+        var note: String = ""
+        var date: Date = Date.now
+        @Attribute(.externalStorage) var photo: Data?
+        var place: String?
+        var hadPhoto: Bool = false
+        var syncedAt: Date?
+
+        init() {}
+    }
 }
 
 /// V2: `League.swissRaw` (critério da rodada suíça)
@@ -46,21 +75,140 @@ enum SchemaV2: VersionedSchema {
     static var versionIdentifier: Schema.Version { Schema.Version(2, 0, 0) }
     static var models: [any PersistentModel.Type] {
         [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
+         CustomExercise.self, SchemaV2.League.self, SchemaV1.LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
+         WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self,
+         SchemaV1.LeagueMessage.self]
+    }
+
+    /// League como foi publicada na V2 (congelada: não mexer)
+    @Model
+    final class League {
+        var uuid: UUID = UUID()
+        var name: String = ""
+        var emoji: String = "🏆"
+        var scoringRaw: String = LeagueScoring.pontos.rawValue
+        var start: Date = Date.now
+        var code: String = ""
+        var isMock: Bool = false
+        var joinedAt: Date = Date.now
+        var monsterUUID: UUID?
+        var end: Date?
+        @Attribute(.externalStorage) var cover: Data?
+        var autoRenew: Bool = false
+        var season: Int = 1
+        var seriesID: UUID?
+        var nextUUID: UUID?
+        var weightsRaw: String = ""
+        var tieBreakRaw: String = LeagueTieBreak.primeiro.rawValue
+        var photoRuleRaw: String = PhotoRule.livre.rawValue
+        var swissRaw: String = SwissCriterion.pontos.rawValue
+        var teamsRaw: String = ""
+        var syncedAt: Date?
+        var joined: Bool = false
+        var myTeamID: String?
+
+        init() {}
+    }
+}
+
+/// V3: `League.activityRuleRaw` (tipos de treino que pontuam)
+enum SchemaV3: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(3, 0, 0) }
+    static var models: [any PersistentModel.Type] {
+        [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
+         CustomExercise.self, SchemaV3.League.self, SchemaV1.LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
+         WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self,
+         SchemaV1.LeagueMessage.self]
+    }
+
+    /// League como ficou na V3 (congelada: não mexer)
+    @Model
+    final class League {
+        var uuid: UUID = UUID()
+        var name: String = ""
+        var emoji: String = "🏆"
+        var scoringRaw: String = LeagueScoring.pontos.rawValue
+        var start: Date = Date.now
+        var code: String = ""
+        var isMock: Bool = false
+        var joinedAt: Date = Date.now
+        var monsterUUID: UUID?
+        var end: Date?
+        @Attribute(.externalStorage) var cover: Data?
+        var autoRenew: Bool = false
+        var season: Int = 1
+        var seriesID: UUID?
+        var nextUUID: UUID?
+        var weightsRaw: String = ""
+        var tieBreakRaw: String = LeagueTieBreak.primeiro.rawValue
+        var photoRuleRaw: String = PhotoRule.livre.rawValue
+        var activityRuleRaw: String = ""
+        var swissRaw: String = SwissCriterion.pontos.rawValue
+        var teamsRaw: String = ""
+        var syncedAt: Date?
+        var joined: Bool = false
+        var myTeamID: String?
+
+        init() {}
+    }
+}
+
+/// V4: `League.settingsRaw` (verificação, revisão, pose, limites, metas, moderação), `LeagueCheckIn.proofRaw`
+/// e `reviewRaw`, e as decisões de revisão do dono (`CheckInReview`)
+enum SchemaV4: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(4, 0, 0) }
+    static var models: [any PersistentModel.Type] {
+        [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
+         CustomExercise.self, League.self, SchemaV4.LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
+         WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self,
+         SchemaV1.LeagueMessage.self, CheckInReview.self]
+    }
+
+    /// LeagueCheckIn como ficou na V4 (congelado: não mexer)
+    @Model
+    final class LeagueCheckIn {
+        var uuid: UUID = UUID()
+        var leagueUUID: UUID = UUID()
+        var activityUUID: UUID = UUID()
+        var title: String = ""
+        var note: String = ""
+        var date: Date = Date.now
+        @Attribute(.externalStorage) var photo: Data?
+        var place: String?
+        var hadPhoto: Bool = false
+        var syncedAt: Date?
+        var proofRaw: String = ""
+        var reviewRaw: String = ""
+
+        init() {}
+    }
+}
+
+/// V5: `LeagueCheckIn.extraPhotos` (até 4 fotos a mais por check-in) e `LeagueMessage.photo` (foto no mural)
+enum SchemaV5: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(5, 0, 0) }
+    static var models: [any PersistentModel.Type] {
+        [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
          CustomExercise.self, League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
          WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self,
-         LeagueMessage.self]
+         LeagueMessage.self, CheckInReview.self]
     }
 }
 
 enum AppMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] { [SchemaV1.self, SchemaV2.self] }
-    static var stages: [MigrationStage] { [.lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self)] }
+    static var schemas: [any VersionedSchema.Type] { [SchemaV1.self, SchemaV2.self, SchemaV3.self, SchemaV4.self, SchemaV5.self] }
+    static var stages: [MigrationStage] {
+        [.lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self),
+         .lightweight(fromVersion: SchemaV2.self, toVersion: SchemaV3.self),
+         .lightweight(fromVersion: SchemaV3.self, toVersion: SchemaV4.self),
+         .lightweight(fromVersion: SchemaV4.self, toVersion: SchemaV5.self)]
+    }
 }
 
 /// Container único do app, compartilhado com os botões do Live Activity (que rodam no processo do app)
 @MainActor
 enum AppData {
-    static let schema = Schema(versionedSchema: SchemaV2.self)
+    static let schema = Schema(versionedSchema: SchemaV5.self)
 
     /// Cópia do banco que não abriu (migração que falhou); o app começa com um banco novo em vez de fechar ao abrir
     private(set) static var recoveredCopy: URL?

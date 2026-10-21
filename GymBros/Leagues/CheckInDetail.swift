@@ -7,6 +7,9 @@ struct CheckInDetailView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query private var checkIns: [LeagueCheckIn]
+    @Query private var leagues: [League]
+    @State private var removing = false
+    @State private var whoReacted = false
     @Query(sort: \CheckInComment.date) private var allComments: [CheckInComment]
     @AppStorage("trainerName") private var trainerName = ""
     @State private var text = ""
@@ -28,6 +31,8 @@ struct CheckInDetailView: View {
     private var title: String { mine?.title ?? item.title }
     private var note: String { mine?.note ?? item.note }
     private var photo: Data? { item.isMe ? mine?.photo : mod.isHidden(.photo, item.id) ? nil : item.photo }
+    /// Todas as fotos (a principal e as extras)
+    private var allPhotos: [Data] { item.isMe ? (mine?.photos ?? []) : photo.map { [$0] + item.extraPhotos } ?? [] }
     /// Denunciado por você ou de alguém que você bloqueou
     private var gone: Bool { !item.isMe && (mod.isHidden(.checkIn, item.id) || mod.isBlocked(item.memberID)) }
     private var target: ModerationTarget { ModerationTarget(userID: item.memberID, userName: item.name, content: .checkIn, id: item.id) }
@@ -83,18 +88,29 @@ struct CheckInDetailView: View {
         // Edita a atividade e o post juntos: destinos (perfil e ligas), título, foto e local
         .gmModal(item: $editing) { LogActivityView(snapshot: Snapshot(), editing: $0) }
         .gmActions(isPresented: Binding(get: { commentMenu != nil }, set: { if !$0 { commentMenu = nil } }), title: "Comentário",
-                   actions: commentMenu.map { c in [
-                       GMAction("Apagar comentário", icon: "trash", destructive: true) {
-                           context.delete(c)
-                           try? context.save()
-                       }
-                   ] } ?? [])
+                   actions: commentMenu.map(commentActions) ?? [])
+        .gmSheet(isPresented: $whoReacted) { _ in reactedSheet }
         .moderation($moderation) { dismiss() }
+        .gmActions(isPresented: $removing, title: "Remover este check-in?",
+                   message: "Ele sai da liga e não pontua. \(item.name) fica sabendo que o check-in foi removido.", actions: [
+            GMAction("Remover check-in", icon: "xmark.bin", destructive: true) {
+                if let league = moderatedLeague {
+                    context.insert(CheckInReview(leagueUUID: league.uuid, itemID: item.id, approved: false))
+                    try? context.save()
+                }
+                dismiss()
+            }
+        ])
         .termsGate($terms)
         .onChange(of: text) { blocked = false }
     }
 
     private var visibleComments: [CheckInComment] { mod.visible(comments) }
+
+    /// Liga do check-in em que você é dono ou moderador
+    private var moderatedLeague: League? {
+        item.leagueID.flatMap { id in leagues.first { $0.uuid == id } }.flatMap { $0.canModerate ? $0 : nil }
+    }
 
     private var menuActions: [GMAction] {
         var list = [GMAction("Compartilhar", icon: "square.and.arrow.up") { share() }]
@@ -105,6 +121,10 @@ struct CheckInDetailView: View {
             list.append(GMAction("Apagar check-in", icon: "trash", destructive: true) { confirmDelete = true })
         } else if !item.isMe {
             var actions = target.actions { moderation = $0 }
+            // Dono e moderadores tiram o check-in da liga (quem postou fica sabendo)
+            if moderatedLeague != nil {
+                actions.insert(GMAction("Remover check-in da liga", icon: "xmark.bin", destructive: true) { removing = true }, at: 0)
+            }
             if item.hasPhoto && !mod.isHidden(.photo, item.id) {
                 let photo = ModerationTarget(userID: item.memberID, userName: item.name, content: .photo, id: item.id)
                 actions.insert(GMAction("Denunciar foto", icon: "photo") { moderation = ModerationRequest(target: photo, step: .report) }, at: 1)
@@ -118,7 +138,20 @@ struct CheckInDetailView: View {
 
     private var hero: some View {
         ZStack {
-            if let data = photo, let img = UIImage(data: data) {
+            if allPhotos.count > 1 {
+                // Várias fotos: passa de lado
+                TabView {
+                    ForEach(Array(allPhotos.enumerated()), id: \.offset) { _, data in
+                        if let img = UIImage(data: data) {
+                            ZStack {
+                                Color.clear.overlay { Image(uiImage: img).resizable().scaledToFill().blur(radius: 40).opacity(0.7) }
+                                Image(uiImage: img).resizable().scaledToFit()
+                            }
+                        }
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+            } else if let data = photo, let img = UIImage(data: data) {
                 // Fundo borrado da própria foto, como nos apps de feed
                 Color.clear.overlay { Image(uiImage: img).resizable().scaledToFill().blur(radius: 40).opacity(0.7) }
                 Image(uiImage: img).resizable().scaledToFit()
@@ -142,6 +175,17 @@ struct CheckInDetailView: View {
             .padding(.horizontal, 16)
             .padding(.top, 8)
         }
+        // Pose do dia em que a foto foi tirada, embaixo da foto
+        .overlay(alignment: .bottom) {
+            if let pose = DailyPose.byID(item.proof.pose) {
+                Text("\(pose.emoji) \(pose.name)")
+                    .font(.caption.weight(.bold))
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(.black.opacity(0.65), in: .capsule)
+                    .foregroundStyle(.white)
+                    .padding(.bottom, 14)
+            }
+        }
         .clipShape(.rect(bottomLeadingRadius: Theme.radius, bottomTrailingRadius: Theme.radius))
     }
 
@@ -161,11 +205,27 @@ struct CheckInDetailView: View {
     }
 
     private var chips: some View {
-        GMFlow {
-            chip(icon: "stopwatch", text: durationText(item.minutes))
-            chip(icon: item.kind.symbol, text: item.kind.name)
-            chip(icon: "bolt.fill", text: "+" + (item.scoring.map { $0.format(item.score) } ?? "\(item.score) XP"), tint: Theme.accent)
-            if let place = item.place { chip(icon: "mappin.and.ellipse", text: place) }
+        VStack(alignment: .leading, spacing: 10) {
+            GMFlow {
+                chip(icon: "stopwatch", text: durationText(item.minutes))
+                chip(icon: item.kind.symbol, text: item.kind.name)
+                if item.pending {
+                    chip(icon: "clock", text: "Em revisão", tint: Theme.dim)
+                } else {
+                    chip(icon: "bolt.fill", text: "+" + (item.scoring.map { $0.format(item.score) } ?? "\(item.score) XP"), tint: Theme.accent)
+                }
+                if let place = item.place { chip(icon: "mappin.and.ellipse", text: place) }
+            }
+            if item.pending {
+                Text("Esperando o dono da liga aprovar: até lá, não pontua.").font(.caption).foregroundStyle(Theme.dim)
+            }
+            if item.capped > 0, let scoring = item.scoring {
+                Text("O teto da liga cortou \(scoring.format(item.capped)) deste check-in.").font(.caption).foregroundStyle(Theme.dim)
+            }
+            // De onde veio a prova: câmera do app, galeria (com a hora gravada), aparelho, pose do dia
+            ForEach(item.proof.lines, id: \.self) { line in
+                Label(line, systemImage: "checkmark.seal").font(.caption).foregroundStyle(Theme.dim)
+            }
         }
     }
 
@@ -189,9 +249,70 @@ struct CheckInDetailView: View {
 
     // MARK: Comentários
 
+    /// Reação ao check-in: comentário só com emoji
+    private var reactionComments: [CheckInComment] { visibleComments.filter { isEmojiOnly($0.text) } }
+
+    /// Reações de um comentário (guardadas como comentário no id "c:<comentário>")
+    private func reactions(to c: CheckInComment) -> [CheckInComment] { mod.visible(allComments.filter { $0.itemID == "c:\(c.uuid.uuidString)" }) }
+
+    private func summary(_ list: [CheckInComment]) -> String {
+        Dictionary(grouping: list, by: \.text).mapValues(\.count).sorted { $0.value > $1.value }
+            .map { $0.value > 1 ? "\($0.key) \($0.value)" : $0.key }.joined(separator: " · ")
+    }
+
+    private func commentActions(_ c: CheckInComment) -> [GMAction] {
+        var list = ["👍", "❤️‍🔥", "💪", "😂"].map { e in
+            GMAction("Reagir \(e)", icon: "face.smiling") {
+                context.insert(CheckInComment(itemID: "c:\(c.uuid.uuidString)", text: e))
+                try? context.save()
+            }
+        }
+        if c.isMine {
+            list.append(GMAction("Apagar comentário", icon: "trash", destructive: true) {
+                reactions(to: c).forEach(context.delete)
+                context.delete(c)
+                try? context.save()
+            })
+        } else {
+            list.append(GMAction("Denunciar comentário", icon: "flag", destructive: true) {
+                moderation = ModerationRequest(target: ModerationTarget(userID: c.authorID, userName: c.authorName, content: .comment, id: c.uuid.uuidString))
+            })
+        }
+        return list
+    }
+
+    /// Quem reagiu, por emoji
+    private var reactedSheet: some View {
+        let groups = Dictionary(grouping: reactionComments, by: \.text).sorted { $0.value.count > $1.value.count }
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Quem reagiu").font(.headline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(groups, id: \.key) { emoji, list in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("\(emoji) \(list.count)").font(.subheadline.bold())
+                            Text(list.map { $0.isMine ? "Você" : $0.authorName }.joined(separator: ", ")).font(.subheadline).foregroundStyle(Theme.dim)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 360)
+        }
+    }
+
     private var commentList: some View {
         VStack(alignment: .leading, spacing: 12) {
             GMDivider()
+            if !reactionComments.isEmpty {
+                Button { whoReacted = true } label: {
+                    HStack {
+                        Text(summary(reactionComments)).font(.subheadline)
+                        Text("· quem reagiu").font(.caption.weight(.semibold)).foregroundStyle(Theme.accent)
+                    }
+                }
+                .buttonStyle(GMPress())
+            }
             ForEach(visibleComments) { c in
                 HStack(alignment: .top, spacing: 10) {
                     if c.isMine { Avatar(size: 32) } else { PersonAvatar(name: c.authorName, size: 32) }
@@ -200,20 +321,18 @@ struct CheckInDetailView: View {
                             Text(c.isMine ? (trainerName.isEmpty ? "Você" : trainerName) : c.authorName).font(.caption.bold())
                             Text(c.date.formatted(.relative(presentation: .named))).font(.caption2).foregroundStyle(Theme.dim)
                         }
-                        Text(c.text).font(isEmojiOnly(c.text) ? .title : .subheadline)
+                        Text(mentionText(c.text)).font(isEmojiOnly(c.text) ? .title : .subheadline)
+                        let r = reactions(to: c)
+                        if !r.isEmpty {
+                            Text(summary(r)).font(.caption).padding(.horizontal, 8).padding(.vertical, 3)
+                                .background(Theme.raised, in: .capsule)
+                        }
                     }
                     Spacer()
                 }
                 .contentShape(Rectangle())
-                // O seu dá para apagar; o dos outros, denunciar ou bloquear quem escreveu
-                .onLongPressGesture {
-                    if c.isMine {
-                        commentMenu = c
-                    } else {
-                        moderation = ModerationRequest(target: ModerationTarget(userID: c.authorID, userName: c.authorName, content: .comment,
-                                                                                 id: c.uuid.uuidString))
-                    }
-                }
+                // Segurar: reagir; o seu dá para apagar, o dos outros, denunciar
+                .onLongPressGesture { commentMenu = c }
             }
         }
     }

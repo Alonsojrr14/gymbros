@@ -29,6 +29,10 @@ final class League {
     var weightsRaw: String = ""
     var tieBreakRaw: String = LeagueTieBreak.primeiro.rawValue
     var photoRuleRaw: String = PhotoRule.livre.rawValue
+    /// Tipos de treino aceitos pela liga; vazio = qualquer um.
+    var activityRuleRaw: String = ""
+    /// Verificação, revisão, pose, limites, metas e moderação (`LeagueSettings` em JSON; vazio = nada ligado) (SchemaV4)
+    var settingsRaw: String = ""
     /// Critério da rodada suíça diária (SchemaV2)
     var swissRaw: String = SwissCriterion.pontos.rawValue
     /// Times, um por linha: "id\tnome" (formato antigo: só o nome, id = posição); vazio = liga sem times
@@ -79,6 +83,30 @@ final class League {
 
     var hasTeams: Bool { !teams.isEmpty }
 
+    var activityRule: LeagueActivityRule {
+        get { LeagueActivityRule(rawValue: activityRuleRaw) }
+        set { activityRuleRaw = newValue.rawValue }
+    }
+
+    func accepts(_ workoutType: WorkoutType) -> Bool { activityRule.accepts(workoutType.id) }
+
+    var settings: LeagueSettings {
+        get { LeagueSettings(rawValue: settingsRaw) }
+        set { settingsRaw = newValue.rawValue }
+    }
+
+    /// O que impede postar este treino aqui (tipo que não vale e regras de verificação); vazio = pode
+    func problems(_ s: PostSubject, now: Date = .now) -> [VerificationProblem] {
+        guard activityRule.accepts(s.workoutTypeID) else {
+            let name = s.workoutTypeID.flatMap { WorkoutType.byID($0)?.name } ?? "Este treino"
+            return [VerificationProblem(kind: .media, message: "\(name) não vale nesta liga.", fix: "escolha outro treino")]
+        }
+        return settings.verification.problems(s, now: now)
+    }
+
+    /// Clubes não têm fim; desafios sempre têm período definido.
+    var format: LeagueFormat { end == nil ? .club : .challenge }
+
     /// Só os atributos fora de 1×
     var attributeWeights: [Attribute: Double] {
         get {
@@ -94,9 +122,12 @@ final class League {
         }
     }
 
-    /// Pontos de um check-in nesta liga
+    /// Pontos de um check-in nesta liga (antes de limites e de "dias ativos", que dependem dos outros check-ins)
     func score(_ i: ScoreInput, hasPhoto: Bool = true) -> Int {
-        photoRule.apply(scoring.score(i, weights: scoring == .pontos ? attributeWeights : [:]), hasPhoto: hasPhoto)
+        guard activityRule.accepts(i.workoutTypeID) else { return 0 }
+        let raw = scoring == .atividades ? settings.pointRules.score(i) : scoring.score(i, weights: scoring == .pontos ? attributeWeights : [:])
+        // Pontos negativos da tabela não passam pela regra da foto (metade de uma perda continuaria sendo perda)
+        return raw < 0 ? raw : photoRule.apply(raw, hasPhoto: hasPhoto)
     }
 
     var isOver: Bool { end.map { $0 < .now } ?? false }
@@ -175,8 +206,30 @@ final class LeagueCheckIn {
     /// Quando o servidor recebeu esta versão; nil = na caixa de saída (novo ou editado)
     var syncedAt: Date?
 
+    /// Prova do check-in (`CheckInProof` em JSON) (SchemaV4)
+    var proofRaw: String = ""
+    /// Revisão do dono: "" = não precisa (ou já aprovado), "pending", "denied" (SchemaV4)
+    var reviewRaw: String = ""
+    /// Fotos além da primeira (até 4), em property list de `[Data]` (SchemaV5)
+    @Attribute(.externalStorage) var extraPhotosData: Data?
+
+    /// Todas as fotos do post: a principal e as extras
+    var photos: [Data] {
+        get { (photo.map { [$0] } ?? []) + (extraPhotosData.flatMap { try? PropertyListDecoder().decode([Data].self, from: $0) } ?? []) }
+        set {
+            setPhoto(newValue.first)
+            let rest = Array(newValue.dropFirst().prefix(4))
+            extraPhotosData = rest.isEmpty ? nil : try? PropertyListEncoder().encode(rest)
+        }
+    }
+
     /// Vale como check-in com foto na regra da liga
     var hasPhoto: Bool { photo != nil || hadPhoto }
+
+    var proof: CheckInProof {
+        get { CheckInProof(rawValue: proofRaw) }
+        set { proofRaw = newValue.rawValue }
+    }
 
     init(leagueUUID: UUID, activityUUID: UUID, title: String, note: String, date: Date, photo: Data?) {
         self.leagueUUID = leagueUUID
@@ -205,6 +258,8 @@ final class LeagueMessage {
     var date: Date = Date.now
     /// Quando o servidor aceitou; nil = na caixa de saída
     var syncedAt: Date?
+    /// Foto do recado (SchemaV5)
+    @Attribute(.externalStorage) var photo: Data?
 
     init(leagueUUID: UUID, text: String) {
         self.leagueUUID = leagueUUID
@@ -233,4 +288,21 @@ final class CheckInComment {
     }
 
     var isMine: Bool { authorID == "me" }
+}
+
+/// Decisão do dono sobre um check-in de outra pessoa numa liga com revisão (o seu fica no próprio LeagueCheckIn)
+@Model
+final class CheckInReview {
+    var uuid: UUID = UUID()
+    var leagueUUID: UUID = UUID()
+    /// `FeedItem.id` do check-in
+    var itemID: String = ""
+    var approved: Bool = true
+    var date: Date = Date.now
+
+    init(leagueUUID: UUID, itemID: String, approved: Bool) {
+        self.leagueUUID = leagueUUID
+        self.itemID = itemID
+        self.approved = approved
+    }
 }

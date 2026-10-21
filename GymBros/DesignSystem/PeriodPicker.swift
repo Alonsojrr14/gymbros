@@ -91,6 +91,8 @@ struct LeaguePeriodField: View {
     @Binding var hasEnd: Bool
     /// Primeiro dia permitido: hoje (ou o início original, ao editar uma liga que já começou)
     var minDate: Date = Calendar.current.startOfDay(for: .now)
+    /// Desafios sempre precisam de data final; clubes usam a escolha de tipo acima deste campo.
+    var allowsOpenEnded: Bool = true
     @State private var open = false
     @State private var draftStart = Date.now
     @State private var draftEnd: Date?
@@ -129,7 +131,9 @@ struct LeaguePeriodField: View {
             HStack {
                 Text("Período da liga").font(.headline)
                 Spacer()
-                GMSegmented(options: [(true, "Com fim"), (false, "Sem fim")], selection: $draftHasEnd).frame(width: 180)
+                if allowsOpenEnded {
+                    GMSegmented(options: [(true, "Com fim"), (false, "Sem fim")], selection: $draftHasEnd).frame(width: 180)
+                }
             }
             if draftHasEnd {
                 GMRangeCalendar(start: $draftStart, end: $draftEnd, minDate: minDate)
@@ -152,7 +156,7 @@ struct LeaguePeriodField: View {
             }
             GMButton("Confirmar", enabled: !draftHasEnd || draftEnd != nil) {
                 start = cal.startOfDay(for: draftStart)
-                hasEnd = draftHasEnd
+                hasEnd = allowsOpenEnded ? draftHasEnd : true
                 if let e = draftEnd { end = e }
                 close()
             }

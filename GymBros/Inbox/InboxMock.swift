@@ -94,6 +94,8 @@ struct MockInboxBackend: InboxBackend {
         case .invite:
             let yes = rng.next() < 0.75
             return DirectMessage(id: id, peerID: m.peerID, outgoing: false, date: at, kind: .inviteReply, replyTo: m.id, accepted: yes)
+        case .reaction:
+            return nil
         case .inviteReply:
             guard m.accepted == true else { return nil }
             return DirectMessage(id: id, peerID: m.peerID, outgoing: false, date: at, text: "Fechou, te vejo lá 🤝")

@@ -1,11 +1,87 @@
 import Foundation
 import SwiftData
 
-// Ligas no estilo GymRats: cada liga é um ranking contínuo alimentado por check-ins de
-// qualquer tipo de atividade. Os outros participantes, times e o mural vêm de LeagueRemoteStore
+// Grupos no estilo GymRats: clubes são contínuos e desafios têm prazo, ambos alimentados por
+// check-ins de qualquer tipo de atividade. Os outros participantes, times e o mural vêm de LeagueRemoteStore
 // (por enquanto simulados, ver LeagueRemote.swift). Ao entrar, você escolhe quem te representa (um bro
 // seu ou um ovo novo). Toda atividade dá XP inteiro ao principal (o dono gravado nela, ou o bro inicial); postada
 // em ligas, dá também um pouco menos a quem representa você em cada uma (Roster.shares).
+
+/// Um clube não termina; um desafio tem início e fim definidos. O tipo é derivado do período
+/// para manter compatibilidade com ligas já gravadas antes desta distinção existir.
+enum LeagueFormat: String, CaseIterable, Identifiable {
+    case club, challenge
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .club: "Clube"
+        case .challenge: "Desafio"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .club: "Grupo permanente, com rankings da semana e do mês."
+        case .challenge: "Competição com data para começar, acabar e coroar um vencedor."
+        }
+    }
+}
+
+enum LeagueActivityRuleMode: String, CaseIterable, Identifiable {
+    case all, only, except
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .all: "Todos"
+        case .only: "Somente estes"
+        case .except: "Todos, exceto estes"
+        }
+    }
+}
+
+/// Regra persistida como `modo:ids`, por exemplo `only:1,2`. Vazia significa que todos valem.
+struct LeagueActivityRule: Hashable {
+    var mode: LeagueActivityRuleMode = .all
+    var workoutTypeIDs: Set<UInt> = []
+
+    init(mode: LeagueActivityRuleMode = .all, workoutTypeIDs: Set<UInt> = []) {
+        self.mode = mode
+        self.workoutTypeIDs = workoutTypeIDs
+    }
+
+    init(rawValue: String) {
+        let parts = rawValue.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2, let mode = LeagueActivityRuleMode(rawValue: String(parts[0])) else { return }
+        self.mode = mode
+        workoutTypeIDs = Set(parts[1].split(separator: ",").compactMap { UInt($0) })
+    }
+
+    var rawValue: String {
+        guard mode != .all else { return "" }
+        return mode.rawValue + ":" + workoutTypeIDs.sorted().map(String.init).joined(separator: ",")
+    }
+
+    func accepts(_ workoutTypeID: UInt?) -> Bool {
+        guard let workoutTypeID else { return true }
+        return switch mode {
+        case .all: true
+        case .only: workoutTypeIDs.contains(workoutTypeID)
+        case .except: !workoutTypeIDs.contains(workoutTypeID)
+        }
+    }
+
+    var detail: String {
+        switch mode {
+        case .all: "Qualquer treino vale pontos."
+        case .only: workoutTypeIDs.isEmpty ? "Escolha pelo menos um treino que vale pontos." : "Só os \(workoutTypeIDs.count) treino(s) selecionados valem pontos."
+        case .except: workoutTypeIDs.isEmpty ? "Nenhum treino foi excluído." : "Os \(workoutTypeIDs.count) treino(s) selecionados não valem pontos."
+        }
+    }
+}
 
 /// O que um check-in precisa para virar pontos em qualquer modo
 struct ScoreInput {
@@ -16,6 +92,10 @@ struct ScoreInput {
     var meters: Double? = nil
     /// Calorias informadas no check-in; sem elas, estima com o peso de referência
     var kcal: Double? = nil
+    /// Tipo específico do catálogo do Apple Saúde, quando conhecido (ex.: bike, skate ou musculação).
+    var workoutTypeID: UInt? = nil
+    /// Pontos que a pessoa disse no check-in (modo "Você diz")
+    var declared: Int? = nil
 }
 
 extension Activity {
@@ -31,12 +111,13 @@ extension Activity {
 
     /// Mesmos dados que os outros participantes recebem, para o placar ser igual em todos os aparelhos
     var scoreInput: ScoreInput {
-        ScoreInput(kind: kind, minutes: minutes, effort: publishableEffort, meters: publishableMeters, kcal: publishableKcal)
+        ScoreInput(kind: kind, minutes: minutes, effort: publishableEffort, meters: publishableMeters, kcal: publishableKcal,
+                   workoutTypeID: workoutType.id)
     }
 }
 
 enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
-    case pontos, treinos, minutos, distancia, calorias
+    case pontos, treinos, dias, minutos, distancia, calorias, atividades, informado
 
     var id: String { rawValue }
 
@@ -44,6 +125,9 @@ enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .pontos: "Pontos"
         case .treinos: "Treinos"
+        case .dias: "Dias ativos"
+        case .atividades: "Por atividade"
+        case .informado: "Você diz"
         case .minutos: "Minutos"
         case .distancia: "Distância"
         case .calorias: "Calorias"
@@ -54,6 +138,9 @@ enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .pontos: "Cada check-in vale o XP da atividade: duração × tipo × esforço. Justo entre corrida, musculação, yoga…"
         case .treinos: "Cada check-in vale 1. Ganha quem treina mais vezes."
+        case .dias: "Cada dia com pelo menos um check-in vale 1: dois treinos no mesmo dia contam um dia só."
+        case .atividades: "Você monta a tabela: cada tipo de treino vale pontos por vez ou por quantidade (minutos, km, kcal), e pode até tirar pontos. Treino fora da tabela vale 0."
+        case .informado: "Cada pessoa diz quantos pontos o check-in vale (de 0 a 100). Bom para hábitos e desafios livres; ligue a revisão do dono para conferir."
         case .minutos: "Soma do tempo de todos os check-ins."
         case .distancia: "Soma dos quilômetros (corrida, caminhada, bike, natação com GPS ou do Apple Saúde). Atividade sem distância não pontua."
         case .calorias: "Soma das calorias ativas: as do Apple Saúde quando houver, senão estimadas pela atividade, duração e esforço."
@@ -71,7 +158,10 @@ enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
             guard !weights.isEmpty else { return xp }
             let factor = i.kind.weights.reduce(0) { $0 + $1.value * (weights[$1.key] ?? 1) }
             return Int((Double(xp) * factor).rounded())
-        case .treinos: return 1
+        case .treinos, .dias: return 1
+        // Vem da tabela da liga (League.score)
+        case .atividades: return 0
+        case .informado: return max(0, min(i.declared ?? 0, 100))
         case .minutos: return min(i.minutes, Game.maxMinutes)
         case .distancia: return Int(i.meters ?? 0)
         case .calorias:
@@ -83,8 +173,9 @@ enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
     /// Placar com unidade: "120 pts", "3 treinos", "1 h 20 min", "12,4 km", "830 kcal". `count` decide o plural (padrão: `v`).
     func format(_ v: Int, count: Int? = nil) -> String {
         switch self {
-        case .pontos: "\(v) pts"
+        case .pontos, .atividades, .informado: "\(v) pts"
         case .treinos: "\(v) treino\((count ?? v) == 1 ? "" : "s")"
+        case .dias: "\(v) dia\((count ?? v) == 1 ? "" : "s")"
         case .minutos: durationText(v)
         case .distancia: Self.km(v)
         case .calorias: "\(v) kcal"
@@ -227,6 +318,8 @@ enum LeagueRenewal {
         l.weightsRaw = old.weightsRaw
         l.tieBreakRaw = old.tieBreakRaw
         l.photoRuleRaw = old.photoRuleRaw
+        l.activityRuleRaw = old.activityRuleRaw
+        l.settingsRaw = old.settingsRaw
         l.swissRaw = old.swissRaw
         l.teamsRaw = old.teamsRaw
         l.myTeamID = old.myTeamID
@@ -291,12 +384,18 @@ struct FakeCheckIn {
     let title: String
     var meters: Double? = nil
 
-    var input: ScoreInput { ScoreInput(kind: kind, minutes: minutes, effort: effort, meters: meters) }
+    var input: ScoreInput { ScoreInput(kind: kind, minutes: minutes, effort: effort, meters: meters, workoutTypeID: WorkoutType.of(kind).id) }
 }
 
 enum MockLeague {
     static let name = "Liga dos Bros"
     static let code = "AMIGOS"
+
+    /// Quem pede para entrar na liga de exemplo quando a aprovação está ligada (simulados)
+    static let requesters = [
+        RemoteMember(id: "paula", name: "Paula", formID: MonsterForm(stage: .rookie, attribute: nil, species: "gato").id),
+        RemoteMember(id: "teo", name: "Téo", formID: MonsterForm.egg.id),
+    ]
 
     /// Check-ins simulados, determinísticos: o mesmo dia gera sempre o mesmo resultado
     static func checkIns(league: LeagueKey, now: Date = .now) -> [FakeCheckIn] {
@@ -368,7 +467,7 @@ struct FeedItem: Identifiable {
     let note: String
     let kind: ActivityKind
     let minutes: Int
-    let score: Int
+    var score: Int
     var photo: Data?
     var place: String? = nil
     var hasPhoto = false
@@ -376,6 +475,15 @@ struct FeedItem: Identifiable {
     var teamID: String? = nil
     /// Modo da liga, para o placar com unidade; nil = post do perfil (vale XP)
     var scoring: LeagueScoring? = nil
+    /// Esperando o dono aprovar: aparece no feed, mas ainda não pontua
+    var pending = false
+    var proof = CheckInProof()
+    /// Pontos cortados pelo teto da liga
+    var capped = 0
+    /// Liga do check-in (nil = perfil)
+    var leagueID: UUID?
+    /// Fotos a mais do post (a primeira é `photo`)
+    var extraPhotos: [Data] = []
 }
 
 struct RankRow: Identifiable {
@@ -434,7 +542,7 @@ struct TeamRow: Identifiable {
     let id: String
     let name: String
     let isMine: Bool
-    let score: Int
+    var score: Int
     let members: Int
     /// Bro do time: cresce com a média de XP dos membros e evolui pelo atributo que o time mais treina
     let form: MonsterForm
@@ -444,32 +552,81 @@ struct TeamRow: Identifiable {
 @MainActor
 enum LeagueBoard {
     static func feed(league: League, mine: [LeagueCheckIn], activities: [UUID: Activity], me: String, myAvatar: MonsterForm,
-                     remote: RemoteLeague? = nil) -> [FeedItem] {
-        let remote = remote ?? LeagueRemoteStore.shared.remote(league)
+                     remote: RemoteLeague? = nil, reviews: [CheckInReview]? = nil) -> [FeedItem] {
+        let remote = (remote ?? LeagueRemoteStore.shared.remote(league)).applying(league)
+        let settings = league.settings
         var items: [FeedItem] = mine.compactMap { c in
-            guard let a = activities[c.activityUUID] else { return nil }
-            return FeedItem(id: c.uuid.uuidString, memberID: "me", name: me, avatar: myAvatar, isMe: true, date: c.date, title: c.title, note: c.note,
-                            kind: a.kind, minutes: a.minutes, score: league.score(a.scoreInput, hasPhoto: c.hasPhoto), photo: c.photo,
-                            place: c.place, hasPhoto: c.hasPhoto, effort: a.effort, teamID: league.myTeamID, scoring: league.scoring)
+            guard let a = activities[c.activityUUID], c.reviewRaw != ReviewState.denied else { return nil }
+            // Atividades do mesmo dia agrupadas neste check-in somam junto
+            let extra = c.proof.grouped.compactMap { activities[$0] }
+            var main = a.scoreInput
+            main.declared = c.proof.declared
+            var f = FeedItem(id: c.uuid.uuidString, memberID: "me", name: me, avatar: myAvatar, isMe: true, date: c.date, title: c.title, note: c.note,
+                             kind: a.kind, minutes: a.minutes + extra.reduce(0) { $0 + $1.minutes },
+                             score: league.score([main] + extra.map(\.scoreInput), hasPhoto: c.hasPhoto), photo: c.photo,
+                             place: c.place, hasPhoto: c.hasPhoto, effort: a.effort, teamID: league.myTeamID, scoring: league.scoring)
+            f.pending = settings.reviewRequired && c.reviewRaw == ReviewState.pending
+            f.proof = c.proof
+            f.leagueID = league.uuid
+            f.extraPhotos = Array(c.photos.dropFirst())
+            return f
         }
+        // Decisões do dono sobre os check-ins dos outros (as que vieram do servidor e as tomadas aqui)
+        let decided = Dictionary((reviews ?? Self.reviews(league)).map { ($0.itemID, $0.approved) }, uniquingKeysWith: { _, b in b })
         items += remote.checkIns.compactMap { r in
-            guard let m = remote.member(r.memberID) else { return nil }
-            return FeedItem(id: r.id, memberID: m.id, name: m.name, avatar: m.form, isMe: false, date: r.date, title: r.title, note: r.note,
-                            kind: r.kind, minutes: r.minutes, score: league.score(r.input, hasPhoto: r.hasPhoto), photo: nil,
-                            hasPhoto: r.hasPhoto, effort: r.effort, teamID: m.teamID, scoring: league.scoring)
+            guard let m = remote.member(r.memberID), decided[r.id] != false else { return nil }
+            let extra = r.proof?.groupedParts ?? []
+            var f = FeedItem(id: r.id, memberID: m.id, name: m.name, avatar: m.form, isMe: false, date: r.date, title: r.title, note: r.note,
+                             kind: r.kind, minutes: r.minutes + extra.reduce(0) { $0 + $1.minutes },
+                             score: league.score([{ var i = r.input; i.declared = r.proof?.declared; return i }()] + extra.map(\.input), hasPhoto: r.hasPhoto), photo: nil,
+                             place: r.place, hasPhoto: r.hasPhoto, effort: r.effort, teamID: m.teamID, scoring: league.scoring)
+            f.proof = r.proof ?? CheckInProof()
+            f.leagueID = league.uuid
+            // Check-in de antes da revisão ser ligada já valia
+            f.pending = settings.reviewRequired && decided[r.id] == nil && r.date >= (settings.reviewSince ?? .distantPast)
+            return f
+        }
+        for i in items.indices where items[i].pending { items[i].score = 0 }
+        // Dias ativos: só o primeiro check-in de cada pessoa em cada dia vale
+        if league.scoring == .dias {
+            let cal = Calendar.current
+            var seen = Set<String>()
+            for i in items.indices.sorted(by: { items[$0].date < items[$1].date }) where items[i].score > 0 {
+                let k = "\(items[i].memberID)|\(cal.startOfDay(for: items[i].date).timeIntervalSince1970)"
+                if !seen.insert(k).inserted { items[i].score = 0 }
+            }
+        }
+        // Teto por pessoa, dentro do período da liga
+        if settings.limits.individual.values.contains(where: { $0 > 0 }) {
+            let inLeague = items.filter { $0.date >= league.start && $0.date <= (league.end ?? .distantFuture) }
+            let cut = ScoringLimits.apply(settings.limits.individual, to: inLeague, group: { $0.memberID }, calendar: settings.calendar())
+            for i in items.indices { if let c = cut[items[i].id] { items[i].score -= c; items[i].capped = c } }
         }
         return items.sorted { $0.date > $1.date }
     }
 
-    /// Placar dos times: soma do placar de cada membro na janela
-    static func teams(league: League, ranking: [RankRow], feed: [FeedItem], remote: RemoteLeague? = nil) -> [TeamRow] {
-        let remote = remote ?? LeagueRemoteStore.shared.remote(league)
+    /// Decisões de revisão gravadas para a liga
+    static func reviews(_ league: League) -> [CheckInReview] {
+        let id = league.uuid
+        return (try? league.modelContext?.fetch(FetchDescriptor<CheckInReview>(predicate: #Predicate { $0.leagueUUID == id }))) ?? []
+    }
+
+    /// Placar dos times: soma do placar de cada membro na janela, com o teto por time da liga
+    static func teams(league: League, ranking: [RankRow], feed: [FeedItem], remote: RemoteLeague? = nil, since: Date? = nil) -> [TeamRow] {
+        let remote = (remote ?? LeagueRemoteStore.shared.remote(league)).applying(league)
         let byMember = Dictionary(ranking.map { ($0.id, $0.score) }, uniquingKeysWith: +)
         let inLeague = feed.filter { $0.date >= league.start && $0.date <= (league.end ?? .distantFuture) }
+        let caps = league.settings.limits.team
+        // Corte do teto: do mais antigo para o mais novo, por time; só o que caiu na janela sai do placar dela
+        let cut = ScoringLimits.apply(caps, to: inLeague, group: { $0.teamID }, calendar: league.settings.calendar())
+        let cutInWindow = Dictionary(inLeague.filter { f in since.map { f.date >= $0 } ?? true }.compactMap { f in
+            cut[f.id].flatMap { c in f.teamID.map { ($0, c) } }
+        }, uniquingKeysWith: +)
         return remote.teams.map { t in
             let ids = t.memberIDs + (league.myTeamID == t.id ? ["me"] : [])
             let (form, progress) = teamBro(ids.map { id in inLeague.filter { $0.memberID == id } })
-            return TeamRow(id: t.id, name: t.name, isMine: league.myTeamID == t.id, score: ids.reduce(0) { $0 + (byMember[$1] ?? 0) },
+            let total = ids.reduce(0) { $0 + (byMember[$1] ?? 0) } - (cutInWindow[t.id] ?? 0)
+            return TeamRow(id: t.id, name: t.name, isMine: league.myTeamID == t.id, score: total,
                            members: ids.count, form: form, progress: progress)
         }
         .sorted { ($0.score, $0.isMine ? 1 : 0) > ($1.score, $1.isMine ? 1 : 0) }
@@ -499,7 +656,7 @@ enum LeagueBoard {
 
     /// Rodadas suíças da liga, derivadas do feed e dos membros
     static func swiss(league: League, feed: [FeedItem], remote: RemoteLeague? = nil, now: Date = .now) -> SwissTable {
-        let remote = remote ?? LeagueRemoteStore.shared.remote(league)
+        let remote = (remote ?? LeagueRemoteStore.shared.remote(league)).applying(league)
         let cal = Swiss.calendar
         var tallies: [Date: [String: SwissTally]] = [:]
         for f in feed where f.date >= league.start && f.date <= (league.end ?? .distantFuture) && f.date <= now {
@@ -516,9 +673,10 @@ enum LeagueBoard {
                            identity: ["me": selfID], joined: joined, calendar: cal)
     }
 
-    static func ranking(feed: [FeedItem], league: League, me: String, myAvatar: MonsterForm, since: Date?,
+    /// `until` fecha a janela (campeões de semanas, meses e anos que já acabaram)
+    static func ranking(feed: [FeedItem], league: League, me: String, myAvatar: MonsterForm, since: Date?, until: Date? = nil,
                         remote: RemoteLeague? = nil, swiss: SwissTable? = nil) -> [RankRow] {
-        let remote = remote ?? LeagueRemoteStore.shared.remote(league)
+        let remote = (remote ?? LeagueRemoteStore.shared.remote(league)).applying(league)
         let swiss = swiss ?? Self.swiss(league: league, feed: feed, remote: remote)
         var rows: [String: RankRow] = [:]
         var days: [String: Set<Date>] = [:]
@@ -527,7 +685,9 @@ enum LeagueBoard {
         for m in remote.members { rows[m.id] = RankRow(id: m.id, name: m.name, avatar: m.form, isMe: false) }
         let cal = Calendar.current
         // Do mais antigo para o mais novo: o último check-in que pontuou é quando a pessoa chegou ao placar
-        for f in feed.reversed() where (since.map { f.date >= $0 } ?? true) && f.date >= league.start && f.date <= (league.end ?? .distantFuture) {
+        // Check-in esperando revisão ainda não conta, nem como check-in
+        for f in feed.reversed() where !f.pending && (since.map { f.date >= $0 } ?? true) && (until.map { f.date < $0 } ?? true)
+            && f.date >= league.start && f.date <= (league.end ?? .distantFuture) {
             var r = rows[f.memberID] ?? RankRow(id: f.memberID, name: f.name, avatar: f.avatar, isMe: f.isMe)
             r.score += f.score
             r.checkIns += 1
@@ -536,7 +696,7 @@ enum LeagueBoard {
             days[f.memberID, default: []].insert(cal.startOfDay(for: f.date))
         }
         for (id, d) in days { rows[id]?.bestStreak = Game.bestStreak(days: d, calendar: cal) }
-        for (id, b) in swiss.bonuses(scoring: league.scoring, since: since, calendar: Swiss.calendar) {
+        for (id, b) in swiss.bonuses(scoring: league.scoring, since: since, until: until, calendar: Swiss.calendar) {
             guard var r = rows[id] else { continue }
             r.score += b.total
             r.bonus = b.total

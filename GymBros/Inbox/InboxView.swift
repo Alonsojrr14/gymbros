@@ -13,6 +13,7 @@ struct InboxView: View {
     @State private var tab: Tab
     @State private var path: [String] = []
     @State private var composing = false
+    @State private var showArchived = false
     @State private var done: Set<String> = []
     @State private var error: String?
     @State private var terms = TermsGate()
@@ -180,8 +181,27 @@ struct InboxView: View {
 
     @ViewBuilder
     private var conversationList: some View {
-        let list = store.conversations
-        if list.isEmpty {
+        let list = store.conversations(archived: showArchived)
+        let archivedCount = store.conversations(archived: true).count
+        if archivedCount > 0 || showArchived {
+            Button { withAnimation { showArchived.toggle() } } label: {
+                Label(showArchived ? "Voltar para as conversas" : "Arquivadas · \(archivedCount)", systemImage: showArchived ? "chevron.left" : "archivebox")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(GMPress())
+        }
+        if showArchived {
+            if list.isEmpty { GMEmptyState(icon: "archivebox", title: "Nada arquivado", message: "Conversa arquivada volta quando chega mensagem nova.") }
+            GMCard {
+                ForEach(list) { c in
+                    HStack {
+                        Button { path = [c.peer.id] } label: { ConversationRow(conversation: c) }.buttonStyle(GMPress())
+                        GMButton("Desarquivar", kind: .secondary, full: false, small: true) { store.unarchive(c.peer.id) }
+                    }
+                    if c.id != list.last?.id { GMDivider() }
+                }
+            }
+        } else if list.isEmpty {
             GMEmptyState(icon: "bubble.left.and.bubble.right", title: "Nenhuma conversa",
                          message: "Mande força, chame um amigo pra treinar junto ou só diga oi.")
             GMButton("Nova mensagem", icon: "square.and.pencil") { composing = true }
@@ -245,6 +265,12 @@ struct InboxEventRow: View {
         case .duelDeclined: "recusou seu X1"
         case .duelExpired: "não respondeu seu X1 a tempo"
         case .duelResult: "· X1 encerrado"
+        case .leagueWinner: "venceu \(event.text) 🏆"
+        case .leagueReview: "postou um check-in para você revisar"
+        case .leagueRequest: "quer entrar na liga"
+        case .leagueRemoved: "· seu check-in de \(event.text) foi removido pelo dono"
+        case .leagueMural: event.detail.hasPrefix("marcou") ? event.detail : "escreveu no mural"
+        case .leagueCheckIn: "fez check-in"
         }
     }
 
@@ -256,6 +282,9 @@ struct InboxEventRow: View {
         case .invite: event.detail + (event.text.isEmpty ? "" : "\n\(event.text)")
         case .duelResult: event.text.isEmpty ? event.detail : "\(event.text)\n\(event.detail)"
         case .duelChallenge, .duelAccepted, .duelDeclined, .duelExpired: event.detail
+        case .leagueReview, .leagueCheckIn: "\(event.text) · \(event.detail)"
+        case .leagueMural: event.detail.hasPrefix("marcou") ? event.text : "“\(event.text)” · \(event.detail)"
+        case .leagueWinner, .leagueRequest, .leagueRemoved: event.detail
         default: ""
         }
     }
@@ -342,7 +371,7 @@ struct InboxAvatar: View {
 struct ConversationRow: View {
     let conversation: Conversation
 
-    private var live: LiveFriend? { FriendsLive.simulated.first { $0.id == conversation.peer.id && $0.isLive } }
+    private var live: LiveFriend? { FriendsLive.find(conversation.peer.id).flatMap { $0.isLive ? $0 : nil } }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -379,6 +408,7 @@ extension DirectMessage {
         case .invite: (outgoing ? "Você convidou: " : "Convite: ") + (invite.map { "\($0.kind.name) · \($0.whenText)" } ?? "treinar junto")
         case .inviteReply:
             accepted == true ? (outgoing ? "Você topou o convite 🤝" : "Topou o convite 🤝") : (outgoing ? "Você recusou o convite" : "Recusou o convite")
+        case .reaction: (outgoing ? "Você reagiu " : "Reagiu ") + text
         }
     }
 }

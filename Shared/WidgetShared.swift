@@ -103,10 +103,38 @@ struct WidgetData: Codable {
 
     /// Sair da conta: o widget volta ao estado sem dados (resumo e carinhos)
     static func clear(_ defaults: UserDefaults? = WidgetData.defaults) {
-        for k in [key, "pets", "petAt"] { defaults?.removeObject(forKey: k) }
+        for k in [key, "pets", "petAt", "brosPost"] { defaults?.removeObject(forKey: k) }
     }
 
     static let placeholder = WidgetData(monsterName: "Gymbro", formName: "Gymbro", stageName: "Bebê", sprite: "sprite_baby", hue: 0,
                                         isEgg: false, level: 4, totalXP: 80, progress: 0.1, xpToNext: 220, streak: 3,
                                         lastActivity: .now, todayXP: 30, todayRoutine: [:], updated: .now)
+}
+
+/// Último check-in das suas ligas (de qualquer pessoa), para o widget "Último treino dos bros"
+struct BrosPost: Codable {
+    var name: String
+    var sprite: String
+    var title: String
+    var place: String
+    var date: Date
+    /// Foto reduzida (só a sua: as dos outros chegam por URL quando houver servidor)
+    var photo: Data?
+
+    private static let key = "brosPost"
+
+    static func load() -> BrosPost? {
+        guard let data = WidgetData.defaults?.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(BrosPost.self, from: data)
+    }
+
+    func save() {
+        guard let data = try? JSONEncoder().encode(self) else { return }
+        WidgetData.defaults?.set(data, forKey: BrosPost.key)
+    }
+
+    static func clear() { WidgetData.defaults?.removeObject(forKey: key) }
+
+    static let placeholder = BrosPost(name: "Ana", sprite: "sprite_baby", title: "Corridinha matinal ☀️", place: "🔥 Liga dos Bros",
+                                      date: .now.addingTimeInterval(-1800))
 }

@@ -1,3 +1,4 @@
+import HealthKit
 import XCTest
 @testable import GymBros
 
@@ -91,6 +92,50 @@ final class LeagueTests: GymTestCase {
         XCTAssertEqual(l.score(corrida, hasPhoto: true), full)
         l.photoRule = .obrigatoria
         XCTAssertEqual(l.score(corrida, hasPhoto: false), 0)
+    }
+
+    func testLeagueFormatIsDerivedFromPeriod() {
+        let club = League(name: "Clube", emoji: "🏆", scoring: .pontos)
+        XCTAssertEqual(club.format, .club)
+
+        club.setDuration(days: 30)
+        XCTAssertEqual(club.format, .challenge)
+
+        club.setDuration(days: 0)
+        XCTAssertEqual(club.format, .club)
+    }
+
+    func testActivityRuleAcceptsOnlyConfiguredWorkoutTypes() {
+        let strength = WorkoutType.of(.musculacao)
+        let crossfit = WorkoutType.of(.crossfit)
+        let bike = WorkoutType.of(.bike)
+        let rule = LeagueActivityRule(mode: .only, workoutTypeIDs: [strength.id, crossfit.id])
+        XCTAssertTrue(rule.accepts(strength.id))
+        XCTAssertTrue(rule.accepts(crossfit.id))
+        XCTAssertFalse(rule.accepts(bike.id))
+        XCTAssertEqual(LeagueActivityRule(rawValue: rule.rawValue), rule)
+    }
+
+    func testDisallowedWorkoutScoresZero() {
+        let l = league()
+        l.activityRule = LeagueActivityRule(mode: .except, workoutTypeIDs: [WorkoutType.of(.bike).id])
+        var bike = corrida
+        bike.workoutTypeID = WorkoutType.of(.bike).id
+        XCTAssertEqual(l.score(bike), 0)
+    }
+
+    func testRemoteCheckInKeepsSpecificWorkoutType() {
+        // Skate é "outro" na categoria: sem o tipo no check-in, outro aparelho não saberia que é skate
+        let skate = WorkoutType.byID(UInt(HKWorkoutActivityType.skatingSports.rawValue))!
+        let l = league()
+        l.activityRule = LeagueActivityRule(mode: .except, workoutTypeIDs: [skate.id])
+        let remote = RemoteCheckIn(id: "1", memberID: "m", date: .now, kindRaw: skate.kind.rawValue, minutes: 60, effort: 5,
+                                   title: "Pista", workoutTypeID: skate.id)
+        XCTAssertEqual(l.score(remote.input), 0)
+        // Check-in antigo, sem o tipo: vale o padrão da categoria
+        var old = remote
+        old.workoutTypeID = nil
+        XCTAssertGreaterThan(l.score(old.input), 0)
     }
 
     func testHalfPhotoNeverZeroesAScore() {

@@ -167,6 +167,7 @@ struct GymBrosWidgets: WidgetBundle {
         PetWidget()
         GymBrosWidget()
         TodayWorkoutWidget()
+        BrosWidget()
         WorkoutLiveActivity()
         WodLiveActivity()
         if #available(iOS 18.0, *) {

@@ -120,6 +120,9 @@ enum SwissBonus {
         .distancia: (500, 250),
         .calorias: (50, 25),
         .treinos: (1, 0),
+        .dias: (1, 0),
+        .atividades: (10, 5),
+        .informado: (5, 2),
     ]
 
     static func value(_ result: SwissResult, scoring: LeagueScoring) -> Int {
@@ -156,9 +159,9 @@ struct SwissTable: Sendable {
     }
 
     /// Bônus de cada um nas rodadas encerradas a partir de `since` (dia do confronto), com o fim do último dia que rendeu bônus
-    func bonuses(scoring: LeagueScoring, since: Date? = nil, calendar: Calendar = .current) -> [String: (total: Int, last: Date)] {
+    func bonuses(scoring: LeagueScoring, since: Date? = nil, until: Date? = nil, calendar: Calendar = .current) -> [String: (total: Int, last: Date)] {
         var out: [String: (total: Int, last: Date)] = [:]
-        for r in rounds where r.finished && (since.map { r.day >= calendar.startOfDay(for: $0) } ?? true) {
+        for r in rounds where r.finished && (since.map { r.day >= calendar.startOfDay(for: $0) } ?? true) && (until.map { r.day < $0 } ?? true) {
             let end = calendar.date(byAdding: .second, value: -1, to: calendar.date(byAdding: .day, value: 1, to: r.day)!)!
             for m in r.matches {
                 for id in [m.a] + (m.b.map { [$0] } ?? []) {

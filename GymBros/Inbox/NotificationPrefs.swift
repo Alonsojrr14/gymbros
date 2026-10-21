@@ -7,7 +7,7 @@ import UserNotifications
 // inclusive lembretes, resumo, descanso e chegada na academia. Com servidor, as mesmas chaves filtram o push.
 
 enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
-    case messages, cheers, invites, duels, friendsTraining, reactions, friendRequests
+    case messages, cheers, invites, duels, trades, friendsTraining, reactions, friendRequests, leagues
 
     var id: String { rawValue }
     var key: String { "notify.\(rawValue)" }
@@ -21,6 +21,8 @@ enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
         case .reactions: "Reações e comentários"
         case .friendRequests: "Pedidos de amizade"
         case .duels: "X1"
+        case .trades: "Trocas"
+        case .leagues: "Ligas"
         }
     }
 
@@ -33,6 +35,8 @@ enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
         case .reactions: "Nos seus check-ins do perfil e das ligas"
         case .friendRequests: "Quando alguém quer ser seu amigo"
         case .duels: "Desafios, respostas e resultado dos seus X1"
+        case .trades: "Quando aceitam sua troca ou te oferecem uma"
+        case .leagues: "Campeões, mural, revisão e pedidos (cada liga ajusta o seu)"
         }
     }
 
@@ -45,6 +49,8 @@ enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
         case .reactions: "face.smiling.inverse"
         case .friendRequests: "person.badge.plus"
         case .duels: "bolt.shield.fill"
+        case .trades: "arrow.left.arrow.right"
+        case .leagues: "trophy.fill"
         }
     }
 
@@ -57,6 +63,8 @@ enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
         case .reactions: Theme.streak
         case .friendRequests: Attribute.tecnica.color
         case .duels: Theme.trophy
+        case .trades: Theme.trophy
+        case .leagues: Theme.accent
         }
     }
 
@@ -66,6 +74,8 @@ enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
         case .messages: SocialNotifier.messageCategory
         case .cheers: SocialNotifier.cheerCategory
         case .invites: SocialNotifier.inviteCategory
+        // Amigo começou a treinar: dá para mandar força direto da notificação
+        case .friendsTraining: SocialNotifier.forceCategory
         default: SocialNotifier.socialCategory
         }
     }
@@ -74,7 +84,7 @@ enum NotificationTopic: String, CaseIterable, Identifiable, Sendable {
 enum NotificationPrefs {
     static let pausedKey = "notify.paused"
     /// Vão com a conta
-    static var defaultsKeys: [String] { NotificationTopic.allCases.map(\.key) + [pausedKey] }
+    static var defaultsKeys: [String] { NotificationTopic.allCases.map(\.key) + [pausedKey, LeagueNotifyPrefs.key] }
 
     static func paused(_ defaults: UserDefaults = .standard) -> Bool { defaults.bool(forKey: pausedKey) }
 
@@ -139,6 +149,9 @@ struct InboxNotice: Identifiable {
         case .inviteReply:
             title = m.accepted == true ? "\(peer.name) topou treinar junto 🤝" : "\(peer.name) não vai dessa vez"
             body = m.accepted == true ? "Combinado! Abre a conversa para acertar os detalhes." : "Fica para a próxima."
+        case .reaction:
+            title = "\(peer.name) reagiu \(m.text) à sua mensagem"
+            body = "Toque para abrir a conversa."
         }
     }
 
@@ -186,13 +199,37 @@ struct InboxNotice: Identifiable {
             title = "X1 encerrado · \(e.detail)"
             body = e.text.isEmpty ? "Seu X1 com \(e.actorName) terminou." : e.text
             peerID = nil
+        case .leagueWinner:
+            title = "🏆 \(e.actorName) venceu \(e.text)"
+            body = e.detail
+            peerID = nil
+        case .leagueReview:
+            title = "Check-in de \(e.actorName) para revisar"
+            body = "\(e.text) · \(e.detail)"
+            peerID = nil
+        case .leagueRequest:
+            title = "\(e.actorName) quer entrar na liga"
+            body = e.detail
+            peerID = nil
+        case .leagueRemoved:
+            title = "Seu check-in de \(e.text) foi removido"
+            body = "O dono de \(e.detail) tirou o check-in da liga."
+            peerID = nil
+        case .leagueMural:
+            title = "\(e.actorName) · \(e.detail)"
+            body = e.text
+            peerID = nil
+        case .leagueCheckIn:
+            title = "\(e.actorName) fez check-in"
+            body = "\(e.text) · \(e.detail)"
+            peerID = nil
         }
     }
 }
 
 /// Notificações locais das mensagens e da atividade (com servidor, viriam por push com o mesmo formato)
 enum SocialNotifier {
-    static let messageCategory = "DM", cheerCategory = "CHEER", inviteCategory = "INVITE", socialCategory = "SOCIAL"
+    static let messageCategory = "DM", cheerCategory = "CHEER", inviteCategory = "INVITE", socialCategory = "SOCIAL", forceCategory = "FORCE"
     static let replyAction = "REPLY", cheerBackAction = "CHEER_BACK", acceptAction = "INVITE_YES", declineAction = "INVITE_NO"
 
     static var categories: [UNNotificationCategory] {
@@ -206,6 +243,8 @@ enum SocialNotifier {
             UNNotificationCategory(identifier: cheerCategory, actions: [cheerBack, reply], intentIdentifiers: []),
             UNNotificationCategory(identifier: inviteCategory, actions: [yes, no], intentIdentifiers: []),
             UNNotificationCategory(identifier: socialCategory, actions: [], intentIdentifiers: []),
+            UNNotificationCategory(identifier: forceCategory,
+                                   actions: [UNNotificationAction(identifier: cheerBackAction, title: "Mandar força 💪", options: [])], intentIdentifiers: []),
         ]
     }
 
