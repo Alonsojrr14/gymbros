@@ -73,7 +73,8 @@ struct StoryData {
         let lines: [(String, String, Int)] = session.exerciseIDs.compactMap { id in
             let s = work.filter { $0.exerciseID == id }
             guard let best = s.max(by: { ($0.weight, $0.reps) < ($1.weight, $1.reps) }) else { return nil }
-            let text = best.weight > 0 ? "\(Progression.fmt(best.weight)) kg × \(best.reps)"
+            let text = Exercise.byID(id)?.type == .distance ? "\(meters(best.weight)) em \(clock(best.reps))"
+                : best.weight > 0 ? "\(Progression.fmt(best.weight)) kg × \(best.reps)"
                 : Exercise.byID(id)?.type == .time ? "\(best.reps) s" : "\(best.reps) reps"
             return (Exercise.name(id), text, s.count)
         }

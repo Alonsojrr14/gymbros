@@ -98,7 +98,7 @@ enum Achievements {
         let hours = acts.map { Calendar.current.component(.hour, from: $0.date) }
         let stage = i.snapshot.stage.rawValue
         let done = i.sessions.flatMap(\.sets).filter(\.done)
-        let tons = done.reduce(0) { $0 + $1.weight * Double($1.reps) } / 1000
+        let tons = done.filter { Exercise.byID($0.exerciseID)?.type != .distance }.reduce(0) { $0 + $1.weight * Double($1.reps) } / 1000
 
         var prs = 0
         for (k, s) in i.sessions.enumerated() where k > 0 {

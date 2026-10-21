@@ -93,6 +93,7 @@ enum AttributeSplit {
         if cardioWords.contains(where: id.contains) { return .cardio }
         if carryWords.contains(where: id.contains) { return .carry }
         switch e?.type {
+        case .distance: return .cardio
         case .time: return .isometric
         case .bodyweight: return .bodyweight
         default: break

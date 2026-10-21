@@ -63,6 +63,8 @@ enum ExerciseType: String, CaseIterable, Identifiable {
     case bodyweight
     /// Medido em segundos (prancha, isometria)
     case time
+    /// Distância × tempo (remo, esteira, bike): `weight` guarda os metros e `reps` os segundos
+    case distance
 
     var id: String { rawValue }
 
@@ -71,6 +73,7 @@ enum ExerciseType: String, CaseIterable, Identifiable {
         case .weighted: "Carga × reps"
         case .bodyweight: "Peso do corpo"
         case .time: "Por tempo"
+        case .distance: "Distância × tempo"
         }
     }
 }

@@ -140,7 +140,8 @@ final class WorkoutSession {
     /// Séries de trabalho feitas
     var doneWorkSets: [LoggedSet] { sets.filter { $0.done && !$0.warmup } }
     /// Volume: Σ carga × reps das séries de trabalho feitas
-    var volume: Double { doneWorkSets.reduce(0) { $0 + $1.weight * Double($1.reps) } }
+    /// Carga × reps; séries de distância × tempo ficam fora (lá `weight` são metros)
+    var volume: Double { doneWorkSets.filter { Exercise.byID($0.exerciseID)?.type != .distance }.reduce(0) { $0 + $1.weight * Double($1.reps) } }
 
     // MARK: Troca de exercício
 

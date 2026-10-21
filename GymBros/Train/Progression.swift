@@ -232,6 +232,11 @@ enum Progression {
         let success = last.count >= sets && last.prefix(sets).allSatisfy(\.hit) && lastTarget >= target
 
         switch ex?.type ?? .weighted {
+        case .distance:
+            // Mesma distância; o progresso é fazer em menos tempo
+            let best = last.filter(\.done).map(\.reps).filter { $0 > 0 }.min() ?? lastTarget
+            return Suggestion(weight: lastWeight, reps: best,
+                              reason: "Mesma distância: tente baixar de \(clock(best)).")
         case .time:
             return success
                 ? Suggestion(weight: lastWeight, reps: lastTarget + 5, reason: "+5 s: você segurou todas as séries.")
@@ -313,6 +318,11 @@ enum Progression {
             guard !now.isEmpty, !before.isEmpty else { continue }
             let name = Exercise.name(id)
             let maxNow = now.map(\.weight).max() ?? 0, maxBefore = before.map(\.weight).max() ?? 0
+            // Distância × tempo: `weight` são metros
+            if Exercise.byID(id)?.type == .distance {
+                if maxNow > maxBefore { out.append("\(name): maior distância, \(meters(maxNow))") }
+                continue
+            }
             if maxNow > maxBefore, maxNow > 0 {
                 out.append("\(name): maior carga, \(fmt(maxNow)) kg")
             } else if let a = bestOneRM(now), let b = bestOneRM(before), a > b + 0.01 {
@@ -395,3 +405,9 @@ struct RoutineTemplate: Identifiable {
 }
 
 let weekdaySymbols: [(Int, String)] = [(2, "Seg"), (3, "Ter"), (4, "Qua"), (5, "Qui"), (6, "Sex"), (7, "Sáb"), (1, "Dom")]
+
+/// Distância de uma série: "800 m", "1.500 m", "10 km"
+func meters(_ m: Double) -> String {
+    m >= 10_000 && m.truncatingRemainder(dividingBy: 1000) == 0
+        ? "\(Int(m / 1000)) km" : "\(Int(m.rounded()).formatted(.number.grouping(.automatic).locale(Locale(identifier: "pt_BR")))) m"
+}

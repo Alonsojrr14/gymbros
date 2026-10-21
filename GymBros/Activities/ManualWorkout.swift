@@ -302,7 +302,7 @@ struct WorkoutDoneFlow: View {
 
     private func itemCard(_ item: Binding<ManualWorkoutDraft.Item>) -> some View {
         let e = Exercise.byID(item.wrappedValue.exerciseID)
-        let timed = e?.type == .time
+        let timed = e?.type == .time || e?.type == .distance
         return GMCard {
             HStack(spacing: 12) {
                 if let e { ExerciseThumb(exercise: e, size: 40) }

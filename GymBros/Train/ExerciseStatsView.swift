@@ -17,7 +17,9 @@ struct ExerciseStatsList: View {
         return count.keys.sorted { count[$0]! > count[$1]! }.map { id in
             let done = sets[id] ?? []
             let best: String
-            if let orm = Progression.bestOneRM(done) {
+            if Exercise.byID(id)?.type == .distance {
+                best = "máx. " + meters(done.map(\.weight).max() ?? 0)
+            } else if let orm = Progression.bestOneRM(done) {
                 best = "1RM ~\(Progression.fmt(orm.rounded())) kg"
             } else if let w = done.map(\.weight).max(), w > 0 {
                 best = "máx. \(Progression.fmt(w)) kg"
@@ -98,7 +100,9 @@ struct ExerciseDetailView: View {
     private var points: [Point] {
         let orm = usesOneRM
         return sessionSets.map { d, sets in
-            let v = weighted
+            // Distância × tempo: a maior distância (`weight` são metros)
+            let v = Exercise.byID(exerciseID)?.type == .distance ? (sets.map(\.weight).max() ?? 0)
+                : weighted
                 ? (orm ? (Progression.bestOneRM(sets) ?? 0) : (sets.map(\.weight).max() ?? 0))
                 : Double(sets.map(\.reps).max() ?? 0)
             return Point(date: d, value: v, sets: sets)
@@ -121,7 +125,7 @@ struct ExerciseDetailView: View {
                 }
                 .onAppear { if !goalLoaded { goalLoaded = true; goal = TrainingGoal.of(exerciseID) } }
             }
-            GMSection(weighted ? (usesOneRM ? "1RM estimado (kg)" : "Maior carga (kg)") : (Exercise.byID(exerciseID)?.type == .time ? "Melhor tempo (s)" : "Mais reps")) {
+            GMSection(weighted ? (usesOneRM ? "1RM estimado (kg)" : "Maior carga (kg)") : (Exercise.byID(exerciseID)?.type == .time ? "Melhor tempo (s)" : Exercise.byID(exerciseID)?.type == .distance ? "Maior distância (m)" : "Mais reps")) {
                 let manual = weighted ? prs : []
                 if pts.count + manual.count >= 2 {
                     Chart {
