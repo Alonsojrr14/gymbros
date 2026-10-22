@@ -97,7 +97,13 @@ class FriendsViewModel(private val repo: FriendsRepository, private val copies: 
         viewModelScope.launch {
             if (!canUseFriends) { _message.value = FriendError.FORBIDDEN.message; return@launch }
             runCatching { request() }
-                .onSuccess { _message.value = "${it.name} agora é seu amigo 🎉"; refresh(home) }
+                .onSuccess { f ->
+                    runCatching { repo.fetch(home.declinedFriends, blocked) }.onSuccess { _state.value = it }
+                    // Amizade são os dois lados: sem o pedido do outro, o que saiu foi só o seu pedido
+                    _message.value = if (_state.value.friends.any { it.id == f.id }) "${f.name} agora é seu amigo 🎉"
+                                     else "Pedido de amizade enviado para ${f.name}."
+                    refresh(home)
+                }
                 .onFailure { _message.value = (it as? FriendException)?.message ?: "Não deu para adicionar agora. Confira a internet." }
         }
     }

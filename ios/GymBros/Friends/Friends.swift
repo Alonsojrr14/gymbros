@@ -449,7 +449,8 @@ struct FriendsView: View {
         Task {
             do {
                 let f = try await request()
-                message = "\(f.name) agora é seu amigo 🎉"
+                // Amizade são os dois lados: sem o pedido do outro, o que saiu foi só o seu pedido
+                message = store.friendIDs.contains(f.id) ? "\(f.name) agora é seu amigo 🎉" : "Pedido de amizade enviado para \(f.name)."
                 code = ""
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             } catch {

@@ -129,7 +129,8 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
     var opened by remember { mutableStateOf<RemoteFriend?>(null) }
     val context = LocalContext.current
     LaunchedEffect(visible) { if (visible) { vm.clearMessage(); vm.refresh(home) } }
-    LaunchedEffect(message) { if (message?.endsWith("🎉") == true) code = "" }
+    // Deu certo (amizade ou pedido enviado): limpa o campo, como no iOS
+    LaunchedEffect(message) { if (message?.endsWith("🎉") == true || message?.startsWith("Pedido de amizade enviado") == true) code = "" }
 
     GMModal(visible, "Amigos", onDismiss) {
         SocialGate(home, vm, roles) {
