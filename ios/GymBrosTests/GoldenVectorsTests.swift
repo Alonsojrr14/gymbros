@@ -345,6 +345,106 @@ final class GoldenVectorsTests: GymTestCase {
                          "rosters": rosters])
     }
 
+    // MARK: Grupo M (mesclagem da cópia da conta entre aparelhos, IOS-08)
+
+    func testGroupM() throws {
+        var cases: [[String: Any]] = []
+        let ids = (0..<8).map { "00000000-0000-0000-0000-00000000000\($0)" }
+        let exercises = ["supino", "agacho", "remada"]
+        let dates = ["2026-10-20T12:00:00Z", "2026-10-21T09:30:00Z", "2026-10-21T09:30:00Z", "2026-10-22T18:00:00Z"]
+        for k in 0..<80 {
+            var r = SeededRandom(seed: "merge-\(k)")
+            func pick<T>(_ list: [T]) -> T { list[Int(r.next() * Double(list.count))] }
+            func chance(_ p: Double) -> Bool { r.next() < p }
+            // Base: o que os dois aparelhos tinham em comum
+            var acts: [String: [String: Any]] = [:]
+            for id in ids where chance(0.6) {
+                acts[id] = ["uuid": id, "kind": pick(["corrida", "musculacao", "yoga"]), "date": pick(dates), "minutes": pick([20, 30, 45]),
+                            "effort": pick([3, 5, 8]), "note": pick(["", "leve", "forte"])]
+            }
+            var notes: [String: [String: Any]] = [:]
+            for e in exercises where chance(0.5) { notes[e] = ["exerciseID": e, "text": pick(["a", "b", "c"])] }
+            var settings: [String: String] = [:]
+            for key in ["trainerName", "bodyGender", "profileBio"] where chance(0.7) { settings[key] = pick(["Ana", "m", "f", "oi"]) }
+            var plist: [String: Any] = [:]
+            if chance(0.7) { plist["texto"] = pick(["x", "y"]) }
+            if chance(0.7) { plist["numero"] = pick([1, 2, 3]) }
+            if chance(0.5) { plist["ligado"] = chance(0.5) }
+            if chance(0.5) { plist["quando"] = Date(timeIntervalSince1970: pick([1_800_000_000.0, 1_800_000_500.25])) }
+            if chance(0.6) { plist[TradeLedger.goneKey] = ids.prefix(Int(r.next() * 3)).map { $0 } }
+            if chance(0.6) { plist[TradeLedger.appliedKey] = (0..<Int(r.next() * 3)).map { "t\($0)" } }
+            if chance(0.5) { plist[RetiredActivities.key] = Data(pick(["[]", "[1]"]).utf8) }
+            var body: [String: [String: Any]] = [:]
+            for id in ids.prefix(3) where chance(0.5) { body[id] = ["uuid": id, "date": pick(dates), "weight": pick([80, 79.5, 81])] }
+
+            // Cada aparelho muda a base do seu jeito: edita, apaga e cria
+            func variant(photos: Bool) -> (acts: [String: [String: Any]], notes: [String: [String: Any]], settings: [String: String],
+                                            plist: [String: Any], body: [String: [String: Any]]) {
+                var a = acts, n = notes, st = settings, pl = plist, b = body
+                for id in ids {
+                    if a[id] != nil, chance(0.2) { a[id] = nil } else if a[id] != nil, chance(0.3) { a[id]?["minutes"] = pick([50, 60, 90]) }
+                    else if a[id] == nil, chance(0.15) {
+                        a[id] = ["uuid": id, "kind": "bike", "date": pick(dates), "minutes": pick([30, 40]), "effort": 5, "note": ""]
+                    }
+                }
+                for e in exercises {
+                    if n[e] != nil, chance(0.2) { n[e] = nil } else if chance(0.3) { n[e] = ["exerciseID": e, "text": pick(["d", "e"])] }
+                }
+                for key in ["trainerName", "bodyGender", "profileBio"] {
+                    if chance(0.15) { st[key] = nil } else if chance(0.3) { st[key] = pick(["Bia", "x", "tchau"]) }
+                }
+                if chance(0.3) { pl["texto"] = pick(["z", "w"]) }
+                if chance(0.2) { pl["numero"] = nil }
+                if chance(0.3) { pl["quando"] = Date(timeIntervalSince1970: 1_800_009_999) }
+                if chance(0.5) { pl[TradeLedger.goneKey] = ((pl[TradeLedger.goneKey] as? [String]) ?? []) + [pick(ids)] }
+                if chance(0.4) { pl[TradeLedger.appliedKey] = ((pl[TradeLedger.appliedKey] as? [String]) ?? []) + ["t\(Int(r.next() * 5))"] }
+                if chance(0.3) { pl[RetiredActivities.key] = Data(pick(["[2]", "[3]"]).utf8) }
+                for id in ids.prefix(3) {
+                    if b[id] != nil, chance(0.3) { b[id]?["weight"] = pick([78, 82.5]) }
+                    if photos, b[id] != nil, chance(0.5) { b[id]?["photoFront"] = Data([UInt8(k), 1, 2]).base64EncodedString() }
+                }
+                return (a, n, st, pl, b)
+            }
+            func make(_ v: (acts: [String: [String: Any]], notes: [String: [String: Any]], settings: [String: String], plist: [String: Any],
+                            body: [String: [String: Any]]), exported: String) throws -> Backup {
+                // Ordem dos itens como no aparelho: a ordem de criação (embaralhada um pouco pelo lado)
+                let order = ids.sorted { _, _ in chance(0.3) }
+                var json: [String: Any] = ["version": 1, "exportedAt": exported, "settings": v.settings,
+                                           "activities": order.compactMap { v.acts[$0] }, "routines": [], "sessions": [], "customExercises": [],
+                                           "notes": exercises.compactMap { v.notes[$0] }, "body": ids.compactMap { v.body[$0] }]
+                if !v.plist.isEmpty {
+                    json["accountSettings"] = try PropertyListSerialization.data(fromPropertyList: v.plist, format: .binary, options: 0).base64EncodedString()
+                }
+                let data = try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys])
+                return try Backup.decoder.decode(Backup.self, from: data)
+            }
+            let base = try make((acts, notes, settings, plist, body), exported: dates[0])
+            let local = try make(variant(photos: true), exported: pick(dates))
+            let remote = try make(variant(photos: false), exported: pick(dates))
+            let withBase = chance(0.8)
+            let out = try BackupMerge.merge(local: local, remote: remote, base: withBase ? base : nil)
+            func text(_ b: Backup) throws -> String { String(decoding: try Backup.encoder.encode(b), as: UTF8.self) }
+            cases.append(["local": try text(local), "remote": try text(remote), "base": withBase ? try text(base) : NSNull(),
+                          "merged": try text(out.backup), "conflicts": out.conflicts])
+        }
+        try attach("M", ["version": 1, "cases": cases])
+    }
+
+    // MARK: Grupo S (divisão do XP entre os atributos ao salvar uma atividade, sem séries nem WOD)
+
+    func testGroupS() throws {
+        var cases: [[String: Any]] = []
+        for t in WorkoutType.all {
+            for minutes in [5, 20, 25, 30, 60, 75, 90, 150, 240] { for effort in [1, 3, 5, 8, 10] { for meters in [nil, 900.0, 5_000, 21_100] as [Double?] {
+                let s = AttributeSplit.Signals(kind: t.kind, minutes: minutes, effort: effort, meters: meters, healthType: t.id)
+                cases.append(["type": Int(t.id), "kind": t.kind.rawValue, "minutes": minutes, "effort": effort,
+                              "meters": meters.map(bits) as Any? ?? NSNull(), "split": AttributeSplit.encode(AttributeSplit.split(s))])
+            } } }
+        }
+        let aliases = Dictionary(uniqueKeysWithValues: WorkoutType.all.map { (String($0.id), $0.aliases) })
+        try attach("S", ["version": 1, "cases": cases, "aliases": aliases])
+    }
+
     // MARK: Grupo C
 
     @MainActor

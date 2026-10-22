@@ -1,11 +1,9 @@
 package com.alonsoalmeida.gymbros.ui.components
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -35,6 +33,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -70,6 +71,8 @@ fun GMButton(
     icon: ImageVector? = null,
     kind: GMButtonKind = GMButtonKind.PRIMARY,
     enabled: Boolean = true,
+    full: Boolean = true,
+    small: Boolean = false,
 ) {
     val bg = when (kind) {
         GMButtonKind.PRIMARY -> GMColors.accent
@@ -84,16 +87,16 @@ fun GMButton(
     }
     Row(
         modifier
-            .fillMaxWidth()
+            .then(if (full) Modifier.fillMaxWidth() else Modifier)
             .graphicsLayer { alpha = if (enabled) 1f else 0.4f }
             .gmPress(enabled, onClick = onClick)
-            .background(bg, GMRadius.l)
-            .padding(vertical = 15.dp, horizontal = 20.dp),
+            .background(bg, if (small) GMRadius.m else GMRadius.l)
+            .padding(vertical = if (small) 9.dp else 15.dp, horizontal = if (small) 14.dp else 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
-        Text(title, color = fg, style = GMType.headline)
+        Text(title, color = fg, style = if (small) GMType.subheadline.copy(fontWeight = FontWeight.Bold) else GMType.headline)
     }
 }
 
@@ -134,22 +137,28 @@ fun GMSection(title: String? = null, footer: String? = null, content: @Composabl
  * O voltar do sistema fecha, como o gesto de arrastar no iOS.
  */
 @Composable
-fun GMModal(visible: Boolean, title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    AnimatedVisibility(visible, enter = slideInVertically { it }, exit = slideOutVertically { it }) {
-        BackHandler(onBack = onDismiss)
-        Column(Modifier.fillMaxSize().background(GMColors.bg).safeDrawingPadding()) {
-            Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
-                Text(title, color = Color.White, style = GMType.headline)
-                Row(Modifier.fillMaxWidth()) {
-                    GMIconButton(Icons.Filled.Close, "Fechar", onDismiss, size = 36.dp)
-                    Spacer(Modifier.weight(1f))
+fun GMModal(visible: Boolean, title: String, onDismiss: () -> Unit, confirm: String? = null, confirmEnabled: Boolean = true,
+            onConfirm: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+    // Janela própria, por cima de tudo (inclusive da barra de abas), como o fullScreenCover do iOS
+    if (!visible) return
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        val shown = remember { MutableTransitionState(false).apply { targetState = true } }
+        AnimatedVisibility(shown, enter = slideInVertically { it }) {
+            Column(Modifier.fillMaxSize().background(GMColors.bg).safeDrawingPadding()) {
+                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+                    Text(title, color = Color.White, style = GMType.headline)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        GMIconButton(Icons.Filled.Close, "Fechar", onDismiss, size = 36.dp)
+                        Spacer(Modifier.weight(1f))
+                        if (confirm != null && onConfirm != null) GMButton(confirm, onConfirm, enabled = confirmEnabled, full = false, small = true)
+                    }
                 }
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = 40.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    content = content,
+                )
             }
-            Column(
-                Modifier.verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = 40.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-                content = content,
-            )
         }
     }
 }

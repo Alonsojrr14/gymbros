@@ -3,7 +3,7 @@ package com.alonsoalmeida.gymbros.domain
 /**
  * Nomes das formas e espécies, espécie de cada tipo do Apple Saúde e ícone (SF Symbol) de cada tipo de treino.
  * Gerado por android/tools/gerar-catalogo-bros.py a partir de ios/GymBrosTests/Fixtures/gymbros-golden-R.json
- * (exportado de Game.swift, Viradas.swift, Hatch.swift e WorkoutCatalog.swift); não editar à mão.
+ * (exportado de Game.swift, Viradas.swift, Hatch.swift e WorkoutCatalog.swift) e do vetor S; não editar à mão.
  */
 object BroCatalog {
     val speciesNames: Map<String, String> = linkedMapOf(
@@ -1148,5 +1148,52 @@ object BroCatalog {
         "outro" to 3000L,
         "volei" to 51L,
         "yoga" to 57L,
+    )
+    /** Outros nomes de cada tipo de treino, para a busca (`WorkoutType.aliases`, vetor S) */
+    val workoutAliases: Map<Long, List<String>> = hashMapOf(
+        9L to listOf("boulder"),
+        11L to listOf("cross training", "wod"),
+        13L to listOf("ciclismo", "bicicleta", "pedal", "spinning"),
+        16L to listOf("transport"),
+        17L to listOf("cavalo"),
+        20L to listOf("funcional"),
+        22L to listOf("calistenia"),
+        24L to listOf("hiking", "montanha"),
+        28L to listOf("jiu-jitsu", "judô", "karatê", "taekwondo", "muay thai", "lutas"),
+        29L to listOf("meditação"),
+        31L to listOf("stand up paddle", "sup", "canoa"),
+        32L to listOf("parquinho"),
+        33L to listOf("mobilidade", "recovery"),
+        35L to listOf("remo ergômetro"),
+        37L to listOf("correr", "running"),
+        38L to listOf("velejar"),
+        39L to listOf("skate", "patins"),
+        41L to listOf("futsal", "society", "pelada"),
+        44L to listOf("stair", "simulador de escada"),
+        45L to listOf("surf", "bodyboard", "kitesurf"),
+        46L to listOf("nadar", "piscina"),
+        47L to listOf("pingue-pongue", "ping pong"),
+        48L to listOf("beach tennis"),
+        49L to listOf("pista"),
+        50L to listOf("academia", "peso", "força"),
+        51L to listOf("volei de praia", "futevôlei"),
+        52L to listOf("andar"),
+        55L to listOf("jet ski", "wakeboard"),
+        56L to listOf("wrestling", "mma"),
+        58L to listOf("balé"),
+        59L to listOf("abdômen", "abdominal"),
+        62L to listOf("flexibilidade"),
+        63L to listOf("intervalado", "tabata"),
+        64L to listOf("corda"),
+        65L to listOf("muay thai"),
+        68L to listOf("subir escada"),
+        73L to listOf("aeróbico"),
+        75L to listOf("ultimate"),
+        76L to listOf("videogame"),
+        77L to listOf("zumba", "fit dance"),
+        78L to listOf("forró", "samba", "salsa"),
+        79L to listOf("padel"),
+        80L to listOf("cooldown"),
+        82L to listOf("triathlon"),
     )
 }

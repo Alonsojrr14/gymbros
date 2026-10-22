@@ -129,6 +129,9 @@ data class CheckInDto(
 )
 
 @Serializable
+data class GymDto(val uuid: String, val name: String, @Serializable(Iso8601Seconds::class) val createdAt: Instant)
+
+@Serializable
 data class RoutineItemDto(val exerciseID: String, val sets: Int, val reps: Int, val rest: Int, val order: Int, val supersetNext: Boolean? = null)
 
 @Serializable
@@ -170,6 +173,9 @@ data class BackupDto(
     val monsters: List<MonsterDto>? = null,
     val routines: List<RoutineDto> = emptyList(),
     val leagues: List<LeagueDto>? = null,
+    val gyms: List<GymDto>? = null,
+    /** Foto do perfil (JPEG em base64) */
+    val profilePhoto: String? = null,
     /** Plist binário (base64 no JSON) com os ajustes da conta */
     val accountSettings: String? = null,
 )
@@ -178,6 +184,9 @@ object AccountCopy {
     val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
 
     fun decode(raw: ByteArray): BackupDto = json.decodeFromString(BackupDto.serializer(), raw.decodeToString())
+
+    /** A cópia de trabalho do Android é o JSON inteiro; as telas leem só o que conhecem */
+    fun decode(o: kotlinx.serialization.json.JsonObject): BackupDto = json.decodeFromJsonElement(BackupDto.serializer(), o)
 
     /** Do jeito que está no Firestore: pedaços → DEFLATE cru → JSON */
     fun fromChunks(parts: List<ByteArray>): BackupDto = decode(ChunkCodec.inflate(ChunkCodec.join(parts)))

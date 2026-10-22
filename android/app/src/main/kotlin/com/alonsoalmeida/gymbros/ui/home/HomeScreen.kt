@@ -51,6 +51,8 @@ import com.alonsoalmeida.gymbros.domain.Mood
 import com.alonsoalmeida.gymbros.domain.Stage
 import com.alonsoalmeida.gymbros.domain.home.HomeActivity
 import com.alonsoalmeida.gymbros.domain.home.HomeData
+import com.alonsoalmeida.gymbros.domain.backup.AccountEdits
+import com.alonsoalmeida.gymbros.ui.log.LogActivityScreen
 import com.alonsoalmeida.gymbros.ui.components.AutoShrinkText
 import com.alonsoalmeida.gymbros.ui.components.BroAvatars
 import com.alonsoalmeida.gymbros.ui.components.GMButton
@@ -95,15 +97,17 @@ fun AccountLoadingScreen(failed: String?, onRetry: () -> Unit, onSignOut: () -> 
 
 /** Tela inicial (Bros/HomeView.swift) */
 @Composable
-fun HomeScreen(home: HomeData, email: String, onSignOut: () -> Unit) {
+fun HomeScreen(home: HomeData, email: String, signOutError: String?, onSignOut: () -> Unit, onLog: (AccountEdits.NewActivity) -> Unit) {
     val s = home.snapshot
     var settings by remember { mutableStateOf(false) }
     var soon by remember { mutableStateOf<String?>(null) }
+    var logging by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         GMScreen(
             "Olá, ${home.trainerName}",
-            leading = { PersonAvatar(home.trainerName, modifier = Modifier.gmPress { soon = "Perfil" }) },
+            bottomInset = 120.dp,
+            leading = { PersonAvatar(home.trainerName, photo = home.profilePhoto, modifier = Modifier.gmPress { soon = "Perfil" }) },
             trailing = {
                 if (s.streak > 0) {
                     Row(
@@ -122,7 +126,7 @@ fun HomeScreen(home: HomeData, email: String, onSignOut: () -> Unit) {
         ) {
             MonsterCard(home)
             if (s.stage != Stage.EGG) AttributesCard(home)
-            GMButton("Registrar atividade", { soon = "Registrar atividade" }, icon = Icons.Filled.AddCircle)
+            GMButton("Registrar atividade", { logging = true }, icon = Icons.Filled.AddCircle)
             if (home.hasActivities) RecentCard(home) { soon = "Histórico" }
         }
 
@@ -132,7 +136,9 @@ fun HomeScreen(home: HomeData, email: String, onSignOut: () -> Unit) {
                 Text(email, color = Color.White, style = GMType.body)
             }
             GMButton("Sair", onSignOut, icon = Icons.AutoMirrored.Filled.Logout, kind = GMButtonKind.DANGER)
+            signOutError?.let { Text(it, color = GMColors.danger, style = GMType.footnote) }
         }
+        LogActivityScreen(logging, home, onDismiss = { logging = false }, onSave = { onLog(it); logging = false })
         GMModal(soon != null, soon.orEmpty(), onDismiss = { soon = null }) {
             GMEmptyState(Icons.Filled.Pets, "Em breve no Android", "Esta parte do GymBros ainda está chegando no Android. No iPhone ela já funciona.")
         }

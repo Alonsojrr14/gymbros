@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -101,8 +102,14 @@ fun GMProgressBar(value: Double, modifier: Modifier = Modifier, tint: Color = GM
 
 /** PersonAvatar (PublicProfile.swift): inicial do nome em preto sobre o verde, círculo com borda fina */
 @Composable
-fun PersonAvatar(name: String, size: Dp = 40.dp, modifier: Modifier = Modifier) {
+fun PersonAvatar(name: String, size: Dp = 40.dp, modifier: Modifier = Modifier, photo: ByteArray? = null) {
     val initial = name.take(1).uppercase().ifEmpty { "?" }
+    val image = remember(photo) { photo?.let { runCatching { android.graphics.BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
+    if (image != null) {
+        androidx.compose.foundation.Image(image, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = modifier.size(size).clip(CircleShape).border(1.dp, GMColors.stroke, CircleShape))
+        return
+    }
     Box(
         modifier.size(size).clip(CircleShape).background(GMColors.accent).border(1.dp, GMColors.stroke, CircleShape),
         contentAlignment = Alignment.Center,

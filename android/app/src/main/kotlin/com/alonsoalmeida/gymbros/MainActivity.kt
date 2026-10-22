@@ -17,6 +17,7 @@ import com.alonsoalmeida.gymbros.ui.home.AccountLoadingScreen
 import com.alonsoalmeida.gymbros.ui.home.AccountState
 import com.alonsoalmeida.gymbros.ui.home.HomeScreen
 import com.alonsoalmeida.gymbros.ui.home.HomeViewModel
+import com.alonsoalmeida.gymbros.ui.main.MainScreen
 import com.alonsoalmeida.gymbros.ui.theme.GymBrosTheme
 
 class MainActivity : ComponentActivity() {
@@ -39,12 +40,17 @@ private fun Root(container: AppContainer) {
         LoginScreen(viewModel(factory = viewModelFactory { initializer { LoginViewModel(container.auth) } }))
     } else {
         // Um ViewModel por conta: trocar de conta nunca mostra dados da anterior
-        val home: HomeViewModel = viewModel(key = "home-${current.id}",
-                                            factory = viewModelFactory { initializer { HomeViewModel(current.id, container.copies) } })
+        val home: HomeViewModel = viewModel(key = "home-${current.id}", factory = viewModelFactory {
+            initializer { HomeViewModel(current.id, current.name, container.copies) }
+        })
+        val signOutError by home.signOutError.collectAsStateWithLifecycle()
+        val signOut = { home.signOut { container.auth.signOut() } }
         when (val state = home.account.collectAsStateWithLifecycle().value) {
-            AccountState.Loading -> AccountLoadingScreen(null, home::load, container::signOut)
-            is AccountState.Failed -> AccountLoadingScreen(state.message, home::load, container::signOut)
-            is AccountState.Ready -> HomeScreen(state.home, current.email, container::signOut)
+            AccountState.Loading -> AccountLoadingScreen(null, home::retry, signOut)
+            is AccountState.Failed -> AccountLoadingScreen(state.message, home::retry, signOut)
+            is AccountState.Ready -> MainScreen(state.home.snapshot.form) {
+                HomeScreen(state.home, current.email, signOutError, signOut, home::addActivity)
+            }
         }
     }
 }

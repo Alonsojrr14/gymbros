@@ -173,8 +173,8 @@ fun GMTextField(
     value: String,
     onChange: (String) -> Unit,
     placeholder: String,
-    contentType: ContentType,
-    keyboard: KeyboardOptions,
+    contentType: ContentType? = null,
+    keyboard: KeyboardOptions = KeyboardOptions.Default,
     secure: Boolean = false,
     onDone: () -> Unit = {},
 ) {
@@ -189,7 +189,7 @@ fun GMTextField(
         keyboardOptions = keyboard,
         keyboardActions = KeyboardActions(onDone = { onDone() }),
         visualTransformation = if (secure && !visible) PasswordVisualTransformation() else VisualTransformation.None,
-        modifier = Modifier.fillMaxWidth().semantics { this.contentType = contentType },
+        modifier = Modifier.fillMaxWidth().semantics { contentType?.let { this.contentType = it } },
         decorationBox = { inner ->
             Row(
                 Modifier.fillMaxWidth()

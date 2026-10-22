@@ -13,8 +13,131 @@ import kotlinx.serialization.json.long
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-/** Divisão dos atributos gravada como texto (`forca:0.62,tecnica:0.38`). Fonte: AttributeSplit.swift (`decode`) */
+/**
+ * Como o XP de cada treino se divide entre os atributos. Fonte: Bros/AttributeSplit.swift, provado pelo vetor S.
+ * Calculada uma vez, quando a atividade é salva, e guardada no campo `attributes` da atividade. O Android ainda não
+ * registra séries nem WOD, então aqui ficam o tipo exato, a duração, o esforço e o ritmo.
+ */
 object AttributeSplit {
+    private val F = Attribute.FORCA
+    private val R = Attribute.RESISTENCIA
+    private val A = Attribute.AGILIDADE
+    private val T = Attribute.TECNICA
+
+    fun split(kind: ActivityKind, minutes: Int, effort: Int, meters: Double? = null, healthType: Long? = null): Map<Attribute, Double> {
+        var w = healthType?.let(::health) ?: kind.weights
+        w = intensity(w, kind, minutes, effort, meters)
+        return tidy(w)
+    }
+
+    private fun intensity(base: Map<Attribute, Double>, kind: ActivityKind, minutes: Int, effort: Int, meters: Double?): Map<Attribute, Double> {
+        var w = base
+        // Treino longo puxa resistência (até +25% a partir de 1h15)
+        if (minutes >= 75) w = shift(w, R, minOf(0.25, (minutes - 60).toDouble() / 240))
+        // Curto e no talo: explosão (na musculação, força)
+        if (minutes <= 25 && effort >= 8) w = shift(w, if (kind == ActivityKind.MUSCULACAO) F else A, 0.12)
+        // Leve e controlado: técnica (menos na caminhada, que já é leve por natureza)
+        if (effort <= 3 && kind != ActivityKind.CAMINHADA) w = shift(w, T, 0.1)
+
+        val m = meters ?: return w
+        if (m < 300 || minutes <= 0) return w
+        val km = m / 1000
+        val hours = minutes.toDouble() / 60
+        when (kind) {
+            ActivityKind.CORRIDA -> {
+                val pace = (minutes * 60).toDouble() / km
+                if (pace < 270) w = shift(w, A, 0.25) else if (pace < 330) w = shift(w, A, 0.1)
+                if (km >= 15) w = shift(w, R, 0.15)
+            }
+            ActivityKind.CAMINHADA -> {
+                if (km / hours >= 6.5) w = shift(w, A, 0.1)
+                if (km >= 12) w = shift(w, F, 0.1)
+            }
+            ActivityKind.BIKE -> {
+                if (km / hours >= 30) w = shift(w, A, 0.15)
+                if (km >= 60) w = shift(w, R, 0.1)
+            }
+            ActivityKind.NATACAO -> {
+                val per100 = (minutes * 60).toDouble() / (m / 100)
+                if (per100 < 120) { w = shift(w, T, 0.1); w = shift(w, A, 0.1) }
+                if (m >= 2000) w = shift(w, R, 0.15)
+            }
+            else -> {}
+        }
+        return w
+    }
+
+    /** Mais fino que a categoria do app, pelo tipo do Apple Saúde (`HKWorkoutActivityType.rawValue`) */
+    fun health(raw: Long): Map<Attribute, Double>? = when (raw) {
+        50L -> mapOf(F to 0.8, T to 0.2)
+        20L -> mapOf(F to 0.5, A to 0.2, T to 0.2, R to 0.1)
+        59L -> mapOf(F to 0.4, T to 0.4, R to 0.2)
+        11L -> mapOf(F to 0.4, R to 0.4, A to 0.2)
+        63L -> mapOf(R to 0.4, A to 0.4, F to 0.2)
+        73L -> mapOf(R to 0.7, A to 0.3)
+        64L -> mapOf(A to 0.5, R to 0.3, T to 0.2)
+        24L -> mapOf(R to 0.7, F to 0.3)
+        49L -> mapOf(A to 0.6, F to 0.2, T to 0.2)
+        74L -> mapOf(R to 0.6, F to 0.4)
+        53L -> mapOf(R to 0.6, T to 0.2, A to 0.2)
+        54L -> mapOf(R to 0.4, A to 0.3, T to 0.3)
+        6L -> mapOf(A to 0.5, R to 0.3, T to 0.2)
+        23L -> mapOf(A to 0.5, R to 0.3, F to 0.2)
+        36L -> mapOf(F to 0.4, R to 0.3, A to 0.3)
+        1L -> mapOf(F to 0.4, A to 0.4, R to 0.2)
+        25L -> mapOf(A to 0.5, R to 0.3, T to 0.2)
+        8L -> mapOf(A to 0.4, R to 0.3, F to 0.3)
+        65L -> mapOf(A to 0.5, R to 0.3, F to 0.2)
+        56L -> mapOf(F to 0.5, R to 0.3, T to 0.2)
+        18L -> mapOf(A to 0.5, T to 0.5)
+        78L -> mapOf(T to 0.6, A to 0.4)
+        58L -> mapOf(T to 0.4, F to 0.3, R to 0.3)
+        66L -> mapOf(T to 0.6, F to 0.4)
+        72L -> mapOf(T to 0.8, A to 0.2)
+        48L, 4L, 79L, 34L, 43L -> mapOf(A to 0.6, T to 0.4)
+        47L -> mapOf(A to 0.5, T to 0.5)
+        9L -> mapOf(F to 0.5, T to 0.4, R to 0.1)
+        35L, 31L -> mapOf(R to 0.7, F to 0.3)
+        45L -> mapOf(T to 0.5, A to 0.3, R to 0.2)
+        39L -> mapOf(T to 0.5, A to 0.5)
+        40L, 60L, 61L, 67L -> mapOf(T to 0.4, A to 0.3, R to 0.3)
+        21L -> mapOf(T to 1.0)
+        44L, 68L -> mapOf(R to 0.7, F to 0.3)
+        16L -> mapOf(R to 1.0)
+        69L -> mapOf(R to 0.6, A to 0.4)
+        else -> null
+    }
+
+    /** Leva `amount` (0…1) do total para `attr`, tirando dos outros na proporção de cada um */
+    fun shift(w: Map<Attribute, Double>, attr: Attribute, amount: Double): Map<Attribute, Double> {
+        val total = sum(w)
+        if (total <= 0) return mapOf(attr to 1.0)
+        val out = LinkedHashMap<Attribute, Double>()
+        for (a in Attribute.entries) w[a]?.let { out[a] = it / total * (1 - amount) }
+        out[attr] = (out[attr] ?: 0.0) + amount
+        return out
+    }
+
+    private fun sum(w: Map<Attribute, Double>): Double = Attribute.entries.fold(0.0) { acc, a -> acc + (w[a] ?: 0.0) }
+
+    /** Soma 1, sem migalhas (< 3%), com duas casas; o resto do arredondamento vai para o maior */
+    fun tidy(w: Map<Attribute, Double>): Map<Attribute, Double> {
+        val total = sum(w)
+        if (total <= 0) return mapOf(F to 0.25, R to 0.25, A to 0.25, T to 0.25)
+        val kept = Attribute.entries.filter { w[it] != null && w[it]!! / total >= 0.03 }.associateWith { w[it]!! }
+        val s = sum(kept)
+        val out = LinkedHashMap<Attribute, Double>()
+        for ((a, v) in kept) out[a] = roundHalfAwayFromZero(v / s * 100) / 100
+        // Empate no maior: o iOS escolhe em ordem de dicionário (não fixa); aqui, o primeiro em F, R, A, T
+        val top = out.entries.maxByOrNull { it.value }?.key
+        if (top != null) out[top] = out[top]!! + (1 - sum(out))
+        return out
+    }
+
+    fun encode(w: Map<Attribute, Double>): String =
+        Attribute.entries.mapNotNull { a -> w[a]?.let { "${a.raw}:${String.format(java.util.Locale.ROOT, "%.2f", it)}" } }.joinToString(",")
+
+    /** Divisão gravada como texto (`forca:0.62,tecnica:0.38`) */
     fun decode(s: String): Map<Attribute, Double>? {
         val w = LinkedHashMap<Attribute, Double>()
         for (pair in s.split(",")) {

@@ -12,7 +12,7 @@ lines = ["package com.alonsoalmeida.gymbros.domain", "",
          "/**",
          " * Nomes das formas e espécies, espécie de cada tipo do Apple Saúde e ícone (SF Symbol) de cada tipo de treino.",
          " * Gerado por android/tools/gerar-catalogo-bros.py a partir de ios/GymBrosTests/Fixtures/gymbros-golden-R.json",
-         " * (exportado de Game.swift, Viradas.swift, Hatch.swift e WorkoutCatalog.swift); não editar à mão.",
+         " * (exportado de Game.swift, Viradas.swift, Hatch.swift e WorkoutCatalog.swift) e do vetor S; não editar à mão.",
          " */",
          "object BroCatalog {"]
 lines.append("    val speciesNames: Map<String, String> = linkedMapOf(")
@@ -46,6 +46,11 @@ lines.append("    )")
 lines.append("    /** Tipo de treino equivalente a cada categoria antiga (`WorkoutType.of(kind)`) */")
 lines.append("    val classicType: Map<String, Long> = hashMapOf(")
 lines += [f"        {q(k)} to {v}L," for k, v in d["classicType"].items()]
+lines.append("    )")
+aliases = json.load(open(os.path.join(root, "ios/GymBrosTests/Fixtures/gymbros-golden-S.json")))["aliases"]
+lines.append("    /** Outros nomes de cada tipo de treino, para a busca (`WorkoutType.aliases`, vetor S) */")
+lines.append("    val workoutAliases: Map<Long, List<String>> = hashMapOf(")
+lines += [f"        {k}L to listOf({', '.join(q(x) for x in v)})," for k, v in sorted(aliases.items(), key=lambda kv: int(kv[0])) if v]
 lines.append("    )")
 lines.append("}")
 out = os.path.join(root, "android/core/domain/src/main/kotlin/com/alonsoalmeida/gymbros/domain/BroCatalog.kt")

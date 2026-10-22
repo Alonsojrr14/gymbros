@@ -40,6 +40,8 @@ kotlin {
 
 dependencies {
     implementation(project(":core:domain"))
+    // A cópia da conta é JSON: o app guarda e grava o documento inteiro
+    implementation(libs.serialization.json)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)

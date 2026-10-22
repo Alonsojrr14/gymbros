@@ -48,6 +48,14 @@ data class HomeData(
     val monsterName: String,
     val recent: List<HomeActivity>,
     val hasActivities: Boolean,
+    /** Para a prévia do registro de atividade */
+    val roster: Roster,
+    /** Tipo de treino das atividades, da mais nova para a mais antiga (atalhos do seletor de tipo) */
+    val typeHistory: List<Long>,
+    /** Foto do perfil (JPEG), que vai na cópia da conta */
+    val profilePhoto: ByteArray?,
+    /** Academias salvas (onde foi o treino) */
+    val gyms: List<Pair<String, String>>,
 )
 
 object HomeBuilder {
@@ -125,6 +133,10 @@ object HomeBuilder {
                 destinations = destinations, bros = shares.mapNotNull { formsByMonster[it.key] },
             )
         }
-        return HomeData(text("trainerName").orEmpty(), main, mood, Companion.line(context, clock), mainName, recent, activities.isNotEmpty())
+        val types = activities.map { a -> a.healthType ?: BroCatalog.classicType[ActivityKind.of(a.kind).raw] ?: 3000L }
+        val photo = copy?.profilePhoto?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() }
+        val gyms = copy?.gyms.orEmpty().sortedBy { it.createdAt }.map { it.uuid.uppercase() to it.name }
+        return HomeData(text("trainerName").orEmpty(), main, mood, Companion.line(context, clock), mainName, recent, activities.isNotEmpty(),
+                        roster, types, photo, gyms)
     }
 }

@@ -11,12 +11,6 @@ import com.alonsoalmeida.gymbros.ui.components.Sprites
 class AppContainer(context: Context) {
     val auth: AuthRepository by lazy { FirebaseAuthRepository() }
     val copies: AccountCopyRepository by lazy { AccountCopyRepository(context) }
-
-    /** Sair: nada da conta fica no aparelho */
-    fun signOut() {
-        copies.clear()
-        auth.signOut()
-    }
 }
 
 class GymBrosApp : Application() {
