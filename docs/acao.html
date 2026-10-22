@@ -1,0 +1,88 @@
+---
+layout: pagina
+title: Conta do GymBros
+permalink: /acao/
+---
+
+<!-- Página dos links dos e-mails do Firebase (redefinir senha, confirmar e-mail, desfazer troca de e-mail).
+     Substitui a página padrão do Firebase, que depende da chave de API no link: os SDKs atuais mandam a chave num
+     cabeçalho e o link chega com "apiKey=" vazio. A configuração web do Firebase é pública por natureza; quem protege os
+     dados são as regras do Firestore e do Auth. -->
+<div id="acao" class="acao">
+  <p id="status">Carregando…</p>
+  <form id="senha" hidden>
+    <p id="conta"></p>
+    <label for="nova">Senha nova (mínimo 8 caracteres)</label>
+    <input id="nova" type="password" autocomplete="new-password" minlength="8" required>
+    <label for="repete">Repita a senha</label>
+    <input id="repete" type="password" autocomplete="new-password" minlength="8" required>
+    <p id="erro" class="erro" role="alert"></p>
+    <button type="submit">Salvar senha nova</button>
+  </form>
+</div>
+
+<style>
+  .acao { max-width: 420px; }
+  .acao label { display: block; margin: 16px 0 6px; font-weight: 600; }
+  .acao input { width: 100%; box-sizing: border-box; padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.08);
+                background: #1A1C24; color: #fff; font: inherit; font-size: 17px; }
+  .acao button { margin-top: 20px; width: 100%; min-height: 52px; border: 0; border-radius: 16px; background: #A3E636; color: #000;
+                 font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; }
+  .acao button[disabled] { opacity: .5; }
+  .acao .erro { color: #FF6161; font-weight: 600; min-height: 1.2em; }
+  .acao .ok { color: #A3E636; font-weight: 600; }
+</style>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+  import { getAuth, verifyPasswordResetCode, confirmPasswordReset, applyActionCode, checkActionCode }
+    from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+
+  const auth = getAuth(initializeApp({"apiKey": "AIzaSyDpAw0dR1EvpSOJPr1SYHALpWdlYJLY1tc", "authDomain": "gymbros-zerobyte.firebaseapp.com", "projectId": "gymbros-zerobyte", "appId": "1:839807463430:web:e05ec26447671eacdc9387"}));
+  auth.languageCode = "pt-BR";
+  const q = new URLSearchParams(location.search);
+  const mode = q.get("mode"), code = q.get("oobCode");
+  const $ = (id) => document.getElementById(id);
+  const status = (text, ok = false) => { $("status").textContent = text; $("status").className = ok ? "ok" : ""; };
+  const expired = "Este link expirou ou já foi usado. Peça outro no app (Entrar › Esqueci minha senha).";
+
+  async function run() {
+    if (!code) return status("Link incompleto. Abra o link do e-mail de novo ou peça outro no app.");
+    try {
+      if (mode === "resetPassword") {
+        const email = await verifyPasswordResetCode(auth, code);
+        status("Crie uma senha nova.");
+        $("conta").textContent = "Conta: " + email;
+        $("senha").hidden = false;
+        $("senha").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const nova = $("nova").value;
+          if (nova.length < 8) return ($("erro").textContent = "A senha precisa de pelo menos 8 caracteres.");
+          if (nova !== $("repete").value) return ($("erro").textContent = "As senhas não são iguais.");
+          $("erro").textContent = "";
+          e.submitter.disabled = true;
+          try {
+            await confirmPasswordReset(auth, code, nova);
+            $("senha").hidden = true;
+            status("Senha nova salva. Volte ao GymBros e entre com ela.", true);
+          } catch (err) {
+            e.submitter.disabled = false;
+            $("erro").textContent = err.code === "auth/weak-password" ? "Essa senha é fraca demais. Tente outra." : expired;
+          }
+        });
+      } else if (mode === "verifyEmail") {
+        await applyActionCode(auth, code);
+        status("E-mail confirmado. Pode voltar ao GymBros.", true);
+      } else if (mode === "recoverEmail") {
+        const info = await checkActionCode(auth, code);
+        await applyActionCode(auth, code);
+        status("O e-mail da conta voltou a ser " + info.data.email + ". Por segurança, redefina a senha no app.", true);
+      } else {
+        status("Este link não é do GymBros ou está incompleto.");
+      }
+    } catch (err) {
+      status(expired);
+    }
+  }
+  run();
+</script>
