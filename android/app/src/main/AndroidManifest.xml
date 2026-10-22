@@ -2,7 +2,10 @@
 <!-- Sem backup do sistema: a cópia local da conta tem dados de saúde (SEC-AND-04) -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
+        android:name=".GymBrosApp"
         android:allowBackup="false"
         android:label="GymBros"
         android:supportsRtl="true"

@@ -1,9 +1,10 @@
-// App Android do GymBros (ADR-001/002/005). O plugin do Firebase entra quando o dono registrar o app no console
-// e o google-services.json (fora do git) estiver em android/app/.
+// App Android do GymBros (ADR-001/002/005). Firebase pelo google-services.json em android/app/ (fora do git; os dois
+// pacotes, normal e .debug, registrados no projeto do Firebase).
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -46,4 +47,9 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.activity.compose)
     implementation(libs.core.ktx)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.coroutines.play.services)
 }

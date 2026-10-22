@@ -1,5 +1,9 @@
 # Versões da fundação (ADR-001/002). Conferidas no portão 3; subir uma de cada vez.
 [versions]
+firebase-bom = "34.0.0"
+google-services = "4.4.3"
+lifecycle = "2.9.2"
+coroutines = "1.10.2"
 agp = "8.12.0"
 compose-bom = "2025.08.00"
 activity-compose = "1.10.1"
@@ -10,6 +14,11 @@ serialization = "1.9.0"
 ddplist = "1.28"
 
 [libraries]
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
+firebase-auth = { module = "com.google.firebase:firebase-auth" }
+lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-foundation = { module = "androidx.compose.foundation:foundation" }
@@ -24,6 +33,7 @@ ddplist = { module = "com.googlecode.plist:dd-plist", version.ref = "ddplist" }
 serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 
 [plugins]
+google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
