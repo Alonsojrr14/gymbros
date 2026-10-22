@@ -4,7 +4,7 @@ import SwiftData
 import SwiftUI
 
 // Social: o que você controla por amigo (esconder seus treinos, silenciar), o Deck dos Bros (check-ins que você
-// ainda não viu, um por vez) e o QR do seu código de amigo.
+// recentes, um por vez, aberto pelos stories) e o QR do seu código de amigo.
 
 // MARK: - Por amigo
 
@@ -71,66 +71,122 @@ enum BroDeck {
         defaults.set(Array(list.suffix(600)), forKey: seenKey)
     }
 
-    /// Check-ins dos outros dos últimos 3 dias que você ainda não viu, do mais antigo para o mais novo
-    static func cards(leagues: [League], checkIns: [LeagueCheckIn], activities: [Activity], me: String, onlyLeague: UUID? = nil,
+    /// Check-ins dos outros dos últimos 3 dias (ligas e perfis dos amigos) que você ainda não viu, do mais antigo para o mais novo
+    static func cards(leagues: [League], checkIns: [LeagueCheckIn], activities: [Activity], me: String, friends: [FeedItem] = [],
                       includeSeen: Bool = false, now: Date = .now) -> [DeckCard] {
         let byID = Dictionary(activities.map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
         let since = now.addingTimeInterval(-3 * 86400)
         let seen = includeSeen ? [] : seen()
         var out: [DeckCard] = []
         var ids = Set<String>()
-        for l in leagues where !l.isPastSeason && (onlyLeague == nil || l.uuid == onlyLeague) {
+        for l in leagues where !l.isPastSeason && !l.settings.isPrivate {
             let feed = LeagueBoard.feed(league: l, mine: checkIns.filter { $0.leagueUUID == l.uuid }, activities: byID, me: me, myAvatar: .egg)
             for f in ModerationStore.shared.visible(feed) where !f.isMe && f.date >= since && !seen.contains(f.id) && ids.insert(f.id).inserted {
                 out.append(DeckCard(item: f, place: "\(l.emoji) \(l.name)", leagueID: l.uuid))
             }
         }
+        for f in ModerationStore.shared.visible(friends) where f.date >= since && !seen.contains(f.id) && ids.insert(f.id).inserted {
+            out.append(DeckCard(item: f, place: f.postedIn ?? "Perfil", leagueID: nil))
+        }
         return out.sorted { $0.item.date < $1.item.date }
     }
 }
 
-/// Leque com até 3 avatares de quem postou, que abre o deck
-struct DeckPeek: View {
+/// Os check-ins recentes de uma pessoa, para a bolinha dos stories
+struct DeckPerson: Identifiable {
+    let id: String
     let cards: [DeckCard]
-    let title: String
-    let open: () -> Void
+    let unseen: Int
+    var latest: FeedItem { cards.last!.item }
+    /// Onde o deck começa: no primeiro que você não viu, ou do começo se já viu tudo
+    var start: Int { unseen > 0 ? cards.count - unseen : 0 }
+}
+
+extension BroDeck {
+    /// Pessoas com check-in nos últimos 3 dias: quem tem novidade primeiro, depois quem você já viu (mais recentes antes)
+    static func people(leagues: [League], checkIns: [LeagueCheckIn], activities: [Activity], me: String, friends: [FeedItem] = []) -> [DeckPerson] {
+        let all = cards(leagues: leagues, checkIns: checkIns, activities: activities, me: me, friends: friends, includeSeen: true)
+        let seen = seen()
+        let people = Dictionary(grouping: all, by: \.item.memberID).map { id, cards in
+            // Os vistos vêm antes dos novos, para o deck abrir direto no primeiro novo
+            let ordered = cards.filter { seen.contains($0.id) } + cards.filter { !seen.contains($0.id) }
+            return DeckPerson(id: id, cards: ordered, unseen: cards.count { !seen.contains($0.id) })
+        }
+        return people.sorted { a, b in
+            if (a.unseen > 0) != (b.unseen > 0) { return a.unseen > 0 }
+            return a.cards.map(\.item.date).max()! > b.cards.map(\.item.date).max()!
+        }
+    }
+}
+
+/// Fileira de stories: uma bolinha por amigo que postou nos últimos 3 dias. Com novidade, anel verde;
+/// já vista, fica apagada mas continua abrindo.
+struct BroStories: View {
+    @Query(sort: \League.joinedAt) private var leagues: [League]
+    @Query private var checkIns: [LeagueCheckIn]
+    @Query private var activities: [Activity]
+    @AppStorage("trainerName") private var me = ""
+    @State private var store = FriendsStore.shared
+    @State private var opened: (cards: [DeckCard], start: Int)?
+    /// Muda quando o deck fecha, para as bolinhas recalcularem o que já foi visto
+    @State private var version = 0
 
     var body: some View {
-        if !cards.isEmpty {
-            Button(action: open) {
-                HStack(spacing: 14) {
-                    ZStack {
-                        ForEach(Array(cards.suffix(3).enumerated()), id: \.element.id) { i, c in
-                            MonsterSprite(form: c.item.avatar)
-                                .frame(width: 34, height: 34)
-                                .padding(6)
-                                .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
-                                .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(Theme.card, lineWidth: 2))
-                                .rotationEffect(.degrees(Double(i - 1) * 9))
-                                .offset(x: Double(i - 1) * 14)
-                        }
+        // Como o feed: só os amigos (o resto do pessoal das ligas fica dentro de cada liga)
+        let people = version >= 0 ? BroDeck.people(leagues: leagues, checkIns: checkIns, activities: activities, me: me, friends: friendPosts(store, leagues: true))
+            .filter { store.friendIDs.contains($0.id) } : []
+        if !people.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: 14) {
+                    ForEach(people) { p in
+                        Button { opened = (p.cards, p.start) } label: { bubble(p) }
+                            .buttonStyle(GMPress())
                     }
-                    .frame(width: 80, height: 54)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title).font(.subheadline.weight(.semibold))
-                        Text("\(cards.count) check-in\(cards.count == 1 ? "" : "s") que você ainda não viu").font(.caption).foregroundStyle(Theme.dim)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.dim)
                 }
-                .padding(12)
-                .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
-                .contentShape(Rectangle())
-                .foregroundStyle(.white)
+                .padding(.vertical, 2)
             }
-            .buttonStyle(GMPress())
+            .scrollClipDisabled()
+            .gmModal(isPresented: Binding(get: { opened != nil }, set: { if !$0 { opened = nil; version += 1 } })) {
+                BroDeckView(cards: opened?.cards ?? [], start: opened?.start ?? 0)
+            }
         }
+    }
+
+    private func bubble(_ p: DeckPerson) -> some View {
+        let fresh = p.unseen > 0
+        return VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .strokeBorder(fresh ? AnyShapeStyle(AngularGradient(colors: [Theme.accent, Theme.accent.opacity(0.45), Theme.accent],
+                                                                         center: .center))
+                                        : AnyShapeStyle(Theme.track), lineWidth: fresh ? 3 : 1.5)
+                Circle().fill(Theme.raised).padding(5)
+                MonsterSprite(form: p.latest.avatar).padding(12)
+                    .saturation(fresh ? 1 : 0.2)
+                    .opacity(fresh ? 1 : 0.55)
+            }
+            .frame(width: 66, height: 66)
+            .overlay(alignment: .bottomTrailing) {
+                if p.unseen > 1 {
+                    Text("\(p.unseen)").font(.caption2.bold()).monospacedDigit()
+                        .padding(.horizontal, 5).frame(minWidth: 20, minHeight: 20)
+                        .background(Theme.accent, in: .capsule).foregroundStyle(.black)
+                        .overlay(Capsule().stroke(Theme.bg, lineWidth: 2))
+                }
+            }
+            Text(p.latest.name).font(.caption2.weight(fresh ? .semibold : .regular)).lineLimit(1)
+                .foregroundStyle(fresh ? .white : Theme.dim)
+                .frame(width: 70)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(fresh ? "\(p.latest.name), \(p.unseen) novo\(p.unseen == 1 ? "" : "s")" : "\(p.latest.name), já visto")
     }
 }
 
 /// O deck: um check-in por vez. Arrasta para o lado para passar, toque duplo manda força, e dá para reagir ou responder.
 struct BroDeckView: View {
     let cards: [DeckCard]
+    var start = 0
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @AppStorage("trainerName") private var trainerName = ""
@@ -144,6 +200,11 @@ struct BroDeckView: View {
     @State private var sentNote: String?
 
     private let emojis = ["👍", "❤️‍🔥", "💪", "🥚"]
+
+    init(cards: [DeckCard], start: Int = 0) {
+        self.cards = cards
+        _index = State(initialValue: min(start, cards.count))
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -236,8 +297,7 @@ struct BroDeckView: View {
     /// Reação vira um comentário com o emoji no check-in (como no detalhe)
     private func react(_ e: String) {
         guard index < cards.count else { return }
-        context.insert(CheckInComment(itemID: cards[index].id, text: e))
-        try? context.save()
+        CommentSync.add(e, to: cards[index].id, owner: cards[index].item.memberID, context: context)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         withAnimation(.spring(duration: 0.3)) { burst = e }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -274,8 +334,7 @@ struct BroDeckView: View {
                     Task { _ = try? await InboxStore.shared.send(.text, to: c.item.memberID, text: "Sobre \"\(c.item.title)\": \(text)") }
                     sentNote = "Mensagem enviada para \(c.item.name)."
                 } else {
-                    context.insert(CheckInComment(itemID: c.id, text: text))
-                    try? context.save()
+                    CommentSync.add(text, to: c.id, owner: c.item.memberID, context: context)
                     sentNote = "Comentário no check-in de \(c.item.name)."
                 }
                 close()

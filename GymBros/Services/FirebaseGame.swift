@@ -231,7 +231,7 @@ struct FirebaseAdminBackend: AdminBackend {
             }
     }
 
-    /// Tira do ar para todos. Comentários e fotos não moram no Firestore (fotos são do CloudKit de quem postou)
+    /// Tira do ar para todos. Fotos não moram no Firestore (fotos são do CloudKit de quem postou)
     func remove(_ c: ReportedContent) async throws {
         let db = Fire.db
         switch c.kind {
@@ -241,7 +241,8 @@ struct FirebaseAdminBackend: AdminBackend {
         case .profile:
             try await db.collection(FireCollection.profiles).document(c.authorID)
                 .setData(["name": "", "username": "", "bio": "", "public": NSNull()], merge: true)
-        case .comment, .photo: throw AccessError.requiresTrustedServer
+        case .comment: try await db.collection(CommentSync.collection).document(c.id).delete()
+        case .photo: throw AccessError.requiresTrustedServer
         }
         // Resolvida: as denúncias desse conteúdo saem da fila
         let reports = try await db.collection(FireCollection.reports).whereField("contentID", isEqualTo: c.id).getDocuments().documents

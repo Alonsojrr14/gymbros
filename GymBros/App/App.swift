@@ -158,22 +158,22 @@ struct MainView: View {
         // Abas próprias: o TabView do iOS joga da 5ª aba em diante num menu "Mais" com seta de voltar.
         // Cada aba é criada na primeira visita e fica viva (guarda rolagem e navegação).
         ZStack {
-            page(0) { HomeView(snapshot: s, activities: activities, mood: companion.mood, line: Companion.line(companion), monsterName: mainName) { dex = true } }
+            page(0) { HomeView(snapshot: s, activities: activities, history: history, mood: companion.mood, line: Companion.line(companion), monsterName: mainName) { dex = true } }
             page(1) { TrainView() }
             page(2) { LeaguesView() }
             page(3) { MapScreen() }
-            page(4) { HistoryView(snapshot: history, activities: activities) }
+            page(4) { NavigationStack { UnifiedFeedView(isTab: true) } }
         }
         .onChange(of: tab, initial: true) { _, t in
             visited.insert(t)
             tour.tabDidChange(to: MainTab(rawValue: t))
         }
         .overlay(alignment: .bottom) {
-            GMTabBar(left: [GMTabItem(icon: "dumbbell.fill", title: "Treino", tag: 1, spotlight: .trainTab),
-                            GMTabItem(icon: "trophy.fill", title: "Ligas", tag: 2, spotlight: .leaguesTab)],
-                     right: [GMTabItem(icon: "map.fill", title: "Mapa", tag: 3, badge: FriendsLive.liveCount,
-                                       spotlight: .mapTab),
-                             GMTabItem(icon: "list.bullet", title: "Histórico", tag: 4, spotlight: .historyTab)],
+            GMTabBar(left: [GMTabItem(icon: "rectangle.stack.fill", title: "Feed", tag: 4, spotlight: .feedTab),
+                            GMTabItem(icon: "dumbbell.fill", title: "Treino", tag: 1, spotlight: .trainTab)],
+                     right: [GMTabItem(icon: "trophy.fill", title: "Ligas", tag: 2, spotlight: .leaguesTab),
+                             GMTabItem(icon: "map.fill", title: "Mapa", tag: 3, badge: FriendsLive.liveCount,
+                                       spotlight: .mapTab)],
                      centerTag: 0, selection: $tab, centerSpotlight: .broTab) {
                 MonsterSprite(form: s.form)
             }

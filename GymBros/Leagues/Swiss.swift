@@ -122,7 +122,6 @@ enum SwissBonus {
         .treinos: (1, 0),
         .dias: (1, 0),
         .atividades: (10, 5),
-        .informado: (5, 2),
     ]
 
     static func value(_ result: SwissResult, scoring: LeagueScoring) -> Int {

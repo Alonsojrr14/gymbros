@@ -2,19 +2,19 @@ import SwiftUI
 
 /// Abas da tela principal (mesmos números usados pelo `GMTabBar` em `MainView`)
 enum MainTab: Int {
-    case home, train, leagues, map, history
+    case home, train, leagues, map, feed
 }
 
 /// Elementos reais da interface que o tutorial pode destacar
 enum OnboardingTarget: String, CaseIterable {
     case monster, logActivity, homeShortcuts
-    case trainTab, leaguesTab, mapTab, historyTab, broTab
+    case trainTab, leaguesTab, mapTab, feedTab, broTab
     case trainToday
 
     /// Fica na barra de abas, que é a única coisa que pode cobrir os outros alvos
     var isInTabBar: Bool {
         switch self {
-        case .trainTab, .leaguesTab, .mapTab, .historyTab, .broTab: true
+        case .trainTab, .leaguesTab, .mapTab, .feedTab, .broTab: true
         default: false
         }
     }
@@ -65,15 +65,18 @@ extension OnboardingStep {
         OnboardingStep(id: "ligas", title: "Ligas com a galera",
                        message: "Rankings com amigos: cada check-in de treino pontua e dá XP ao bro que te representa na liga, além do seu principal.",
                        targets: [.leaguesTab], tab: .train, placement: .above),
-        OnboardingStep(id: "mapa-historico", title: "Mapa e histórico",
-                       message: "No Mapa ficam suas academias e os percursos com GPS. No Histórico, todas as atividades, inclusive as do Apple Saúde.",
-                       targets: [.mapTab, .historyTab], tab: .train, placement: .above),
+        OnboardingStep(id: "mapa", title: "Mapa",
+                       message: "Suas academias, os percursos com GPS e os amigos treinando agora.",
+                       targets: [.mapTab], tab: .train, placement: .above),
+        OnboardingStep(id: "feed", title: "Feed dos bros",
+                       message: "Os check-ins das ligas e dos amigos. No topo, quem postou há pouco: anel verde é novidade. Os amigos ficam no canto.",
+                       targets: [.feedTab], tab: .train, placement: .above),
         OnboardingStep(id: "voltar-bro", title: "O bro fica no centro",
                        message: "Ele está sempre na barra. É por ele que você volta à tela inicial.",
                        targets: [.broTab], tab: .train, placement: .above,
                        interaction: .openTab(.home), hint: "Toque no bro para voltar ao início."),
-        OnboardingStep(id: "atalhos", title: "Amigos, coleção e ajustes",
-                       message: "Adicione amigos, veja seus bros e conquistas e, em Ajustes, configure lembretes, Apple Saúde e backup. O tutorial também fica lá.",
+        OnboardingStep(id: "atalhos", title: "Coleção, avisos e ajustes",
+                       message: "Veja seus bros e conquistas, as mensagens e, em Ajustes, configure lembretes, Apple Saúde e backup. O tutorial também fica lá.",
                        targets: [.homeShortcuts], tab: .home, placement: .below),
         OnboardingStep(id: "pronto", title: "Bora treinar!",
                        message: "Registre sua primeira atividade e veja seu bro crescer.",

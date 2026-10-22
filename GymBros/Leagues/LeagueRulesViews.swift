@@ -194,7 +194,7 @@ struct LeagueLimitsSection: View {
         case .minutos: 15
         case .distancia: 1000
         case .calorias: 50
-        case .pontos, .atividades, .informado: 10
+        case .pontos, .atividades: 10
         }
     }
 
@@ -206,7 +206,7 @@ struct LeagueLimitsSection: View {
         case .minutos: 120
         case .distancia: 20_000
         case .calorias: 1000
-        case .pontos, .atividades, .informado: 100
+        case .pontos, .atividades: 100
         }
     }
 
@@ -253,7 +253,7 @@ struct LeagueGoalsSection: View {
         case .minutos: 30
         case .distancia: 1000
         case .calorias: 100
-        case .pontos, .atividades, .informado: 50
+        case .pontos, .atividades: 50
         }
     }
 }

@@ -38,6 +38,8 @@ struct LeagueSettings: Codable, Hashable, Sendable {
     var parentClub: UUID?
     /// Treino do dia postado pelo dono
     var dailyWorkout: DailyWorkout?
+    /// Privada: os posts ficam só dentro da liga (não vão para o Feed nem para os stories, nem dos amigos)
+    var isPrivate = false
 
     init() {}
 
@@ -62,6 +64,7 @@ struct LeagueSettings: Codable, Hashable, Sendable {
         ignored = try c.decodeIfPresent([String].self, forKey: .ignored) ?? d.ignored
         parentClub = try c.decodeIfPresent(UUID.self, forKey: .parentClub)
         dailyWorkout = try c.decodeIfPresent(DailyWorkout.self, forKey: .dailyWorkout)
+        isPrivate = try c.decodeIfPresent(Bool.self, forKey: .isPrivate) ?? d.isPrivate
     }
 
     /// Liga criada agora: verificação padrão ligada (ligas antigas, sem o campo, continuam sem verificação)

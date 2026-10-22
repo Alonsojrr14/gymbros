@@ -153,7 +153,7 @@ struct FirebaseAuthBackend: AuthBackend {
             photos += docs.compactMap { $0.data()["photo"] as? String }
         }
         refs += try await db.collection(FireCollection.friendLinks).whereField("from", isEqualTo: me).getDocuments().documents.map(\.reference)
-        for c in [FireCollection.blocks, FireCollection.reports, FireCollection.routines] {
+        for c in [FireCollection.blocks, FireCollection.reports, FireCollection.routines, CommentSync.collection] {
             refs += try await db.collection(c).whereField("user", isEqualTo: me).getDocuments().documents.map(\.reference)
         }
         // Mensagens, X1 e trocas ficam com a outra pessoa (são dela também); o seu nome sai junto com o perfil
@@ -290,7 +290,28 @@ struct FirebaseFriendsBackend: FriendsBackend {
             .whereField("league", isEqualTo: CloudType.profileFeed).whereField("user", isEqualTo: id).getDocuments().documents
         let files = await Backend.photos.files(for: posts.compactMap { $0.data()["photo"] as? String })
         p.posts = posts.compactMap { RemoteCheckIn(fire: $0, photos: files) }.sorted { $0.date > $1.date }
+        p.leaguePosts = (try? await leaguePosts(id)) ?? []
         return p
+    }
+
+    /// Check-ins da pessoa em ligas públicas dos últimos 7 dias. Confere a liga agora: se virou privada depois, sai.
+    private func leaguePosts(_ id: String) async throws -> [RemoteCheckIn] {
+        let since = Date.now.addingTimeInterval(-7 * 86400)
+        let docs = try await Fire.db.collection(FireCollection.checkIns)
+            .whereField("user", isEqualTo: id).whereField("feed", isEqualTo: true).getDocuments().documents
+            .filter { ($0.data().date("date") ?? .distantPast) >= since }
+        let codes = Set(docs.compactMap { $0.data()["league"] as? String })
+        let leagues = try await Fire.documents(FireCollection.leagues, ids: Array(codes))
+        var open: [String: String] = [:]
+        for l in leagues where !LeagueSettings(rawValue: l.data()["settings"] as? String ?? "").isPrivate {
+            open[l.documentID] = "\(l.data()["emoji"] as? String ?? "🏆") \(l.data()["name"] as? String ?? "")"
+        }
+        return docs.compactMap { d -> RemoteCheckIn? in
+            guard let code = d.data()["league"] as? String, let label = open[code], var c = RemoteCheckIn(fire: d, photos: [:]) else { return nil }
+            c.postedIn = label
+            return c
+        }
+        .sorted { $0.date > $1.date }
     }
 
     func publish(_ profile: PublicProfile, friendCode: String) async throws {
@@ -407,6 +428,8 @@ struct FirebaseLeagueBackend: LeagueBackend {
                 "league": league.code, "user": me, "date": c.date, "kind": c.kindRaw, "minutes": c.minutes, "effort": c.effort,
                 "meters": c.meters, "kcal": c.kcal, "title": c.title, "note": c.note, "hasPhoto": c.hasPhoto, "photo": photo,
                 "workoutType": c.workoutTypeID.map { Int($0) }, "place": c.place, "proof": c.proof.map(\.rawValue),
+                // Liga pública: entra no Feed dos amigos (o perfil tem a busca própria)
+                "feed": league.code != CloudType.profileFeed && !league.isPrivate,
             ]), forDocument: col(FireCollection.checkIns).document(c.id.uuidString))
         }
         try await batch.commit()

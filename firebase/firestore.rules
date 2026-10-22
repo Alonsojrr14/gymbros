@@ -59,6 +59,16 @@ service cloud.firestore {
       allow delete: if wasMine() || isAdmin();
     }
 
+    // Comentários e reações nos check-ins: quem vê o post vê todos. Apaga quem escreveu, o dono do post ou a moderação.
+    match /comments/{id} {
+      allow read: if signedIn();
+      allow create: if writesAsMe() && request.resource.data.text is string
+        && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 500
+        && request.resource.data.item is string && request.resource.data.owner is string;
+      allow update: if false;
+      allow delete: if wasMine() || isAdmin() || (signedIn() && resource.data.owner == uid());
+    }
+
     match /messages/{id} {
       allow read: if signedIn();
       allow create: if writesAsMe() && request.resource.data.text.size() <= 1000;

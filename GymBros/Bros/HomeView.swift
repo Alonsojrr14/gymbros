@@ -4,12 +4,13 @@ import SwiftUI
 struct HomeView: View {
     let snapshot: Snapshot
     let activities: [Activity]
+    /// XP de cada atividade somando todos os bros, para o histórico completo
+    let history: Snapshot
     let mood: Mood
     let line: String
     let monsterName: String
     var onDex: () -> Void = {}
     @AppStorage("trainerName") private var trainerName = ""
-    @State private var friends = false
     @State private var logging = false
     @State private var settings = false
     @State private var inbox = InboxStore.shared
@@ -28,7 +29,6 @@ struct HomeView: View {
                             .background(Theme.raised, in: .capsule)
                             .accessibilityLabel("\(snapshot.streak) dias seguidos")
                     }
-                    GMIconButton(icon: "person.2.fill", label: "Amigos") { friends = true }
                     GMIconButton(icon: "pawprint.fill", label: "Bros") { onDex() }
                     GMIconButton(icon: inbox.badge > 0 ? "bell.badge.fill" : "bell.fill",
                                  label: inbox.badge > 0 ? "Caixa de entrada, \(inbox.badge) novas" : "Caixa de entrada") {
@@ -49,7 +49,6 @@ struct HomeView: View {
             }
             .gmModal(isPresented: $logging) { LogActivityView(snapshot: snapshot) }
             .gmModal(isPresented: $settings) { SettingsView() }
-            .gmModal(isPresented: $friends) { FriendsView() }
             .gmModal(isPresented: $inboxOpen) { InboxView(start: inboxStart) }
             // Toque numa notificação social com a caixa fechada: abre já no lugar certo
             .onChange(of: inbox.route, initial: true) { _, r in
@@ -57,10 +56,11 @@ struct HomeView: View {
                 inbox.route = nil
                 inboxStart = r
                 // Outra tela cheia aberta por cima: fecha antes de abrir a caixa
-                let covered = settings || friends || logging
+                // Amigos abre pelo Feed, em outra aba, mas a tela cheia fica por cima de tudo
+                let covered = settings || logging || FeedFriends.shared.isOpen
                 settings = false
-                friends = false
                 logging = false
+                FeedFriends.shared.isOpen = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + (covered ? 0.6 : 0)) { inboxOpen = true }
             }
         }
@@ -160,7 +160,13 @@ struct HomeView: View {
 
     private var recentCard: some View {
         GMCard(padding: 18) {
-            Text("Últimas atividades").font(.headline)
+            HStack {
+                Text("Últimas atividades").font(.headline)
+                Spacer()
+                NavigationLink { HistoryView(snapshot: history, activities: activities) } label: {
+                    Text("Ver tudo").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accent)
+                }
+            }
             ForEach(activities.prefix(3)) { a in
                 NavigationLink { ActivityDetailView(activity: a, snapshot: snapshot) } label: {
                     ActivityRow(activity: a, xp: snapshot.xpByActivity[a.uuid] ?? 0).contentShape(Rectangle())

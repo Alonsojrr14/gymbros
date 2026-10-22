@@ -39,6 +39,8 @@ struct PublicProfile: Codable, Identifiable, Sendable {
     var achievements: [Badge]?
     /// Check-ins postados no perfil, do mais novo para o mais antigo
     var posts: [RemoteCheckIn] = []
+    /// Check-ins recentes em ligas públicas (para o Feed; as privadas não chegam)
+    var leaguePosts: [RemoteCheckIn] = []
 }
 
 extension PublicProfile {

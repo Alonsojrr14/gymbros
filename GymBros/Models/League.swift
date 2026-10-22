@@ -288,6 +288,13 @@ final class CheckInComment {
     }
 
     var isMine: Bool { authorID == "me" }
+
+    /// Comentário só com emoji é uma reação (👍, 💪…)
+    var isReaction: Bool { Self.isReaction(text) }
+
+    static func isReaction(_ s: String) -> Bool {
+        s.count <= 3 && s.unicodeScalars.allSatisfy { $0.properties.isEmojiPresentation || $0.properties.isEmoji && $0.value > 0x238C || $0.value == 0x200D || $0.value == 0xFE0F }
+    }
 }
 
 /// Decisão do dono sobre um check-in de outra pessoa numa liga com revisão (o seu fica no próprio LeagueCheckIn)

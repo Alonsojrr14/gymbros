@@ -13,8 +13,8 @@ struct HistoryView: View {
 
 
     var body: some View {
-        NavigationStack {
-            GMScreen("Histórico", avatar: true) {
+        // Aberto pelo "Ver tudo" da tela do bro (saiu da barra de abas para o Feed entrar)
+        GMScreen("Histórico", back: true) {
                 if activities.isEmpty {
                     GMEmptyState(icon: "figure.run", title: "Nenhuma atividade ainda", message: "Seus treinos aparecem aqui.")
                 } else {
@@ -32,7 +32,6 @@ struct HistoryView: View {
                         }
                     }
                 }
-            }
         }
     }
 

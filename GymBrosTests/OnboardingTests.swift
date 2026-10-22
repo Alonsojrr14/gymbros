@@ -154,8 +154,8 @@ final class OnboardingTests: XCTestCase {
 
     func testRegistryRejectsOffscreenAndUnionsTargets() {
         registry.update(.mapTab, .init(frame: CGRect(x: 200, y: 780, width: 60, height: 44), shape: .capsule))
-        registry.update(.historyTab, .init(frame: CGRect(x: 270, y: 780, width: 60, height: 44), shape: .capsule))
-        XCTAssertEqual(registry.spotlight(for: [.mapTab, .historyTab])?.frame, CGRect(x: 200, y: 780, width: 130, height: 44))
+        registry.update(.feedTab, .init(frame: CGRect(x: 270, y: 780, width: 60, height: 44), shape: .capsule))
+        XCTAssertEqual(registry.spotlight(for: [.mapTab, .feedTab])?.frame, CGRect(x: 200, y: 780, width: 130, height: 44))
         XCTAssertNil(registry.spotlight(for: [.mapTab, .leaguesTab]))
         registry.update(.monster, .init(frame: CGRect(x: 0, y: 900, width: 100, height: 100), shape: .rounded(20)))
         XCTAssertNil(registry.spotlight(for: [.monster]))

@@ -38,7 +38,7 @@ enum LeagueActivityRuleMode: String, CaseIterable, Identifiable {
         switch self {
         case .all: "Todos"
         case .only: "Somente estes"
-        case .except: "Todos, exceto estes"
+        case .except: "Todos, exceto:"
         }
     }
 }
@@ -94,8 +94,6 @@ struct ScoreInput {
     var kcal: Double? = nil
     /// Tipo específico do catálogo do Apple Saúde, quando conhecido (ex.: bike, skate ou musculação).
     var workoutTypeID: UInt? = nil
-    /// Pontos que a pessoa disse no check-in (modo "Você diz")
-    var declared: Int? = nil
 }
 
 extension Activity {
@@ -117,7 +115,7 @@ extension Activity {
 }
 
 enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
-    case pontos, treinos, dias, minutos, distancia, calorias, atividades, informado
+    case pontos, treinos, dias, minutos, distancia, calorias, atividades
 
     var id: String { rawValue }
 
@@ -127,7 +125,6 @@ enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
         case .treinos: "Treinos"
         case .dias: "Dias ativos"
         case .atividades: "Por atividade"
-        case .informado: "Você diz"
         case .minutos: "Minutos"
         case .distancia: "Distância"
         case .calorias: "Calorias"
@@ -140,7 +137,6 @@ enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
         case .treinos: "Cada check-in vale 1. Ganha quem treina mais vezes."
         case .dias: "Cada dia com pelo menos um check-in vale 1: dois treinos no mesmo dia contam um dia só."
         case .atividades: "Você monta a tabela: cada tipo de treino vale pontos por vez ou por quantidade (minutos, km, kcal), e pode até tirar pontos. Treino fora da tabela vale 0."
-        case .informado: "Cada pessoa diz quantos pontos o check-in vale (de 0 a 100). Bom para hábitos e desafios livres; ligue a revisão do dono para conferir."
         case .minutos: "Soma do tempo de todos os check-ins."
         case .distancia: "Soma dos quilômetros (corrida, caminhada, bike, natação com GPS ou do Apple Saúde). Atividade sem distância não pontua."
         case .calorias: "Soma das calorias ativas: as do Apple Saúde quando houver, senão estimadas pela atividade, duração e esforço."
@@ -161,7 +157,6 @@ enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
         case .treinos, .dias: return 1
         // Vem da tabela da liga (League.score)
         case .atividades: return 0
-        case .informado: return max(0, min(i.declared ?? 0, 100))
         case .minutos: return min(i.minutes, Game.maxMinutes)
         case .distancia: return Int(i.meters ?? 0)
         case .calorias:
@@ -173,7 +168,7 @@ enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
     /// Placar com unidade: "120 pts", "3 treinos", "1 h 20 min", "12,4 km", "830 kcal". `count` decide o plural (padrão: `v`).
     func format(_ v: Int, count: Int? = nil) -> String {
         switch self {
-        case .pontos, .atividades, .informado: "\(v) pts"
+        case .pontos, .atividades: "\(v) pts"
         case .treinos: "\(v) treino\((count ?? v) == 1 ? "" : "s")"
         case .dias: "\(v) dia\((count ?? v) == 1 ? "" : "s")"
         case .minutos: durationText(v)
@@ -482,6 +477,8 @@ struct FeedItem: Identifiable {
     var capped = 0
     /// Liga do check-in (nil = perfil)
     var leagueID: UUID?
+    /// Post de amigo vindo de uma liga pública em que você não está ("🔥 Liga"); nil = perfil
+    var postedIn: String?
     /// Fotos a mais do post (a primeira é `photo`)
     var extraPhotos: [Data] = []
 }
@@ -559,11 +556,9 @@ enum LeagueBoard {
             guard let a = activities[c.activityUUID], c.reviewRaw != ReviewState.denied else { return nil }
             // Atividades do mesmo dia agrupadas neste check-in somam junto
             let extra = c.proof.grouped.compactMap { activities[$0] }
-            var main = a.scoreInput
-            main.declared = c.proof.declared
             var f = FeedItem(id: c.uuid.uuidString, memberID: "me", name: me, avatar: myAvatar, isMe: true, date: c.date, title: c.title, note: c.note,
                              kind: a.kind, minutes: a.minutes + extra.reduce(0) { $0 + $1.minutes },
-                             score: league.score([main] + extra.map(\.scoreInput), hasPhoto: c.hasPhoto), photo: c.photo,
+                             score: league.score([a.scoreInput] + extra.map(\.scoreInput), hasPhoto: c.hasPhoto), photo: c.photo,
                              place: c.place, hasPhoto: c.hasPhoto, effort: a.effort, teamID: league.myTeamID, scoring: league.scoring)
             f.pending = settings.reviewRequired && c.reviewRaw == ReviewState.pending
             f.proof = c.proof
@@ -578,7 +573,7 @@ enum LeagueBoard {
             let extra = r.proof?.groupedParts ?? []
             var f = FeedItem(id: r.id, memberID: m.id, name: m.name, avatar: m.form, isMe: false, date: r.date, title: r.title, note: r.note,
                              kind: r.kind, minutes: r.minutes + extra.reduce(0) { $0 + $1.minutes },
-                             score: league.score([{ var i = r.input; i.declared = r.proof?.declared; return i }()] + extra.map(\.input), hasPhoto: r.hasPhoto), photo: nil,
+                             score: league.score([r.input] + extra.map(\.input), hasPhoto: r.hasPhoto), photo: nil,
                              place: r.place, hasPhoto: r.hasPhoto, effort: r.effort, teamID: m.teamID, scoring: league.scoring)
             f.proof = r.proof ?? CheckInProof()
             f.leagueID = league.uuid

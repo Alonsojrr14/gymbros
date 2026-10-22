@@ -246,7 +246,8 @@ struct GoalFormView: View {
             }
         }
         .gmSheet(isPresented: $choosingTypes) { close in
-            LeagueWorkoutTypePicker(selection: Binding(get: { Set(goal.activityTypes) }, set: { goal.activityTypes = $0.sorted() }), close: close)
+            LeagueWorkoutTypePicker(selection: Binding(get: { Set(goal.activityTypes) }, set: { goal.activityTypes = $0.sorted() }),
+                                    title: "Contam para a meta", close: close)
         }
     }
 }

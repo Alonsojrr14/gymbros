@@ -68,8 +68,6 @@ struct CheckInProof: Codable, Hashable, Sendable {
     var pose: String?
     /// Academia da visita verificada pela localização durante o treino
     var gymVisit: String?
-    /// Pontos que você disse (liga no modo "Você diz")
-    var declared: Int?
     /// Outras atividades do mesmo dia que vão juntas neste check-in (as suas, pelo uuid)
     var grouped: [UUID] = []
     /// As mesmas atividades agrupadas, com o que os outros aparelhos precisam para pontuar
@@ -89,7 +87,6 @@ struct CheckInProof: Codable, Hashable, Sendable {
         device = try c.decodeIfPresent(String.self, forKey: .device)
         pose = try c.decodeIfPresent(String.self, forKey: .pose)
         gymVisit = try c.decodeIfPresent(String.self, forKey: .gymVisit)
-        declared = try c.decodeIfPresent(Int.self, forKey: .declared)
         grouped = try c.decodeIfPresent([UUID].self, forKey: .grouped) ?? []
         groupedParts = try c.decodeIfPresent([ScorePart].self, forKey: .groupedParts) ?? []
     }
@@ -344,8 +341,3 @@ extension League {
     func score(_ parts: [ScoreInput], hasPhoto: Bool) -> Int { parts.reduce(0) { $0 + score($1, hasPhoto: hasPhoto) } }
 }
 
-/// Pontos ditos no formulário para cada liga no modo "Você diz", até postar
-@MainActor
-enum DeclaredPoints {
-    static var byLeague: [UUID: Int] = [:]
-}

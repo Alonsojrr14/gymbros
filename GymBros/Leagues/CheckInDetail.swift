@@ -20,6 +20,8 @@ struct CheckInDetailView: View {
     @State private var reacting = false
     @State private var commentMenu: CheckInComment?
     @State private var moderation: ModerationRequest?
+    /// Perfil público de quem comentou (mesmo sem ser seu amigo)
+    @State private var person: RemoteFriend?
     @State private var mod = ModerationStore.shared
     @State private var blocked = false
     @State private var terms = TermsGate()
@@ -80,7 +82,7 @@ struct CheckInDetailView: View {
                     LeagueOutbox.retract(c)
                     context.delete(c)
                 }
-                comments.forEach(context.delete)
+                comments.forEach { CommentSync.retract($0); context.delete($0) }
                 try? context.save()
                 dismiss()
             }
@@ -103,6 +105,17 @@ struct CheckInDetailView: View {
         ])
         .termsGate($terms)
         .onChange(of: text) { blocked = false }
+        .gmModal(item: $person) { FriendProfileView(friend: $0) }
+        // Comentários de todo mundo neste check-in, e as reações a eles
+        .task {
+            await CommentSync.pull([item.id], context: context)
+            await CommentSync.pull(comments.filter { !$0.isReaction }.map { "c:\($0.uuid.uuidString)" }, context: context)
+        }
+    }
+
+    private func openProfile(_ c: CheckInComment) {
+        guard !c.isMine else { return }
+        person = RemoteFriend(id: c.authorID, name: c.authorName, formID: "", code: "")
     }
 
     private var visibleComments: [CheckInComment] { mod.visible(comments) }
@@ -263,15 +276,13 @@ struct CheckInDetailView: View {
     private func commentActions(_ c: CheckInComment) -> [GMAction] {
         var list = ["👍", "❤️‍🔥", "💪", "😂"].map { e in
             GMAction("Reagir \(e)", icon: "face.smiling") {
-                context.insert(CheckInComment(itemID: "c:\(c.uuid.uuidString)", text: e))
-                try? context.save()
+                CommentSync.add(e, to: "c:\(c.uuid.uuidString)", owner: c.authorID, context: context)
             }
         }
         if c.isMine {
             list.append(GMAction("Apagar comentário", icon: "trash", destructive: true) {
-                reactions(to: c).forEach(context.delete)
-                context.delete(c)
-                try? context.save()
+                reactions(to: c).forEach { CommentSync.retract($0); context.delete($0) }
+                CommentSync.remove(c, context: context)
             })
         } else {
             list.append(GMAction("Denunciar comentário", icon: "flag", destructive: true) {
@@ -315,10 +326,13 @@ struct CheckInDetailView: View {
             }
             ForEach(visibleComments) { c in
                 HStack(alignment: .top, spacing: 10) {
-                    if c.isMine { Avatar(size: 32) } else { PersonAvatar(name: c.authorName, size: 32) }
+                    if c.isMine { Avatar(size: 32) } else {
+                        PersonAvatar(name: c.authorName, size: 32).onTapGesture { openProfile(c) }
+                    }
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(c.isMine ? (trainerName.isEmpty ? "Você" : trainerName) : c.authorName).font(.caption.bold())
+                                .onTapGesture { openProfile(c) }
                             Text(c.date.formatted(.relative(presentation: .named))).font(.caption2).foregroundStyle(Theme.dim)
                         }
                         Text(mentionText(c.text)).font(isEmojiOnly(c.text) ? .title : .subheadline)
@@ -390,16 +404,13 @@ struct CheckInDetailView: View {
         guard AccessStore.shared.can(.commentsCreate) else { return }
         guard ContentFilter.allows(t) else { blocked = true; return }
         terms.run {
-            context.insert(CheckInComment(itemID: item.id, text: t))
-            try? context.save()
+            CommentSync.add(t, to: item.id, owner: item.memberID, context: context)
             if raw == text { text = "" }
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
     }
 
-    private func isEmojiOnly(_ s: String) -> Bool {
-        s.count <= 3 && s.unicodeScalars.allSatisfy { $0.properties.isEmojiPresentation || $0.properties.isEmoji && $0.value > 0x238C || $0.value == 0x200D || $0.value == 0xFE0F }
-    }
+    private func isEmojiOnly(_ s: String) -> Bool { CheckInComment.isReaction(s) }
 
     private func when(_ d: Date) -> String {
         let cal = Calendar.current

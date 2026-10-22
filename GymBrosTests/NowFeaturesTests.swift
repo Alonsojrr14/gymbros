@@ -90,17 +90,6 @@ final class NowFeaturesTests: GymTestCase {
         XCTAssertTrue(strict.problems(s).isEmpty)
     }
 
-    func testDeclaredPointsMode() {
-        let l = League(name: "Livre", emoji: "🗣️", scoring: .informado)
-        var i = ScoreInput(kind: .yoga, minutes: 20, effort: 3)
-        i.declared = 35
-        XCTAssertEqual(l.score(i), 35)
-        i.declared = 500
-        XCTAssertEqual(l.score(i), 100)
-        i.declared = nil
-        XCTAssertEqual(l.score(i), 0)
-    }
-
     func testDailyWorkoutBecomesRoutineAndClubChallengeInherits() {
         let w = DailyWorkout(day: .now, title: "Perna", items: [.init(exerciseID: "agachamento", sets: 4, reps: 8)])
         XCTAssertTrue(w.isToday)

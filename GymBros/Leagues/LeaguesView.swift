@@ -16,22 +16,12 @@ struct LeaguesView: View {
     @State private var joining = false
     @State private var joinCode = ""
     @State private var proOpen = false
-    /// Cards do deck no momento em que abriu (não mudam enquanto você passa)
-    @State private var deck: [DeckCard]?
-    /// Muda quando o deck fecha, para o leque recalcular o que falta ver
-    @State private var deckVersion = 0
 
     var body: some View {
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: allLeagues)
         NavigationStack {
             GMScreen("Ligas", avatar: true) {
                 SocialGate(requires: .leaguesRead) {
-                    let unseen = deckVersion >= 0 ? BroDeck.cards(leagues: leagues, checkIns: checkIns, activities: activities, me: trainerName) : []
-                    DeckPeek(cards: unseen, title: "Novos dos bros") { deck = unseen }
-                    HStack(spacing: 10) {
-                        NavigationLink { UnifiedFeedView() } label: { shortcut("rectangle.stack.fill", "Feed") }.buttonStyle(GMPress())
-                        NavigationLink { FriendsRankingView() } label: { shortcut("list.number", "Ranking dos bros") }.buttonStyle(GMPress())
-                    }
                     if leagues.filter({ !$0.isPastSeason }).isEmpty {
                         GMEmptyState(icon: "trophy", title: "Nenhuma liga", message: "Crie uma liga e chame os amigos, ou entre com um código.")
                     }
@@ -65,9 +55,6 @@ struct LeaguesView: View {
             .onReceive(NotificationCenter.default.publisher(for: StartIntentRouter.joinLeague)) { _ in joinCode = ""; joining = true }
             .gmModal(isPresented: $proOpen) { NavigationStack { ProPage() } }
             .gmModal(isPresented: $joining) { JoinLeagueView(code: joinCode) }
-            .gmModal(isPresented: Binding(get: { deck != nil }, set: { if !$0 { deck = nil; deckVersion += 1 } })) {
-                BroDeckView(cards: deck ?? [])
-            }
             .task {
                 // Ligas de exemplo antigas não tinham data de fim
                 for l in leagues where l.isMock && l.end == nil { l.setDuration(days: 30) }
@@ -80,15 +67,6 @@ struct LeaguesView: View {
             }
         }
     }
-}
-
-/// Atalho em pílula larga (Feed, Ranking dos bros)
-func shortcut(_ icon: String, _ title: String) -> some View {
-    Label(title, systemImage: icon).font(.subheadline.weight(.semibold)).lineLimit(1)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(Theme.card, in: .rect(cornerRadius: Theme.radius))
-        .foregroundStyle(.white)
 }
 
 extension MockLeague {
@@ -161,8 +139,6 @@ struct LeagueDetailView: View {
     @State private var confirmBan: RankRow?
     @State private var choosingSuccessor = false
     @State private var notifying = false
-    @State private var deck: [DeckCard]?
-    @State private var deckVersion = 0
     /// Planilha exportada, para a folha de compartilhar
     @State private var exported: IDBoxURL?
     @State private var postingDaily = false
@@ -228,8 +204,6 @@ struct LeagueDetailView: View {
                 Text("Desafio do clube \(club.emoji) \(club.name)").font(.caption.weight(.semibold)).foregroundStyle(Theme.dim)
             }
             if league.canModerate { LeagueRequestsSection(league: league, requests: remote.requests) }
-            let unseen = deckVersion >= 0 ? BroDeck.cards(leagues: [league], checkIns: allCheckIns, activities: activities, me: trainerName, onlyLeague: league.uuid) : []
-            DeckPeek(cards: unseen, title: "Novos em \(league.name)") { deck = unseen }
             GMSegmented(options: [(0, "Check-ins"), (1, settings.rankingsDisabled ? "Metas" : "Ranking"), (2, "Mural")], selection: $tab)
             if tab == 0 {
                 // Só a lista esconde denunciados e bloqueados; ranking e times contam todo mundo
@@ -294,9 +268,6 @@ struct LeagueDetailView: View {
                         .buttonStyle(GMPress()).padding(.vertical, 12).background(Theme.accent, in: .capsule).foregroundStyle(.black)
                 }
             }
-        }
-        .gmModal(isPresented: Binding(get: { deck != nil }, set: { if !$0 { deck = nil; deckVersion += 1 } })) {
-            BroDeckView(cards: deck ?? [])
         }
         .task(id: league.key) {
             await LeagueRemoteStore.shared.refresh([league])
@@ -843,6 +814,13 @@ struct CreateLeagueView: View {
         return "\(selectedWorkoutTypes.count) treino\(selectedWorkoutTypes.count == 1 ? "" : "s") selecionado\(selectedWorkoutTypes.count == 1 ? "" : "s")"
     }
 
+    /// Nomes dos escolhidos para a linha do formulário: "Core, Musculação +3"
+    private var activitySelectionNames: String {
+        let names = WorkoutType.all.filter { selectedWorkoutTypes.contains($0.id) }.map(\.name)
+        guard !names.isEmpty else { return activityRuleMode == .only ? "Apenas estes entram no ranking" : "Estes ficam fora do ranking" }
+        return names.prefix(2).joined(separator: ", ") + (names.count > 2 ? " +\(names.count - 2)" : "")
+    }
+
     var body: some View {
         GMModal(parentClub.map { "Desafio no \($0.name)" } ?? (league == nil ? "Novo grupo" : "Editar grupo"), confirm: league == nil ? "Criar" : "Salvar",
                 confirmEnabled: !name.trimmingCharacters(in: .whitespaces).isEmpty && (activityRuleMode != .only || !selectedWorkoutTypes.isEmpty), onConfirm: save) {
@@ -888,6 +866,11 @@ struct CreateLeagueView: View {
                     GMSegmented(options: LeagueFormat.allCases.map { ($0, $0.name) }, selection: $format)
                 }
             }
+            GMSection("Quem vê os posts", footer: settings.isPrivate
+                      ? "Os posts ficam só aqui dentro: não aparecem no Feed nem nos stories de ninguém, nem dos seus amigos."
+                      : "Os posts também aparecem no Feed dos amigos de quem postou, mesmo de quem não está na liga.") {
+                GMSegmented(options: [(false, "Pública"), (true, "Privada")], selection: $settings.isPrivate)
+            }
             if format == .challenge {
                 GMSection("Período", footer: "Ganha quem estiver na frente no último dia. Check-ins fora do período não contam.") {
                     // Não deixa começar no passado; ao editar, mantém o início que a liga já tinha
@@ -910,7 +893,7 @@ struct CreateLeagueView: View {
                 if activityRuleMode != .all {
                     GMDivider()
                     GMRow(icon: "checklist", iconTint: Theme.accent, title: activitySelectionTitle,
-                          subtitle: activityRuleMode == .only ? "Apenas estes entram no ranking" : "Estes ficam fora do ranking", chevron: true) {
+                          subtitle: activitySelectionNames, chevron: true) {
                         choosingWorkoutTypes = true
                     }
                 }
@@ -986,7 +969,7 @@ struct CreateLeagueView: View {
             if value == .club { autoRenew = false }
         }
         .gmSheet(isPresented: $choosingWorkoutTypes) { close in
-            LeagueWorkoutTypePicker(selection: $selectedWorkoutTypes, close: close)
+            LeagueWorkoutTypePicker(selection: $selectedWorkoutTypes, mode: activityRuleMode, close: close)
         }
         .onAppear {
             if !loaded, league == nil, let club = parentClub {
@@ -1054,66 +1037,150 @@ struct CreateLeagueView: View {
     }
 }
 
+/// Escolha dos treinos da regra "Somente estes" / "Todos, exceto:": grade por seção, com busca e os escolhidos no topo
 struct LeagueWorkoutTypePicker: View {
     @Binding var selection: Set<UInt>
+    var mode: LeagueActivityRuleMode = .only
+    /// Título no topo; sem ele, vem da regra
+    var title: String?
     let close: () -> Void
     @State private var query = ""
 
     private var types: [WorkoutType] { WorkoutType.search(query) }
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
+    /// Na exclusão, o escolhido sai do ranking: o destaque fica vermelho
+    private var tint: Color { mode == .except ? Theme.danger : Theme.accent }
 
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(WorkoutType.Section.allCases, id: \.self) { section in
-                    let sectionTypes = types.filter { $0.section == section }
-                    if !sectionTypes.isEmpty {
-                        SwiftUI.Section(section.rawValue) {
-                            ForEach(sectionTypes) { type in
-                                Button {
-                                    if selection.contains(type.id) {
-                                        selection.remove(type.id)
-                                    } else {
-                                        selection.insert(type.id)
-                                    }
-                                    UISelectionFeedbackGenerator().selectionChanged()
-                                } label: {
-                                    let on = selection.contains(type.id)
-                                    HStack(spacing: 14) {
-                                        Image(systemName: type.symbol)
-                                            .font(.body.weight(.semibold))
-                                            .foregroundStyle(on ? .black : Theme.accent)
-                                            .frame(width: 36, height: 36)
-                                            .background(on ? Theme.accent : Theme.accent.opacity(0.15), in: .rect(cornerRadius: Theme.radiusS))
-                                        Text(type.name).foregroundStyle(.white)
-                                        Spacer()
-                                        Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                                            .font(.system(size: 22))
-                                            .foregroundStyle(on ? Theme.accent : Theme.dim)
-                                    }
-                                }
-                                .listRowBackground(Theme.card)
-                                .accessibilityAddTraits(selection.contains(type.id) ? .isSelected : [])
-                            }
-                        }
+        VStack(spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title ?? (mode == .except ? "Não valem pontos" : "Valem pontos")).font(.title3.bold())
+                    Text(countText).font(.subheadline).foregroundStyle(Theme.dim).contentTransition(.numericText())
+                }
+                Spacer()
+                GMButton("Pronto", full: false, small: true, action: close)
+            }
+            search
+            if !selection.isEmpty { chosenStrip }
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    ForEach(WorkoutType.Section.allCases, id: \.self) { section in
+                        let items = types.filter { $0.section == section }
+                        if !items.isEmpty { sectionView(section, items) }
                     }
                 }
+                .padding(.bottom, 12)
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(Theme.bg)
+            .scrollDismissesKeyboard(.immediately)
             .overlay {
                 if types.isEmpty { ContentUnavailableView.search(text: query) }
             }
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Buscar treino")
-            .navigationTitle(selection.isEmpty ? "Treinos" : "\(selection.count) selecionado\(selection.count == 1 ? "" : "s")")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Fechar", action: close) }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Limpar") { selection.removeAll() }.disabled(selection.isEmpty)
-                }
+        }
+        .frame(height: UIScreen.main.bounds.height * 0.78)
+        .animation(.snappy(duration: 0.25), value: selection)
+    }
+
+    private var countText: String {
+        switch selection.count {
+        case 0: "Nenhum escolhido"
+        case 1: "1 escolhido"
+        case let n: "\(n) escolhidos"
+        }
+    }
+
+    private var search: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Theme.dim)
+            TextField("", text: $query, prompt: Text("Buscar treino").foregroundStyle(Theme.dim))
+                .autocorrectionDisabled()
+            if !query.isEmpty {
+                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.dim) }
             }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(Theme.raised, in: .capsule)
+    }
+
+    /// Escolhidos, na ordem do catálogo; tocar tira
+    private var chosenStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(WorkoutType.all.filter { selection.contains($0.id) }) { t in
+                    Button { toggle(t.id) } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: t.symbol)
+                            Text(t.name).lineLimit(1)
+                            Image(systemName: "xmark").font(.caption2.bold()).opacity(0.6)
+                        }
+                        .font(.footnote.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(tint.opacity(0.18), in: .capsule)
+                        .foregroundStyle(tint)
+                    }
+                    .buttonStyle(GMPress())
+                    .accessibilityLabel("Tirar \(t.name)")
+                }
+                Button("Limpar") { selection.removeAll() }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.dim)
+                    .padding(.horizontal, 8)
+            }
+        }
+        .scrollClipDisabled()
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    private func sectionView(_ section: WorkoutType.Section, _ items: [WorkoutType]) -> some View {
+        let on = items.filter { selection.contains($0.id) }.count
+        let all = on == items.count
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(section.rawValue).font(.subheadline.weight(.semibold))
+                if on > 0 { Text("\(on)").font(.caption.bold()).foregroundStyle(tint).monospacedDigit() }
+                Spacer()
+                Button(all ? "Tirar todos" : "Marcar todos") {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    if all { selection.subtract(items.map(\.id)) } else { selection.formUnion(items.map(\.id)) }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.dim)
+            }
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(items) { tile($0) }
+            }
+        }
+    }
+
+    private func tile(_ t: WorkoutType) -> some View {
+        let on = selection.contains(t.id)
+        return Button { toggle(t.id) } label: {
+            VStack(spacing: 6) {
+                Image(systemName: t.symbol).font(.title3).frame(height: 26)
+                Text(t.name).font(.caption.weight(.semibold)).lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.8)
+            }
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity, minHeight: 78)
+            .background(on ? tint.opacity(0.18) : Theme.raised, in: .rect(cornerRadius: Theme.radiusM))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(on ? tint : .clear, lineWidth: 1.5))
+            .overlay(alignment: .topTrailing) {
+                if on {
+                    Image(systemName: mode == .except ? "minus.circle.fill" : "checkmark.circle.fill")
+                        .font(.footnote).foregroundStyle(tint).padding(6)
+                }
+            }
+            .foregroundStyle(on ? tint : .white)
+        }
+        .buttonStyle(GMPress())
+        .accessibilityLabel(t.name)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func toggle(_ id: UInt) {
+        UISelectionFeedbackGenerator().selectionChanged()
+        if selection.contains(id) { selection.remove(id) } else { selection.insert(id) }
     }
 }
 
@@ -1230,7 +1297,6 @@ func postCheckIns(activity: Activity, leagues: Set<UUID>, title: String, note: S
                               title: title.isEmpty ? activity.typeName : title, note: note, date: activity.date, photo: photo)
         c.place = subject.place
         var proof = CheckInProof(subject: subject, league: league, pose: PhotoProofs.pose(for: photo), device: activity.source)
-        if league?.scoring == .informado { proof.declared = DeclaredPoints.byLeague[id] ?? 10 }
         // Outras atividades do mesmo dia no mesmo check-in
         let sameDay = grouped.filter { $0.uuid != activity.uuid && Calendar.current.isDate($0.date, inSameDayAs: activity.date) }
         proof.grouped = sameDay.map(\.uuid)
@@ -1319,8 +1385,6 @@ struct LeaguePostSection: View {
     @Query(sort: \League.joinedAt) private var allLeagues: [League]
     @State private var pick: PhotosPickerItem?
     @State private var extraPicks: [PhotosPickerItem] = []
-    /// Pontos ditos por liga (modo "Você diz")
-    @State private var declared: [UUID: Int] = [:]
     @State private var shooting = false
     @State private var shootingExtra = false
     @AppStorage(Terms.acceptedKey) private var acceptedTerms = 0
@@ -1386,13 +1450,10 @@ struct LeaguePostSection: View {
                     }
                 }
             }
-            declaredSection
             photoSection
         }
         .termsGate($terms)
         .onAppear {
-            // Pontos ditos de um formulário anterior não valem para este
-            DeclaredPoints.byLeague = [:]
             if selectAllByDefault && selected.isEmpty { selected = everything }
         }
         // Mudou o treino ou a foto: sai das ligas em que ele não vale mais
@@ -1430,23 +1491,6 @@ struct LeaguePostSection: View {
     }
 
     private var blockedIDs: Set<UUID> { Set(leagues.filter { !accepts($0) }.map(\.uuid)) }
-
-    /// Ligas marcadas no modo "Você diz": quantos pontos vale em cada uma
-    @ViewBuilder
-    private var declaredSection: some View {
-        let list = leagues.filter { selected.contains($0.uuid) && $0.scoring == .informado }
-        if !list.isEmpty {
-            GMSection("Quanto vale", footer: "Nessas ligas, você diz quantos pontos o treino vale (0 a 100).") {
-                ForEach(Array(list.enumerated()), id: \.element.id) { i, l in
-                    if i > 0 { GMDivider() }
-                    GMStepper(title: "\(l.emoji) \(l.name)", value: Binding(get: { declared[l.uuid] ?? 10 },
-                                                                       set: { declared[l.uuid] = $0; DeclaredPoints.byLeague[l.uuid] = $0 }),
-                              range: 0...100, step: 1, format: { "\($0) pts" })
-                }
-            }
-            .onAppear { for l in list where DeclaredPoints.byLeague[l.uuid] == nil { DeclaredPoints.byLeague[l.uuid] = declared[l.uuid] ?? 10 } }
-        }
-    }
 
     /// Aviso quando falta a foto em liga que cobra
     private var postFooter: String? {

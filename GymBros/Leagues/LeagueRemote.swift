@@ -17,10 +17,12 @@ struct LeagueKey: Hashable, Sendable {
     let end: Date?
     let isMock: Bool
     let teams: [LeagueTeam]
+    /// Liga privada: os check-ins sobem sem a marca de Feed
+    var isPrivate = false
 }
 
 extension League {
-    var key: LeagueKey { LeagueKey(uuid: uuid, code: code, start: start, end: end, isMock: isMock, teams: teams) }
+    var key: LeagueKey { LeagueKey(uuid: uuid, code: code, start: start, end: end, isMock: isMock, teams: teams, isPrivate: settings.isPrivate) }
 }
 
 struct RemoteMember: Codable, Hashable, Identifiable, Sendable {
@@ -55,6 +57,8 @@ struct RemoteCheckIn: Codable, Identifiable, Sendable {
     var place: String?
     /// Origem da foto, aparelho e pose do dia; ausente em check-ins antigos
     var proof: CheckInProof?
+    /// Liga pública em que foi postado ("🔥 Liga dos Bros"), para o Feed dos amigos; nil = perfil
+    var postedIn: String?
 
     var kind: ActivityKind { ActivityKind(rawValue: kindRaw) ?? .outro }
     var input: ScoreInput {
