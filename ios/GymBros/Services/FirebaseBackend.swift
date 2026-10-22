@@ -261,7 +261,8 @@ struct FirebaseFriendsBackend: FriendsBackend {
     func add(code: String) async throws -> RemoteFriend {
         // O código reservado vale; a busca no perfil só para códigos de antes da reserva (perfil não publicado de novo)
         // Reserva de uma conta que já não existe (sem perfil): ninguém com esse código
-        if let id = try await Fire.db.collection(FireCollection.friendCodes).document(code).getDocument().data()?["user"] as? String {
+        // Regras antigas no servidor (sem `friendCodes`) negam a leitura: segue pela busca no perfil
+        if let id = (try? await Fire.db.collection(FireCollection.friendCodes).document(code).getDocument())?.data()?["user"] as? String {
             guard try await profiles.document(id).getDocument().exists else { throw FriendError.notFound }
             return try await add(id: id)
         }
@@ -341,9 +342,24 @@ struct FirebaseFriendsBackend: FriendsBackend {
         let me = try Fire.me()
         let extra = PublicProfile.Extra(bro: profile.bro, stats: profile.stats, achievements: profile.achievements)
         var code = friendCode
+        let fields: (String) -> [String: Any] = { code in
+            Fire.fields([
+                "name": profile.name, "username": profile.username, "bio": profile.bio, "friendCode": code,
+                "broFormID": profile.bro?.formID,
+                "public": (try? JSONEncoder().encode(extra)).flatMap { String(data: $0, encoding: .utf8) },
+                "hiddenFrom": FriendPrefs.hiddenFrom(),
+            ])
+        }
         for _ in 0..<3 {
             let reservation = Fire.db.collection(FireCollection.friendCodes).document(code)
-            let owner = try await reservation.getDocument().data()?["user"] as? String
+            let owner: String?
+            do {
+                owner = try await reservation.getDocument().data()?["user"] as? String
+            } catch {
+                // Regras antigas no servidor (sem `friendCodes`): publica o perfil sem a reserva, como antes
+                try await profiles.document(me).setData(fields(code), merge: true)
+                return
+            }
             if let owner, owner != me {
                 code = League.newCode()
                 UserDefaults.standard.set(code, forKey: "friendCode")
@@ -351,12 +367,7 @@ struct FirebaseFriendsBackend: FriendsBackend {
             }
             let batch = Fire.db.batch()
             if owner == nil { batch.setData(["user": me, "createdAt": FieldValue.serverTimestamp()], forDocument: reservation) }
-            batch.setData(Fire.fields([
-                "name": profile.name, "username": profile.username, "bio": profile.bio, "friendCode": code,
-                "broFormID": profile.bro?.formID,
-                "public": (try? JSONEncoder().encode(extra)).flatMap { String(data: $0, encoding: .utf8) },
-                "hiddenFrom": FriendPrefs.hiddenFrom(),
-            ]), forDocument: profiles.document(me), merge: true)
+            batch.setData(fields(code), forDocument: profiles.document(me), merge: true)
             try await batch.commit()
             return
         }

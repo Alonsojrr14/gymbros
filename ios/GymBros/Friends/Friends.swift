@@ -327,6 +327,8 @@ struct FriendsView: View {
                         GMTextField(placeholder: "Código do amigo", text: $code, capitalization: .characters)
                             .font(.title3.monospaced())
                             .autocorrectionDisabled()
+                            // Os códigos são sempre em maiúsculas: o que for digitado em minúscula já aparece como vai ser buscado
+                            .onChange(of: code) { _, c in if c != c.uppercased() { code = c.uppercased() } }
                         GMButton("Adicionar", full: false, small: true, enabled: code.trimmingCharacters(in: .whitespaces).count >= 6) { add(code) }
                     }
                 }

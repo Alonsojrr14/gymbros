@@ -93,7 +93,8 @@ class FriendsRepository(private val db: FirebaseFirestore = FirebaseFirestore.ge
 
     suspend fun addByCode(code: String): RemoteFriend {
         // O código reservado vale; a busca no perfil só para códigos de antes da reserva
-        val reserved = db.collection("friendCodes").document(code).get().await().getString("user")
+        // Regras antigas no servidor (sem `friendCodes`) negam a leitura: segue pela busca no perfil
+        val reserved = runCatching { db.collection("friendCodes").document(code).get().await().getString("user") }.getOrNull()
         if (reserved != null) {
             if (!db.collection("profiles").document(reserved).get().await().exists()) throw FriendException(FriendError.NOT_FOUND)
             return addById(reserved)
@@ -156,12 +157,19 @@ class FriendsRepository(private val db: FirebaseFirestore = FirebaseFirestore.ge
         val profile = db.collection("profiles").document(me)
         if (profile.get().await().exists()) return true
         val reservation = db.collection("friendCodes").document(code)
-        val owner = reservation.get().await().getString("user")
+        val fields = mapOf("name" to name, "username" to "", "bio" to "", "friendCode" to code, "broFormID" to broFormID,
+                           "hiddenFrom" to emptyList<String>())
+        val owner = try {
+            reservation.get().await().getString("user")
+        } catch (e: Exception) {
+            // Regras antigas no servidor (sem `friendCodes`): publica o perfil sem a reserva, como o iOS antes dela
+            profile.set(fields).await()
+            return true
+        }
         if (owner != null && owner != me) return false
         val batch = db.batch()
         if (owner == null) batch.set(reservation, mapOf("user" to me, "createdAt" to FieldValue.serverTimestamp()))
-        batch.set(profile, mapOf("name" to name, "username" to "", "bio" to "", "friendCode" to code, "broFormID" to broFormID,
-                                 "hiddenFrom" to emptyList<String>()))
+        batch.set(profile, fields)
         batch.commit().await()
         return true
     }
