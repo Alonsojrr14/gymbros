@@ -71,6 +71,8 @@ data class HomeData(
     /** Versão dos termos de uso aceita (`termsAcceptedVersion`) */
     val termsVersion: Int,
     val leagues: List<com.alonsoalmeida.gymbros.domain.backup.LeagueDto>,
+    /** "O que aparece para os outros": mostrar o bro no perfil público (`publicMonster`, padrão sim) */
+    val showBro: Boolean = true,
 )
 
 object HomeBuilder {
@@ -160,7 +162,8 @@ object HomeBuilder {
                         friendCode = text("friendCode"),
                         declinedFriends = AccountEditsRead.strings(settings["declinedFriendRequests"]).toSet(),
                         termsVersion = (settings["termsAcceptedVersion"] as? Number)?.toInt() ?: 0,
-                        leagues = leagues)
+                        leagues = leagues,
+                        showBro = settings["publicMonster"] as? Boolean ?: true)
     }
 }
 

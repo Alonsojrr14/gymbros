@@ -9,6 +9,7 @@ import com.alonsoalmeida.gymbros.data.FriendsRepository
 import com.alonsoalmeida.gymbros.data.FriendsState
 import com.alonsoalmeida.gymbros.data.LeagueMember
 import com.alonsoalmeida.gymbros.data.PublicProfile
+import com.alonsoalmeida.gymbros.data.PublicBro
 import com.alonsoalmeida.gymbros.domain.backup.AccountEdits
 import com.alonsoalmeida.gymbros.domain.home.HomeData
 import com.dd.plist.NSDate
@@ -66,6 +67,12 @@ class FriendsViewModel(private val repo: FriendsRepository, private val copies: 
             copies.edit { copy -> AccountEdits.updateSettings(copy ?: AccountEdits.empty(home.trainerName, Instant.now())) { it["friendCode"] = NSString(c) } }
         }
         runCatching { repo.publishIfMissing(code, home.trainerName, home.snapshot.form.id) }
+        // O bro do perfil público acompanha o seu (forma, apelido e nível), como no iPhone
+        val s = home.snapshot
+        val bro = PublicBro(home.monsterName.ifEmpty { s.form.name }, s.form.id, s.level, s.progress)
+        runCatching { repo.publishBro(code, bro, home.showBro) }.onSuccess { used ->
+            if (used != code) copies.edit { copy -> AccountEdits.updateSettings(copy ?: AccountEdits.empty(home.trainerName, Instant.now())) { it["friendCode"] = NSString(used) } }
+        }
     }
 
     private suspend fun loadSuggestions(home: HomeData) {

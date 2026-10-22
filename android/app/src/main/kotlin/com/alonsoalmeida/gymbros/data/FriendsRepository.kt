@@ -10,6 +10,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import java.util.Date
 
 /** Amigo como o servidor devolve (Friends.swift `RemoteFriend`) */
@@ -172,6 +173,37 @@ class FriendsRepository(private val db: FirebaseFirestore = FirebaseFirestore.ge
         batch.set(profile, fields)
         batch.commit().await()
         return true
+    }
+
+    /**
+     * Mantém o bro do seu perfil público em dia (forma, apelido, nível), como o iPhone faz ao publicar o perfil. Só a
+     * parte do bro muda: números e conquistas continuam os que o iPhone publicou. As regras exigem a reserva do
+     * código (`friendCodes`); sem ela, reserva antes. Devolve o código em uso (outro, se o seu já era de alguém).
+     */
+    suspend fun publishBro(code: String, bro: PublicBro?, show: Boolean): String {
+        val me = me()
+        val profile = db.collection("profiles").document(me)
+        val current = profile.get().await()
+        val publicJson = current.getString("public")?.let { runCatching { Json.parseToJsonElement(it).jsonObject }.getOrNull() }
+            ?: kotlinx.serialization.json.JsonObject(emptyMap())
+        val newPublic = kotlinx.serialization.json.JsonObject(LinkedHashMap(publicJson).apply {
+            if (show && bro != null) put("bro", json.encodeToJsonElement(PublicBro.serializer(), bro)) else remove("bro")
+        })
+        val text = Json.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), newPublic)
+        val formID = if (show) bro?.formID else null
+        if (current.getString("broFormID") == formID && current.getString("public") == text && current.getString("friendCode") == code) return code
+        var use = code
+        repeat(3) {
+            val reservation = db.collection("friendCodes").document(use)
+            val owner = reservation.get().await().getString("user")
+            if (owner != null && owner != me) { use = newCode(); return@repeat }
+            val batch = db.batch()
+            if (owner == null) batch.set(reservation, mapOf("user" to me, "createdAt" to FieldValue.serverTimestamp()))
+            batch.set(profile, mapOf("friendCode" to use, "broFormID" to formID, "public" to text), com.google.firebase.firestore.SetOptions.merge())
+            batch.commit().await()
+            return use
+        }
+        throw IllegalStateException("código indisponível")
     }
 
     companion object {
