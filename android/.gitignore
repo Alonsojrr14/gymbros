@@ -1,0 +1,10 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+# Configuração do Firebase (cada um baixa a sua do console) e chaves de assinatura
+google-services.json
+*.jks
+*.keystore
