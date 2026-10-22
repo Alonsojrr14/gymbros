@@ -52,5 +52,6 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
     implementation(libs.coroutines.play.services)
 }

@@ -119,6 +119,16 @@ data class MonsterDto(
 )
 
 @Serializable
+data class CheckInDto(
+    val uuid: String,
+    val leagueUUID: String,
+    val activityUUID: String,
+    val title: String = "",
+    @Serializable(Iso8601Seconds::class) val date: Instant,
+    val place: String? = null,
+)
+
+@Serializable
 data class RoutineItemDto(val exerciseID: String, val sets: Int, val reps: Int, val rest: Int, val order: Int, val supersetNext: Boolean? = null)
 
 @Serializable
@@ -153,7 +163,10 @@ data class LeagueDto(
 data class BackupDto(
     val version: Int = 1,
     @Serializable(Iso8601Seconds::class) val exportedAt: Instant,
+    /** Ajustes em texto (`Backup.settingKeys`: trainerName, mainMonster…) */
+    val settings: Map<String, String> = emptyMap(),
     val activities: List<ActivityDto> = emptyList(),
+    val checkIns: List<CheckInDto>? = null,
     val monsters: List<MonsterDto>? = null,
     val routines: List<RoutineDto> = emptyList(),
     val leagues: List<LeagueDto>? = null,

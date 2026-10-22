@@ -205,6 +205,146 @@ final class GoldenVectorsTests: GymTestCase {
         try attach("B", ["version": 1, "timeZone": cal.timeZone.identifier, "snapshot": snapshots, "swissTable": tables])
     }
 
+    // MARK: Grupo R (bros: formas, espécies e o plantel)
+
+    func testGroupR() throws {
+        // Catálogo de formas de todas as espécies, com nome, arte e a forma que aparece no app
+        var forms: [[String: Any]] = []
+        for sp in Species.all {
+            for f in MonsterForm.all(species: sp.id) + MonsterForm.hybrids(species: sp.id) + MonsterForm.viradas(species: sp.id) {
+                forms.append(["id": f.id, "key": f.key, "stage": f.stage.rawValue, "name": f.name, "sprite": f.sprite,
+                              "hasArt": f.hasArt, "resolved": f.resolved.id, "spriteWithFallback": f.spriteWithFallback])
+            }
+        }
+        let species = Species.all.map { ["id": $0.id, "name": $0.name, "isReady": $0.isReady] as [String: Any] }
+        // Espécie de cada tipo do Apple Saúde (os tipos do catálogo e os vizinhos, inclusive os aposentados)
+        var health: [String: [String]] = [:]
+        for raw in Array(UInt(0)...UInt(100)) + [3000] { health[String(raw)] = Hatch.species(forHealth: raw) }
+        let kindSpecies = Dictionary(uniqueKeysWithValues: ActivityKind.allCases.map { ($0.rawValue, Hatch.species(for: $0)) })
+        let symbols = Dictionary(uniqueKeysWithValues: WorkoutType.all.map { (String($0.id), $0.symbol) })
+        let classic = Dictionary(uniqueKeysWithValues: ActivityKind.allCases.map { ($0.rawValue, Int(WorkoutType.of($0).id)) })
+        // Dia na era (semente da frase do bro), no calendário do aparelho
+        let calNow = Calendar.current
+        let eraDays: [[String: Any]] = [0.0, 978_307_200, 1_700_000_000, 1_800_000_000, 1_800_050_000, 1_800_080_000].map { t in
+            let d = Date(timeIntervalSince1970: t)
+            return ["date": iso(d), "ordinality": calNow.ordinality(of: .day, in: .era, for: d) ?? 0]
+        }
+        // Humor
+        var moods: [[String: Any]] = []
+        let now = calNow.date(from: DateComponents(year: 2026, month: 10, day: 20, hour: 15))!
+        for egg in [true, false] { for away in [-1, 0, 1, 2, 3, 4, 9] { for today in [0, 299, 300] { for streak in [0, 2, 3] {
+            let last = away < 0 ? nil : calNow.date(byAdding: .hour, value: -24 * away - 14, to: now)
+            moods.append(["isEgg": egg, "last": last.map(iso) as Any? ?? NSNull(), "todayXP": today, "streak": streak, "now": iso(now),
+                          "mood": Mood.of(isEgg: egg, lastActivity: last, todayXP: today, streak: streak, now: now).rawValue])
+        } } } }
+
+        // Plantel: para onde vai o XP (principal, representantes de liga, apagadas, trocas) e a espécie de quem chocou
+        func uuid(_ n: Int) -> UUID {
+            let h = String(n, radix: 16)
+            return UUID(uuidString: "00000000-0000-0000-0000-" + String(repeating: "0", count: 12 - h.count) + h)!
+        }
+        let d = UserDefaults.standard
+        let base = calNow.date(from: DateComponents(year: 2026, month: 5, day: 1, hour: 12))!
+        let typeIDs = WorkoutType.all.map(\.id)
+        let formIDs = forms.compactMap { $0["id"] as? String }.filter { !$0.contains("_to_") }
+        var rosters: [[String: Any]] = []
+        for k in 0..<30 {
+            var r = SeededRandom(seed: "roster-\(k)")
+            func pick<T>(_ list: [T]) -> T { list[Int(r.next() * Double(list.count))] }
+            var n = 100_000 * (k + 1)
+            func next() -> UUID { n += 1; return uuid(n) }
+            let monsters: [Monster] = (0..<(1 + Int(r.next() * 4))).map { i in
+                let m = Monster(name: r.next() < 0.3 ? "Apelido \(i)" : "", isStarter: i == 0 && r.next() < 0.85)
+                m.uuid = next()
+                m.createdAt = base.addingTimeInterval(Double(i) * 3600)
+                if r.next() < 0.3 { m.speciesID = pick(Species.all).id }
+                return m
+            }
+            let ghost = next()
+            let leagues: [League] = (0..<Int(r.next() * 3)).map { _ in
+                let l = League(name: "L", emoji: "🏆", scoring: .pontos)
+                l.uuid = next()
+                l.monsterUUID = r.next() < 0.15 ? nil : r.next() < 0.1 ? ghost : pick(monsters).uuid
+                return l
+            }
+            var activities: [Activity] = []
+            var checkIns: [LeagueCheckIn] = []
+            for _ in 0..<Int(r.next() * 70) {
+                let date = base.addingTimeInterval(Double(Int(r.next() * 150 * 1440)) * 60)
+                let a = Activity(kind: pick(ActivityKind.allCases), date: date, minutes: pick([0, 10, 20, 30, 45, 60, 90, 120, 240, 300]),
+                                 effort: 1 + Int(r.next() * 10))
+                a.uuid = next()
+                if r.next() < 0.3 { a.healthType = Int(pick(typeIDs)) }
+                let o = r.next()
+                a.monsterUUID = o < 0.3 ? nil : o < 0.4 ? ghost : pick(monsters).uuid
+                activities.append(a)
+                for l in leagues where r.next() < 0.4 {
+                    let c = LeagueCheckIn(leagueUUID: l.uuid, activityUUID: a.uuid, title: "", note: "", date: date, photo: nil)
+                    checkIns.append(c)
+                }
+            }
+            // Atividades apagadas que ainda valem XP
+            var retired: [RetiredActivities.Entry] = []
+            for _ in 0..<Int(r.next() * 4) {
+                let owners = monsters.filter { _ in r.next() < 0.6 }.map(\.uuid) + (r.next() < 0.2 ? [ghost] : [])
+                var e = RetiredActivities.Entry(id: next(), kind: pick(ActivityKind.allCases).rawValue,
+                                                date: base.addingTimeInterval(Double(Int(r.next() * 150 * 1440)) * 60),
+                                                minutes: pick([20, 60, 120]), effort: 1 + Int(r.next() * 10), owners: owners)
+                if r.next() < 0.4 { e.healthType = pick(typeIDs) }
+                if r.next() < 0.4 { e.weights = "forca:0.62,tecnica:0.38" }
+                if r.next() < 0.5 { e.shares = Dictionary(uniqueKeysWithValues: owners.map { ($0.uuidString, pick([1.0, Roster.leagueShare])) }) }
+                retired.append(e)
+            }
+            // Bros que chegaram por troca e o que saiu
+            var bases: [String: SnapshotBase] = [:]
+            for m in monsters.dropFirst() where r.next() < 0.3 {
+                bases[m.uuid.uuidString] = SnapshotBase(formID: pick(formIDs), xp: pick([0, 80, 700, 2000, 5000]),
+                                                        attributes: ["forca": pick([0.0, 120.5, 900.25]), "tecnica": pick([0.0, 33.75])],
+                                                        date: base.addingTimeInterval(Double(Int(r.next() * 60)) * 86400),
+                                                        history: r.next() < 0.5 ? nil : [OwnerXP(name: "Ana", xp: 10)])
+            }
+            let gone = monsters.count > 1 && r.next() < 0.2 ? [monsters.last!.uuid.uuidString] : []
+            let mainID: String? = r.next() < 0.5 ? pick(monsters).uuid.uuidString : r.next() < 0.3 ? ghost.uuidString : nil
+
+            RetiredActivities.save(retired, d)
+            d.set(try JSONEncoder().encode(bases), forKey: TradeLedger.basesKey)
+            d.set(gone, forKey: TradeLedger.goneKey)
+            d.set(mainID, forKey: MainMonster.key)
+            SnapshotCache.shared.removeAll()
+            let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues)
+
+            rosters.append([
+                "monsters": monsters.map { ["uuid": $0.uuid.uuidString, "name": $0.name, "createdAt": iso($0.createdAt), "isStarter": $0.isStarter,
+                                            "speciesID": $0.speciesID as Any? ?? NSNull()] },
+                "leagues": leagues.map { ["uuid": $0.uuid.uuidString, "monsterUUID": $0.monsterUUID?.uuidString as Any? ?? NSNull()] },
+                "activities": activities.map { ["uuid": $0.uuid.uuidString, "kind": $0.kindRaw, "date": iso($0.date), "minutes": $0.minutes,
+                                                "effort": $0.effort, "healthType": $0.healthType as Any? ?? NSNull(),
+                                                "monsterUUID": $0.monsterUUID?.uuidString as Any? ?? NSNull()] },
+                "checkIns": checkIns.map { ["leagueUUID": $0.leagueUUID.uuidString, "activityUUID": $0.activityUUID.uuidString] },
+                "retiredActivities": String(decoding: try JSONEncoder().encode(retired), as: UTF8.self),
+                "tradeBases": String(decoding: try JSONEncoder().encode(bases), as: UTF8.self),
+                "tradeGone": gone,
+                "mainMonster": mainID as Any? ?? NSNull(),
+                "mainID": roster.mainID?.uuidString as Any? ?? NSNull(),
+                "main": roster.main?.uuid.uuidString as Any? ?? NSNull(),
+                "xpByActivity": Dictionary(uniqueKeysWithValues: roster.xpByActivity.map { ($0.key.uuidString, $0.value) }),
+                "snapshots": monsters.map { m -> [String: Any] in
+                    let s = roster.snapshot(m.uuid)
+                    return ["uuid": m.uuid.uuidString, "form": s.form.id, "totalXP": s.totalXP, "level": s.level,
+                            "progress": bits(s.progress), "xpToNext": s.xpToNext as Any? ?? NSNull(),
+                            "nextForm": s.nextForm?.id as Any? ?? NSNull(), "displayName": m.displayName(s.form),
+                            "evolutions": s.evolutions.map(\.form.id), "inheritedXP": s.inheritedXP,
+                            "stageAttributes": Dictionary(uniqueKeysWithValues: s.stageAttributes.map { ($0.key.rawValue, bits($0.value)) }),
+                            "lifetimeAttributes": Dictionary(uniqueKeysWithValues: s.lifetimeAttributes.map { ($0.key.rawValue, bits($0.value)) })]
+                },
+            ])
+        }
+        SnapshotCache.shared.removeAll()
+        try attach("R", ["version": 1, "timeZone": calNow.timeZone.identifier, "forms": forms, "species": species, "health": health,
+                         "kindSpecies": kindSpecies, "symbols": symbols, "classicType": classic, "eraDays": eraDays, "moods": moods,
+                         "rosters": rosters])
+    }
+
     // MARK: Grupo C
 
     @MainActor

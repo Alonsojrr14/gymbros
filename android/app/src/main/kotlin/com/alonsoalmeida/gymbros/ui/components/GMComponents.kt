@@ -108,9 +108,9 @@ fun GMIconButton(icon: ImageVector, label: String, onClick: () -> Unit, size: Dp
 
 /** GMCard: padding 16, espaçamento 12, raio 20, fundo do card */
 @Composable
-fun GMCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun GMCard(modifier: Modifier = Modifier, padding: Dp = 16.dp, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier.fillMaxWidth().background(GMColors.card, GMRadius.card).padding(16.dp),
+        modifier.fillMaxWidth().background(GMColors.card, GMRadius.card).padding(padding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = content,
     )

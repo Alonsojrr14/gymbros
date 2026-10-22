@@ -3,11 +3,15 @@ package com.alonsoalmeida.gymbros.domain
 import kotlin.math.sqrt
 
 /** Atributos do bro, na ordem do iOS (`Attribute.allCases`): decide o desempate do galho. Fonte: GymBros/Bros/Game.swift */
-enum class Attribute(val raw: String) {
-    FORCA("forca"), RESISTENCIA("resistencia"), AGILIDADE("agilidade"), TECNICA("tecnica");
+enum class Attribute(val raw: String, val label: String) {
+    FORCA("forca", "Força"), RESISTENCIA("resistencia", "Resistência"), AGILIDADE("agilidade", "Agilidade"), TECNICA("tecnica", "Técnica");
 
     companion object {
         fun of(raw: String): Attribute? = entries.firstOrNull { it.raw == raw }
+
+        /** As 6 duplas possíveis das formas híbridas */
+        val pairs: List<Pair<Attribute, Attribute>> = listOf(FORCA to RESISTENCIA, FORCA to AGILIDADE, FORCA to TECNICA,
+            RESISTENCIA to AGILIDADE, RESISTENCIA to TECNICA, AGILIDADE to TECNICA)
     }
 }
 

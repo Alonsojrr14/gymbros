@@ -35,6 +35,14 @@ object GMColors {
     val badge = Color(0xFFFF453A)
 }
 
+/** Cor de cada atributo (Models/Activity.swift `Attribute.color`) */
+fun com.alonsoalmeida.gymbros.domain.Attribute.color(): Color = when (this) {
+    com.alonsoalmeida.gymbros.domain.Attribute.FORCA -> Color(red = 1.0f, green = 0.45f, blue = 0.30f)
+    com.alonsoalmeida.gymbros.domain.Attribute.RESISTENCIA -> Color(red = 0.35f, green = 0.70f, blue = 1.0f)
+    com.alonsoalmeida.gymbros.domain.Attribute.AGILIDADE -> Color(red = 0.98f, green = 0.82f, blue = 0.20f)
+    com.alonsoalmeida.gymbros.domain.Attribute.TECNICA -> Color(red = 0.72f, green = 0.52f, blue = 1.0f)
+}
+
 /** Raios de ios/GymBros/DesignSystem/DesignSystem.swift */
 object GMRadius {
     val xs = RoundedCornerShape(4.dp)

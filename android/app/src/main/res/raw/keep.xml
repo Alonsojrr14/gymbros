@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- As artes dos bros são procuradas pelo nome (forma + espécie): o encolhimento de recursos do release não pode tirá-las -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/sprite_*" />

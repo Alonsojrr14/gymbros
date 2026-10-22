@@ -69,7 +69,7 @@ class GoldenVectorsTest {
             assertEquals(o.i("streak"), s.streak)
             assertEquals(o.i("bestStreak"), s.bestStreak)
             assertEquals(o.s("form"), s.form.key)
-            assertEquals(o["evolutions"]!!.jsonArray.map { it.jsonPrimitive.content }, s.evolutions.map { it.key })
+            assertEquals(o["evolutions"]!!.jsonArray.map { it.jsonPrimitive.content }, s.evolutions.map { it.form.key })
             assertEquals(o["xpByActivity"]!!.jsonArray.map { it.jsonPrimitive.int }, records.map { s.xpByActivity[it.id] ?: 0 })
             val lifetime = o["lifetimeAttributes"]!!.jsonObject.mapValues { it.value.jsonPrimitive.content.toULong() }
             assertEquals(lifetime, s.lifetimeAttributes.entries.associate { it.key.raw to it.value.toRawBits().toULong() })

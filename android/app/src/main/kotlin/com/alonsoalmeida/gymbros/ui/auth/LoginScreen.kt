@@ -58,6 +58,8 @@ import com.alonsoalmeida.gymbros.ui.components.GMModal
 import com.alonsoalmeida.gymbros.ui.components.GMOrDivider
 import com.alonsoalmeida.gymbros.ui.components.GMSection
 import com.alonsoalmeida.gymbros.ui.components.LivingMonster
+import com.alonsoalmeida.gymbros.domain.MonsterForm
+import com.alonsoalmeida.gymbros.domain.Stage
 import com.alonsoalmeida.gymbros.ui.components.gmPress
 import com.alonsoalmeida.gymbros.ui.legal.Legal
 import com.alonsoalmeida.gymbros.ui.legal.LegalText
@@ -88,7 +90,7 @@ fun LoginScreen(vm: LoginViewModel) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                LivingMonster(R.drawable.sprite_baby, Modifier.size(120.dp))
+                LivingMonster(MonsterForm(Stage.BABY, null), Modifier.size(120.dp))
                 Text("GymBros", color = GMColors.accent, style = GMType.largeTitle)
                 Text("Seus treinos chocam e evoluem um bro.", color = GMColors.dim, style = GMType.subheadline, textAlign = TextAlign.Center)
             }
