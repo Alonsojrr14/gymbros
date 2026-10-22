@@ -144,3 +144,70 @@ final class BackupRestoreOverDataTests: GymTestCase {
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<WorkoutSession>()).first?.sets.count, 3)
     }
 }
+
+/// Mesclagem ao vivo: só o que mudou no outro aparelho entra; o resto continua com o mesmo objeto no banco
+final class BackupApplyChangesTests: GymTestCase {
+    @MainActor
+    func testOnlyChangedItemsAreReplaced() throws {
+        let container = try ModelContainer(for: AppData.schema,
+                                           configurations: ModelConfiguration(schema: AppData.schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none))
+        let ctx = container.mainContext
+        let kept = Activity(kind: .corrida, date: .now, minutes: 30, effort: 5)
+        let edited = Activity(kind: .yoga, date: .now, minutes: 20, effort: 3)
+        let deleted = Activity(kind: .bike, date: .now, minutes: 40, effort: 6)
+        for a in [kept, edited, deleted] { ctx.insert(a) }
+        let session = WorkoutSession(title: "Treino A", routineUUID: nil)
+        session.end = .now
+        ctx.insert(session)
+        for i in 0..<3 { session.sets.append(LoggedSet(exerciseID: "supino", exerciseOrder: 0, index: i, weight: 60, reps: 10, rest: 90)) }
+        try ctx.save()
+        let d = scratchDefaults("aplicar")
+        let before = try Backup.make(context: ctx, defaults: d, account: true)
+
+        // O outro aparelho: editou uma, apagou outra, criou uma nova e mexeu nas séries do treino
+        var json = try Backup.jsonObject(before)
+        var acts = json["activities"] as! [[String: Any]]
+        acts = acts.compactMap { a in
+            if a["uuid"] as? String == deleted.uuid.uuidString { return nil }
+            var a = a
+            if a["uuid"] as? String == edited.uuid.uuidString { a["minutes"] = 50 }
+            return a
+        }
+        let newID = UUID().uuidString
+        acts.append(["uuid": newID, "kind": "natacao", "date": ISO8601DateFormatter().string(from: .now), "minutes": 45, "effort": 7, "note": ""])
+        json["activities"] = acts
+        var sessions = json["sessions"] as! [[String: Any]]
+        var sets = sessions[0]["sets"] as! [[String: Any]]
+        sets[0]["reps"] = 12
+        sessions[0]["sets"] = sets
+        json["sessions"] = sessions
+        let remote = try Backup.decoder.decode(Backup.self, from: JSONSerialization.data(withJSONObject: json))
+        let keptID = kept.persistentModelID
+
+        try remote.applyChanges(from: before, into: ctx, defaults: d)
+
+        let all = try ctx.fetch(FetchDescriptor<Activity>())
+        XCTAssertEqual(Set(all.map(\.uuid.uuidString)), [kept.uuid.uuidString, edited.uuid.uuidString, newID])
+        XCTAssertEqual(all.first { $0.uuid == edited.uuid }?.minutes, 50)
+        // A que não mudou é o mesmo objeto (tela aberta com ela continua funcionando)
+        XCTAssertEqual(all.first { $0.uuid == kept.uuid }?.persistentModelID, keptID)
+        XCTAssertEqual(try ctx.fetchCount(FetchDescriptor<WorkoutSession>()), 1)
+        XCTAssertEqual(try ctx.fetchCount(FetchDescriptor<LoggedSet>()), 3)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<WorkoutSession>()).first?.sets.map(\.reps).sorted(), [10, 10, 12])
+    }
+
+    @MainActor
+    func testSameCopyChangesNothing() throws {
+        let container = try ModelContainer(for: AppData.schema,
+                                           configurations: ModelConfiguration(schema: AppData.schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none))
+        let ctx = container.mainContext
+        let a = Activity(kind: .corrida, date: .now, minutes: 30, effort: 5)
+        ctx.insert(a)
+        try ctx.save()
+        let d = scratchDefaults("aplicar")
+        let copy = try Backup.make(context: ctx, defaults: d, account: true)
+        let id = a.persistentModelID
+        try copy.applyChanges(from: copy, into: ctx, defaults: d)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<Activity>()).map(\.persistentModelID), [id])
+    }
+}

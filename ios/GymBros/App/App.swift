@@ -89,7 +89,14 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: DispatchQueue.main)) { _ in
             sync.scheduleUpload()
         }
-        .onChange(of: phase) { _, p in if p == .background { sync.uploadInBackground() } }
+        .onChange(of: phase) { _, p in
+            if p == .background {
+                sync.unwatch()
+                sync.uploadInBackground()
+            } else if p == .active {
+                sync.watch()
+            }
+        }
     }
 }
 

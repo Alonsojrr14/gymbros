@@ -21,6 +21,8 @@ protocol AccountDataBackend: Sendable {
     func remoteChange(_ local: Backup, accountID: String) async throws -> AccountRemoteChange?
     /// A mesclagem foi aplicada neste aparelho: a versão da nuvem passa a ser a conhecida
     func acknowledge(_ change: AccountRemoteChange, accountID: String)
+    /// Avisa (ao vivo) quando outro aparelho sobe uma cópia nova. Devolve como parar de escutar; nil = sem escuta
+    func watch(accountID: String, onChange: @escaping @Sendable () -> Void) -> (@Sendable () -> Void)?
 }
 
 /// O que mudou na nuvem, já mesclado com a cópia deste aparelho
@@ -34,6 +36,7 @@ struct AccountRemoteChange {
 extension AccountDataBackend {
     func remoteChange(_ local: Backup, accountID: String) async throws -> AccountRemoteChange? { nil }
     func acknowledge(_ change: AccountRemoteChange, accountID: String) {}
+    func watch(accountID: String, onChange: @escaping @Sendable () -> Void) -> (@Sendable () -> Void)? { nil }
 }
 
 enum AccountSyncError: LocalizedError {
@@ -141,8 +144,12 @@ final class AccountSync {
     @ObservationIgnored private let asideFolder: URL
     @ObservationIgnored private let cleanup: @MainActor () async -> Void
     @ObservationIgnored private let reload: @MainActor () -> Void
-    @ObservationIgnored var debounce: Duration = .seconds(5)
+    @ObservationIgnored var debounce: Duration = .seconds(2)
     @ObservationIgnored private var pending: Task<Void, Never>?
+    /// Escuta da cópia da nuvem (outro aparelho da mesma conta) enquanto o app está aberto
+    @ObservationIgnored private var stopWatching: (@Sendable () -> Void)?
+    @ObservationIgnored private var liveSync: Task<Void, Never>?
+    @ObservationIgnored private var syncing = false
 
     init(auth: AuthStore = .shared, context: (() -> ModelContext)? = nil, defaults: UserDefaults = .standard,
          widget: UserDefaults? = WidgetData.defaults,
@@ -175,6 +182,7 @@ final class AccountSync {
         let me = Self.digest(user.id)
         if owner == me {
             phase = .ready(user.id)
+            watch()
             return
         }
         phase = .loading
@@ -197,6 +205,7 @@ final class AccountSync {
             }
             defaults.set(me, forKey: Self.ownerKey)
             phase = .ready(user.id)
+            watch()
             try? await upload()
         } catch {
             phase = .failed(error.localizedDescription)
@@ -244,12 +253,17 @@ final class AccountSync {
     func syncOnOpen(force: Bool = false) async throws {
         guard case .ready(let id) = phase, owner == Self.digest(id) else { return }
         if !force, hasOpenWorkout { return }
+        // Uma mesclagem por vez (abrir o app e a escuta ao vivo podem chegar juntas)
+        while syncing { try await Task.sleep(for: .milliseconds(100)) }
+        syncing = true
+        defer { syncing = false }
         for _ in 0..<3 {
             let snapshot = try Backup.make(context: context, defaults: defaults, account: true)
             if let change = try await backend.remoteChange(snapshot, accountID: id) {
                 // Antes de trocar os dados daqui: uma cópia à parte (com conflito, é a versão que perdeu)
                 try setAside((change.conflicts.isEmpty ? "antes-mesclagem-" : "conflito-") + Self.digest(id).prefix(12))
-                try change.merged.restore(into: context, defaults: defaults)
+                // Só o que mudou: telas abertas continuam com os mesmos objetos
+                try change.merged.applyChanges(from: snapshot, into: context, defaults: defaults)
                 reload()
                 backend.acknowledge(change, accountID: id)
                 continue
@@ -264,6 +278,32 @@ final class AccountSync {
         throw AccountSyncError.remoteChanged
     }
 
+    /// Ao vivo: outro aparelho subiu uma cópia nova → junta aqui na hora (com treino em andamento, espera)
+    func watch() {
+        guard case .ready(let id) = phase, owner == Self.digest(id), stopWatching == nil else { return }
+        stopWatching = backend.watch(accountID: id) { [weak self] in
+            Task { @MainActor in self?.remoteDidChange() }
+        }
+    }
+
+    /// App em segundo plano ou saindo da conta: para de escutar (ao voltar, `syncOnOpen` junta o que mudou)
+    func unwatch() {
+        stopWatching?()
+        stopWatching = nil
+        liveSync?.cancel()
+        liveSync = nil
+    }
+
+    private func remoteDidChange() {
+        liveSync?.cancel()
+        liveSync = Task {
+            // Várias mudanças seguidas do outro aparelho viram uma mesclagem só
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            try? await syncOnOpen()
+        }
+    }
+
     private var hasOpenWorkout: Bool {
         ((try? context.fetchCount(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end == nil }))) ?? 0) > 0
     }
@@ -272,6 +312,7 @@ final class AccountSync {
     func signOut() async throws {
         guard let user = auth.user else { return }
         pending?.cancel()
+        unwatch()
         let owned = isReady(for: user.id) && owner == Self.digest(user.id)
         // Junta antes o que mudou em outro aparelho: sair apaga os dados daqui
         if owned { try await syncOnOpen(force: true) }

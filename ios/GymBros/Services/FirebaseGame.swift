@@ -384,6 +384,17 @@ struct FirebaseAccountDataBackend: AccountDataBackend {
 
     func acknowledge(_ change: AccountRemoteChange, accountID: String) { known(change.hash, accountID) }
 
+    /// Escuta `accounts/{uid}`: avisa quando a cópia da nuvem não é a conhecida (subida por outro aparelho)
+    func watch(accountID: String, onChange: @escaping @Sendable () -> Void) -> (@Sendable () -> Void)? {
+        let registration = meta(accountID).addSnapshotListener { snap, _ in
+            // Escrita deste aparelho ainda não confirmada não é novidade
+            guard let snap, !snap.metadata.hasPendingWrites, let hash = snap.data()?["hash"] as? String,
+                  hash != knownHash(accountID) else { return }
+            onChange()
+        }
+        return { registration.remove() }
+    }
+
     /// A cópia deste iPhone é a mesma ou mais nova que a da nuvem. O arquivo guarda a data em segundos (ISO 8601) e o
     /// servidor com fração: comparando direto, a mesma cópia parecia mais velha e as fotos se perdiam ao sair e entrar
     static func isLocalCurrent(_ local: Date, saved: Date) -> Bool {

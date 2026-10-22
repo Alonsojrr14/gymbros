@@ -296,6 +296,86 @@ struct Backup: Codable, Sendable {
         Roster.ensureStarter(context: context)
     }
 
+    /// Mesclagem ao vivo (IOS-08): aplica só o que mudou de `old` (o banco de agora) para esta cópia. Item igual fica
+    /// intacto, com o mesmo objeto no banco: tela aberta mostrando ele não perde o que está mostrando. Item mudado sai e
+    /// volta com os dados novos; apagado no outro aparelho sai.
+    @MainActor
+    func applyChanges(from old: Backup, into context: ModelContext, defaults d: UserDefaults = .standard) throws {
+        defer { PRBook.reload() }
+        let new = try Backup.jsonObject(self), was = try Backup.jsonObject(old)
+        var changed: [String: Set<String>] = [:], gone: [String: Set<String>] = [:]
+        var keep: [String: Any] = new
+        for (key, id) in Backup.listIDs {
+            let n = new[key] as? [[String: Any]] ?? [], o = was[key] as? [[String: Any]] ?? []
+            let before = Dictionary(o.compactMap { i in (i[id] as? String).map { ($0, i) } }, uniquingKeysWith: { a, _ in a })
+            let after = Set(n.compactMap { $0[id] as? String })
+            let diff = n.filter { i in
+                guard let k = i[id] as? String else { return false }
+                return before[k].map { !BackupMerge.same($0, i) } ?? true
+            }
+            changed[key] = Set(diff.compactMap { $0[id] as? String })
+            gone[key] = Set(before.keys).subtracting(after)
+            keep[key] = diff
+        }
+        let sub = try Backup.decoder.decode(Backup.self, from: JSONSerialization.data(withJSONObject: keep))
+        do {
+            func drop<T: PersistentModel>(_ type: T.Type, _ key: String, _ id: (T) -> String) throws {
+                let out = changed[key, default: []].union(gone[key, default: []])
+                guard !out.isEmpty else { return }
+                for o in try context.fetch(FetchDescriptor<T>()) where out.contains(id(o)) {
+                    // Um de cada vez, filhos antes (a exclusão em lote falha com objetos carregados)
+                    if let s = o as? WorkoutSession { for x in s.sets { context.delete(x) } }
+                    if let r = o as? Routine { for x in r.items { context.delete(x) } }
+                    context.delete(o)
+                }
+            }
+            try drop(Activity.self, "activities") { $0.uuid.uuidString }
+            try drop(Routine.self, "routines") { $0.uuid.uuidString }
+            try drop(WorkoutSession.self, "sessions") { $0.uuid.uuidString }
+            try drop(CustomExercise.self, "customExercises") { $0.uuid.uuidString }
+            try drop(LeagueCheckIn.self, "checkIns") { $0.uuid.uuidString }
+            try drop(LeagueMessage.self, "messages") { $0.uuid.uuidString }
+            try drop(League.self, "leagues") { $0.uuid.uuidString }
+            try drop(Monster.self, "monsters") { $0.uuid.uuidString }
+            try drop(BodyEntry.self, "body") { $0.uuid.uuidString }
+            try drop(ExerciseNote.self, "notes") { $0.exerciseID }
+            try drop(WodResult.self, "wods") { $0.uuid.uuidString }
+            try drop(RouteRecord.self, "routes") { $0.uuid.uuidString }
+            try drop(GymVisit.self, "visits") { $0.uuid.uuidString }
+            try drop(Gym.self, "gyms") { $0.uuid.uuidString }
+            try drop(PersonalRecord.self, "prs") { $0.uuid.uuidString }
+            try drop(CheckInComment.self, "comments") { $0.uuid.uuidString }
+            try drop(CheckInReview.self, "reviews") { $0.uuid.uuidString }
+            try sub.insertAll(into: context)
+            try context.save()
+            var splits = ActivitySplits.all()
+            for id in gone["activities", default: []] { splits[id] = nil }
+            for a in sub.activities { splits[a.uuid.uuidString] = a.attributes }
+            ActivitySplits.replace(splits)
+        } catch {
+            context.rollback()
+            throw error
+        }
+        if let accountSettings {
+            AccountData.apply(accountSettings, to: d)
+        } else {
+            for k in Backup.settingKeys { d.set(typedSettings?[k]?.value ?? settings[k], forKey: k) }
+        }
+        if let profilePhoto { d.set(profilePhoto, forKey: "profilePhoto") }
+        Roster.ensureStarter(context: context)
+    }
+
+    /// Listas da cópia que viram modelos no banco e a chave de cada item
+    static let listIDs: [String: String] = [
+        "activities": "uuid", "routines": "uuid", "sessions": "uuid", "customExercises": "uuid", "checkIns": "uuid",
+        "messages": "uuid", "leagues": "uuid", "monsters": "uuid", "body": "uuid", "notes": "exerciseID", "wods": "uuid",
+        "routes": "uuid", "visits": "uuid", "gyms": "uuid", "prs": "uuid", "comments": "uuid", "reviews": "uuid",
+    ]
+
+    static func jsonObject(_ b: Backup) throws -> [String: Any] {
+        try JSONSerialization.jsonObject(with: encoder.encode(b)) as? [String: Any] ?? [:]
+    }
+
     /// Todos os modelos do banco, na ordem em que podem sair. Um objeto de cada vez, não em lote: a exclusão em lote age
     /// direto no arquivo e falha com objetos carregados na memória (sessão e séries) quando o banco não está vazio, como ao
     /// aplicar a mesclagem da conta ("mandatory OTO nullify inverse on LoggedSet/session"). Assim o restore segue atômico.
@@ -326,7 +406,12 @@ struct Backup: Codable, Sendable {
     @MainActor
     private func replaceAll(in context: ModelContext) throws {
         try Backup.deleteAll(in: context)
+        try insertAll(into: context)
+    }
 
+    /// Cria no banco todos os itens desta cópia (o banco não pode ter os mesmos ids)
+    @MainActor
+    private func insertAll(into context: ModelContext) throws {
         for a in activities {
             let act = Activity(kind: ActivityKind(rawValue: a.kind) ?? .outro, date: a.date, minutes: a.minutes, effort: a.effort, note: a.note)
             act.uuid = a.uuid
@@ -439,7 +524,9 @@ struct Backup: Codable, Sendable {
             route.uuid = r.uuid; route.activityUUID = r.activityUUID; route.seconds = r.seconds; route.meters = r.meters; route.points = r.points
             context.insert(route)
         }
-        var restoredGyms: [UUID: Gym] = [:]
+        // Lugares que já estão no banco (mesclagem ao vivo aplica só o que mudou) e os desta cópia
+        var restoredGyms: [UUID: Gym] = Dictionary(((try? context.fetch(FetchDescriptor<Gym>())) ?? []).map { ($0.uuid, $0) },
+                                                   uniquingKeysWith: { a, _ in a })
         for g in gyms ?? [] {
             let gym = Gym(name: g.name, coordinate: CLLocationCoordinate2D(latitude: g.latitude, longitude: g.longitude), radius: g.radius)
             gym.uuid = g.uuid
