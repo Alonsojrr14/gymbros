@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sem backup do sistema: a cópia local da conta tem dados de saúde (SEC-AND-04) -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:label="GymBros"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.GymBros">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Link de amigo (gymbros://amigo/CÓDIGO): o app sempre pede confirmação antes de adicionar (SEC-AND-01) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="gymbros" android:host="amigo" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
