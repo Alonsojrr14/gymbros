@@ -192,6 +192,8 @@ struct MainView: View {
             // o perfil só depois do aceite dos termos. A sessão pode ter acabado enquanto a tela saía.
             if AuthStore.shared.isSignedIn {
                 await AccessStore.shared.refresh()
+                // Antes de tudo: junta o que mudou na conta em outro aparelho (IOS-08)
+                try? await AccountSync.shared.syncOnOpen()
                 LeagueRemoteStore.shared.republishForPrivacy(context: context)
                 await LeagueRemoteStore.shared.flush(context: context)
                 await ModerationStore.shared.refresh()

@@ -314,26 +314,75 @@ struct FirebaseAccountDataBackend: AccountDataBackend {
     private func meta(_ id: String) -> DocumentReference { Fire.db.collection(FireCollection.accounts).document(id) }
     private func chunk(_ id: String, _ n: Int) -> DocumentReference { meta(id).collection("chunks").document(String(n)) }
 
+    /// Hash da última cópia da nuvem que este aparelho conhece (enviou ou já mesclou)
+    private func knownHash(_ accountID: String) -> String? {
+        guard let v = UserDefaults.standard.string(forKey: Self.uploadedKey), v.hasPrefix(accountID + ":") else { return nil }
+        return String(v.dropFirst(accountID.count + 1))
+    }
+
+    private func known(_ hash: String, _ accountID: String) { UserDefaults.standard.set("\(accountID):\(hash)", forKey: Self.uploadedKey) }
+
+    /// O arquivo local é a base da mesclagem (a última cópia em comum com a nuvem): só é gravado depois que a nuvem
+    /// aceitou. Gravar antes faria um envio recusado virar base e, na mesclagem, itens novos daqui pareceriam apagados lá.
+    /// O envio é uma transação: só grava se a nuvem ainda for a versão conhecida (senão, `remoteChanged` e mescla antes).
     func upload(_ snapshot: Backup, accountID: String) async throws {
-        try await local.upload(snapshot, accountID: accountID)
         var light = snapshot
         light.stripPhotos()
         // A data de exportação muda sempre: fora do hash, para não subir de novo o que não mudou
         light.exportedAt = .distantPast
         let raw = try Backup.encoder.encode(light)
         let hash = AccountSync.digest(String(decoding: raw, as: UTF8.self))
-        guard UserDefaults.standard.string(forKey: Self.uploadedKey) != "\(accountID):\(hash)" else { return }
+        let expected = knownHash(accountID)
+        guard expected != hash else {
+            try await local.upload(snapshot, accountID: accountID)
+            return
+        }
         let packed = try (raw as NSData).compressed(using: .zlib) as Data
         let parts = stride(from: 0, to: packed.count, by: Self.chunkSize).map { packed.subdata(in: $0..<min($0 + Self.chunkSize, packed.count)) }
-        let old = (try? await meta(accountID).getDocument().data()?["chunks"] as? Int) ?? 0
-        let batch = Fire.db.batch()
-        for (n, part) in parts.enumerated() { batch.setData(["data": part], forDocument: chunk(accountID, n)) }
-        for n in parts.count..<max(old, parts.count) { batch.deleteDocument(chunk(accountID, n)) }
-        batch.setData(["user": accountID, "chunks": parts.count, "bytes": raw.count, "hash": hash, "savedAt": snapshot.exportedAt,
-                       "updatedAt": FieldValue.serverTimestamp()], forDocument: meta(accountID))
-        try await batch.commit()
-        UserDefaults.standard.set("\(accountID):\(hash)", forKey: Self.uploadedKey)
+        let metaRef = meta(accountID)
+        let chunkRefs = (0..<max(parts.count, 64)).map { chunk(accountID, $0) }
+        let fields: [String: Any] = ["user": accountID, "chunks": parts.count, "bytes": raw.count, "hash": hash, "savedAt": snapshot.exportedAt,
+                                     "format": 2, "updatedAt": FieldValue.serverTimestamp()]
+        _ = try await Fire.db.runTransaction { txn, errorPointer in
+            let current: DocumentSnapshot
+            do { current = try txn.getDocument(metaRef) } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
+            }
+            if let remote = current.data()?["hash"] as? String, remote != expected {
+                errorPointer?.pointee = AccountSyncError.remoteChanged as NSError
+                return nil
+            }
+            let old = current.data()?["chunks"] as? Int ?? 0
+            for (n, part) in parts.enumerated() { txn.setData(["data": part], forDocument: chunkRefs[n]) }
+            for n in parts.count..<min(max(old, parts.count), chunkRefs.count) { txn.deleteDocument(chunkRefs[n]) }
+            txn.setData(fields, forDocument: metaRef)
+            return nil
+        }
+        known(hash, accountID)
+        try await local.upload(snapshot, accountID: accountID)
     }
+
+    private func remoteCopy(_ accountID: String, count: Int) async throws -> Backup? {
+        var packed = Data()
+        for n in 0..<count {
+            guard let part = try await chunk(accountID, n).getDocument().data()?["data"] as? Data else { return nil }
+            packed.append(part)
+        }
+        let raw = try (packed as NSData).decompressed(using: .zlib) as Data
+        return try Backup.decoder.decode(Backup.self, from: raw)
+    }
+
+    func remoteChange(_ localCopy: Backup, accountID: String) async throws -> AccountRemoteChange? {
+        guard let m = try await meta(accountID).getDocument().data(), let hash = m["hash"] as? String,
+              let count = m["chunks"] as? Int, count > 0, hash != knownHash(accountID),
+              let remote = try await remoteCopy(accountID, count: count) else { return nil }
+        let base = try? await local.download(accountID: accountID)
+        let r = try BackupMerge.merge(local: localCopy, remote: remote, base: base)
+        return AccountRemoteChange(merged: r.backup, hash: hash, conflicts: r.conflicts)
+    }
+
+    func acknowledge(_ change: AccountRemoteChange, accountID: String) { known(change.hash, accountID) }
 
     /// A cópia deste iPhone é a mesma ou mais nova que a da nuvem. O arquivo guarda a data em segundos (ISO 8601) e o
     /// servidor com fração: comparando direto, a mesma cópia parecia mais velha e as fotos se perdiam ao sair e entrar
@@ -346,13 +395,10 @@ struct FirebaseAccountDataBackend: AccountDataBackend {
         let mine = try? await local.download(accountID: accountID)
         guard let m = try await meta(accountID).getDocument().data(), let count = m["chunks"] as? Int, count > 0 else { return mine }
         if let mine, let saved = Fire.date(m["savedAt"]), Self.isLocalCurrent(mine.exportedAt, saved: saved) { return mine }
-        var packed = Data()
-        for n in 0..<count {
-            guard let part = try await chunk(accountID, n).getDocument().data()?["data"] as? Data else { return mine }
-            packed.append(part)
-        }
-        let raw = try (packed as NSData).decompressed(using: .zlib) as Data
-        return try Backup.decoder.decode(Backup.self, from: raw)
+        guard let remote = try await remoteCopy(accountID, count: count) else { return mine }
+        // A cópia da nuvem vai ser restaurada aqui: passa a ser a versão conhecida (e a base, no próximo envio)
+        if let hash = m["hash"] as? String { known(hash, accountID) }
+        return remote
     }
 
     func delete(accountID: String) async throws {

@@ -16,14 +16,35 @@ protocol AccountDataBackend: Sendable {
     /// `nil`: a conta ainda não tem dados no servidor
     func download(accountID: String) async throws -> Backup?
     func delete(accountID: String) async throws
+    /// A cópia da nuvem mudou desde a última que este aparelho enviou ou recebeu (outro aparelho da mesma conta)?
+    /// Devolve a mesclagem dela com a cópia daqui (IOS-08); nil = nada mudou
+    func remoteChange(_ local: Backup, accountID: String) async throws -> AccountRemoteChange?
+    /// A mesclagem foi aplicada neste aparelho: a versão da nuvem passa a ser a conhecida
+    func acknowledge(_ change: AccountRemoteChange, accountID: String)
+}
+
+/// O que mudou na nuvem, já mesclado com a cópia deste aparelho
+struct AccountRemoteChange {
+    let merged: Backup
+    /// Hash da cópia da nuvem que entrou na mesclagem
+    let hash: String
+    let conflicts: [String]
+}
+
+extension AccountDataBackend {
+    func remoteChange(_ local: Backup, accountID: String) async throws -> AccountRemoteChange? { nil }
+    func acknowledge(_ change: AccountRemoteChange, accountID: String) {}
 }
 
 enum AccountSyncError: LocalizedError {
     case noServer
+    /// Outro aparelho subiu uma cópia nova no meio do envio: mesclar antes de tentar de novo
+    case remoteChanged
 
     var errorDescription: String? {
         switch self {
         case .noServer: "Os dados da conta precisam do servidor próprio do GymBros, que ainda não existe."
+        case .remoteChanged: "A conta mudou em outro aparelho. Abra o app de novo para juntar as mudanças."
         }
     }
 }
@@ -204,11 +225,46 @@ final class AccountSync {
         }
     }
 
-    /// Só sobe a cópia da conta que é dona dos dados locais
+    /// Só sobe a cópia da conta que é dona dos dados locais. Se outro aparelho mudou a nuvem, não sobrescreve: a
+    /// mesclagem acontece em `syncOnOpen` (ao abrir o app), quando é seguro trocar os dados do banco.
     func upload() async throws {
         guard case .ready(let id) = phase, owner == Self.digest(id) else { return }
         let snapshot = try Backup.make(context: context, defaults: defaults, account: true)
-        try await backend.upload(snapshot, accountID: id)
+        if try await backend.remoteChange(snapshot, accountID: id) != nil { return }
+        do {
+            try await backend.upload(snapshot, accountID: id)
+        } catch AccountSyncError.remoteChanged {
+            return
+        }
+    }
+
+    /// Ao abrir o app (e antes de sair da conta): traz o que mudou no outro aparelho, aplica aqui e sobe a mesclagem.
+    /// Com treino em andamento espera a próxima abertura: aplicar troca os objetos do banco que a tela do treino usa.
+    /// Item mudado nos dois aparelhos fica com a cópia mais nova; a daqui vai antes para uma cópia à parte.
+    func syncOnOpen(force: Bool = false) async throws {
+        guard case .ready(let id) = phase, owner == Self.digest(id) else { return }
+        if !force, hasOpenWorkout { return }
+        for _ in 0..<3 {
+            let snapshot = try Backup.make(context: context, defaults: defaults, account: true)
+            if let change = try await backend.remoteChange(snapshot, accountID: id) {
+                if !change.conflicts.isEmpty { try setAside("conflito-" + Self.digest(id).prefix(12)) }
+                try change.merged.restore(into: context, defaults: defaults)
+                reload()
+                backend.acknowledge(change, accountID: id)
+                continue
+            }
+            do {
+                try await backend.upload(snapshot, accountID: id)
+                return
+            } catch AccountSyncError.remoteChanged {
+                continue
+            }
+        }
+        throw AccountSyncError.remoteChanged
+    }
+
+    private var hasOpenWorkout: Bool {
+        ((try? context.fetchCount(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end == nil }))) ?? 0) > 0
     }
 
     /// Sobe tudo e só então tira do aparelho os dados da conta. Sem conseguir subir, nada sai e a sessão continua.
@@ -216,7 +272,8 @@ final class AccountSync {
         guard let user = auth.user else { return }
         pending?.cancel()
         let owned = isReady(for: user.id) && owner == Self.digest(user.id)
-        if owned { try await upload() }
+        // Junta antes o que mudou em outro aparelho: sair apaga os dados daqui
+        if owned { try await syncOnOpen(force: true) }
         phase = .leaving
         defer { phase = .idle }
         await settle()
