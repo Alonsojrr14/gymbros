@@ -26,11 +26,12 @@ struct FriendsState: Codable, Sendable {
 }
 
 enum FriendError: LocalizedError {
-    case notFound, yourself, already
+    case notFound, yourself, already, codeUnavailable
 
     var errorDescription: String? {
         switch self {
         case .notFound: "Ninguém com esse código."
+        case .codeUnavailable: "Não deu para reservar um código de amigo agora. Tente de novo."
         case .yourself: "Esse é o seu código 🙂"
         case .already: "Vocês já são amigos."
         }
@@ -91,9 +92,11 @@ final class FriendsStore {
     func publish(_ profile: PublicProfile) async {
         if let form = profile.bro?.formID { UserDefaults.standard.set(form, forKey: Self.broFormKey) }
         // Hash estável entre aberturas do app (o hashValue do Swift muda a cada execução)
-        let fingerprint = (try? JSONEncoder().encode(profile)).map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() } ?? ""
-        // Por backend: trocar de mock para CloudKit publica de novo
-        let key = "publishedProfile-\(Backend.mode)"
+        // Inclui o código de amigo: publicar é o que reserva o código no servidor (friendCodes)
+        let fingerprint = (try? JSONEncoder().encode(profile)).map { SHA256.hash(data: $0 + Data(myCode.utf8)).map { String(format: "%02x", $0) }.joined() } ?? ""
+        // Por backend: trocar de mock para CloudKit publica de novo. v2: a versão com a reserva do código publica uma vez,
+        // senão um perfil antigo ficaria sem reserva e a regra recusaria as próximas gravações (ex.: esconder treinos)
+        let key = "publishedProfile-v2-\(Backend.mode)"
         guard access.can(.profileUpdate), UserDefaults.standard.string(forKey: key) != fingerprint else { return }
         do {
             try await backend.publish(profile, friendCode: myCode)

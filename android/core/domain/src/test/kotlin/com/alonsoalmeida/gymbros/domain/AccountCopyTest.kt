@@ -58,6 +58,12 @@ class AccountCopyTest {
     }
 
     @Test
+    fun truncatedCopyIsAnErrorNotHalfACopy() {
+        val packed = java.util.Base64.getDecoder().decode(s("backupDeflateBase64"))
+        org.junit.jupiter.api.assertThrows<IllegalStateException> { ChunkCodec.inflate(packed.copyOf(packed.size / 2)) }
+    }
+
+    @Test
     fun leagueSettingsDatesCountFrom2001() {
         val settings = Json.parseToJsonElement(s("leagueSettingsRaw")).jsonObject
         val reviewSince = AppleReferenceDate.toInstant(settings["reviewSince"]!!.jsonPrimitive.double)

@@ -48,7 +48,7 @@ final class League {
         self.name = name
         self.emoji = emoji
         self.scoringRaw = scoring.rawValue
-        self.start = League.rulesCalendar.startOfDay(for: start)
+        self.start = League.ruleDay(start)
         self.isMock = isMock
         self.code = League.newCode()
     }
@@ -165,11 +165,18 @@ final class League {
         }
     }
 
+    /// O dia que a pessoa escolheu no calendário do aparelho, no calendário das regras (Brasília): mesmo ano, mês e dia.
+    /// Converter o instante mudaria o dia para quem está a leste de Brasília (meia-noite local = dia anterior lá).
+    static func ruleDay(_ date: Date, from device: Calendar = .current) -> Date {
+        let c = device.dateComponents([.year, .month, .day], from: date)
+        return rulesCalendar.date(from: DateComponents(year: c.year, month: c.month, day: c.day)) ?? rulesCalendar.startOfDay(for: date)
+    }
+
     /// Período escolhido no calendário: do começo do dia de início ao fim do dia final (nil = sem fim)
     func setPeriod(start s: Date, end e: Date?) {
         let cal = League.rulesCalendar
-        start = cal.startOfDay(for: s)
-        end = e.map { cal.date(byAdding: .second, value: -1, to: cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: max($0, s)))!)! }
+        start = League.ruleDay(s)
+        end = e.map { cal.date(byAdding: .second, value: -1, to: cal.date(byAdding: .day, value: 1, to: League.ruleDay(max($0, s)))!)! }
     }
 
     /// Define a duração em dias a partir do início (0 = sem fim)

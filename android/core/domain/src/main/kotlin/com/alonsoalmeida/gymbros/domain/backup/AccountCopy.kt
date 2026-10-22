@@ -41,7 +41,10 @@ object ChunkCodec {
             if (n == 0 && (inflater.needsInput() || inflater.needsDictionary())) break
             out.write(buf, 0, n)
         }
+        val complete = inflater.finished()
         inflater.end()
+        // Pedaços faltando ou lidos no meio de um envio do outro aparelho: erro, nunca uma cópia pela metade
+        check(complete) { "cópia da conta incompleta" }
         return out.toByteArray()
     }
 
@@ -59,7 +62,11 @@ object ChunkCodec {
     fun split(packed: ByteArray): List<ByteArray> =
         (packed.indices step CHUNK_SIZE).map { packed.copyOfRange(it, minOf(it + CHUNK_SIZE, packed.size)) }
 
-    fun join(parts: List<ByteArray>): ByteArray = parts.fold(ByteArray(0)) { acc, p -> acc + p }
+    fun join(parts: List<ByteArray>): ByteArray {
+        val out = ByteArrayOutputStream(parts.sumOf { it.size })
+        for (p in parts) out.write(p)
+        return out.toByteArray()
+    }
 }
 
 /** Datas da cópia: ISO 8601 sem fração de segundo (o `.iso8601` do JSONEncoder do iOS recusa fração) */

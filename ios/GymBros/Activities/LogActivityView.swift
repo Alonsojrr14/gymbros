@@ -158,7 +158,7 @@ struct LogActivityView: View {
                 photo = posts.compactMap(\.photo).first
                 place = first.place
             } else {
-                postTitle = a.isFromHealth ? "" : a.note
+                postTitle = a.isFromHealth || a.isWatchMeasured ? "" : a.note
                 place = GymLocation.shared.gym(a.gymUUID)?.name
             }
         }

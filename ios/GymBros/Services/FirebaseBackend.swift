@@ -141,11 +141,12 @@ struct FirebaseAuthBackend: AuthBackend {
 
     func signOut(_ user: AuthUser) async { try? Auth.auth().signOut() }
 
-    /// O Firebase só exclui o cadastro com login recente (5 min). Sem conferir antes, os dados saíam e a conta ficava.
+    /// O Firebase só exclui o cadastro com login recente (5 min, pelo `auth_time` do token). Sem conferir antes, os dados
+    /// saíam e a conta ficava. Compara dois horários do servidor (login e emissão do token novo): o relógio do aparelho
+    /// não interfere. Margem de 2 min para as consultas e lotes da exclusão. Sem os dados, decide o próprio servidor.
     func checkCanDelete() async throws {
-        guard let last = Auth.auth().currentUser?.metadata.lastSignInDate, Date.now.timeIntervalSince(last) < 4 * 60 else {
-            throw FirebaseAuthError.recentLogin
-        }
+        guard let user = Auth.auth().currentUser, let token = try? await user.getIDTokenResult(forcingRefresh: true) else { return }
+        if token.issuedAtDate.timeIntervalSince(token.authDate) > 3 * 60 { throw FirebaseAuthError.recentLogin }
     }
 
     /// Apaga o que você criou no Firestore e as suas fotos, e por último o cadastro no Firebase Auth
@@ -166,8 +167,10 @@ struct FirebaseAuthBackend: AuthBackend {
         // Mensagens, X1 e trocas ficam com a outra pessoa (são dela também); o seu nome sai junto com o perfil
         refs += [db.collection(FireCollection.profiles).document(me), db.collection(FireCollection.live).document(me),
                  db.collection(FireCollection.tradeBros).document(me)]
-        // A reserva do código de amigo, se existir (apagar um documento que não existe seria recusado pela regra)
-        if let code = UserDefaults.standard.string(forKey: "friendCode") {
+        // As reservas de código de amigo deste aparelho e do perfil publicado (podem diferir se a conta mudou de aparelho),
+        // só as que existem e são suas (apagar um documento que não existe seria recusado pela regra)
+        let published = try? await db.collection(FireCollection.profiles).document(me).getDocument().data()?["friendCode"] as? String
+        for code in Set([UserDefaults.standard.string(forKey: "friendCode"), published].compactMap { $0 }) where !code.isEmpty {
             let reservation = db.collection(FireCollection.friendCodes).document(code)
             if (try await reservation.getDocument().data()?["user"] as? String) == me { refs.append(reservation) }
         }
@@ -257,7 +260,9 @@ struct FirebaseFriendsBackend: FriendsBackend {
 
     func add(code: String) async throws -> RemoteFriend {
         // O código reservado vale; a busca no perfil só para códigos de antes da reserva (perfil não publicado de novo)
+        // Reserva de uma conta que já não existe (sem perfil): ninguém com esse código
         if let id = try await Fire.db.collection(FireCollection.friendCodes).document(code).getDocument().data()?["user"] as? String {
+            guard try await profiles.document(id).getDocument().exists else { throw FriendError.notFound }
             return try await add(id: id)
         }
         guard let d = try await profiles.whereField("friendCode", isEqualTo: code).limit(to: 1).getDocuments().documents.first else {
@@ -355,7 +360,7 @@ struct FirebaseFriendsBackend: FriendsBackend {
             try await batch.commit()
             return
         }
-        throw FriendError.notFound
+        throw FriendError.codeUnavailable
     }
 
     /// Qualquer pessoa logada lê o perfil: o app de quem foi escondido respeita, mas não é sigilo

@@ -192,6 +192,7 @@ struct MainView: View {
             // o perfil só depois do aceite dos termos. A sessão pode ter acabado enquanto a tela saía.
             if AuthStore.shared.isSignedIn {
                 await AccessStore.shared.refresh()
+                LeagueRemoteStore.shared.republishForPrivacy(context: context)
                 await LeagueRemoteStore.shared.flush(context: context)
                 await ModerationStore.shared.refresh()
                 await InboxStore.shared.refresh(context: context)
@@ -293,7 +294,9 @@ struct MainView: View {
         .onOpenURL { url in
             // QR ou link de amigo: gymbros://amigo/CODIGO pergunta antes de adicionar (um link qualquer não vira amizade sozinho)
             if url.scheme == "gymbros", url.host == "amigo", let code = FriendQR.code(in: url.absoluteString) {
-                friendLink = code
+                // Zera antes: o mesmo código de novo (diálogo fechado por outra camada) abre o diálogo outra vez
+                friendLink = nil
+                Task { @MainActor in friendLink = code }
                 return
             }
             guard url.scheme == "gymbros", url.host == "start" else { return }

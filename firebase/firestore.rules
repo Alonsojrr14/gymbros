@@ -206,7 +206,8 @@ service cloud.firestore {
     // ("ela me adicionou") deixava qualquer link de amigo aberto sem querer liberar a localização ao vivo.
     match /live/{id} {
       allow get: if signedIn() && (id == uid()
-                  || (exists(doc('friendLinks', id + '->' + uid())) && exists(doc('friendLinks', uid() + '->' + id))));
+                  || (exists(doc('friendLinks', id + '->' + uid())) && exists(doc('friendLinks', uid() + '->' + id))
+                      && !exists(doc('blocks', id + '->' + uid()))));
       allow list: if false;
       allow create, update: if signedIn() && id == uid() && request.resource.data.user == uid();
       // Excluir a conta apaga o seu (na exclusão não há request.resource, então o write acima recusaria)

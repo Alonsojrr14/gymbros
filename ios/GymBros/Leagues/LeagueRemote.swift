@@ -251,6 +251,32 @@ final class LeagueRemoteStore {
     private var flushing: Task<Void, Never>?
 
     /// Manda tudo o que está na caixa de saída (um envio por vez): ligas e seu lugar nelas, check-ins (novos, editados e apagados) e recados
+    /// Uma vez por aparelho: check-ins publicados antes de kcal e distância do Apple Watch e o nome do aparelho saírem dos
+    /// posts voltam para a fila e são publicados de novo sem eles (partes agrupadas recalculadas, só o modelo do aparelho)
+    static let privacyRepublishKey = "republishedHealthPrivacy-v1"
+
+    func republishForPrivacy(context: ModelContext, defaults: UserDefaults = .standard) {
+        guard !defaults.bool(forKey: Self.privacyRepublishKey) else { return }
+        let activities = Dictionary(((try? context.fetch(FetchDescriptor<Activity>())) ?? []).map { ($0.uuid, $0) }, uniquingKeysWith: { a, _ in a })
+        for c in (try? context.fetch(FetchDescriptor<LeagueCheckIn>())) ?? [] where c.syncedAt != nil {
+            var changed = activities[c.activityUUID].map { $0.isWatchMeasured || $0.healthWrittenUUID != nil } ?? false
+            do {
+                var proof = c.proof
+                let device = proof.deviceRecorded ? CheckInProof.publicDevice(proof.device) : proof.device
+                let parts = proof.grouped.enumerated().map { i, id in activities[id]?.scorePart ?? proof.groupedParts[safe: i] }
+                if device != proof.device || (parts.allSatisfy { $0 != nil } && parts.compactMap { $0 } != proof.groupedParts) {
+                    proof.device = device
+                    if parts.allSatisfy({ $0 != nil }) { proof.groupedParts = parts.compactMap { $0 } }
+                    c.proof = proof
+                    changed = true
+                }
+            }
+            if changed { c.syncedAt = nil }
+        }
+        try? context.save()
+        defaults.set(true, forKey: Self.privacyRepublishKey)
+    }
+
     func flush(context: ModelContext) async {
         let previous = flushing
         let task = Task {

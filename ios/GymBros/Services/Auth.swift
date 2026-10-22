@@ -231,7 +231,7 @@ enum AccountData {
         "friendCode", "declinedFriendRequests", "pendingRetractions", DemoAccount.seededKey,
         "recentWorkoutTypes", DuelStore.fightersKey, "duelScoreRecords", RetiredActivities.key,
         TradeLedger.basesKey, TradeLedger.goneKey, TradeLedger.appliedKey, PendingJoins.key, BroDeck.seenKey, ComingFeedback.key,
-        MockRoutinesBackend.publishedKey, MockRoutinesBackend.likedKey, MockRoutinesBackend.savedKey, HealthAutoPost.key, StartIntentRouter.askedKey, WhatsNew.seenKey,
+        MockRoutinesBackend.publishedKey, MockRoutinesBackend.likedKey, MockRoutinesBackend.savedKey, HealthAutoPost.key, StartIntentRouter.askedKey, WhatsNew.seenKey, LeagueRemoteStore.privacyRepublishKey,
     ] + HealthSync.defaultsKeys + ModerationStore.defaultsKeys + Terms.defaultsKeys + InboxStore.defaultsKeys + NotificationPrefs.defaultsKeys
         + MusicShareStore.defaultsKeys + LiveShare.defaultsKeys
 

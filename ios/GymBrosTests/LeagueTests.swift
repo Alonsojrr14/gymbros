@@ -286,3 +286,15 @@ final class LeagueTests: GymTestCase {
         LeagueOutbox.clear(leagueID)
     }
 }
+
+/// Correções da revisão independente de 22/10: dia escolhido em outro fuso e republicação sem dados do Saúde
+final class LeagueReviewFixesTests: GymTestCase {
+    func testChosenDayKeepsItsDateEastOfBrasilia() {
+        var tokyo = Calendar(identifier: .gregorian)
+        tokyo.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let picked = tokyo.date(from: DateComponents(year: 2026, month: 11, day: 3))!
+        let day = League.ruleDay(picked, from: tokyo)
+        let c = League.rulesCalendar.dateComponents([.year, .month, .day, .hour], from: day)
+        XCTAssertEqual([c.year, c.month, c.day, c.hour], [2026, 11, 3, 0])
+    }
+}

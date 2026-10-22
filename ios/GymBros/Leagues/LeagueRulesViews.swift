@@ -234,7 +234,7 @@ struct LeagueGoalsSection: View {
             GMToggle(title: "Esconder o ranking", subtitle: "Só as metas aparecem", isOn: $settings.rankingsDisabled)
         }
         GMSection("Início da semana", footer: "Dia em que o ranking da semana zera.") {
-            GMChoiceChips(options: [(0, "Do iPhone")] + (1...7).map { ($0, Self.weekday($0)) },
+            GMChoiceChips(options: [(0, "Padrão (domingo)")] + (1...7).map { ($0, Self.weekday($0)) },
                           selection: Binding(get: { settings.weekStart ?? 0 }, set: { settings.weekStart = $0 == 0 ? nil : $0 }))
         }
     }
