@@ -112,6 +112,7 @@ final class FriendsStore {
     func refresh() async {
         if let s = try? await backend.fetch() { state = s }
         LiveFriendsStore.shared.follow(state.friends.map(\.id))
+        ProfilePhotos.shared.follow(state.friends.map(\.id) + state.incoming.map(\.id))
     }
 
     /// Esquece o que veio do servidor (conta excluída)

@@ -37,8 +37,37 @@ final class ProfilePhotos {
         }
     }
 
-    /// Esquece o que baixou (outra conta, ou para pegar fotos trocadas)
+    /// Escuta ao vivo as fotos de quem aparece na tela (amigos, pedidos, sugestões): trocou ou escondeu, muda na hora.
+    /// Uma escuta por lote de 10 pessoas (limite do `in` do Firestore)
+    @ObservationIgnored private var listeners: [ListenerRegistration] = []
+    @ObservationIgnored private var followed: [String] = []
+
+    func follow(_ ids: [String]) {
+        let ids = Array(Set(ids.filter { !$0.isEmpty && $0 != "me" })).sorted()
+        guard let db, ids != followed else { return }
+        followed = ids
+        listeners.forEach { $0.remove() }
+        listeners = stride(from: 0, to: ids.count, by: 10).map { start in
+            let chunk = Array(ids[start..<min(start + 10, ids.count)])
+            return db.collection("avatars").whereField(FieldPath.documentID(), in: chunk).addSnapshotListener { [weak self] snap, _ in
+                guard let snap else { return }
+                Task { @MainActor in
+                    guard let self else { return }
+                    let found = Dictionary(snap.documents.compactMap { d in (d.data()["data"] as? Data).map { (d.documentID, $0) } },
+                                           uniquingKeysWith: { a, _ in a })
+                    for id in chunk {
+                        if let data = found[id] { self.photos[id] = data; self.missing.remove(id) } else { self.photos[id] = nil; self.missing.insert(id) }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Esquece o que baixou (outra conta) e para de escutar
     func reset() {
+        listeners.forEach { $0.remove() }
+        listeners = []
+        followed = []
         photos = [:]
         missing = []
     }

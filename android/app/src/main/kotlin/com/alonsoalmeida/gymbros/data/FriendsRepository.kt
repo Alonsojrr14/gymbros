@@ -254,3 +254,19 @@ class ProfilePhotosRepository(private val db: FirebaseFirestore = FirebaseFirest
         return stream.toByteArray()
     }
 }
+
+/**
+ * Escuta ao vivo as fotos de um grupo de pessoas: trocou ou escondeu, `onChange` recebe na hora (null = sem foto).
+ * Uma escuta por lote de 10 (limite do `in` do Firestore). Devolve como parar.
+ */
+fun ProfilePhotosRepository.watch(ids: List<String>, onChange: (String, ByteArray?) -> Unit): () -> Unit {
+    val db = FirebaseFirestore.getInstance()
+    val regs = ids.distinct().filter { it.isNotEmpty() }.chunked(10).map { chunk ->
+        db.collection("avatars").whereIn(FieldPath.documentId(), chunk).addSnapshotListener { snap, _ ->
+            if (snap == null) return@addSnapshotListener
+            val found = snap.documents.associate { it.id to it.getBlob("data")?.toBytes() }
+            for (id in chunk) onChange(id, found[id])
+        }
+    }
+    return { regs.forEach { it.remove() } }
+}

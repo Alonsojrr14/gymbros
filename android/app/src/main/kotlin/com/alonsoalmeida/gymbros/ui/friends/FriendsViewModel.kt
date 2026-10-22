@@ -10,6 +10,7 @@ import com.alonsoalmeida.gymbros.data.FriendsState
 import com.alonsoalmeida.gymbros.data.LeagueMember
 import com.alonsoalmeida.gymbros.data.PublicProfile
 import com.alonsoalmeida.gymbros.data.PublicBro
+import com.alonsoalmeida.gymbros.data.watch
 import com.alonsoalmeida.gymbros.domain.backup.AccountEdits
 import com.alonsoalmeida.gymbros.domain.home.HomeData
 import com.dd.plist.NSDate
@@ -35,8 +36,22 @@ class FriendsViewModel(private val repo: FriendsRepository, private val copies: 
     /** Fotos de perfil de quem aparece na tela (quem não tem ou escondeu fica de fora: mostra a inicial) */
     val photos: StateFlow<Map<String, ByteArray>> = _photos.asStateFlow()
 
-    private fun loadPhotos(ids: Collection<String>) = viewModelScope.launch {
-        for (id in ids.distinct()) if (id !in _photos.value) photosRepo.photo(id)?.let { _photos.value = _photos.value + (id to it) }
+    private var stopWatching: (() -> Unit)? = null
+    private var watched: List<String> = emptyList()
+
+    /** Escuta ao vivo as fotos de quem aparece na tela: a pessoa trocou ou escondeu a foto, muda aqui na hora */
+    private fun loadPhotos(ids: Collection<String>) {
+        val list = (watched + ids).distinct().sorted()
+        if (list == watched) return
+        watched = list
+        stopWatching?.invoke()
+        stopWatching = photosRepo.watch(list) { id, data ->
+            _photos.value = if (data != null) _photos.value + (id to data) else _photos.value - id
+        }
+    }
+
+    override fun onCleared() {
+        stopWatching?.invoke()
     }
 
     private val _state = MutableStateFlow(FriendsState())
