@@ -71,6 +71,61 @@ final class GoldenVectorsTests: GymTestCase {
         try attach("A", ["version": 1, "xp": xp, "random": random, "pair": pair, "photo": photo])
     }
 
+    // MARK: Grupo L (ligas: pontos de um check-in)
+
+    func testGroupL() throws {
+        let catalog = WorkoutType.all.map { ["id": Int($0.id) as Int, "name": $0.name, "section": $0.section.rawValue, "kind": $0.kind.rawValue] as [String: Any] }
+        var kcal: [[String: Any]] = []
+        for kind in ActivityKind.allCases { for minutes in [0, 1, 30, 60, 241, 600] { for effort in [-1, 0, 1, 5, 10, 12] {
+            kcal.append(["kind": kind.rawValue, "minutes": minutes, "effort": effort,
+                         "kcal": bits(HealthSync.activeKcal(kind: kind, minutes: minutes, effort: effort, weight: LeagueScoring.referenceWeight))])
+        } } }
+        let ids = WorkoutType.all.map(\.id)
+        let sections = WorkoutType.Section.allCases.map(\.rawValue)
+        var cases: [[String: Any]] = []
+        var r = SeededRandom(seed: "league-score")
+        func pick<T>(_ list: [T]) -> T { list[Int(r.next() * Double(list.count))] }
+        for _ in 0..<600 {
+            let league = League(name: "L", emoji: "🏆", scoring: pick(LeagueScoring.allCases))
+            var weights: [String: String] = [:]
+            if r.next() < 0.5 { for a in Attribute.allCases where r.next() < 0.5 { weights[a.rawValue] = bits(pick([0.0, 0.5, 1.5, 2.0, 3.0])) } }
+            league.attributeWeights = Dictionary(uniqueKeysWithValues: weights.map { (Attribute(rawValue: $0.key)!, Double(bitPattern: UInt64($0.value)!)) })
+            let mode = pick(LeagueActivityRuleMode.allCases)
+            let ruleIDs = Set((0..<Int(r.next() * 4)).map { _ in pick(ids) })
+            league.activityRule = LeagueActivityRule(mode: mode, workoutTypeIDs: ruleIDs)
+            league.photoRule = pick(PhotoRule.allCases)
+            var settings = league.settings
+            settings.pointRules = (0..<Int(r.next() * 4)).map { _ in
+                var rule = ActivityPointRule()
+                if r.next() < 0.5 { rule.workoutTypeIDs = [pick(ids)] } else { rule.sections = [pick(sections)] }
+                rule.method = pick([.perCheckIn, .perAmount])
+                rule.points = pick([-5, 1, 2, 10])
+                rule.every = pick([0, 1, 5, 30])
+                rule.metric = pick([.minutes, .km, .kcal])
+                return rule
+            }
+            league.settings = settings
+            let kind = pick(ActivityKind.allCases)
+            let typeID: UInt? = r.next() < 0.2 ? nil : pick(ids)
+            let input = ScoreInput(kind: kind, minutes: pick([0, 1, 20, 45, 60, 90, 240, 400]), effort: pick([1, 3, 5, 8, 10]),
+                                   meters: r.next() < 0.5 ? nil : pick([0.0, 999.9, 5_000.4, 10_000.0, 21_097.5]),
+                                   kcal: r.next() < 0.6 ? nil : pick([0.0, 99.5, 250.4, 412.4, 800.5]), workoutTypeID: typeID)
+            let hasPhoto = r.next() < 0.5
+            cases.append([
+                "scoring": league.scoring.rawValue, "weights": weights, "weightsRaw": league.weightsRaw,
+                "activityRule": league.activityRule.rawValue, "photoRule": league.photoRule.rawValue,
+                "pointRules": settings.pointRules.map { ["workoutTypeIDs": $0.workoutTypeIDs.map { Int($0) }, "sections": $0.sections, "method": $0.method.rawValue,
+                                                          "points": $0.points, "every": $0.every, "metric": $0.metric.rawValue] as [String: Any] },
+                "input": ["kind": kind.rawValue, "minutes": input.minutes, "effort": input.effort,
+                          "meters": input.meters.map(bits) as Any? ?? NSNull(), "kcal": input.kcal.map(bits) as Any? ?? NSNull(),
+                          "workoutTypeID": typeID.map { Int($0) } as Any? ?? NSNull()],
+                "hasPhoto": hasPhoto,
+                "score": league.score(input, hasPhoto: hasPhoto),
+            ])
+        }
+        try attach("L", ["version": 1, "catalog": catalog, "kcal": kcal, "score": cases])
+    }
+
     // MARK: Grupo B
 
     func testGroupB() throws {

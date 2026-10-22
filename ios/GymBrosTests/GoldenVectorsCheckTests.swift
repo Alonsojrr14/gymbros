@@ -34,6 +34,36 @@ final class GoldenVectorsCheckTests: GymTestCase {
         }
     }
 
+    func testGroupLStillHolds() throws {
+        let l = try load("L")
+        XCTAssertEqual((l["catalog"] as! [[String: Any]]).map { $0["id"] as! Int }, WorkoutType.all.map { Int($0.id) })
+        for c in l["score"] as! [[String: Any]] {
+            let league = League(name: "L", emoji: "🏆", scoring: LeagueScoring(rawValue: c["scoring"] as! String)!)
+            league.weightsRaw = c["weightsRaw"] as! String
+            league.activityRule = LeagueActivityRule(rawValue: c["activityRule"] as! String)
+            league.photoRule = PhotoRule(rawValue: c["photoRule"] as! String)!
+            var settings = league.settings
+            settings.pointRules = (c["pointRules"] as! [[String: Any]]).map { r in
+                var rule = ActivityPointRule()
+                rule.workoutTypeIDs = (r["workoutTypeIDs"] as! [Int]).map { UInt($0) }
+                rule.sections = r["sections"] as! [String]
+                rule.method = ActivityPointRule.Method(rawValue: r["method"] as! String)!
+                rule.points = r["points"] as! Int
+                rule.every = r["every"] as! Int
+                rule.metric = ActivityPointRule.Metric(rawValue: r["metric"] as! String)!
+                return rule
+            }
+            league.settings = settings
+            let i = c["input"] as! [String: Any]
+            let input = ScoreInput(kind: ActivityKind(rawValue: i["kind"] as! String)!, minutes: i["minutes"] as! Int, effort: i["effort"] as! Int,
+                                   meters: (i["meters"] as? String).map(double), kcal: (i["kcal"] as? String).map(double),
+                                   workoutTypeID: (i["workoutTypeID"] as? Int).map { UInt($0) })
+            let got = league.score(input, hasPhoto: c["hasPhoto"] as! Bool), want = c["score"] as! Int
+            // ND-9: no modo pontos com pesos a soma segue a ordem de um Dictionary (pode dar 1 de diferença entre execuções)
+            XCTAssertLessThanOrEqual(abs(got - want), league.weightsRaw.isEmpty ? 0 : 1, "\(c)")
+        }
+    }
+
     func testGroupBStillHolds() throws {
         let b = try load("B")
         let cal = League.rulesCalendar
