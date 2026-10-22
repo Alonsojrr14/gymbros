@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 @testable import GymBros
 
@@ -111,5 +112,35 @@ final class BackupMergeTests: GymTestCase {
         XCTAssertEqual(try Backup.encoder.encode(out.backup), try Backup.encoder.encode(x))
         let twice = try BackupMerge.merge(local: out.backup, remote: x, base: x)
         XCTAssertEqual(try Backup.encoder.encode(twice.backup), try Backup.encoder.encode(out.backup))
+    }
+}
+
+/// Aplicar a mesclagem num banco que já tem dados (sair da conta, abrir o app): antes o `restore` só rodava com o banco vazio
+final class BackupRestoreOverDataTests: GymTestCase {
+    @MainActor
+    func testRestoreOverAPopulatedStoreWithWorkoutsAndSets() throws {
+        let container = try ModelContainer(for: AppData.schema,
+                                           configurations: ModelConfiguration(schema: AppData.schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none))
+        let ctx = container.mainContext
+        let session = WorkoutSession(title: "Treino A", routineUUID: nil)
+        session.end = .now
+        ctx.insert(session)
+        for i in 0..<3 { session.sets.append(LoggedSet(exerciseID: "supino", exerciseOrder: 0, index: i, weight: 60, reps: 10, rest: 90)) }
+        let routine = Routine(name: "Treino A")
+        ctx.insert(routine)
+        routine.items.append(RoutineItem(exerciseID: "supino", sets: 3, reps: 10, rest: 90, order: 0))
+        try ctx.save()
+        // Objetos carregados no contexto, como no app aberto
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<LoggedSet>()).count, 3)
+        let d = scratchDefaults("restore")
+        let copy = try Backup.make(context: ctx, defaults: d, account: true)
+
+        try copy.restore(into: ctx, defaults: d)
+
+        XCTAssertEqual(try ctx.fetchCount(FetchDescriptor<WorkoutSession>()), 1)
+        XCTAssertEqual(try ctx.fetchCount(FetchDescriptor<LoggedSet>()), 3)
+        XCTAssertEqual(try ctx.fetchCount(FetchDescriptor<Routine>()), 1)
+        XCTAssertEqual(try ctx.fetchCount(FetchDescriptor<RoutineItem>()), 1)
+        XCTAssertEqual(try ctx.fetch(FetchDescriptor<WorkoutSession>()).first?.sets.count, 3)
     }
 }

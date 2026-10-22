@@ -247,7 +247,8 @@ final class AccountSync {
         for _ in 0..<3 {
             let snapshot = try Backup.make(context: context, defaults: defaults, account: true)
             if let change = try await backend.remoteChange(snapshot, accountID: id) {
-                if !change.conflicts.isEmpty { try setAside("conflito-" + Self.digest(id).prefix(12)) }
+                // Antes de trocar os dados daqui: uma cópia à parte (com conflito, é a versão que perdeu)
+                try setAside((change.conflicts.isEmpty ? "antes-mesclagem-" : "conflito-") + Self.digest(id).prefix(12))
                 try change.merged.restore(into: context, defaults: defaults)
                 reload()
                 backend.acknowledge(change, accountID: id)

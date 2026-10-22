@@ -296,28 +296,31 @@ struct Backup: Codable, Sendable {
         Roster.ensureStarter(context: context)
     }
 
-    /// Todos os modelos do banco, na ordem em que podem sair
+    /// Todos os modelos do banco, na ordem em que podem sair. Um objeto de cada vez, não em lote: a exclusão em lote age
+    /// direto no arquivo e falha com objetos carregados na memória (sessão e séries) quando o banco não está vazio, como ao
+    /// aplicar a mesclagem da conta ("mandatory OTO nullify inverse on LoggedSet/session"). Assim o restore segue atômico.
     @MainActor
     static func deleteAll(in context: ModelContext) throws {
-        try context.delete(model: LoggedSet.self)
-        try context.delete(model: WorkoutSession.self)
-        try context.delete(model: RoutineItem.self)
-        try context.delete(model: Routine.self)
-        try context.delete(model: Activity.self)
-        try context.delete(model: CustomExercise.self)
-        try context.delete(model: LeagueCheckIn.self)
-        try context.delete(model: LeagueMessage.self)
-        try context.delete(model: League.self)
-        try context.delete(model: Monster.self)
-        try context.delete(model: BodyEntry.self)
-        try context.delete(model: ExerciseNote.self)
-        try context.delete(model: WodResult.self)
-        try context.delete(model: RouteRecord.self)
-        try context.delete(model: GymVisit.self)
-        try context.delete(model: Gym.self)
-        try context.delete(model: PersonalRecord.self)
-        try context.delete(model: CheckInComment.self)
-        try context.delete(model: CheckInReview.self)
+        func clear<T: PersistentModel>(_ type: T.Type) throws { for o in try context.fetch(FetchDescriptor<T>()) { context.delete(o) } }
+        try clear(LoggedSet.self)
+        try clear(WorkoutSession.self)
+        try clear(RoutineItem.self)
+        try clear(Routine.self)
+        try clear(Activity.self)
+        try clear(CustomExercise.self)
+        try clear(LeagueCheckIn.self)
+        try clear(LeagueMessage.self)
+        try clear(League.self)
+        try clear(Monster.self)
+        try clear(BodyEntry.self)
+        try clear(ExerciseNote.self)
+        try clear(WodResult.self)
+        try clear(RouteRecord.self)
+        try clear(GymVisit.self)
+        try clear(Gym.self)
+        try clear(PersonalRecord.self)
+        try clear(CheckInComment.self)
+        try clear(CheckInReview.self)
     }
 
     @MainActor
