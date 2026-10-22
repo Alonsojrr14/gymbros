@@ -8,6 +8,8 @@
         android:name=".GymBrosApp"
         android:allowBackup="false"
         android:label="GymBros"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.GymBros">
         <activity

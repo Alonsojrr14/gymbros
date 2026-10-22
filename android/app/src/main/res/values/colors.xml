@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Azul do fundo do ícone do iPhone -->
+    <color name="ic_launcher_background">#0B1640</color>
+</resources>
