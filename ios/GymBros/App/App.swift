@@ -211,6 +211,7 @@ struct MainView: View {
                 if Terms.isAccepted() {
                     await FriendsStore.shared.publish(PublicProfile.mine(roster: roster, activities: activities, checkIns: checkIns,
                                                                          leagues: leagues, unlocked: achievements.filter(\.unlocked)))
+                    await ProfilePhotos.shared.publish()
                 }
             }
             // Peso mais recente para as estimativas de calorias (perfil físico)

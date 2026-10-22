@@ -304,6 +304,7 @@ struct MockFriendsBackend: FriendsBackend {
 
 struct FriendsView: View {
     @State private var store = FriendsStore.shared
+    @State private var photos = ProfilePhotos.shared
     @State private var code = ""
     @State private var message: String?
     @State private var opened: RemoteFriend?
@@ -379,7 +380,7 @@ struct FriendsView: View {
             }
             ForEach(list, id: \.member.id) { s in
                 HStack {
-                    person(s.member.name, form: s.member.form,
+                    person(s.member.name, id: s.member.id, form: s.member.form,
                            subtitle: s.leagues.count == 1 ? "\(s.leagues[0].emoji) \(s.leagues[0].name)" : "\(s.leagues.count) ligas em comum")
                     GMButton("Adicionar", kind: .secondary, full: false, small: true) { add(id: s.member.id) }
                 }
@@ -412,12 +413,14 @@ struct FriendsView: View {
     }
 
     private func person(_ f: RemoteFriend, subtitle: String, online: Bool = false) -> some View {
-        person(f.name, form: f.form, subtitle: subtitle, online: online)
+        person(f.name, id: f.id, form: f.form, subtitle: subtitle, online: online)
     }
 
-    private func person(_ name: String, form: MonsterForm, subtitle: String, online: Bool = false) -> some View {
+    /// Foto da pessoa (ou a inicial) com o bro dela no cantinho
+    private func person(_ name: String, id: String, form: MonsterForm, subtitle: String, online: Bool = false) -> some View {
         HStack(spacing: 12) {
-            MonsterSprite(form: form).frame(width: 42, height: 42)
+            PersonAvatar(name: name, photo: photos.photo(id), size: 42)
+                .overlay(alignment: .bottomTrailing) { BroAvatars(forms: [form], size: 20).offset(x: 6, y: 6) }
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text(name).font(.subheadline.weight(.semibold))

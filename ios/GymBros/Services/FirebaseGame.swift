@@ -241,6 +241,8 @@ struct FirebaseAdminBackend: AdminBackend {
         case .profile:
             try await db.collection(FireCollection.profiles).document(c.authorID)
                 .setData(["name": "", "username": "", "bio": "", "public": NSNull()], merge: true)
+            // A foto do perfil sai junto
+            try await db.collection("avatars").document(c.authorID).delete()
         case .comment: try await db.collection(CommentSync.collection).document(c.id).delete()
         case .photo: throw AccessError.requiresTrustedServer
         }

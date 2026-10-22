@@ -73,6 +73,8 @@ data class HomeData(
     val leagues: List<com.alonsoalmeida.gymbros.domain.backup.LeagueDto>,
     /** "O que aparece para os outros": mostrar o bro no perfil público (`publicMonster`, padrão sim) */
     val showBro: Boolean = true,
+    /** Mostrar a foto do perfil para os outros (`publicPhoto`, padrão sim) */
+    val showPhoto: Boolean = true,
 )
 
 object HomeBuilder {
@@ -163,7 +165,8 @@ object HomeBuilder {
                         declinedFriends = AccountEditsRead.strings(settings["declinedFriendRequests"]).toSet(),
                         termsVersion = (settings["termsAcceptedVersion"] as? Number)?.toInt() ?: 0,
                         leagues = leagues,
-                        showBro = settings["publicMonster"] as? Boolean ?: true)
+                        showBro = settings["publicMonster"] as? Boolean ?: true,
+                        showPhoto = settings["publicPhoto"] as? Boolean ?: true)
     }
 }
 

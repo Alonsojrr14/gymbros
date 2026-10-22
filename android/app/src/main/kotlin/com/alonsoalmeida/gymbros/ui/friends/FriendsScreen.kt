@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -105,9 +106,13 @@ fun TermsPrompt(onAccept: () -> Unit) {
 
 /** Pessoa numa lista: bro, nome e uma linha (Friends.swift `person`) */
 @Composable
-fun PersonRow(name: String, form: MonsterForm, subtitle: String, modifier: Modifier = Modifier) {
+fun PersonRow(name: String, form: MonsterForm, subtitle: String, modifier: Modifier = Modifier, photo: ByteArray? = null) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        MonsterSprite(form, Modifier.size(42.dp))
+        // Foto da pessoa (ou a inicial) com o bro dela no cantinho
+        Box {
+            PersonAvatar(name, size = 42.dp, photo = photo)
+            com.alonsoalmeida.gymbros.ui.components.BroAvatars(listOf(form), Modifier.align(Alignment.BottomEnd).offset(6.dp, 6.dp), size = 20.dp)
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(name, color = Color.White, style = GMType.subheadline.copy(fontWeight = FontWeight.SemiBold))
             Text(subtitle, color = GMColors.dim, style = GMType.caption, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -125,6 +130,7 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
     val roles by vm.roles.collectAsStateValue()
     val suggestions by vm.suggestions.collectAsStateValue()
     val message by vm.message.collectAsStateValue()
+    val photos by vm.photos.collectAsStateValue()
     var code by remember { mutableStateOf("") }
     var opened by remember { mutableStateOf<RemoteFriend?>(null) }
     val context = LocalContext.current
@@ -178,7 +184,7 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
                     GMSection("Pedidos de amizade") {
                         state.incoming.forEachIndexed { i, f ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                PersonRow(f.name, f.form, "Quer ser seu amigo", Modifier.weight(1f))
+                                PersonRow(f.name, f.form, "Quer ser seu amigo", Modifier.weight(1f), photos[f.id])
                                 GMIconButton(Icons.Filled.Close, "Recusar", { vm.decline(f.id, home) }, size = 36.dp)
                                 GMIconButton(Icons.Filled.Check, "Aceitar", { vm.accept(f.id, home) }, size = 36.dp)
                             }
@@ -190,7 +196,7 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
                     if (state.friends.isEmpty()) Text("Nenhum amigo ainda. Mande seu código pra galera.", color = GMColors.dim, style = GMType.subheadline)
                     state.friends.forEachIndexed { i, f ->
                         Row(Modifier.fillMaxWidth().gmPress { opened = f }, verticalAlignment = Alignment.CenterVertically) {
-                            PersonRow(f.name, f.form, f.form.name, Modifier.weight(1f))
+                            PersonRow(f.name, f.form, f.form.name, Modifier.weight(1f), photos[f.id])
                             Icon(Icons.Filled.ChevronRight, null, tint = GMColors.dim, modifier = Modifier.size(18.dp))
                         }
                         if (i < state.friends.lastIndex) Divider()
@@ -204,7 +210,7 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
                     suggestions.forEachIndexed { i, s ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             val sub = if (s.leagues.size == 1) "${s.leagues[0].first} ${s.leagues[0].second}" else "${s.leagues.size} ligas em comum"
-                            PersonRow(s.member.name, s.member.form, sub, Modifier.weight(1f))
+                            PersonRow(s.member.name, s.member.form, sub, Modifier.weight(1f), photos[s.member.id])
                             GMButton("Adicionar", { vm.addById(s.member.id, home) }, kind = GMButtonKind.SECONDARY, full = false, small = true)
                         }
                         if (i < suggestions.lastIndex) Divider()
@@ -221,6 +227,7 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
 fun FriendProfileScreen(friend: RemoteFriend, home: HomeData, vm: FriendsViewModel, onDismiss: () -> Unit, onSoon: (String) -> Unit) {
     val profiles by vm.profiles.collectAsStateValue()
     val state by vm.state.collectAsStateValue()
+    val photos by vm.photos.collectAsStateValue()
     var menu by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf(false) }
     var confirmBlock by remember { mutableStateOf(false) }
@@ -234,7 +241,7 @@ fun FriendProfileScreen(friend: RemoteFriend, home: HomeData, vm: FriendsViewMod
             GMIconButton(Icons.Filled.MoreHoriz, "Mais opções", { menu = true })
         }
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            PersonAvatar(friend.name, size = 110.dp)
+            PersonAvatar(friend.name, size = 110.dp, photo = photos[friend.id])
             Text(friend.name, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
             if (!p?.username.isNullOrEmpty()) Text("@${p!!.username}", color = GMColors.dim, style = GMType.subheadline)
             if (!p?.bio.isNullOrEmpty()) Text(p!!.bio, color = Color.White, style = GMType.subheadline, textAlign = TextAlign.Center)

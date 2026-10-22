@@ -29,7 +29,16 @@ data class Suggestion(val member: LeagueMember, val leagues: List<Pair<String, S
  * Amigos (Friends.swift `FriendsStore`). Permissões vêm de `roles/{uid}` (só leitura; as regras do Firestore são a
  * autoridade). Código de amigo, pedidos recusados e termos aceitos ficam nos ajustes da conta e vão para o iPhone.
  */
-class FriendsViewModel(private val repo: FriendsRepository, private val copies: AccountCopyRepository) : ViewModel() {
+class FriendsViewModel(private val repo: FriendsRepository, private val copies: AccountCopyRepository,
+                       private val photosRepo: com.alonsoalmeida.gymbros.data.ProfilePhotosRepository) : ViewModel() {
+    private val _photos = MutableStateFlow<Map<String, ByteArray>>(emptyMap())
+    /** Fotos de perfil de quem aparece na tela (quem não tem ou escondeu fica de fora: mostra a inicial) */
+    val photos: StateFlow<Map<String, ByteArray>> = _photos.asStateFlow()
+
+    private fun loadPhotos(ids: Collection<String>) = viewModelScope.launch {
+        for (id in ids.distinct()) if (id !in _photos.value) photosRepo.photo(id)?.let { _photos.value = _photos.value + (id to it) }
+    }
+
     private val _state = MutableStateFlow(FriendsState())
     val state: StateFlow<FriendsState> = _state.asStateFlow()
     private val _roles = MutableStateFlow<Set<String>?>(null)
@@ -54,6 +63,7 @@ class FriendsViewModel(private val repo: FriendsRepository, private val copies: 
             runCatching { repo.fetch(home.declinedFriends, blocked) }.onSuccess { _state.value = it }
             ensureCode(home)
             loadSuggestions(home)
+            loadPhotos(_state.value.friends.map { it.id } + _state.value.incoming.map { it.id } + _suggestions.value.map { it.member.id })
         }
     }
 
@@ -70,6 +80,7 @@ class FriendsViewModel(private val repo: FriendsRepository, private val copies: 
         // O bro do perfil público acompanha o seu (forma, apelido e nível), como no iPhone
         val s = home.snapshot
         val bro = PublicBro(home.monsterName.ifEmpty { s.form.name }, s.form.id, s.level, s.progress)
+        runCatching { photosRepo.publish(home.profilePhoto, home.showPhoto) }
         runCatching { repo.publishBro(code, bro, home.showBro) }.onSuccess { used ->
             if (used != code) copies.edit { copy -> AccountEdits.updateSettings(copy ?: AccountEdits.empty(home.trainerName, Instant.now())) { it["friendCode"] = NSString(used) } }
         }
@@ -132,6 +143,7 @@ class FriendsViewModel(private val repo: FriendsRepository, private val copies: 
     fun block(id: String, name: String, home: HomeData) = viewModelScope.launch { runCatching { repo.block(id, name) }; refresh(home) }
 
     fun loadProfile(id: String) = viewModelScope.launch {
+        loadPhotos(listOf(id))
         runCatching { repo.profile(id) }.onSuccess { _profiles.value = _profiles.value + (id to it) }
     }
 

@@ -166,7 +166,7 @@ struct FirebaseAuthBackend: AuthBackend {
         }
         // Mensagens, X1 e trocas ficam com a outra pessoa (são dela também); o seu nome sai junto com o perfil
         refs += [db.collection(FireCollection.profiles).document(me), db.collection(FireCollection.live).document(me),
-                 db.collection(FireCollection.tradeBros).document(me)]
+                 db.collection(FireCollection.tradeBros).document(me), db.collection("avatars").document(me)]
         // As reservas de código de amigo deste aparelho e do perfil publicado (podem diferir se a conta mudou de aparelho),
         // só as que existem e são suas (apagar um documento que não existe seria recusado pela regra)
         let published = try? await db.collection(FireCollection.profiles).document(me).getDocument().data()?["friendCode"] as? String

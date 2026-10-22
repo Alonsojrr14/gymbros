@@ -215,3 +215,42 @@ class FriendsRepository(private val db: FirebaseFirestore = FirebaseFirestore.ge
         }
     }
 }
+
+/**
+ * Fotos de perfil que os outros veem (`avatars/{uid}`, miniatura de 256 px), iguais às do iPhone (ProfilePhotos.swift).
+ * A sua só sobe com "Foto do perfil" ligada (`publicPhoto`, padrão sim); desligar tira do ar.
+ */
+class ProfilePhotosRepository(private val db: FirebaseFirestore = FirebaseFirestore.getInstance()) {
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+    private val missing = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private var published: String? = null
+
+    suspend fun photo(id: String): ByteArray? {
+        cache[id]?.let { return it }
+        if (id in missing) return null
+        val data = runCatching { db.collection("avatars").document(id).get().await().getBlob("data")?.toBytes() }.getOrNull()
+        if (data != null) cache[id] = data else missing += id
+        return data
+    }
+
+    suspend fun publish(photo: ByteArray?, show: Boolean) {
+        val me = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val thumb = if (show) photo?.let(::thumbnail) else null
+        val fingerprint = thumb?.let { "$me:${it.size}:${it.contentHashCode()}" } ?: "$me:none"
+        if (published == fingerprint) return
+        val ref = db.collection("avatars").document(me)
+        if (thumb != null) ref.set(mapOf("data" to com.google.firebase.firestore.Blob.fromBytes(thumb), "updatedAt" to FieldValue.serverTimestamp())).await()
+        else ref.delete().await()
+        published = fingerprint
+    }
+
+    /** 256 px no lado maior, JPEG: cabe com folga no limite das regras (150 KB) */
+    private fun thumbnail(data: ByteArray): ByteArray? {
+        val bmp = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size) ?: return null
+        val scale = minOf(1f, 256f / maxOf(bmp.width, bmp.height))
+        val out = android.graphics.Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt().coerceAtLeast(1), (bmp.height * scale).toInt().coerceAtLeast(1), true)
+        val stream = java.io.ByteArrayOutputStream()
+        out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, stream)
+        return stream.toByteArray()
+    }
+}

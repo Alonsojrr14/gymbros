@@ -75,7 +75,10 @@ struct ProfileView: View {
             .gmSheet(isPresented: Binding(get: { day != nil }, set: { if !$0 { day = nil } })) { _ in dayDetail }
             .onChange(of: pick) { _, item in
                 Task {
-                    if let data = try? await item?.loadTransferable(type: Data.self) { photo = avatarPhoto(data) }
+                    if let data = try? await item?.loadTransferable(type: Data.self) {
+                        photo = avatarPhoto(data)
+                        await ProfilePhotos.shared.publish()
+                    }
                 }
             }
         }
@@ -287,6 +290,7 @@ struct EditProfileView: View {
     @AppStorage("publicMonster") private var showMonster = true
     @AppStorage("publicStats") private var showStats = true
     @AppStorage("publicAchievements") private var showAchievements = true
+    @AppStorage(ProfilePhotos.showKey) private var showPhoto = true
     @State private var name = ""
     @State private var username = ""
     @State private var bio = ""
@@ -306,7 +310,9 @@ struct EditProfileView: View {
                 if blocked { ContentBlockedNote() }
             }
             GMSection("O que aparece para os outros",
-                      footer: "Foto, nome, @usuário, bio e os posts do perfil sempre aparecem. Peso, medidas, recordes, metas, notas e as atividades que você não postou ficam sempre privados.") {
+                      footer: "Nome, @usuário, bio e os posts do perfil sempre aparecem. Peso, medidas, recordes, metas, notas e as atividades que você não postou ficam sempre privados.") {
+                GMToggle(title: "Foto do perfil", isOn: $showPhoto)
+                GMDivider()
                 GMToggle(title: "Bro principal", isOn: $showMonster)
                 GMDivider()
                 GMToggle(title: "Números (check-ins, dias, ligas)", isOn: $showStats)
@@ -316,6 +322,8 @@ struct EditProfileView: View {
         }
         .termsGate($terms)
         .onChange(of: name + username + bio) { blocked = false }
+        // Foto trocada ou escondida: os outros veem a mudança na hora
+        .onChange(of: showPhoto) { Task { await ProfilePhotos.shared.publish() } }
         .onAppear {
             guard !loaded else { return }
             loaded = true

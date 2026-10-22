@@ -406,6 +406,7 @@ final class AccountSync {
     /// Os stores em memória voltam a ler o que está no aparelho (vazio depois de limpar, a conta depois de restaurar)
     static func deviceReload() {
         ModerationStore.shared.reload()
+        ProfilePhotos.shared.reset()
         InboxStore.shared.reset()
         MusicShareStore.shared.reload()
         GymLocation.shared.startMonitoring()

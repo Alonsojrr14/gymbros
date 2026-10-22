@@ -218,7 +218,7 @@ enum Keychain {
 @MainActor
 enum AccountData {
     /// Chaves sociais que saem ao excluir a conta mesmo no `wipeSocial`
-    static let defaultsKeys = ["friendCode", "declinedFriendRequests", "pendingRetractions", "cloudUserID"]
+    static let defaultsKeys = ["friendCode", "declinedFriendRequests", "pendingRetractions", "cloudUserID", "publishedAvatar"]
     static let defaultsPrefixes = ["publishedProfile-"]
 
     /// Chaves de usuário: vão na cópia da conta e saem do aparelho ao sair. As do servidor simulado
@@ -228,7 +228,7 @@ enum AccountData {
         "remindersOn", "reminderMinute", "reminderRoutineOnly", "weeklySummary", "storyFrame", "headphoneInfoSeen",
         "dexRevealAll", "deloadUntil", "deloadSnooze", "barCountsBar", PendingRoutineUpdate.key,
         "gymNotifyArrival", "gymAutoFinish", "gymInsideID", "gymArrival",
-        "friendCode", "declinedFriendRequests", "pendingRetractions", DemoAccount.seededKey,
+        "friendCode", "declinedFriendRequests", "pendingRetractions", DemoAccount.seededKey, ProfilePhotos.showKey,
         "recentWorkoutTypes", DuelStore.fightersKey, "duelScoreRecords", RetiredActivities.key,
         TradeLedger.basesKey, TradeLedger.goneKey, TradeLedger.appliedKey, PendingJoins.key, BroDeck.seenKey, ComingFeedback.key,
         MockRoutinesBackend.publishedKey, MockRoutinesBackend.likedKey, MockRoutinesBackend.savedKey, HealthAutoPost.key, StartIntentRouter.askedKey, WhatsNew.seenKey, LeagueRemoteStore.privacyRepublishKey,

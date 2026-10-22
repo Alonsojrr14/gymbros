@@ -194,6 +194,16 @@ service cloud.firestore {
       }
     }
 
+    // Foto do perfil (pequena, redimensionada no aparelho): quem tem conta vê, como nome e bio; só o dono publica;
+    // o dono ou um admin (moderação) tiram do ar
+    match /avatars/{id} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && id == uid()
+                            && request.resource.data.keys().hasOnly(['data', 'updatedAt'])
+                            && request.resource.data.data is bytes && request.resource.data.data.size() < 150000;
+      allow delete: if signedIn() && (id == uid() || isAdmin());
+    }
+
     // Código de amigo: o primeiro a reservar fica com ele; não se troca de dono nem se lista
     match /friendCodes/{code} {
       allow get: if signedIn();

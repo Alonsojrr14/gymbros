@@ -57,7 +57,7 @@ private fun Root(container: AppContainer) {
             is AccountState.Failed -> AccountLoadingScreen(state.message, home::retry, signOut)
             is AccountState.Ready -> {
                 val friends: FriendsViewModel = viewModel(key = "friends-${current.id}", factory = viewModelFactory {
-                    initializer { FriendsViewModel(FriendsRepository(), container.copies) }
+                    initializer { FriendsViewModel(FriendsRepository(), container.copies, com.alonsoalmeida.gymbros.data.ProfilePhotosRepository()) }
                 })
                 var soon by remember { mutableStateOf<String?>(null) }
                 MainScreen(state.home.snapshot.form,

@@ -259,7 +259,7 @@ struct FriendProfileView: View {
 
     private func header(_ p: PublicProfile?) -> some View {
         VStack(spacing: 10) {
-            PersonAvatar(name: friend.name, size: 110)
+            PersonAvatar(name: friend.name, photo: ProfilePhotos.shared.photo(friend.id), size: 110)
             VStack(spacing: 2) {
                 HStack(spacing: 6) {
                     Text(friend.name).font(.title2.weight(.heavy))
