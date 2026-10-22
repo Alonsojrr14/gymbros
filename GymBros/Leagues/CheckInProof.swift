@@ -154,9 +154,16 @@ extension PostSubject {
 extension CheckInProof {
     /// Prova gravada no check-in: a pose só fica quando a liga cobra
     init(subject s: PostSubject, league: League?, pose: String?, device: String?) {
-        self.init(photo: s.photo, deviceRecorded: s.deviceRecorded, device: s.deviceRecorded ? device : nil,
+        self.init(photo: s.photo, deviceRecorded: s.deviceRecorded, device: s.deviceRecorded ? Self.publicDevice(device) : nil,
                   pose: league?.settings.posesEnabled == true ? pose : nil)
         gymVisit = s.gymVisit
+    }
+
+    /// Só o modelo do aparelho que gravou: o nome no Saúde costuma levar o da pessoa ("iPhone de Ana").
+    /// Outros nomes (apps, aparelhos renomeados) viram "Gravado por aparelho".
+    static func publicDevice(_ name: String?) -> String? {
+        guard let name else { return nil }
+        return ["Apple Watch", "iPhone", "iPad"].first { name.localizedCaseInsensitiveContains($0) }
     }
 }
 

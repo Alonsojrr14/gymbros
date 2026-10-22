@@ -60,6 +60,39 @@ final class HealthPrivacyTests: GymTestCase {
         XCTAssertEqual(r["effort"] as? Int, 5)
     }
 
+    /// Atividade livre gravada no relógio: kcal e distância são do HealthKit do relógio; o esforço foi escolhido nele
+    func testWatchMeasuresAreNotPublished() {
+        let a = Activity(kind: .corrida, date: .now, minutes: 30, effort: 8)
+        a.source = "Apple Watch"
+        a.kcal = 300
+        a.meters = 3_000
+        let out = OutgoingCheckIn(checkIn(a), activity: a)
+        XCTAssertNil(out.kcal)
+        XCTAssertNil(out.meters)
+        XCTAssertEqual(out.effort, 8)
+        XCTAssertNil(a.duelActivity.kcal)
+        XCTAssertNil(a.duelActivity.meters)
+    }
+
+    /// Treino guiado do iPhone gravado também no relógio: as kcal do relógio ficam no aparelho
+    func testGuidedWorkoutWithWatchCaloriesPublishesNoCalories() {
+        let a = Activity(kind: .musculacao, date: .now, minutes: 50, effort: 7)
+        a.healthWrittenUUID = UUID().uuidString
+        a.kcal = 410
+        XCTAssertNil(OutgoingCheckIn(checkIn(a), activity: a).kcal)
+        XCTAssertNil(a.duelActivity.kcal)
+        XCTAssertEqual(OutgoingCheckIn(checkIn(a), activity: a).effort, 7)
+    }
+
+    /// A prova diz em que aparelho foi gravado, sem o nome da pessoa
+    func testProofKeepsOnlyTheDeviceModel() {
+        XCTAssertEqual(CheckInProof.publicDevice("iPhone de Ana"), "iPhone")
+        XCTAssertEqual(CheckInProof.publicDevice("Apple Watch de Ana"), "Apple Watch")
+        XCTAssertEqual(CheckInProof.publicDevice("Apple Watch"), "Apple Watch")
+        XCTAssertNil(CheckInProof.publicDevice("Celular da Ana"))
+        XCTAssertNil(CheckInProof.publicDevice(nil))
+    }
+
     func testOwnScoreMatchesWhatOthersReceive() {
         let a = healthRun()
         let out = OutgoingCheckIn(checkIn(a), activity: a)

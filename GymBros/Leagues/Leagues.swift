@@ -100,12 +100,16 @@ extension Activity {
     /// Importada do Apple Saúde: kcal, distância e o esforço derivado delas não saem do aparelho (guideline 5.1.3).
     /// Só o `healthUUID` marca a origem: o tipo exato (`healthType`) também é gravado nas atividades do app.
     var isFromHealth: Bool { healthUUID != nil }
+    /// Gravada no Apple Watch: kcal e distância vêm dos sensores (HealthKit do relógio), mesmo sem treino importado.
+    /// O esforço não: é o que a pessoa escolheu no relógio.
+    var isWatchMeasured: Bool { source == "Apple Watch" }
     /// Esforço que pode ser publicado: o do Saúde vem das kcal de lá, então sobe o neutro
     var publishableEffort: Int { isFromHealth ? 5 : effort }
     /// Distância que pode ser publicada (só a do GPS do app)
-    var publishableMeters: Double? { isFromHealth ? nil : meters }
-    /// Calorias que podem ser publicadas (nunca as do Apple Saúde)
-    var publishableKcal: Double? { isFromHealth ? nil : kcal }
+    var publishableMeters: Double? { isFromHealth || isWatchMeasured ? nil : meters }
+    /// Calorias que podem ser publicadas: nenhuma do Apple Saúde. No app, `kcal` só vem de lá (importação, relógio, ou o
+    /// treino guiado gravado também no relógio, que ganha `healthWrittenUUID` e as kcal do relógio)
+    var publishableKcal: Double? { isFromHealth || isWatchMeasured || healthWrittenUUID != nil ? nil : kcal }
 
     /// Mesmos dados que os outros participantes recebem, para o placar ser igual em todos os aparelhos
     var scoreInput: ScoreInput {
@@ -647,7 +651,7 @@ enum LeagueBoard {
     }
 
     /// Seu id no servidor (o mesmo que os outros aparelhos veem), para o pareamento suíço ser igual em todos
-    static var selfID: String { Cloud.knownID ?? "me" }
+    static var selfID: String { Backend.myID ?? "me" }
 
     /// Rodadas suíças da liga, derivadas do feed e dos membros
     static func swiss(league: League, feed: [FeedItem], remote: RemoteLeague? = nil, now: Date = .now) -> SwissTable {

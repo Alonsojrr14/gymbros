@@ -141,6 +141,13 @@ struct FirebaseAuthBackend: AuthBackend {
 
     func signOut(_ user: AuthUser) async { try? Auth.auth().signOut() }
 
+    /// O Firebase só exclui o cadastro com login recente (5 min). Sem conferir antes, os dados saíam e a conta ficava.
+    func checkCanDelete() async throws {
+        guard let last = Auth.auth().currentUser?.metadata.lastSignInDate, Date.now.timeIntervalSince(last) < 4 * 60 else {
+            throw FirebaseAuthError.recentLogin
+        }
+    }
+
     /// Apaga o que você criou no Firestore e as suas fotos, e por último o cadastro no Firebase Auth
     func deleteAccount(_ user: AuthUser) async throws {
         let me = try Fire.me()

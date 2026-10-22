@@ -138,6 +138,8 @@ struct MainView: View {
     @State private var trades = TradeStore.shared
     @State private var asking = false
     @State private var whatsNew = false
+    /// Código de amigo vindo de um QR ou link, esperando você confirmar
+    @State private var friendLink: String?
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var phase
 
@@ -289,9 +291,9 @@ struct MainView: View {
         .onChange(of: inbox.route) { _, r in if r != nil { tab = 0 } }
         // Widget "Treino do dia": gymbros://start abre o treino em andamento ou começa a rotina de hoje
         .onOpenURL { url in
-            // QR ou link de amigo: gymbros://amigo/CODIGO adiciona a pessoa
+            // QR ou link de amigo: gymbros://amigo/CODIGO pergunta antes de adicionar (um link qualquer não vira amizade sozinho)
             if url.scheme == "gymbros", url.host == "amigo", let code = FriendQR.code(in: url.absoluteString) {
-                Task { _ = try? await FriendsStore.shared.add(code: code) }
+                friendLink = code
                 return
             }
             guard url.scheme == "gymbros", url.host == "start" else { return }
@@ -300,6 +302,13 @@ struct MainView: View {
                 NotificationCenter.default.post(name: NotificationRouter.startWorkout, object: nil)
             }
         }
+        .gmActions(isPresented: Binding(get: { friendLink != nil }, set: { if !$0 { friendLink = nil } }),
+                   title: "Adicionar amigo?",
+                   message: "Código \(friendLink ?? ""). Só adicione quem você conhece: quem também te adicionar vê seus treinos ao vivo.",
+                   actions: [GMAction("Adicionar", icon: "person.badge.plus") { [friendLink] in
+                       guard let code = friendLink else { return }
+                       Task { _ = try? await FriendsStore.shared.add(code: code) }
+                   }])
         .fullScreenCover(isPresented: Binding(get: { watchWorkout.active && !watchWorkout.minimized },
                                               set: { if !$0 { watchWorkout.minimized = true } })) {
             WatchWorkoutView()

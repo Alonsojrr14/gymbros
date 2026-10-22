@@ -65,6 +65,12 @@ final class SwissTests: GymTestCase {
         }
     }
 
+    /// O seu id no pareamento é o do servidor do modo atual (no Firebase, o uid), não o do iCloud:
+    /// com "me" no seu aparelho e o uid nos outros, o sorteio e os desempates saíam diferentes
+    func testSelfIDIsTheServerIDOfTheCurrentMode() {
+        XCTAssertEqual(LeagueBoard.selfID, Backend.myID ?? "me")
+    }
+
     func testFewerThanTwoMembersHasNoRound() {
         XCTAssertTrue(table(["me"], daysAgo: 3).rounds.isEmpty)
     }

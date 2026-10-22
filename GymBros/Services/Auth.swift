@@ -43,6 +43,8 @@ protocol AuthBackend: Sendable {
     func signOut(_ user: AuthUser) async
     /// Apaga a conta e tudo o que ela publicou no servidor (perfil, lugar nas ligas, check-ins, recados, amizades, denúncias, bloqueios)
     func deleteAccount(_ user: AuthUser) async throws
+    /// Confere, antes de apagar qualquer coisa, se o servidor vai aceitar excluir o cadastro
+    func checkCanDelete() async throws
     /// Manda o e-mail com o link para criar uma senha nova
     func resetPassword(email: String) async throws
     /// Manda (de novo) o e-mail de confirmação do endereço
@@ -53,6 +55,7 @@ protocol AuthBackend: Sendable {
 
 /// Sem servidor de e-mail (simulado e CloudKit): nada a mandar
 extension AuthBackend {
+    func checkCanDelete() async throws {}
     func resetPassword(email: String) async throws {}
     func sendVerification() async throws {}
     func isVerified() async -> Bool? { nil }
@@ -112,6 +115,8 @@ final class AuthStore {
     func sendVerification() async throws { try await backend.sendVerification() }
 
     func checkVerification() async { emailVerified = user?.provider == .email ? await backend.isVerified() : nil }
+
+    func checkCanDelete() async throws { try await backend.checkCanDelete() }
 
     /// Apaga a conta no servidor e, só se der certo, tudo dela neste aparelho e a sessão.
     /// Os dados da conta no servidor saem antes, pelo AccountSync (que chama este método).

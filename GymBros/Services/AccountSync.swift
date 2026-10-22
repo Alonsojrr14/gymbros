@@ -232,6 +232,8 @@ final class AccountSync {
     /// e as cópias guardadas em Application Support/AccountSync. Só lança erro se a conta continuar existindo.
     func deleteAccount() async throws {
         guard let user = auth.user else { return }
+        // Antes de apagar qualquer coisa: se o cadastro não puder sair agora, nada sai
+        try await auth.checkCanDelete()
         pending?.cancel()
         try await backend.delete(accountID: user.id)
         let before = phase

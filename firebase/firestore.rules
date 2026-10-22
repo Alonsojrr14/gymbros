@@ -147,6 +147,8 @@ service cloud.firestore {
     match /reports/{id} {
       allow create, update: if writesAsMe() && id.matches(uid() + '-.*') && request.resource.data.date == request.time;
       allow read: if isAdmin();
+      // Excluir a conta busca as suas denúncias para apagar (sem isso a consulta é recusada e a exclusão inteira falha)
+      allow list: if wasMine();
       allow delete: if wasMine() || isAdmin();
     }
 
@@ -185,12 +187,15 @@ service cloud.firestore {
       }
     }
 
-    // Treino ao vivo: um documento por pessoa; lê quem ela adicionou como amigo
+    // Treino ao vivo: um documento por pessoa; lê só amigo de verdade (os dois se adicionaram). Só a ida
+    // ("ela me adicionou") deixava qualquer link de amigo aberto sem querer liberar a localização ao vivo.
     match /live/{id} {
       allow get: if signedIn() && (id == uid()
-                  || exists(/databases/$(database)/documents/friendLinks/$(id + '->' + uid())));
+                  || (exists(doc('friendLinks', id + '->' + uid())) && exists(doc('friendLinks', uid() + '->' + id))));
       allow list: if false;
-      allow write: if signedIn() && id == uid() && request.resource.data.user == uid();
+      allow create, update: if signedIn() && id == uid() && request.resource.data.user == uid();
+      // Excluir a conta apaga o seu (na exclusão não há request.resource, então o write acima recusaria)
+      allow delete: if signedIn() && id == uid();
     }
   }
 }

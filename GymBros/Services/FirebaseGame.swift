@@ -335,11 +335,17 @@ struct FirebaseAccountDataBackend: AccountDataBackend {
         UserDefaults.standard.set("\(accountID):\(hash)", forKey: Self.uploadedKey)
     }
 
+    /// A cópia deste iPhone é a mesma ou mais nova que a da nuvem. O arquivo guarda a data em segundos (ISO 8601) e o
+    /// servidor com fração: comparando direto, a mesma cópia parecia mais velha e as fotos se perdiam ao sair e entrar
+    static func isLocalCurrent(_ local: Date, saved: Date) -> Bool {
+        local.timeIntervalSince1970.rounded(.down) >= saved.timeIntervalSince1970.rounded(.down)
+    }
+
     /// A cópia deste iPhone (com fotos) quando é a mais nova; senão a da nuvem
     func download(accountID: String) async throws -> Backup? {
         let mine = try? await local.download(accountID: accountID)
         guard let m = try await meta(accountID).getDocument().data(), let count = m["chunks"] as? Int, count > 0 else { return mine }
-        if let mine, let saved = Fire.date(m["savedAt"]), mine.exportedAt >= saved { return mine }
+        if let mine, let saved = Fire.date(m["savedAt"]), Self.isLocalCurrent(mine.exportedAt, saved: saved) { return mine }
         var packed = Data()
         for n in 0..<count {
             guard let part = try await chunk(accountID, n).getDocument().data()?["data"] as? Data else { return mine }

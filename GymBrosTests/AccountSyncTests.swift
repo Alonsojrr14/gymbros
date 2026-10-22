@@ -265,6 +265,27 @@ final class AccountSyncTests: GymTestCase {
         XCTAssertNil(widget.object(forKey: "widgetData"))
     }
 
+    /// Login antigo: o cadastro não sairia, então nada sai (nem a cópia da conta, nem os dados do aparelho)
+    func testDeleteAccountWithStaleLoginDeletesNothing() async throws {
+        let auth = FakeAccountAuth(staleLogin: true)
+        let sync = make(auth)
+        let user = try await signIn(sync, "antigo@gymbros.app")
+        try seed(name: "Antigo")
+        try await sync.upload()
+
+        do {
+            try await sync.deleteAccount()
+            XCTFail("deveria recusar")
+        } catch {}
+
+        let deleted = await auth.deleted
+        XCTAssertEqual(deleted, [])
+        let remote = try await sync.backend.download(accountID: user.id)
+        XCTAssertNotNil(remote)
+        XCTAssertNotNil(sync.auth.user)
+        XCTAssertGreaterThan(try count(Activity.self), 0)
+    }
+
     func testDeleteAccountRemovesItsSetAsideCopies() async throws {
         let sync = make()
         let user = try await signIn(sync, "apagar@gymbros.app")
@@ -318,9 +339,18 @@ final class AccountSyncTests: GymTestCase {
 
 private actor FakeAccountAuth: AuthBackend {
     private let fails: Bool
+    /// Login antigo: o servidor recusaria excluir o cadastro
+    private let staleLogin: Bool
     private(set) var deleted: [String] = []
 
-    init(fails: Bool = false) { self.fails = fails }
+    init(fails: Bool = false, staleLogin: Bool = false) {
+        self.fails = fails
+        self.staleLogin = staleLogin
+    }
+
+    func checkCanDelete() async throws {
+        if staleLogin { throw FirebaseAuthError.recentLogin }
+    }
 
     func signInWithApple() async throws -> AuthUser { throw AuthError.cancelled }
 
@@ -335,5 +365,22 @@ private actor FakeAccountAuth: AuthBackend {
     func deleteAccount(_ user: AuthUser) async throws {
         if fails { throw URLError(.notConnectedToInternet) }
         deleted.append(user.id)
+    }
+}
+
+/// Cópia da conta no Firebase: o arquivo deste iPhone (com fotos) continua valendo quando é a mesma cópia da nuvem
+final class AccountCopyDateTests: GymTestCase {
+    func testSameCopyIsCurrentDespiteSecondPrecision() throws {
+        let saved = Date(timeIntervalSince1970: 1_800_000_000.734)
+        // O que o arquivo devolve: a mesma data, gravada em ISO 8601 sem fração
+        let local = try XCTUnwrap(ISO8601DateFormatter().date(from: ISO8601DateFormatter().string(from: saved)))
+        XCTAssertLessThan(local, saved)
+        XCTAssertTrue(FirebaseAccountDataBackend.isLocalCurrent(local, saved: saved))
+    }
+
+    func testOlderLocalCopyIsNotCurrent() {
+        let saved = Date(timeIntervalSince1970: 1_800_000_000.2)
+        XCTAssertFalse(FirebaseAccountDataBackend.isLocalCurrent(saved.addingTimeInterval(-1), saved: saved))
+        XCTAssertTrue(FirebaseAccountDataBackend.isLocalCurrent(saved.addingTimeInterval(5), saved: saved))
     }
 }
