@@ -8,7 +8,7 @@ import com.alonsoalmeida.gymbros.data.FirebaseAuthRepository
 import com.alonsoalmeida.gymbros.ui.components.Sprites
 
 /** Injeção manual (ADR-003): um container por processo; os ViewModels pegam o que precisam daqui */
-class AppContainer(context: Context) {
+class AppContainer(val context: Context) {
     val auth: AuthRepository by lazy { FirebaseAuthRepository() }
     val copies: AccountCopyRepository by lazy { AccountCopyRepository(context) }
 }

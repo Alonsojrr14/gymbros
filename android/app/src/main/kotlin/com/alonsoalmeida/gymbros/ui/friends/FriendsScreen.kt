@@ -135,6 +135,18 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
     var opened by remember { mutableStateOf<RemoteFriend?>(null) }
     val context = LocalContext.current
     LaunchedEffect(visible) { if (visible) { vm.clearMessage(); vm.refresh(home) } }
+    // Fotos: escuta só com a tela aberta e o app na frente
+    if (visible) {
+        val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+        androidx.compose.runtime.DisposableEffect(owner) {
+            val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_START) vm.startWatching()
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) vm.stopWatching()
+            }
+            owner.lifecycle.addObserver(obs)
+            onDispose { owner.lifecycle.removeObserver(obs); vm.stopWatching() }
+        }
+    }
     // Deu certo (amizade ou pedido enviado): limpa o campo, como no iOS
     LaunchedEffect(message) { if (message?.endsWith("🎉") == true || message?.startsWith("Pedido de amizade enviado") == true) code = "" }
 

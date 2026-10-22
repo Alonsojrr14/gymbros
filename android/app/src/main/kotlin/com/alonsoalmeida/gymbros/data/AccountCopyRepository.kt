@@ -59,6 +59,8 @@ sealed interface CopyState {
  */
 class AccountCopyRepository(context: Context) {
     private val root = File(context.noBackupFilesDir, "conta")
+    /** Fotos de perfil de outras pessoas guardadas (ProfilePhotosRepository): saem junto ao sair da conta */
+    private val avatars = File(context.cacheDir, "avatars")
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance().apply {
         firestoreSettings = firestoreSettings { setLocalCacheSettings(memoryCacheSettings {}) }
     }
@@ -225,5 +227,6 @@ class AccountCopyRepository(context: Context) {
         stop()
         uid = null
         root.deleteRecursively()
+        avatars.deleteRecursively()
     }
 }

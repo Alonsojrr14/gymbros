@@ -10,7 +10,6 @@ import com.alonsoalmeida.gymbros.data.FriendsState
 import com.alonsoalmeida.gymbros.data.LeagueMember
 import com.alonsoalmeida.gymbros.data.PublicProfile
 import com.alonsoalmeida.gymbros.data.PublicBro
-import com.alonsoalmeida.gymbros.data.watch
 import com.alonsoalmeida.gymbros.domain.backup.AccountEdits
 import com.alonsoalmeida.gymbros.domain.home.HomeData
 import com.dd.plist.NSDate
@@ -38,16 +37,43 @@ class FriendsViewModel(private val repo: FriendsRepository, private val copies: 
 
     private var stopWatching: (() -> Unit)? = null
     private var watched: List<String> = emptyList()
+    private var versions: Map<String, String> = emptyMap()
+    /** Tela de amigos aberta e app na frente: só então escuta (economiza o limite do plano grátis) */
+    private var watching = false
 
-    /** Escuta ao vivo as fotos de quem aparece na tela: a pessoa trocou ou escondeu a foto, muda aqui na hora */
-    private fun loadPhotos(ids: Collection<String>) {
-        val list = (watched + ids).distinct().sorted()
+    /** Quem aparece na tela: amigos, pedidos e sugestões */
+    private fun shownIDs() = (_state.value.friends.map { it.id } + _state.value.incoming.map { it.id } +
+        _suggestions.value.map { it.member.id }).distinct().sorted()
+
+    private fun loadPhotos(@Suppress("UNUSED_PARAMETER") extra: Collection<String> = emptyList()) {
+        if (!watching) return
+        val list = shownIDs()
         if (list == watched) return
         watched = list
         stopWatching?.invoke()
-        stopWatching = photosRepo.watch(list) { id, data ->
-            _photos.value = if (data != null) _photos.value + (id to data) else _photos.value - id
+        stopWatching = photosRepo.watch(list) { id, version ->
+            if (versions[id] == version && (version.isEmpty() || id in _photos.value)) return@watch
+            versions = versions + (id to version)
+            viewModelScope.launch {
+                val data = photosRepo.photo(id, version)
+                if (versions[id] != version) return@launch
+                _photos.value = if (data != null) _photos.value + (id to data) else _photos.value - id
+            }
         }
+    }
+
+    /** Tela aberta (e app na frente): escuta as versões das fotos de quem aparece */
+    fun startWatching() {
+        watching = true
+        watched = emptyList()
+        loadPhotos()
+    }
+
+    fun stopWatching() {
+        watching = false
+        stopWatching?.invoke()
+        stopWatching = null
+        watched = emptyList()
     }
 
     override fun onCleared() {
@@ -78,7 +104,7 @@ class FriendsViewModel(private val repo: FriendsRepository, private val copies: 
             runCatching { repo.fetch(home.declinedFriends, blocked) }.onSuccess { _state.value = it }
             ensureCode(home)
             loadSuggestions(home)
-            loadPhotos(_state.value.friends.map { it.id } + _state.value.incoming.map { it.id } + _suggestions.value.map { it.member.id })
+            loadPhotos()
         }
     }
 
@@ -158,7 +184,7 @@ class FriendsViewModel(private val repo: FriendsRepository, private val copies: 
     fun block(id: String, name: String, home: HomeData) = viewModelScope.launch { runCatching { repo.block(id, name) }; refresh(home) }
 
     fun loadProfile(id: String) = viewModelScope.launch {
-        loadPhotos(listOf(id))
+
         runCatching { repo.profile(id) }.onSuccess { _profiles.value = _profiles.value + (id to it) }
     }
 

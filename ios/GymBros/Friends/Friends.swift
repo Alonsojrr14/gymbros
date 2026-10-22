@@ -112,7 +112,6 @@ final class FriendsStore {
     func refresh() async {
         if let s = try? await backend.fetch() { state = s }
         LiveFriendsStore.shared.follow(state.friends.map(\.id))
-        ProfilePhotos.shared.follow(state.friends.map(\.id) + state.incoming.map(\.id))
     }
 
     /// Esquece o que veio do servidor (conta excluída)
@@ -306,6 +305,12 @@ struct MockFriendsBackend: FriendsBackend {
 struct FriendsView: View {
     @State private var store = FriendsStore.shared
     @State private var photos = ProfilePhotos.shared
+    @Environment(\.scenePhase) private var phase
+
+    /// Quem aparece na tela: amigos, pedidos e sugestões
+    private var photoIDs: [String] {
+        store.friends.map(\.id) + store.incoming.map(\.id) + store.suggestions(from: leagues).map(\.member.id)
+    }
     @State private var code = ""
     @State private var message: String?
     @State private var opened: RemoteFriend?
@@ -366,6 +371,10 @@ struct FriendsView: View {
             }
         }
         .task(id: AuthStore.shared.isSignedIn) { if AuthStore.shared.isSignedIn { await store.refresh() } }
+        // Fotos: escuta só com a tela aberta e o app na frente (economiza o limite do plano grátis)
+        .onChange(of: photoIDs, initial: true) { _, ids in if phase == .active { photos.follow(ids) } }
+        .onChange(of: phase) { _, p in if p == .active { photos.follow(photoIDs) } else { photos.stop() } }
+        .onDisappear { photos.stop() }
         .gmModal(item: $opened) { FriendProfileView(friend: $0) }
         .gmModal(isPresented: $duelsOpen) { DuelsView() }
         .gmModal(isPresented: $qr) { FriendQRView(myCode: store.myCode) { add($0) } }

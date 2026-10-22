@@ -217,56 +217,74 @@ class FriendsRepository(private val db: FirebaseFirestore = FirebaseFirestore.ge
 }
 
 /**
- * Fotos de perfil que os outros veem (`avatars/{uid}`, miniatura de 256 px), iguais às do iPhone (ProfilePhotos.swift).
- * A sua só sobe com "Foto do perfil" ligada (`publicPhoto`, padrão sim); desligar tira do ar.
+ * Fotos de perfil que os outros veem, iguais às do iPhone (ProfilePhotos.swift): a miniatura (160 px) em `avatars/{uid}` e a
+ * versão dela (`avatarVersion`) no perfil público. A sua só sobe com "Foto do perfil" ligada (`publicPhoto`, padrão sim).
+ *
+ * Para não gastar o limite do plano grátis: escuta só a versão (no perfil, poucos bytes), guarda cada foto no aparelho
+ * (cache privado do app) e só baixa de novo quando a versão muda. Quem chama liga a escuta só com a tela aberta.
  */
-class ProfilePhotosRepository(private val db: FirebaseFirestore = FirebaseFirestore.getInstance()) {
-    private val cache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
-    private val missing = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+class ProfilePhotosRepository(context: android.content.Context, private val db: FirebaseFirestore = FirebaseFirestore.getInstance()) {
+    private val folder = java.io.File(context.cacheDir, "avatars")
     private var published: String? = null
 
-    suspend fun photo(id: String): ByteArray? {
-        cache[id]?.let { return it }
-        if (id in missing) return null
-        val data = runCatching { db.collection("avatars").document(id).get().await().getBlob("data")?.toBytes() }.getOrNull()
-        if (data != null) cache[id] = data else missing += id
+    private fun clean(s: String) = s.filter { it.isLetterOrDigit() }
+    private fun file(id: String, version: String) = java.io.File(folder, "${clean(id)}-${clean(version)}.jpg")
+
+    /** Foto na versão pedida: do aparelho, ou baixa uma vez e guarda (apagando as versões antigas da pessoa) */
+    suspend fun photo(id: String, version: String): ByteArray? {
+        if (version.isEmpty()) return null
+        val f = file(id, version)
+        if (f.exists()) return f.readBytes()
+        val data = runCatching { db.collection("avatars").document(id).get().await().getBlob("data")?.toBytes() }.getOrNull() ?: return null
+        folder.mkdirs()
+        folder.listFiles { x -> x.name.startsWith("${clean(id)}-") }?.forEach { it.delete() }
+        f.writeBytes(data)
         return data
     }
 
+    /** Escuta as versões das fotos (no perfil público): `onChange(id, versão)`, versão vazia = sem foto. Devolve como parar */
+    fun watch(ids: List<String>, onChange: (String, String) -> Unit): () -> Unit {
+        val regs = ids.distinct().filter { it.isNotEmpty() }.chunked(10).map { chunk ->
+            db.collection("profiles").whereIn(FieldPath.documentId(), chunk).addSnapshotListener { snap, _ ->
+                if (snap == null) return@addSnapshotListener
+                val found = snap.documents.associate { it.id to (it.getString("avatarVersion") ?: "") }
+                for (id in chunk) onChange(id, found[id] ?: "")
+            }
+        }
+        return { regs.forEach { it.remove() } }
+    }
+
+    /** Outra conta: apaga as fotos guardadas */
+    fun clear() { folder.deleteRecursively() }
+
+    /** Publica (ou tira do ar) a sua foto se mudou: a miniatura e, por último, a versão no perfil */
     suspend fun publish(photo: ByteArray?, show: Boolean) {
         val me = FirebaseAuth.getInstance().currentUser?.uid ?: return
         val thumb = if (show) photo?.let(::thumbnail) else null
-        val fingerprint = thumb?.let { "$me:${it.size}:${it.contentHashCode()}" } ?: "$me:none"
+        val version = thumb?.let { stableHash(it) } ?: ""
+        val fingerprint = "$me:$version"
         if (published == fingerprint) return
         val ref = db.collection("avatars").document(me)
         if (thumb != null) ref.set(mapOf("data" to com.google.firebase.firestore.Blob.fromBytes(thumb), "updatedAt" to FieldValue.serverTimestamp())).await()
         else ref.delete().await()
+        db.collection("profiles").document(me).set(mapOf("avatarVersion" to version), com.google.firebase.firestore.SetOptions.merge()).await()
         published = fingerprint
     }
 
-    /** 256 px no lado maior, JPEG: cabe com folga no limite das regras (150 KB) */
+    /** Mesmo resumo do iPhone (djb2 em 64 bits, em hexadecimal) */
+    private fun stableHash(b: ByteArray): String {
+        var h = 5381UL
+        for (x in b) h = h * 33UL + x.toUByte().toULong()
+        return h.toString(16)
+    }
+
+    /** 160 px no lado maior, JPEG: ~10 KB */
     private fun thumbnail(data: ByteArray): ByteArray? {
         val bmp = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size) ?: return null
-        val scale = minOf(1f, 256f / maxOf(bmp.width, bmp.height))
+        val scale = minOf(1f, 160f / maxOf(bmp.width, bmp.height))
         val out = android.graphics.Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt().coerceAtLeast(1), (bmp.height * scale).toInt().coerceAtLeast(1), true)
         val stream = java.io.ByteArrayOutputStream()
         out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, stream)
         return stream.toByteArray()
     }
-}
-
-/**
- * Escuta ao vivo as fotos de um grupo de pessoas: trocou ou escondeu, `onChange` recebe na hora (null = sem foto).
- * Uma escuta por lote de 10 (limite do `in` do Firestore). Devolve como parar.
- */
-fun ProfilePhotosRepository.watch(ids: List<String>, onChange: (String, ByteArray?) -> Unit): () -> Unit {
-    val db = FirebaseFirestore.getInstance()
-    val regs = ids.distinct().filter { it.isNotEmpty() }.chunked(10).map { chunk ->
-        db.collection("avatars").whereIn(FieldPath.documentId(), chunk).addSnapshotListener { snap, _ ->
-            if (snap == null) return@addSnapshotListener
-            val found = snap.documents.associate { it.id to it.getBlob("data")?.toBytes() }
-            for (id in chunk) onChange(id, found[id])
-        }
-    }
-    return { regs.forEach { it.remove() } }
 }
