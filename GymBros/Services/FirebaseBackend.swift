@@ -166,6 +166,11 @@ struct FirebaseAuthBackend: AuthBackend {
         // Mensagens, X1 e trocas ficam com a outra pessoa (são dela também); o seu nome sai junto com o perfil
         refs += [db.collection(FireCollection.profiles).document(me), db.collection(FireCollection.live).document(me),
                  db.collection(FireCollection.tradeBros).document(me)]
+        // A reserva do código de amigo, se existir (apagar um documento que não existe seria recusado pela regra)
+        if let code = UserDefaults.standard.string(forKey: "friendCode") {
+            let reservation = db.collection(FireCollection.friendCodes).document(code)
+            if (try await reservation.getDocument().data()?["user"] as? String) == me { refs.append(reservation) }
+        }
         try await Fire.delete(refs)
         try? await Backend.photos.delete(photos)
         try await Self.run { try await Auth.auth().currentUser?.delete() }
@@ -251,6 +256,10 @@ struct FirebaseFriendsBackend: FriendsBackend {
     }
 
     func add(code: String) async throws -> RemoteFriend {
+        // O código reservado vale; a busca no perfil só para códigos de antes da reserva (perfil não publicado de novo)
+        if let id = try await Fire.db.collection(FireCollection.friendCodes).document(code).getDocument().data()?["user"] as? String {
+            return try await add(id: id)
+        }
         guard let d = try await profiles.whereField("friendCode", isEqualTo: code).limit(to: 1).getDocuments().documents.first else {
             throw FriendError.notFound
         }
@@ -321,15 +330,32 @@ struct FirebaseFriendsBackend: FriendsBackend {
         .sorted { $0.date > $1.date }
     }
 
+    /// O perfil sai junto com a reserva do código (`friendCodes/{código}`): ninguém copia o código de outra pessoa.
+    /// Código já reservado por alguém: gera outro, guarda como o seu e tenta de novo.
     func publish(_ profile: PublicProfile, friendCode: String) async throws {
         let me = try Fire.me()
         let extra = PublicProfile.Extra(bro: profile.bro, stats: profile.stats, achievements: profile.achievements)
-        try await profiles.document(me).setData(Fire.fields([
-            "name": profile.name, "username": profile.username, "bio": profile.bio, "friendCode": friendCode,
-            "broFormID": profile.bro?.formID,
-            "public": (try? JSONEncoder().encode(extra)).flatMap { String(data: $0, encoding: .utf8) },
-            "hiddenFrom": FriendPrefs.hiddenFrom(),
-        ]), merge: true)
+        var code = friendCode
+        for _ in 0..<3 {
+            let reservation = Fire.db.collection(FireCollection.friendCodes).document(code)
+            let owner = try await reservation.getDocument().data()?["user"] as? String
+            if let owner, owner != me {
+                code = League.newCode()
+                UserDefaults.standard.set(code, forKey: "friendCode")
+                continue
+            }
+            let batch = Fire.db.batch()
+            if owner == nil { batch.setData(["user": me, "createdAt": FieldValue.serverTimestamp()], forDocument: reservation) }
+            batch.setData(Fire.fields([
+                "name": profile.name, "username": profile.username, "bio": profile.bio, "friendCode": code,
+                "broFormID": profile.bro?.formID,
+                "public": (try? JSONEncoder().encode(extra)).flatMap { String(data: $0, encoding: .utf8) },
+                "hiddenFrom": FriendPrefs.hiddenFrom(),
+            ]), forDocument: profiles.document(me), merge: true)
+            try await batch.commit()
+            return
+        }
+        throw FriendError.notFound
     }
 
     /// Qualquer pessoa logada lê o perfil: o app de quem foi escondido respeita, mas não é sigilo

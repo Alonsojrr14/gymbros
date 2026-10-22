@@ -22,9 +22,16 @@ service cloud.firestore {
     // Só estes campos mudaram
     function only(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
 
+    // O código de amigo do perfil tem de estar reservado por você (friendCodes): ninguém copia o de outra pessoa
+    function codeIsMine() {
+      return !('friendCode' in request.resource.data) || request.resource.data.friendCode == ''
+        || getAfter(doc('friendCodes', request.resource.data.friendCode)).data.user == uid();
+    }
+
     match /profiles/{id} {
       allow read: if signedIn();
-      allow write: if signedIn() && id == uid();
+      allow create, update: if signedIn() && id == uid() && codeIsMine();
+      allow delete: if signedIn() && id == uid();
       // Admin tira do ar nome, bio e o resto do perfil denunciado
       allow update: if isAdmin() && only(['name', 'username', 'bio', 'public']);
     }
@@ -185,6 +192,14 @@ service cloud.firestore {
       match /chunks/{n} {
         allow read, write: if signedIn() && id == uid();
       }
+    }
+
+    // Código de amigo: o primeiro a reservar fica com ele; não se troca de dono nem se lista
+    match /friendCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.user == uid() && code.matches('^[A-HJ-NP-Z2-9]{6}$');
+      allow delete: if signedIn() && resource.data.user == uid();
     }
 
     // Treino ao vivo: um documento por pessoa; lê só amigo de verdade (os dois se adicionaram). Só a ida

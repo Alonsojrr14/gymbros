@@ -30,7 +30,7 @@ extension Fire {
 
 extension FireCollection {
     static let duels = "duels", trades = "trades", tradeBros = "tradeBros", reports = "reports", blocks = "blocks",
-               roles = "roles", routines = "routines", accounts = "accounts"
+               roles = "roles", routines = "routines", accounts = "accounts", friendCodes = "friendCodes"
 }
 
 extension Backend {
