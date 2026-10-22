@@ -1,0 +1,115 @@
+import XCTest
+@testable import GymBros
+
+/// Mesclagem da cópia da conta entre aparelhos (IOS-08): uma linha da tabela do desenho por teste
+final class BackupMergeTests: GymTestCase {
+    private let a = "00000000-0000-0000-0000-00000000000A", b = "00000000-0000-0000-0000-00000000000B",
+                c = "00000000-0000-0000-0000-00000000000C"
+
+    private func activity(_ id: String, minutes: Int = 30, note: String = "") -> String {
+        #"{"uuid":"\#(id)","kind":"corrida","date":"2026-10-20T12:00:00Z","minutes":\#(minutes),"effort":5,"note":"\#(note)"}"#
+    }
+
+    private func backup(_ activities: [String], exported: String = "2026-10-20T12:00:00Z", settings: String = "{}",
+                        body: String = "[]") throws -> Backup {
+        let json = #"{"version":1,"exportedAt":"\#(exported)","settings":\#(settings),"activities":[\#(activities.joined(separator: ","))],"routines":[],"sessions":[],"customExercises":[],"body":\#(body)}"#
+        return try Backup.decoder.decode(Backup.self, from: Data(json.utf8))
+    }
+
+    private func minutes(_ b: Backup) -> [String: Int] {
+        Dictionary(uniqueKeysWithValues: b.activities.map { ($0.uuid.uuidString, $0.minutes) })
+    }
+
+    func testEditedOnTheOtherDeviceComesIn() throws {
+        let base = try backup([activity(a)])
+        let out = try BackupMerge.merge(local: base, remote: try backup([activity(a, minutes: 45)]), base: base)
+        XCTAssertEqual(minutes(out.backup), [a: 45])
+        XCTAssertTrue(out.conflicts.isEmpty)
+    }
+
+    func testEditedHereStays() throws {
+        let base = try backup([activity(a)])
+        let out = try BackupMerge.merge(local: try backup([activity(a, minutes: 60)]), remote: base, base: base)
+        XCTAssertEqual(minutes(out.backup), [a: 60])
+    }
+
+    func testEditedOnBothKeepsTheNewerCopyAndReportsIt() throws {
+        let base = try backup([activity(a)])
+        let local = try backup([activity(a, minutes: 60)], exported: "2026-10-21T12:00:00Z")
+        let remote = try backup([activity(a, minutes: 45)], exported: "2026-10-22T12:00:00Z")
+        let out = try BackupMerge.merge(local: local, remote: remote, base: base)
+        XCTAssertEqual(minutes(out.backup), [a: 45])
+        XCTAssertEqual(out.conflicts, ["activities:\(a)"])
+    }
+
+    func testDeletedOnTheOtherDeviceGoes() throws {
+        let base = try backup([activity(a), activity(b)])
+        let out = try BackupMerge.merge(local: base, remote: try backup([activity(a)]), base: base)
+        XCTAssertEqual(minutes(out.backup), [a: 30])
+    }
+
+    func testDeletedHereDoesNotComeBack() throws {
+        let base = try backup([activity(a), activity(b)])
+        let out = try BackupMerge.merge(local: try backup([activity(a)]), remote: base, base: base)
+        XCTAssertEqual(minutes(out.backup), [a: 30])
+    }
+
+    func testDeletedThereButEditedHereStays() throws {
+        let base = try backup([activity(a), activity(b)])
+        let out = try BackupMerge.merge(local: try backup([activity(a), activity(b, minutes: 90)]), remote: try backup([activity(a)]), base: base)
+        XCTAssertEqual(minutes(out.backup), [a: 30, b: 90])
+    }
+
+    func testNewOnBothSidesAreKept() throws {
+        let base = try backup([activity(a)])
+        let out = try BackupMerge.merge(local: try backup([activity(a), activity(b)]), remote: try backup([activity(a), activity(c)]), base: base)
+        XCTAssertEqual(minutes(out.backup), [a: 30, b: 30, c: 30])
+        XCTAssertEqual(out.backup.activities.map(\.uuid.uuidString), [a, b, c])
+    }
+
+    func testWithoutBaseItIsAUnionAndNothingIsDeleted() throws {
+        let out = try BackupMerge.merge(local: try backup([activity(a), activity(b)]), remote: try backup([activity(c)]), base: nil)
+        XCTAssertEqual(Set(minutes(out.backup).keys), [a, b, c])
+    }
+
+    func testLocalPhotoSurvivesTheCloudCopyWithoutPhotos() throws {
+        let photo = Data([1, 2, 3]).base64EncodedString()
+        let base = try backup([], body: #"[{"uuid":"\#(a)","date":"2026-10-20T12:00:00Z","weight":80,"photoFront":"\#(photo)"}]"#)
+        // O outro aparelho corrigiu o peso; a cópia da nuvem não leva fotos
+        let remote = try backup([], body: #"[{"uuid":"\#(a)","date":"2026-10-20T12:00:00Z","weight":79.5}]"#)
+        let out = try BackupMerge.merge(local: base, remote: remote, base: base)
+        XCTAssertEqual(out.backup.body?.first?.weight, 79.5)
+        XCTAssertEqual(out.backup.body?.first?.photoFront, Data([1, 2, 3]))
+    }
+
+    func testCloudCopyWithoutPhotosIsNotAChange() throws {
+        let photo = Data([9]).base64EncodedString()
+        let local = try backup([], body: #"[{"uuid":"\#(a)","date":"2026-10-20T12:00:00Z","weight":80,"photoFront":"\#(photo)"}]"#)
+        let remote = try backup([], body: #"[{"uuid":"\#(a)","date":"2026-10-20T12:00:00Z","weight":80}]"#)
+        let out = try BackupMerge.merge(local: local, remote: remote, base: local)
+        XCTAssertEqual(out.backup.body?.first?.photoFront, Data([9]))
+        XCTAssertTrue(out.conflicts.isEmpty)
+    }
+
+    func testSettingsMergeKeyByKey() throws {
+        let base = try backup([], settings: #"{"trainerName":"Ana","bodyGender":"f"}"#)
+        let local = try backup([], settings: #"{"trainerName":"Ana B","bodyGender":"f"}"#)
+        let remote = try backup([], settings: #"{"trainerName":"Ana","bodyGender":"m","profileBio":"oi"}"#)
+        let out = try BackupMerge.merge(local: local, remote: remote, base: base)
+        XCTAssertEqual(out.backup.settings, ["trainerName": "Ana B", "bodyGender": "m", "profileBio": "oi"])
+    }
+
+    func testRegistriesAreUnited() {
+        let out = BackupMerge.mergeDict([RetiredActivities.key: ["x", "y"]], [RetiredActivities.key: ["y", "z"]], [RetiredActivities.key: ["y"]],
+                                        newerIsLocal: true)
+        XCTAssertEqual(out?[RetiredActivities.key] as? [String], ["x", "y", "z"])
+    }
+
+    func testMergingTheSameCopyChangesNothing() throws {
+        let x = try backup([activity(a), activity(b, note: "corrida leve")], settings: #"{"trainerName":"Ana"}"#)
+        let out = try BackupMerge.merge(local: x, remote: x, base: x)
+        XCTAssertEqual(try Backup.encoder.encode(out.backup), try Backup.encoder.encode(x))
+        let twice = try BackupMerge.merge(local: out.backup, remote: x, base: x)
+        XCTAssertEqual(try Backup.encoder.encode(twice.backup), try Backup.encoder.encode(out.backup))
+    }
+}
