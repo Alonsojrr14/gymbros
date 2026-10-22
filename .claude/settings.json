@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(/GymBros/Resources/GoogleService-Info.plist)",
+      "Edit(/GymBros/Resources/GoogleService-Info.plist)",
+      "Read(/ios/GymBros/Resources/GoogleService-Info.plist)",
+      "Edit(/ios/GymBros/Resources/GoogleService-Info.plist)",
+      "Read(**/google-services.json)",
+      "Edit(**/google-services.json)",
+      "Bash(firebase deploy *)",
+      "Bash(firebase apps:create *)",
+      "mcp__plugin_firebase_firebase__firebase_deploy",
+      "mcp__plugin_firebase_firebase__firebase_create_app",
+      "mcp__plugin_firebase_firebase__firebase_create_android_sha",
+      "mcp__plugin_firebase_firebase__firebase_create_project",
+      "mcp__plugin_firebase_firebase__firebase_update_environment"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(git stash *)",
+      "Bash(git reset *)",
+      "Bash(git clean *)",
+      "Bash(git mv *)",
+      "Edit(/docs/**)",
+      "Edit(/firebase/**)"
+    ]
+  }
+}
