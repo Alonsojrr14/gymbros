@@ -23,6 +23,8 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-foundation = { module = "androidx.compose.foundation:foundation" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
+# Equivalentes dos SF Symbols do iOS
+compose-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
 core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
