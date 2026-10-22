@@ -19,6 +19,46 @@ struct GMTextField: View {
     }
 }
 
+/// Campo de senha com o olho para mostrar ou ocultar o que foi digitado. Fundo de card e padding 14, como o
+/// SecureField do login; o teclado continua aberto ao alternar.
+struct GMSecureField: View {
+    let placeholder: String
+    @Binding var text: String
+    var contentType: UITextContentType = .password
+    @State private var visible = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Group {
+                if visible {
+                    TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Theme.dim))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } else {
+                    SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(Theme.dim))
+                }
+            }
+            .textContentType(contentType)
+            .focused($focused)
+            Button {
+                let wasFocused = focused
+                visible.toggle()
+                if wasFocused { DispatchQueue.main.async { focused = true } }
+            } label: {
+                Image(systemName: visible ? "eye.slash" : "eye")
+                    .foregroundStyle(Theme.dim)
+                    .frame(width: 28, height: 28)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(visible ? "Ocultar senha" : "Mostrar senha")
+        }
+        .padding(14)
+        .background(Theme.card, in: .rect(cornerRadius: Theme.radiusM))
+    }
+}
+
 struct GMSearchField: View {
     let placeholder: String
     @Binding var text: String

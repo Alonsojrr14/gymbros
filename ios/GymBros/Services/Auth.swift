@@ -383,10 +383,7 @@ struct LoginView: View {
                     GMTextField(placeholder: "E-mail", text: $email, keyboard: .emailAddress, capitalization: .never)
                         .textContentType(.emailAddress)
                         .autocorrectionDisabled()
-                    SecureField("", text: $password, prompt: Text("Senha (mínimo 8 caracteres)").foregroundStyle(Theme.dim))
-                        .textContentType(creating ? .newPassword : .password)
-                        .padding(14)
-                        .background(Theme.card, in: .rect(cornerRadius: Theme.radiusM))
+                    GMSecureField(placeholder: "Senha (mínimo 8 caracteres)", text: $password, contentType: creating ? .newPassword : .password)
                 }
                 if let error {
                     Text(error).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.danger).multilineTextAlignment(.center)

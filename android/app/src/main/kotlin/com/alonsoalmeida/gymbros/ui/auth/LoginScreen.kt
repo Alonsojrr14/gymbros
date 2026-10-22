@@ -22,6 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -37,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -173,6 +176,8 @@ fun GMTextField(
     secure: Boolean = false,
     onDone: () -> Unit = {},
 ) {
+    // Campo de senha: o olho mostra ou oculta o que foi digitado (GMSecureField do iOS)
+    var visible by rememberSaveable { mutableStateOf(false) }
     BasicTextField(
         value = value,
         onValueChange = onChange,
@@ -181,16 +186,30 @@ fun GMTextField(
         cursorBrush = SolidColor(GMColors.accent),
         keyboardOptions = keyboard,
         keyboardActions = KeyboardActions(onDone = { onDone() }),
-        visualTransformation = if (secure) PasswordVisualTransformation() else VisualTransformation.None,
+        visualTransformation = if (secure && !visible) PasswordVisualTransformation() else VisualTransformation.None,
         modifier = Modifier.fillMaxWidth().semantics { this.contentType = contentType },
         decorationBox = { inner ->
-            Box(
+            Row(
                 Modifier.fillMaxWidth()
                     .background(if (secure) GMColors.card else GMColors.raised, GMRadius.m)
-                    .padding(horizontal = 14.dp, vertical = if (secure) 14.dp else 12.dp),
+                    .padding(start = 14.dp, end = if (secure) 4.dp else 14.dp, top = if (secure) 4.dp else 12.dp, bottom = if (secure) 4.dp else 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (value.isEmpty()) Text(placeholder, color = GMColors.dim, style = GMType.body)
-                inner()
+                Box(Modifier.weight(1f).padding(vertical = if (secure) 10.dp else 0.dp)) {
+                    if (value.isEmpty()) Text(placeholder, color = GMColors.dim, style = GMType.body)
+                    inner()
+                }
+                if (secure) {
+                    Box(
+                        Modifier.size(40.dp).gmPress { visible = !visible }
+                            .semantics { contentDescription = if (visible) "Ocultar senha" else "Mostrar senha" },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(if (visible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, contentDescription = null,
+                             tint = GMColors.dim, modifier = Modifier.size(22.dp))
+                    }
+                }
             }
         },
     )
