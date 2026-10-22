@@ -65,7 +65,7 @@ private data class TabItem(val icon: ImageVector, val title: String, val tag: In
  * Ligas e Mapa à direita. Cada aba é criada na primeira visita e continua viva (guarda a rolagem).
  */
 @Composable
-fun MainScreen(form: MonsterForm, home: @Composable () -> Unit) {
+fun MainScreen(form: MonsterForm, home: @Composable () -> Unit, feed: @Composable () -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var visited by rememberSaveable { mutableStateOf(listOf(0)) }
     Box(Modifier.fillMaxSize().background(GMColors.bg)) {
@@ -79,7 +79,7 @@ fun MainScreen(form: MonsterForm, home: @Composable () -> Unit) {
                     1 -> Soon("Treino", Icons.Filled.FitnessCenter, "Rotinas, treino guiado e WOD estão chegando no Android.")
                     2 -> Soon("Ligas", Icons.Filled.EmojiEvents, "Ligas, X1 e ranking estão chegando no Android.")
                     3 -> Soon("Mapa", Icons.Filled.Map, "Academias, amigos ao vivo e rotas estão chegando no Android.")
-                    4 -> Soon("Feed", Icons.Filled.ViewAgenda, "O feed dos amigos e das ligas está chegando no Android.")
+                    4 -> feed()
                 }
             }
         }
@@ -150,5 +150,13 @@ private fun Center(form: MonsterForm, on: Boolean, onClick: () -> Unit) {
                 .gmPress(role = Role.Tab) { bump = true; onClick() },
             contentAlignment = Alignment.Center,
         ) { MonsterSprite(form, Modifier.size(48.dp).graphicsLayer { scaleX = scale; scaleY = scale }) }
+    }
+}
+
+/** "Em breve" para o que ainda não chegou no Android (abre por cima de tudo) */
+@Composable
+fun SoonModal(title: String?, onDismiss: () -> Unit) {
+    com.alonsoalmeida.gymbros.ui.components.GMModal(title != null, title.orEmpty(), onDismiss) {
+        GMEmptyState(Icons.Filled.FitnessCenter, "Em breve no Android", "Esta parte do GymBros ainda está chegando no Android. No iPhone ela já funciona.")
     }
 }

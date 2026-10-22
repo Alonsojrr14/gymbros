@@ -156,7 +156,12 @@ data class LeagueDto(
     val weights: String? = null,
     val activityRule: String? = null,
     val joined: Boolean? = null,
-)
+    /** Temporada seguinte (esta já é passada) */
+    val nextUUID: String? = null,
+) {
+    fun isOver(now: Instant): Boolean = end?.let { it < now } ?: false
+    val isPastSeason: Boolean get() = nextUUID != null
+}
 
 /**
  * A cópia da conta (`Backup` v1). Por enquanto só as partes que o bro e as ligas usam; o resto do JSON é preservado

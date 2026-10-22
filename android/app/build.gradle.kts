@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.services)
 }
 
@@ -42,6 +43,8 @@ dependencies {
     implementation(project(":core:domain"))
     // A cópia da conta é JSON: o app guarda e grava o documento inteiro
     implementation(libs.serialization.json)
+    // Ajustes da conta (plist binário do iOS) mudados pelo app: código de amigo, pedidos recusados, termos
+    implementation(libs.ddplist)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.foundation)

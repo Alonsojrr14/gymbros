@@ -18,6 +18,13 @@ import com.alonsoalmeida.gymbros.ui.home.AccountState
 import com.alonsoalmeida.gymbros.ui.home.HomeScreen
 import com.alonsoalmeida.gymbros.ui.home.HomeViewModel
 import com.alonsoalmeida.gymbros.ui.main.MainScreen
+import com.alonsoalmeida.gymbros.ui.main.SoonModal
+import com.alonsoalmeida.gymbros.ui.friends.FeedScreen
+import com.alonsoalmeida.gymbros.ui.friends.FriendsViewModel
+import com.alonsoalmeida.gymbros.data.FriendsRepository
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.alonsoalmeida.gymbros.ui.theme.GymBrosTheme
 
 class MainActivity : ComponentActivity() {
@@ -48,8 +55,15 @@ private fun Root(container: AppContainer) {
         when (val state = home.account.collectAsStateWithLifecycle().value) {
             AccountState.Loading -> AccountLoadingScreen(null, home::retry, signOut)
             is AccountState.Failed -> AccountLoadingScreen(state.message, home::retry, signOut)
-            is AccountState.Ready -> MainScreen(state.home.snapshot.form) {
-                HomeScreen(state.home, current.email, signOutError, signOut, home::addActivity)
+            is AccountState.Ready -> {
+                val friends: FriendsViewModel = viewModel(key = "friends-${current.id}", factory = viewModelFactory {
+                    initializer { FriendsViewModel(FriendsRepository(), container.copies) }
+                })
+                var soon by remember { mutableStateOf<String?>(null) }
+                MainScreen(state.home.snapshot.form,
+                           home = { HomeScreen(state.home, current.email, signOutError, signOut, home::addActivity) },
+                           feed = { FeedScreen(state.home, friends) { soon = it } })
+                SoonModal(soon) { soon = null }
             }
         }
     }

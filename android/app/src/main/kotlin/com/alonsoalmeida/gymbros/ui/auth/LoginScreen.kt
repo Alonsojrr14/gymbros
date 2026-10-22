@@ -134,8 +134,8 @@ fun LoginScreen(vm: LoginViewModel) {
             }
         }
         if (ui.busy) CircularProgressIndicator(color = GMColors.accent, modifier = Modifier.align(Alignment.Center).size(48.dp))
-        LegalModal(showTerms, "Termos de uso", Legal.terms, "Atualizados") { showTerms = false }
-        LegalModal(showPrivacy, "Privacidade", Legal.privacy, "Atualizada") { showPrivacy = false }
+        LegalModal(showTerms, "Termos de uso", Legal.terms, "Atualizados", onDismiss = { showTerms = false })
+        LegalModal(showPrivacy, "Privacidade", Legal.privacy, "Atualizada", onDismiss = { showPrivacy = false })
     }
 }
 
@@ -151,9 +151,10 @@ private fun LegalLink(title: String, onClick: () -> Unit) =
 
 /** TermsView / PrivacyPolicyView do iOS: uma seção por tópico e o rodapé com a data e o link para a web */
 @Composable
-private fun LegalModal(visible: Boolean, title: String, text: LegalText, updatedWord: String, onDismiss: () -> Unit) {
+fun LegalModal(visible: Boolean, title: String, text: LegalText, updatedWord: String, onDismiss: () -> Unit,
+               confirm: String? = null, onConfirm: (() -> Unit)? = null) {
     val uri = LocalUriHandler.current
-    GMModal(visible, title, onDismiss) {
+    GMModal(visible, title, onDismiss, confirm = confirm, onConfirm = onConfirm) {
         for ((section, body) in text.sections) {
             GMSection(section) { Text(body, color = GMColors.dim, style = GMType.footnote) }
         }

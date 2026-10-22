@@ -64,6 +64,13 @@ data class HomeData(
     val gyms: List<Pair<String, String>>,
     /** Treinos já registrados, para não deixar registrar outro no mesmo horário */
     val busy: List<BusySpan>,
+    /** Seu código de amigo (gerado e reservado uma vez; vem do iPhone na cópia da conta) */
+    val friendCode: String?,
+    /** Pedidos de amizade recusados (o pedido do outro não some do servidor; só some daqui) */
+    val declinedFriends: Set<String>,
+    /** Versão dos termos de uso aceita (`termsAcceptedVersion`) */
+    val termsVersion: Int,
+    val leagues: List<com.alonsoalmeida.gymbros.domain.backup.LeagueDto>,
 )
 
 object HomeBuilder {
@@ -149,6 +156,14 @@ object HomeBuilder {
                         activities.map { a ->
                             val t = WorkoutType.byID(a.healthType) ?: WorkoutType.byID(BroCatalog.classicType[ActivityKind.of(a.kind).raw])
                             BusySpan(a.date, a.minutes, t?.name ?: a.kind)
-                        })
+                        },
+                        friendCode = text("friendCode"),
+                        declinedFriends = AccountEditsRead.strings(settings["declinedFriendRequests"]).toSet(),
+                        termsVersion = (settings["termsAcceptedVersion"] as? Number)?.toInt() ?: 0,
+                        leagues = leagues)
     }
+}
+
+internal object AccountEditsRead {
+    fun strings(v: Any?): List<String> = (v as? List<*>)?.mapNotNull { it as? String }.orEmpty()
 }

@@ -16,6 +16,27 @@ import java.util.UUID
  * Os campos seguem os DTOs de ios/GymBros/Services/Backup.swift: o iPhone lê o que o Android grava.
  */
 object AccountEdits {
+    /**
+     * Muda os ajustes da conta (`accountSettings`, plist binário do iOS com as `AccountData.userKeys`). As chaves que o
+     * Android não conhece passam intactas; o iPhone recebe a mudança na próxima mesclagem.
+     */
+    fun updateSettings(copy: JsonObject, change: (MutableMap<String, com.dd.plist.NSObject>) -> Unit): JsonObject {
+        val old = (copy["accountSettings"] as? JsonPrimitive)?.content
+        val dict = old?.let { runCatching { com.dd.plist.PropertyListParser.parse(java.util.Base64.getDecoder().decode(it)) as com.dd.plist.NSDictionary }.getOrNull() }
+            ?: com.dd.plist.NSDictionary()
+        val map = LinkedHashMap(dict.hashMap)
+        change(map)
+        val out = com.dd.plist.NSDictionary()
+        for ((k, v) in map) out[k] = v
+        val bytes = com.dd.plist.BinaryPropertyListWriter.writeToArray(out)
+        return JsonObject(LinkedHashMap<String, JsonElement>(copy).apply { put("accountSettings", JsonPrimitive(java.util.Base64.getEncoder().encodeToString(bytes))) })
+    }
+
+    /** Lista de textos guardada nos ajustes (ex.: `declinedFriendRequests`) */
+    fun stringList(o: com.dd.plist.NSObject?): List<String> = (o as? com.dd.plist.NSArray)?.array?.mapNotNull { (it as? com.dd.plist.NSString)?.content }.orEmpty()
+
+    fun nsList(list: List<String>): com.dd.plist.NSArray = com.dd.plist.NSArray(*list.map { com.dd.plist.NSString(it) }.toTypedArray())
+
     fun iso(i: Instant): String = DateTimeFormatter.ISO_INSTANT.format(i.truncatedTo(ChronoUnit.SECONDS))
 
     /** Cópia nova (conta sem dados): o mínimo que o `Backup` do iOS exige, com o bro inicial (`Roster.ensureStarter`) */
