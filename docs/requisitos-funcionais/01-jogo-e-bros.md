@@ -49,6 +49,21 @@ O app deve reduzir o XP de um mesmo dia acima de um limiar e impor teto diário.
   - Na pré-visualização, quando o XP calculado é menor que o bruto (e não há evolução), o app exibe "Você já treinou bastante nesse dia, então rende menos XP. Descanso também faz parte."
 - **Fonte:** `GymBros/Bros/Game.swift` (`Game.snapshot`), `GymBros/Activities/LogActivityView.swift`
 
+### RF-JOG-03a: Um treino por horário e até 2 h 30 por treino (anti-farm)
+O bro só conta o tempo que um treino ocupa sozinho, e no máximo 2 h 30 por treino.
+- **Regras de negócio**
+  - Um treino vai do início (data da atividade) até início + duração. Em ordem de início, o trecho de um treino que cai em cima de um treino anterior não conta XP para o bro.
+  - Cada treino conta no máximo 150 minutos para o bro (`broMaxMinutes`); o registro continua aceitando até 240.
+  - Vale para todo o histórico, inclusive treinos importados do Apple Saúde e do relógio. As ligas seguem com a fórmula de RF-JOG-02 (até 240 min).
+  - Os tetos diários de RF-JOG-03 continuam valendo depois desta regra.
+  - O registro de atividade não deixa salvar um treino num horário já ocupado e mostra qual treino está lá.
+- **Critérios de aceitação**
+  - Dois treinos de 60 min começando no mesmo horário rendem o XP de um só.
+  - Um treino de 60 min que começa 30 min depois de outro de 60 min rende o XP de 30 min.
+  - Caminhada de 4 h rende o XP de 2 h 30 para o bro.
+  - Treinos encostados (um termina, o outro começa) contam inteiros.
+- **Fonte:** `GymBros/Bros/Game.swift` (`Game.broMinutes`, `Game.snapshot`), `GymBros/Activities/LogActivityView.swift` (`clash`)
+
 ### RF-JOG-04: Pré-visualização do ganho
 O app deve mostrar, antes de salvar, o XP que a atividade vai render, a divisão por atributo e se ela faz algum bro chocar/evoluir.
 - **Regras de negócio**
