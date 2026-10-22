@@ -239,7 +239,7 @@ private struct FinalArt: View {
 extension LeagueRenewal {
     /// Recomeça um desafio encerrado hoje, com as mesmas pessoas, regras, times e duração; o antigo vira temporada anterior
     static func restart(_ old: League, now: Date = .now) -> League {
-        let cal = Calendar.current
+        let cal = League.rulesCalendar
         let days = max(old.durationDays, 1)
         let next = makeNext(after: old, now: now)
         next.setPeriod(start: cal.startOfDay(for: now), end: cal.date(byAdding: .day, value: days - 1, to: cal.startOfDay(for: now)))

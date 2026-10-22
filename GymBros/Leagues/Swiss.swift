@@ -295,6 +295,10 @@ enum Swiss {
 }
 
 extension League {
+    /// Calendário de todas as regras de liga (dias, semanas, tetos, campeões, temporadas): o mesmo fuso fixo da rodada
+    /// suíça, para todo aparelho chegar ao mesmo placar, esteja onde estiver
+    static var rulesCalendar: Calendar { Swiss.calendar }
+
     /// A partir de quando você entra na rodada suíça: quem criou a liga está nela desde o início
     var swissJoinedAt: Date { joined || isMock ? joinedAt : min(joinedAt, start) }
 }

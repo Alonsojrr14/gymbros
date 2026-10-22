@@ -84,6 +84,22 @@ final class LeagueTests: GymTestCase {
         XCTAssertEqual(rank.first?.id, "bia")
     }
 
+    /// Dias, semanas, tetos e campeões no fuso de Brasília em qualquer aparelho (como a rodada suíça)
+    func testLeagueRulesUseBrasiliaTime() {
+        XCTAssertEqual(League.rulesCalendar.timeZone.identifier, "America/Sao_Paulo")
+        XCTAssertEqual(League.rulesCalendar.identifier, .gregorian)
+        XCTAssertEqual(league().settings.calendar().timeZone.identifier, "America/Sao_Paulo")
+        XCTAssertEqual(league().start, League.rulesCalendar.startOfDay(for: league().start))
+    }
+
+    /// Empate total: decide o id global, não "eu primeiro" (cada aparelho punha o dono na frente)
+    func testFinalTieBreakIsTheSameOnEveryDevice() {
+        let feed = [item("aaa", score: 10, hoursAgo: 2), item("me", score: 10, hoursAgo: 2, isMe: true)]
+        let rank = LeagueBoard.ranking(feed: feed, league: league(.checkins), me: "Eu", myAvatar: .egg, since: nil)
+        let order = rank.filter { $0.score > 0 }.map { $0.isMe ? LeagueBoard.selfID : $0.id }
+        XCTAssertEqual(order, order.sorted())
+    }
+
     func testPhotoRule() {
         let l = league()
         let full = l.score(corrida)

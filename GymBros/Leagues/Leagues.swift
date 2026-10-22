@@ -265,7 +265,7 @@ enum RankWindow: String, CaseIterable, Identifiable {
         }
     }
 
-    func since(now: Date = .now, calendar: Calendar = .current) -> Date? {
+    func since(now: Date = .now, calendar: Calendar = League.rulesCalendar) -> Date? {
         switch self {
         case .liga: nil
         case .semana: calendar.dateInterval(of: .weekOfYear, for: now)?.start
@@ -299,7 +299,7 @@ enum LeagueRenewal {
     }
 
     static func makeNext(after old: League, now: Date = .now) -> League {
-        let cal = Calendar.current
+        let cal = League.rulesCalendar
         let days = max(old.durationDays, 1)
         var start = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: old.end ?? now))!
         var seasons = 1
@@ -588,7 +588,7 @@ enum LeagueBoard {
         for i in items.indices where items[i].pending { items[i].score = 0 }
         // Dias ativos: só o primeiro check-in de cada pessoa em cada dia vale
         if league.scoring == .dias {
-            let cal = Calendar.current
+            let cal = League.rulesCalendar
             var seen = Set<String>()
             for i in items.indices.sorted(by: { items[$0].date < items[$1].date }) where items[i].score > 0 {
                 let k = "\(items[i].memberID)|\(cal.startOfDay(for: items[i].date).timeIntervalSince1970)"
@@ -628,7 +628,8 @@ enum LeagueBoard {
             return TeamRow(id: t.id, name: t.name, isMine: league.myTeamID == t.id, score: total,
                            members: ids.count, form: form, progress: progress)
         }
-        .sorted { ($0.score, $0.isMine ? 1 : 0) > ($1.score, $1.isMine ? 1 : 0) }
+        // Empate: pelo id do time, igual em todo aparelho
+        .sorted { $0.score != $1.score ? $0.score > $1.score : $0.id < $1.id }
     }
 
     /// Média do XP de cada membro (time grande não leva vantagem) e atributos somados
@@ -637,7 +638,8 @@ enum LeagueBoard {
         var attrs: [Attribute: Double] = [:]
         var xp = 0
         for items in members {
-            let s = Game.snapshot(items.map { ActivityRecord(id: UUID(), kind: $0.kind, date: $0.date, minutes: $0.minutes, effort: $0.effort) })
+            let s = Game.snapshot(items.map { ActivityRecord(id: UUID(), kind: $0.kind, date: $0.date, minutes: $0.minutes, effort: $0.effort) },
+                                   calendar: League.rulesCalendar)
             xp += s.totalXP
             attrs.merge(s.lifetimeAttributes, uniquingKeysWith: +)
         }
@@ -682,7 +684,7 @@ enum LeagueBoard {
         // Todo mundo aparece, mesmo zerado
         rows["me"] = RankRow(id: "me", name: me, avatar: myAvatar, isMe: true)
         for m in remote.members { rows[m.id] = RankRow(id: m.id, name: m.name, avatar: m.form, isMe: false) }
-        let cal = Calendar.current
+        let cal = League.rulesCalendar
         // Do mais antigo para o mais novo: o último check-in que pontuou é quando a pessoa chegou ao placar
         // Check-in esperando revisão ainda não conta, nem como check-in
         for f in feed.reversed() where !f.pending && (since.map { f.date >= $0 } ?? true) && (until.map { f.date < $0 } ?? true)
@@ -703,6 +705,8 @@ enum LeagueBoard {
             rows[id] = r
         }
         for (id, p) in swiss.points { rows[id]?.swiss = p }
+        // Último desempate pelo id global (o seu é o do servidor): "eu primeiro" punha cada um na frente no próprio aparelho
+        let global = { (r: RankRow) in r.isMe ? selfID : r.id }
         var sorted = rows.values.sorted { a, b in
             if a.score != b.score { return a.score > b.score }
             switch league.tieBreak {
@@ -714,7 +718,7 @@ enum LeagueBoard {
             case .checkins:
                 if a.checkIns != b.checkIns { return a.checkIns > b.checkIns }
             }
-            return a.isMe != b.isMe ? a.isMe : a.name < b.name
+            return global(a) < global(b)
         }
         for i in sorted.indices where sorted[i].score > 0 {
             sorted[i].tied = (i > 0 && sorted[i - 1].score == sorted[i].score) || (i < sorted.count - 1 && sorted[i + 1].score == sorted[i].score)

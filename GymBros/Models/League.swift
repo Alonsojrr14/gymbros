@@ -48,7 +48,7 @@ final class League {
         self.name = name
         self.emoji = emoji
         self.scoringRaw = scoring.rawValue
-        self.start = Calendar.current.startOfDay(for: start)
+        self.start = League.rulesCalendar.startOfDay(for: start)
         self.isMock = isMock
         self.code = League.newCode()
     }
@@ -135,7 +135,7 @@ final class League {
     /// Dias que faltam, contando hoje (nil = sem fim)
     var daysLeft: Int? {
         guard let end else { return nil }
-        let cal = Calendar.current
+        let cal = League.rulesCalendar
         return max(0, (cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: end)).day ?? 0) + 1)
     }
 
@@ -149,13 +149,13 @@ final class League {
 
     /// Dias até começar (0 se já começou)
     var daysToStart: Int {
-        let cal = Calendar.current
+        let cal = League.rulesCalendar
         return max(0, cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: start)).day ?? 0)
     }
 
     /// "começa hoje", "começa amanhã", "começa em 3 dias" (minúsculo, para ir no meio da frase)
     static func startsText(_ start: Date) -> String {
-        let cal = Calendar.current
+        let cal = League.rulesCalendar
         let n = cal.dateComponents([.day], from: cal.startOfDay(for: .now), to: cal.startOfDay(for: start)).day ?? 0
         switch n {
         case ..<0: return "já começou"
@@ -167,20 +167,20 @@ final class League {
 
     /// Período escolhido no calendário: do começo do dia de início ao fim do dia final (nil = sem fim)
     func setPeriod(start s: Date, end e: Date?) {
-        let cal = Calendar.current
+        let cal = League.rulesCalendar
         start = cal.startOfDay(for: s)
         end = e.map { cal.date(byAdding: .second, value: -1, to: cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: max($0, s)))!)! }
     }
 
     /// Define a duração em dias a partir do início (0 = sem fim)
     func setDuration(days: Int) {
-        let cal = Calendar.current
+        let cal = League.rulesCalendar
         end = days > 0 ? cal.date(byAdding: .second, value: -1, to: cal.date(byAdding: .day, value: days, to: cal.startOfDay(for: start))!) : nil
     }
 
     var durationDays: Int {
         guard let end else { return 0 }
-        let cal = Calendar.current
+        let cal = League.rulesCalendar
         return (cal.dateComponents([.day], from: cal.startOfDay(for: start), to: cal.startOfDay(for: end)).day ?? 0) + 1
     }
 

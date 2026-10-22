@@ -1298,7 +1298,7 @@ func postCheckIns(activity: Activity, leagues: Set<UUID>, title: String, note: S
         c.place = subject.place
         var proof = CheckInProof(subject: subject, league: league, pose: PhotoProofs.pose(for: photo), device: activity.source)
         // Outras atividades do mesmo dia no mesmo check-in
-        let sameDay = grouped.filter { $0.uuid != activity.uuid && Calendar.current.isDate($0.date, inSameDayAs: activity.date) }
+        let sameDay = grouped.filter { $0.uuid != activity.uuid && League.rulesCalendar.isDate($0.date, inSameDayAs: activity.date) }
         proof.grouped = sameDay.map(\.uuid)
         proof.groupedParts = sameDay.map(\.scorePart)
         c.proof = proof

@@ -87,7 +87,7 @@ struct LeagueSettings: Codable, Hashable, Sendable {
     }
 
     /// Calendário do ranking semanal, com o início da semana da liga
-    func calendar(_ base: Calendar = .current) -> Calendar {
+    func calendar(_ base: Calendar = League.rulesCalendar) -> Calendar {
         var cal = base
         if let weekStart, (1...7).contains(weekStart) { cal.firstWeekday = weekStart }
         return cal
@@ -263,7 +263,7 @@ struct CheckInVerification: Codable, Hashable, Sendable {
     static let strictAfter: TimeInterval = 60 * 60
 
     /// O que impede o check-in nesta liga, na ordem em que a pessoa resolve (vazio = pode postar)
-    func problems(_ s: PostSubject, now: Date = .now, calendar cal: Calendar = .current) -> [VerificationProblem] {
+    func problems(_ s: PostSubject, now: Date = .now, calendar cal: Calendar = League.rulesCalendar) -> [VerificationProblem] {
         guard preset != .off else { return [] }
         var out: [VerificationProblem] = []
         let photo = s.photo
@@ -390,7 +390,7 @@ struct DailyPose: Hashable, Sendable {
 
     static func byID(_ id: String?) -> DailyPose? { all.first { $0.id == id } }
 
-    static func of(_ day: Date, calendar: Calendar = .current) -> DailyPose {
+    static func of(_ day: Date, calendar: Calendar = League.rulesCalendar) -> DailyPose {
         let c = calendar.dateComponents([.year, .month, .day], from: day)
         var rng = SeededRandom(seed: "pose-\(c.year ?? 0)-\(c.month ?? 0)-\(c.day ?? 0)")
         return all[Int(rng.next() * Double(all.count)) % all.count]
