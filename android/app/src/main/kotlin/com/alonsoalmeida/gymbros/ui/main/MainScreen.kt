@@ -65,7 +65,8 @@ private data class TabItem(val icon: ImageVector, val title: String, val tag: In
  * Ligas e Mapa à direita. Cada aba é criada na primeira visita e continua viva (guarda a rolagem).
  */
 @Composable
-fun MainScreen(form: MonsterForm, home: @Composable () -> Unit, feed: @Composable () -> Unit) {
+fun MainScreen(form: MonsterForm, home: @Composable () -> Unit, train: @Composable () -> Unit, leagues: @Composable () -> Unit,
+               map: @Composable () -> Unit, feed: @Composable () -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var visited by rememberSaveable { mutableStateOf(listOf(0)) }
     Box(Modifier.fillMaxSize().background(GMColors.bg)) {
@@ -76,9 +77,9 @@ fun MainScreen(form: MonsterForm, home: @Composable () -> Unit, feed: @Composabl
                     .then(if (on) Modifier else Modifier.semantics { hideFromAccessibility() })) {
                 when (i) {
                     0 -> home()
-                    1 -> Soon("Treino", Icons.Filled.FitnessCenter, "Rotinas, treino guiado e WOD estão chegando no Android.")
-                    2 -> Soon("Ligas", Icons.Filled.EmojiEvents, "Ligas, X1 e ranking estão chegando no Android.")
-                    3 -> Soon("Mapa", Icons.Filled.Map, "Academias, amigos ao vivo e rotas estão chegando no Android.")
+                    1 -> train()
+                    2 -> leagues()
+                    3 -> map()
                     4 -> feed()
                 }
             }
@@ -92,6 +93,10 @@ fun MainScreen(form: MonsterForm, home: @Composable () -> Unit, feed: @Composabl
         )
     }
 }
+
+/** Aba que ainda não chegou no Android */
+@Composable
+fun SoonContent(title: String, message: String) = Soon(title, Icons.Filled.FitnessCenter, message)
 
 @Composable
 private fun Soon(title: String, icon: ImageVector, message: String) {

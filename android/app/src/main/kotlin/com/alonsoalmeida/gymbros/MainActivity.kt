@@ -50,7 +50,6 @@ private fun Root(container: AppContainer) {
         val home: HomeViewModel = viewModel(key = "home-${current.id}", factory = viewModelFactory {
             initializer { HomeViewModel(current.id, current.name, container.copies) }
         })
-        val signOutError by home.signOutError.collectAsStateWithLifecycle()
         val signOut = { home.signOut { container.auth.signOut() } }
         when (val state = home.account.collectAsStateWithLifecycle().value) {
             AccountState.Loading -> AccountLoadingScreen(null, home::retry, signOut)
@@ -60,9 +59,18 @@ private fun Root(container: AppContainer) {
                     initializer { FriendsViewModel(FriendsRepository(), container.copies, com.alonsoalmeida.gymbros.data.ProfilePhotosRepository(container.context)) }
                 })
                 var soon by remember { mutableStateOf<String?>(null) }
-                MainScreen(state.home.snapshot.form,
-                           home = { HomeScreen(state.home, current.email, signOutError, signOut, home::addActivity) },
-                           feed = { FeedScreen(state.home, friends) { soon = it } })
+                val env = remember(current.id) {
+                    com.alonsoalmeida.gymbros.ui.AppEnv(current.id, current.name, current.email, container.copies, container.context, signOut, home.signOutError)
+                }
+                val data = state.home
+                com.alonsoalmeida.gymbros.ui.onboarding.OnboardingGate(env, data) {
+                    MainScreen(data.snapshot.form,
+                               home = { HomeScreen(data, env, home::addActivity) },
+                               train = { com.alonsoalmeida.gymbros.ui.train.TrainTab(env, data) },
+                               leagues = { com.alonsoalmeida.gymbros.ui.leagues.LeaguesTab(env, data) },
+                               map = { com.alonsoalmeida.gymbros.ui.map.MapTab(env, data) },
+                               feed = { FeedScreen(data, friends) { soon = it } })
+                }
                 SoonModal(soon) { soon = null }
             }
         }

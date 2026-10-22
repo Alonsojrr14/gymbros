@@ -97,17 +97,21 @@ fun AccountLoadingScreen(failed: String?, onRetry: () -> Unit, onSignOut: () -> 
 
 /** Tela inicial (Bros/HomeView.swift) */
 @Composable
-fun HomeScreen(home: HomeData, email: String, signOutError: String?, onSignOut: () -> Unit, onLog: (AccountEdits.NewActivity) -> Unit) {
+fun HomeScreen(home: HomeData, env: com.alonsoalmeida.gymbros.ui.AppEnv, onLog: (AccountEdits.NewActivity) -> Unit) {
     val s = home.snapshot
     var settings by remember { mutableStateOf(false) }
-    var soon by remember { mutableStateOf<String?>(null) }
     var logging by remember { mutableStateOf(false) }
+    var profile by remember { mutableStateOf(false) }
+    var bros by remember { mutableStateOf(false) }
+    var inbox by remember { mutableStateOf(false) }
+    var history by remember { mutableStateOf(false) }
+    var detail by remember { mutableStateOf<String?>(null) }
 
     Box(Modifier.fillMaxSize()) {
         GMScreen(
             "Olá, ${home.trainerName}",
             bottomInset = 120.dp,
-            leading = { PersonAvatar(home.trainerName, photo = home.profilePhoto, modifier = Modifier.gmPress { soon = "Perfil" }) },
+            leading = { PersonAvatar(home.trainerName, photo = home.profilePhoto, modifier = Modifier.gmPress { profile = true }) },
             trailing = {
                 if (s.streak > 0) {
                     Row(
@@ -119,29 +123,25 @@ fun HomeScreen(home: HomeData, email: String, signOutError: String?, onSignOut: 
                         Text("${s.streak}", color = GMColors.streak, style = GMType.subheadline.copy(fontWeight = FontWeight.Bold))
                     }
                 }
-                GMIconButton(Icons.Filled.Pets, "Bros", { soon = "Bros" })
-                GMIconButton(Icons.Filled.Notifications, "Caixa de entrada", { soon = "Caixa de entrada" })
+                GMIconButton(Icons.Filled.Pets, "Bros", { bros = true })
+                GMIconButton(Icons.Filled.Notifications, "Caixa de entrada", { inbox = true })
                 GMIconButton(Icons.Outlined.Settings, "Ajustes", { settings = true })
             },
         ) {
             MonsterCard(home)
             if (s.stage != Stage.EGG) AttributesCard(home)
             GMButton("Registrar atividade", { logging = true }, icon = Icons.Filled.AddCircle)
-            if (home.hasActivities) RecentCard(home) { soon = "Histórico" }
+            com.alonsoalmeida.gymbros.ui.duels.DuelHomeCard(env, home)
+            if (home.hasActivities) RecentCard(home, onSeeAll = { history = true }, onOpen = { detail = it })
         }
 
-        // Ajustes: por enquanto só a conta (o resto dos Ajustes chega com as próximas telas)
-        GMModal(settings, "Ajustes", onDismiss = { settings = false }) {
-            GMSection("Conta") {
-                Text(email, color = Color.White, style = GMType.body)
-            }
-            GMButton("Sair", onSignOut, icon = Icons.AutoMirrored.Filled.Logout, kind = GMButtonKind.DANGER)
-            signOutError?.let { Text(it, color = GMColors.danger, style = GMType.footnote) }
-        }
+        com.alonsoalmeida.gymbros.ui.settings.SettingsModal(settings, env, home) { settings = false }
+        com.alonsoalmeida.gymbros.ui.profile.ProfileModal(profile, env, home) { profile = false }
+        com.alonsoalmeida.gymbros.ui.bros.BrosModal(bros, env, home) { bros = false }
+        com.alonsoalmeida.gymbros.ui.inbox.InboxModal(inbox, env, home) { inbox = false }
+        com.alonsoalmeida.gymbros.ui.activities.HistoryModal(history, env, home) { history = false }
+        com.alonsoalmeida.gymbros.ui.activities.ActivityDetailModal(detail, env, home) { detail = null }
         LogActivityScreen(logging, home, onDismiss = { logging = false }, onSave = { onLog(it); logging = false })
-        GMModal(soon != null, soon.orEmpty(), onDismiss = { soon = null }) {
-            GMEmptyState(Icons.Filled.Pets, "Em breve no Android", "Esta parte do GymBros ainda está chegando no Android. No iPhone ela já funciona.")
-        }
     }
 }
 
@@ -241,7 +241,7 @@ private fun AttributesCard(home: HomeData) {
 }
 
 @Composable
-private fun RecentCard(home: HomeData, onSeeAll: () -> Unit) {
+private fun RecentCard(home: HomeData, onSeeAll: () -> Unit, onOpen: (String) -> Unit) {
     GMCard(padding = 18.dp) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Últimas atividades", color = Color.White, style = GMType.headline)
@@ -249,7 +249,7 @@ private fun RecentCard(home: HomeData, onSeeAll: () -> Unit) {
             Text("Ver tudo", color = GMColors.accent, style = GMType.subheadline.copy(fontWeight = FontWeight.SemiBold),
                  modifier = Modifier.gmPress(onClick = onSeeAll))
         }
-        for (a in home.recent) ActivityRow(a, Modifier.gmPress(onClick = onSeeAll))
+        for (a in home.recent) ActivityRow(a, Modifier.gmPress { onOpen(a.id) })
     }
 }
 
