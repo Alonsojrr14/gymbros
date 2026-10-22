@@ -11,6 +11,9 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
 
     let manager = CLLocationManager()
     private var monitorTask: Task<Void, Never>?
+    /// Um só CLMonitor("gymbros") no processo: criar outro com o mesmo nome antes de o anterior sumir derruba o app
+    /// (asserção do CoreLocation em CLMonitor.init). Acontecia ao entrar na conta, com várias chamadas seguidas.
+    private var monitorMaker: Task<CLMonitor, Never>?
     private var oneShot: CheckedContinuation<CLLocation?, Never>?
 
     /// Treinos com menos tempo que isso não são encerrados ao sair (evita falso alarme do GPS)
@@ -153,8 +156,12 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         migrateSingleGym()
         monitorTask?.cancel()
         let list = recentGyms(limit: 20)
+        // Criado na primeira vez, de forma síncrona no MainActor: chamadas seguidas reaproveitam o mesmo
+        let maker = monitorMaker ?? Task { await CLMonitor("gymbros") }
+        monitorMaker = maker
         monitorTask = Task { @MainActor in
-            let monitor = await CLMonitor("gymbros")
+            let monitor = await maker.value
+            guard !Task.isCancelled else { return }
             for id in await monitor.identifiers { await monitor.remove(id) }
             for g in list {
                 await monitor.add(CLMonitor.CircularGeographicCondition(center: g.coordinate, radius: g.radius),

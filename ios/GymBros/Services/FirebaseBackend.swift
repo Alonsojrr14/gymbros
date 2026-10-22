@@ -119,18 +119,18 @@ struct FirebaseAuthBackend: AuthBackend {
         change.displayName = name
         try? await change.commitChanges()
         Auth.auth().languageCode = "pt-BR"
-        try? await result.user.sendEmailVerification()
+        try? await FirebaseEmailLinks.verify(result.user)
         return try await user(result.user, name: name, provider: .email)
     }
 
     func resetPassword(email: String) async throws {
         Auth.auth().languageCode = "pt-BR"
-        try await Self.run { try await Auth.auth().sendPasswordReset(withEmail: email) }
+        try await FirebaseEmailLinks.reset(email: email)
     }
 
     func sendVerification() async throws {
         Auth.auth().languageCode = "pt-BR"
-        try await Self.run { try await Auth.auth().currentUser?.sendEmailVerification() }
+        if let user = Auth.auth().currentUser { try await FirebaseEmailLinks.verify(user) }
     }
 
     func isVerified() async -> Bool? {
@@ -532,4 +532,50 @@ extension AppleIDAuthorization {
 /// Quem está logado no Firebase Auth (a sessão dele fica no Keychain e sobrevive a reinstalar o app)
 enum FirebaseSession {
     static var uid: String? { Auth.auth().currentUser?.uid }
+}
+
+/// E-mails de redefinir senha e confirmar endereço pela API REST do Firebase, com a chave na URL.
+/// Pelo SDK, a chave vai num cabeçalho e o link do e-mail chega com "apiKey=" vazio: a página do Firebase
+/// (firebaseapp.com/__/auth/action) mostra "The selected page mode is invalid". Personalizar a URL de ação dos modelos
+/// não é permitido no plano gratuito (EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED). A chave é a do app Web do projeto, pública por
+/// natureza (a mesma de docs/acao.html); os dados ficam protegidos pelas regras.
+enum FirebaseEmailLinks {
+    static let webAPIKey = "AIzaSyDpAw0dR1EvpSOJPr1SYHALpWdlYJLY1tc"
+
+    static func reset(email: String) async throws {
+        do {
+            try await send(["requestType": "PASSWORD_RESET", "email": email])
+        } catch FirebaseEmailLinksError.server(let message) where message.hasPrefix("EMAIL_NOT_FOUND") {
+            // Sem conta com esse e-mail: a mesma resposta de quando há (não revela quem tem conta)
+        }
+    }
+
+    static func verify(_ user: User) async throws {
+        try await send(["requestType": "VERIFY_EMAIL", "idToken": try await user.getIDToken()])
+    }
+
+    private static func send(_ body: [String: String]) async throws {
+        var req = URLRequest(url: URL(string: "https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=\(webAPIKey)")!)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("pt-BR", forHTTPHeaderField: "X-Firebase-Locale")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let data: Data, response: URLResponse
+        do { (data, response) = try await URLSession.shared.data(for: req) } catch { throw FirebaseAuthError.offline }
+        guard (response as? HTTPURLResponse)?.statusCode != 200 else { return }
+        let message = ((try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? [String: Any])?["message"] as? String
+        throw FirebaseEmailLinksError.server(message ?? "")
+    }
+}
+
+enum FirebaseEmailLinksError: LocalizedError {
+    case server(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .server(let m) where m.hasPrefix("INVALID_EMAIL"): AuthError.invalidEmail.errorDescription
+        case .server(let m) where m.hasPrefix("TOO_MANY_ATTEMPTS"): "Muitas tentativas. Espere um pouco e tente de novo."
+        case .server: "Não deu para mandar o e-mail agora. Tente de novo."
+        }
+    }
 }
