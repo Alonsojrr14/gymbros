@@ -48,15 +48,15 @@ O app quase não usa controles padrão do iOS: telas, cabeçalhos, barra de abas
 - Rodada suíça diária (`GymBros/Leagues/Swiss.swift`): todo dia cada membro enfrenta alguém com pontuação suíça parecida, pelo critério da liga (mais pontos, mais check-ins ou presença). Vitória ou folga dá um bônus pequeno no placar. O pareamento é determinístico, igual em todos os aparelhos do mesmo fuso.
 - Times: o placar do time é a soma dos membros, e cada time tem um bro que cresce com a média de XP dos membros e evolui pelo atributo que o time mais treina. Você escolhe o time tocando nele no ranking.
 - Mural: recados da galera da liga, cada um com o seu bro.
-- X1 (`GymBros/Duels/`): desafio direto entre duas pessoas quaisquer, sem relação com ligas. Quem desafia escolhe a métrica (XP, treinos, minutos, distância ou calorias) e o bro que luta; aceito, vale tudo o que cada um registrar nas 24 h seguintes. Um X1 aberto por par; o retrospecto aparece na tela inicial e no perfil.
+- X1 (`GymBros/Duels/`): desafio direto entre dois amigos, sem relação com ligas; cada bro luta um X1 por vez. Quem desafia escolhe a métrica (XP, treinos, minutos, distância ou calorias) e o bro que luta; aceito, vale tudo o que cada um registrar nas 24 h seguintes. Um X1 aberto por par; o retrospecto aparece na tela inicial e no perfil.
 - Caixa de entrada (`GymBros/Inbox/`): mensagens diretas com amigos, convites para treinar junto e notificações sociais (força, pedidos de amizade, X1), com tópicos ligáveis em Ajustes → Notificações.
 - Amigos (botão na tela inicial, `GymBros/Friends/Friends.swift`): seu código de amigo para compartilhar, adicionar por código, pedidos recebidos e sugestões de quem está nas suas ligas e ainda não é seu amigo. Mesmo esquema das ligas: `FriendsBackend` com `MockFriendsBackend` simulado; quem deixa de ser amigo some do mapa.
 - Perfil do amigo (toque na lista de amigos, `GymBros/Friends/PublicProfile.swift`): foto, nome, @usuário, bio, se está treinando agora, e o mesmo card público da prévia do seu perfil (bro principal, números e conquistas, respeitando o que a pessoa escondeu), ligas em comum e posts em calendário (toque no dia para ver os posts). Vem de `FriendsBackend.profile`.
 - Seu perfil: a aba Público é exatamente o que os amigos veem (card público e posts em calendário); a aba Privado tem seus números, recordes, estatísticas, metas, peso e o calendário de todas as atividades. Nome, @usuário, bio e o que aparece para os outros ficam em "Editar perfil".
 - Check-in em várias ligas de uma vez: ao registrar atividade, ao concluir treino guiado ou pelo botão da liga (nova atividade ou uma já registrada, inclusive do Saúde).
 - Por amigo: esconder os seus treinos, silenciar, arquivar e limpar a conversa (só do seu lado), reagir às mensagens e aos comentários, e adicionar por **QR** (`gymbros://amigo/CÓDIGO`).
-- Coleção de bros (`GymBros/Bros/Monsters.swift`): ao entrar numa liga você escolhe quem te representa, um bro seu ou um ovo novo adotado na hora. Os check-ins da liga dão XP só para ele; atividades fora de ligas vão para o bro principal (tela inicial e widgets), que pode ser trocado em "Meus bros".
-- Sem servidor ainda: tudo o que envolve servidor passa por sete contratos (login, dados da conta, ligas, amigos, moderação, caixa de entrada e X1). Um interruptor em `GymBros/Services/Backend.swift` (`Backend.mode`) escolhe quem responde: hoje é `.mock`, com dados simulados e determinísticos no próprio iPhone; as implementações do CloudKit já existem e esperam a conta paga do Apple Developer ([docs/cloudkit.md](docs/cloudkit.md), [docs/servidor-real.md](docs/servidor-real.md)). A "Liga dos Bros" (código `AMIGOS`) tem 8 participantes simulados divididos em dois times (Gui, Lia e Rafa ainda não são seus amigos).
+- Coleção de bros (`GymBros/Bros/Monsters.swift`): ao entrar numa liga você escolhe quem te representa, um bro seu ou um ovo novo adotado na hora. O bro principal (tela inicial e widgets, trocável em "Meus bros") recebe o XP de toda atividade; o representante de cada liga marcada no check-in recebe 80% dele. Apagar uma atividade não tira o XP que ela deu.
+- Servidor: tudo o que envolve servidor passa por contratos (login, dados da conta, ligas, amigos, moderação, caixa de entrada, X1, trocas, rotinas públicas e papéis). `Backend.mode` em `GymBros/Services/Backend.swift` escolhe quem responde: `.firebase` (o servidor real, plano grátis: Auth e Firestore) quando `GymBros/Resources/GoogleService-Info.plist` existe, e `.mock` (dados simulados no próprio iPhone) nos testes e sem o arquivo ([docs/firebase.md](docs/firebase.md), [docs/servidor-real.md](docs/servidor-real.md)). O modo CloudKit existe, mas depende da conta paga do Apple Developer ([docs/cloudkit.md](docs/cloudkit.md)). A "Liga dos Bros" (código `AMIGOS`) tem 8 participantes simulados divididos em dois times (Gui, Lia e Rafa ainda não são seus amigos).
 
 ## Metas e constância
 
@@ -103,7 +103,7 @@ xcodebuild -project GymBros.xcodeproj -scheme GymBros \
 xcrun devicectl device install app --device <UDID> build/Build/Products/Debug-iphoneos/GymBros.app
 ```
 
-Testes (262, XCTest) no iPhone:
+Testes (XCTest, mais de 370) no iPhone:
 
 ```sh
 xcodebuild test -project GymBros.xcodeproj -scheme GymBros \

@@ -50,7 +50,7 @@ GymBros/              app (118 arquivos .swift)
   Resources/          Assets.xcassets, wger.json, Info.plist, GymBros.entitlements, PrivacyInfo.xcprivacy
 GymBrosWidget/        widgets, Live Activities e controles (iOS 18) (6 arquivos .swift)
 Shared/               código compilado nos dois alvos: Theme (cores), WidgetData, Mood, Live Activity e intents (4 arquivos .swift)
-GymBrosTests/         XCTest rodando dentro do app (32 arquivos .swift: 31 de testes e TestSupport.swift)
+GymBrosTests/         XCTest rodando dentro do app (TestSupport.swift + arquivos de teste; Fixtures/ com os vetores compartilhados com o Android)
 tools/                scripts de artes e tools/wger/build.py, que gera GymBros/Resources/wger.json (fora dos alvos)
 ```
 
@@ -171,7 +171,7 @@ O app não usa `TabView`. `MainView` (`GymBros/App/App.swift`) monta um `ZStack`
 | 1 | Treino | `TrainView` |
 | 2 | Ligas | `LeaguesView` |
 | 3 | Mapa (badge = amigos treinando agora) | `MapScreen` |
-| 4 | Histórico | `HistoryView` |
+| 4 | Feed | `UnifiedFeedView` (o Histórico abre pelo perfil) |
 
 `RootView` mostra `LoginView(required: true)` (sem botão de fechar) enquanto não houver sessão; com sessão, `AccountLoadingView` até o `AccountSync` deixar no aparelho os dados daquela conta (seção "Dados da conta"), depois `OnboardingView` enquanto `@AppStorage("trainerName")` estiver vazio e depois `MainView`. "Sair da conta" e "Excluir conta" trocam a tela por "Saindo…", limpam o aparelho e, sem sessão, o `RootView` volta ao login. O `SocialGate` (aba Ligas, Amigos, "Amigos agora" do Mapa, parte pública do perfil) só pede o aceite dos termos e a permissão da role. `postCheckIns`/`syncCheckIns` ainda conferem sessão, termos e permissão (`Terms.canPublish`), para nada ser publicado se a sessão acabar com uma tela aberta.
 
@@ -311,6 +311,8 @@ Consequência: editar ou apagar uma `Activity` recalcula tudo. As telas usam `Ga
 Independente das ligas. O servidor guarda `RemoteDuel` (quem desafiou e quem foi desafiado com nome e bro, métrica, quando, resposta e o valor que cada lado informou). Fase derivada (`phase(now:)`): pendente até 24 h depois do desafio, recusado, expirado, ativo até 24 h depois do aceite, encerrado. `Duels.myValue` soma as suas atividades na janela pela métrica; o do adversário vem de `reported`. `DuelStore` informa o seu valor (`report`) quando muda (até 1 h depois do fim). Métricas (`DuelMetric`): XP, treinos, minutos, distância, calorias. Um X1 aberto (pendente ou ativo) por par; não se desafia a si mesmo, quem você bloqueou nem quem te bloqueou; só bros já chocados lutam (`DuelRefusal.noHatchedBro`), e o bro escolhido fica só no aparelho (`duelMonsters`). Não toca em ranking, pontos nem suíço.
 
 ## 5. Servidor: contratos, mock e CloudKit
+
+> **Atualização (22/10/2026):** hoje o modo ativo é `.firebase` sempre que `GoogleService-Info.plist` existe (`Backend.swift:51`), e há também `TradeBackend`, `RoutinesBackend`, `RoleBackend`, `AdminBackend` e `PhotoStore` (`NoPhotoStore` sem a conta paga da Apple). O texto abaixo descreve a origem do desenho (mock e CloudKit). Detalhes do Firebase em `docs/firebase.md`.
 
 O app fala com o servidor só por sete contratos: `AuthBackend` (`GymBros/Services/Auth.swift`), `AccountDataBackend` (`GymBros/Services/AccountSync.swift`), `LeagueBackend` (`GymBros/Leagues/LeagueRemote.swift`), `DuelBackend` (`GymBros/Duels/DuelStore.swift`), `FriendsBackend` (`GymBros/Friends/Friends.swift`), `ModerationBackend` (`GymBros/Moderation/Moderation.swift`) e `InboxBackend` (`GymBros/Inbox/Inbox.swift`). Quem responde é escolhido por um interruptor em `GymBros/Services/Backend.swift`: `Backend.mode` é `.mock` hoje (o Personal Team não tem iCloud) e `Backend.install()`, chamado ao abrir o app, liga os sete stores e o `AccessStore` ao backend escolhido. Em `.mock` não há rede; em `.cloudKit` login, ligas, X1, amigos e moderação vão para o banco público do container `iCloud.com.alonsoalmeida.gymbros`, e os dados da conta (`ServerAccountDataBackend`) e as mensagens diretas (`ServerInboxBackend`) só lançam erro até existir servidor próprio. Esquema, permissões e o passo a passo para ligar estão em `docs/cloudkit.md`. A liga de exemplo (`AMIGOS`) continua simulada nos dois modos. O mesmo interruptor liga a fonte das roles do RBAC (`RoleBackend`, só leitura; `docs/rbac.md`).
 
@@ -460,7 +462,7 @@ Prints escolhidos pelo `PhotosPicker` (até 6, em ordem) passam pelo `VNRecogniz
 ## 7. Testes
 
 - **Como rodam**: o alvo `GymBrosTests` tem `TEST_HOST` apontando para `GymBros.app`, então os testes rodam **dentro do app instalado** no aparelho. `GymTestCase` (`GymBrosTests/TestSupport.swift`) salva e restaura chaves de `UserDefaults` (`exerciseGoals`, `deloadUntil`, `deloadSnooze` e `barCountsBar`, chave que o app não usa mais) e `PRBook.manual`, e oferece `memoryContext()` com um `ModelContainer` em memória (`Activity`, `WorkoutSession`, `LoggedSet`, `League`, `LeagueCheckIn`) separado do banco real. `StoryTests` monta um container próprio, que inclui `BodyEntry` e `RouteRecord`. `StoreTests` confere que o banco real do aparelho abre com o schema atual sem ser movido e que um banco gravado na V1 migra para a V2 sem perder dados.
-- **Cobertura** (262 testes em 31 arquivos, contados por `func test`; todos XCTest, nenhum `@Test` do Swift Testing; a mesma contagem saiu do `xcodebuild test` no iPhone em 19/10/2026, 0 falhas):
+- **Cobertura** (em 22/10/2026: 372 testes `func test` em 44 arquivos, todos XCTest, 3 deles geradores de vetores desligados por padrão; 367 executados no iPhone, 0 falhas. A lista abaixo é a de 19/10, com 262 testes):
 
 | Arquivo | Testes | O que cobre |
 |---|---|---|

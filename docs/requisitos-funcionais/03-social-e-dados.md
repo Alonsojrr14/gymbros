@@ -205,12 +205,12 @@ Este documento cobre a parte social do GymBros (ligas, rodada suíça, check-ins
 ### RF-SOC-37 · Rodada suíça diária
 **Descrição:** Todo dia, cada liga deve ter uma rodada suíça: os membros se enfrentam em pares, e o resultado dá pontos suíços e um bônus pequeno no placar.
 **Regras:**
-- O dia segue um fuso fixo, o de Brasília (00:00–23:59, `Swiss.calendar`), em qualquer aparelho. O 1º dia da liga é pareado por uma ordem determinística (hash do id da pessoa, código da liga e data); depois, por pontos suíços acumulados (quem tem mais enfrenta quem tem parecido), desempate pelo id. Revanche só quando não há outro jeito. Com menos de 2 membros não há rodada.
+- O dia segue um fuso fixo, o de Brasília (00:00–23:59, `Swiss.calendar`), em qualquer aparelho. O 1º dia da liga é pareado por uma ordem determinística (hash do id da pessoa, código da liga e data); depois, por pontos suíços acumulados (quem tem mais enfrenta quem tem parecido), desempate pelo id (o seu é o id do servidor, igual em todo aparelho). Revanche só quando não há outro jeito. Com menos de 2 membros não há rodada.
 - Cada pessoa só é pareada a partir do dia em que entrou na liga (quem criou está desde o início); dias anteriores não contam para ela, nem para a folga. Quem sai deixa de aparecer nas rodadas, inclusive nas antigas.
 - Critério escolhido ao criar/editar a liga (padrão "Mais pontos no dia"): "Mais pontos no dia", "Mais check-ins no dia" (só check-ins válidos pela regra de foto) ou "Presença" (treinou e o outro não = vitória; os dois = empate). Empate = ½ para cada; ninguém treinou = 0 para os dois.
 - Número ímpar: quem sobra folga e ganha 1 (como vitória). Ninguém folga de novo antes de todos terem folgado.
 - Pontos suíços: vitória 1, empate ½, derrota 0, folga 1. Só rodadas de dias encerrados contam; a de hoje aparece "em andamento" com o placar parcial do dia.
-- Bônus no placar da liga (vitória ou folga / empate): pontos +10/+5, minutos +5/+2, distância +500 m/+250 m, calorias +50/+25, treinos +1/+0. Entra no ranking geral, semanal e mensal pelo dia do confronto; o desempate da liga continua valendo.
+- Bônus no placar da liga (vitória ou folga / empate): pontos +10/+5, minutos +5/+2, distância +500 m/+250 m, calorias +50/+25, treinos +1/+0, dias ativos +1/+0, por atividade +10/+5. Entra no ranking geral, semanal e mensal pelo dia do confronto; o desempate da liga continua valendo.
 - No Ranking: seção "Rodada suíça de hoje" (adversário com o bro dele e placar parcial, ou "Folga hoje: +1"), as últimas rodadas (V/E/D/F, até 7) e o texto da regra no rodapé. Sem rodada hoje, mas com histórico, a seção se chama "Rodada suíça". Cada linha do ranking mostra "suíço N" depois da 1ª rodada encerrada.
 - Tudo é derivado do feed e dos membros: ao servidor só vão o critério da liga (`League.swiss`) e o dia em que cada um entrou (`Member.joinedAt`, `swissJoinedAt`). O critério vai também no backup e na renovação da temporada (RF-SOC-05).
 - Para o pareamento ser igual em todos os aparelhos, o sorteio e o desempate usam o id do servidor (`Cloud.knownID`) no lugar de "me" e a semente é o código da liga.
@@ -257,7 +257,7 @@ Este documento cobre a parte social do GymBros (ligas, rodada suíça, check-ins
 **Regras:**
 - Mostra a inicial do nome, nome, @usuário, bio, indicador online e "{atividade} agora · {lugar}" quando a pessoa está treinando.
 - Mostra o card público (bro, números e conquistas) com apenas as partes que a pessoa deixou visíveis, as ligas do usuário em que a pessoa também está (com link) e "Posts · N" num calendário.
-- Abre também para quem não é amigo (tocar alguém no ranking de uma liga, RF-SOC-07). "Mensagem" e "Mandar força" só aparecem para amigos; "Desafiar para um X1" aparece para qualquer pessoa (RF-SOC-38).
+- Abre também para quem não é amigo (tocar alguém no ranking de uma liga, RF-SOC-07). "Mensagem" e "Mandar força" só aparecem para amigos; "Desafiar para um X1" só funciona com amigos (RF-SOC-38).
 - Dados simulados: o nível é sorteado de forma determinística; de 20 a 179 check-ins; dias ativos entre 70% e 95% dos check-ins; de 1 a 4 ligas; cada conquista tem 55% de chance de aparecer. A Fê esconde os números e a Carla esconde as conquistas. Os posts cobrem os últimos 90 dias, com 30% de chance por dia e 80% marcados com foto (sem imagem real).
 **Critérios de aceitação:**
 - O perfil da Fê não mostra a linha de números.
@@ -305,7 +305,7 @@ Este documento cobre a parte social do GymBros (ligas, rodada suíça, check-ins
 **Fonte:** `GymBros/Friends/FriendsLive.swift`, `GymBros/Friends/Friends.swift` (`isLive`, `status`), `GymBros/DesignSystem/GMIndicators.swift` (`GMOnlineDot`)
 
 ### RF-SOC-38 · X1 (desafio direto)
-**Descrição:** Qualquer pessoa pode desafiar qualquer outra para um X1, esteja ela numa liga ou não. O X1 não tem nenhuma relação com ligas.
+**Descrição:** Amigos podem se desafiar para um X1. O X1 não tem nenhuma relação com ligas. Só entre amigos (`FriendError`/`.notFriend`), e cada bro luta um X1 por vez (`Duels.busyFighters`).
 **Regras:**
 - Sem vínculo com liga: não depende de liga, não usa a pontuação nem o feed de nenhuma liga e não mexe em placar, pontos ou rodada suíça. A rodada suíça continua só entre membros da mesma liga (RF-SOC-37). As ligas só servem para achar gente para desafiar.
 - Quem desafia escolhe a métrica: XP (duração × tipo × esforço), treinos (cada atividade vale 1), minutos, distância (metros do GPS do app) ou calorias (as informadas no app ou, sem elas, minutos × MET × 1,2) (`DuelMetric`). Vale qualquer atividade registrada (inclusive as do Apple Saúde, que entram como nas ligas: esforço 5, sem a distância e com as calorias estimadas, porque o valor vai ao servidor) nas 24 h seguintes ao aceite. Vence quem somar mais; mesma soma é empate. O composer resume: "24 h para aceitar", "Vale 24 h", "Saúde conta".

@@ -183,7 +183,7 @@ O app deve, no primeiro acesso, pedir o nome do treinador e entregar um ovo.
 ### RF-JOG-41: Tutorial de primeira utilização
 O app deve, depois do nome do treinador, apresentar um tutorial que destaca os elementos reais da interface, um por etapa.
 - **Regras de negócio**
-  - 9 etapas, nesta ordem (`OnboardingStep.tour`): o bro (Início), "Registrar atividade", aba Treino (só avança quando a aba abre), o treino de hoje (na aba Treino), aba Ligas, abas Mapa e Histórico juntas, o bro da barra (só avança quando volta ao Início), os atalhos do cabeçalho (Amigos, Bros, caixa de entrada, Ajustes) e "Bora treinar!", sem destaque.
+  - 10 etapas, nesta ordem (`OnboardingStep.tour`): o bro (Início), "Registrar atividade", aba Treino (só avança quando a aba abre), o treino de hoje (na aba Treino), aba Ligas, aba Mapa, aba Feed, o bro da barra (só avança quando volta ao Início), os atalhos do cabeçalho (Amigos, Bros, caixa de entrada, Ajustes) e "Bora treinar!", sem destaque.
   - Abre sozinho quando a tela principal está livre (sem cena de evolução, BroBook, aviso ou banco recuperado por cima) e sem treino em andamento. O estado é por conta (hash do id da conta na chave `onboardingTour`): não apresentado, em andamento numa etapa (retoma dela na próxima abertura), concluído ou dispensado. Trocar de conta interrompe sem marcar nada.
   - Cada etapa navega até a aba dela, espera 350 ms o layout assentar e até 2 s o elemento aparecer; sem elemento visível, pula a etapa (no sentido em que estava indo) e registra em log o motivo.
   - Um elemento de tela que fica embaixo da barra de abas (com 16 pt de folga acima dela, por causa do bro do centro) não é destacado. Para não perder a etapa, a tela com rolagem (`GMScreen`) rola o primeiro alvo que não é da barra até o centro (`scrollTarget`).
@@ -202,7 +202,7 @@ O app deve, depois do nome do treinador, apresentar um tutorial que destaca os e
 O app deve manter um bro principal, exibido na tela inicial, na barra de abas e nos widgets.
 - **Regras de negócio**
   - Principal = o salvo em `mainMonster` se existir; senão o inicial; senão o primeiro.
-  - O principal recebe o XP das atividades que não foram postadas em nenhuma liga (o perfil não conta como liga).
+  - O principal recebe o XP integral de toda atividade (postada ou não). O representante de cada liga marcada recebe 80% (RF-JOG-18).
   - O dono padrão é gravado na atividade ao criá-la; trocar o principal depois não move atividades antigas.
   - A tela principal observa a chave `mainMonster`: trocar o principal atualiza na hora a tela inicial, a barra de abas e o widget.
 - **Critérios de aceitação:** em "Meus bros", o botão "Principal" do bro selecionado aparece só para quem não é o principal; depois de tocado, o bro passa a exibir o selo "Principal" no resumo e a estrela na casa da Box.
@@ -226,18 +226,19 @@ O app deve mostrar todos os bros numa Box de casas e, embaixo, o resumo do bro s
 
 ### RF-JOG-17: Representante por liga e ovo adotado
 O app deve, ao entrar numa liga, pedir quem representa o jogador: um bro existente ou um ovo novo.
-- **Regras de negócio:** "Adotar um ovo novo" cria um bro que começa do zero, só com os check-ins dessa liga. Uma liga com representante apagado/ausente passa ao bro inicial.
+- **Regras de negócio:** "Adotar um ovo novo" cria um bro que começa do zero e cresce com 80% do XP dos check-ins dessa liga (RF-JOG-18). Uma liga com representante apagado/ausente passa ao bro inicial.
 - **Critérios de aceitação:** escolher o ovo novo adiciona um bro à coleção.
 - **Fonte:** `GymBros/Bros/Monsters.swift` (`MonsterChoiceSection`, `representative`, `ensureStarter`)
 
 ### RF-JOG-18: Destino do XP de cada atividade
 O app deve atribuir o XP de cada atividade aos bros corretos.
 - **Regras de negócio**
-  - Postada em ligas → XP para cada bro representante dessas ligas (um bro conta uma vez mesmo em várias ligas). Bros diferentes recebem o XP integral cada um.
-  - Não postada em liga → XP para o bro gravado na atividade; se ele não existe mais, para o inicial.
-  - Liga sem representante válido não conta como destino: se nenhuma das ligas marcadas tem representante, vale a regra "não postada em liga".
+  - O bro principal da atividade (o dono gravado nela; se ele não existe mais, o inicial) recebe o XP integral (fração 1,0).
+  - Cada bro representante das ligas marcadas recebe 80% (`Roster.leagueShare`), uma vez só mesmo em várias ligas; o principal que também representa uma liga recebe só o integral.
+  - Se o dono gravado saiu numa troca, o XP dele foi junto e não passa para ninguém daqui.
+  - O XP de cada bro é `round(xp × fração)` antes dos tetos diários (RF-JOG-03).
   - Em listas (Histórico, "Últimas atividades", aviso de importação do Saúde, detalhe), o XP mostrado de uma atividade com vários donos é o maior entre eles.
-- **Critérios de aceitação:** uma atividade postada em duas ligas com bros distintos aparece no XP dos dois; a mesma atividade mostra o mesmo XP na tela inicial e no Histórico.
+- **Critérios de aceitação:** uma atividade postada numa liga dá o XP integral ao principal e 80% ao representante; a mesma atividade mostra o mesmo XP na tela inicial e no Histórico. Testes: `GameTests.testMainAlwaysGetsXPAndLeagueRepGetsAShare`, `testLeagueShareGivesLessXP`.
 - **Fonte:** `GymBros/Bros/Monsters.swift` (`Roster.owners`, `Roster.init`, `xpByActivity`), `GymBros/App/App.swift` (`derive`, `syncHealth`), `GymBrosTests/GameTests.swift` (`testXPOwnersFollowLeagues`)
 
 ---
@@ -306,7 +307,7 @@ O app deve abrir, pelo botão Bros da tela inicial, uma tela modal "Bros" com as
 
 ### RF-JOG-24: Descoberta de formas
 O app deve registrar como descoberta toda forma alcançada por qualquer bro.
-- **Regras de negócio:** o ovo é sempre descoberto; descobertas são cumulativas (não somem ao apagar atividades). Total = ovo + formas de cada espécie pronta (10 normais + híbridos com arte) = 177 hoje.
+- **Regras de negócio:** o ovo é sempre descoberto; descobertas são cumulativas (não somem ao apagar atividades). Total = ovo + 8 espécies × 112 formas (10 normais, 12 híbridos e 90 Lendas de virada, que entram mesmo sem arte) = 897.
 - **Fonte:** `GymBros/App/App.swift` (`check`), `GymBros/Bros/DexView.swift` (`allForms`)
 
 ### RF-JOG-25: BroBook por espécie
@@ -374,7 +375,7 @@ O app deve permitir editar tipo, duração, esforço, data, observação e desti
 ### RF-JOG-30: Apagar atividade
 O app deve permitir apagar uma atividade com confirmação.
 - **Regras de negócio:** confirmação "Apagar atividade?" avisando que os check-ins somem; apaga treino guiado vinculado, check-ins (e os comentários deles), percurso e resultado de WOD; se importada do Saúde, entra na lista de ignorados (não reimporta); apaga a gravação feita no Saúde; a tela fecha e a exclusão ocorre 0,5 s depois.
-- **Critérios de aceitação:** após apagar, XP, estágio e conquistas dependentes são recalculados.
+- **Critérios de aceitação:** apagar não faz o bro voltar de forma: o XP que a atividade deu fica com os bros que o receberam (`RetiredActivities`, sincronizado com a conta; "Recomeçar jornada" limpa). Teste: `RetiredActivityTests.testDeletingActivityKeepsTheBroXP`.
 - **Fonte:** `GymBros/Activities/ActivityDetail.swift` (`deleteActivity`)
 
 ---

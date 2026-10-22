@@ -6,7 +6,7 @@ permalink: /privacidade/
 
 # Política de privacidade do GymBros
 
-Atualizada em 21 de outubro de 2026.
+Atualizada em 22 de outubro de 2026.
 
 ## Resumo
 
@@ -18,7 +18,7 @@ Atividades, treinos, séries, recordes, rotinas, medidas, fotos, academias salva
 
 ## Apple Saúde
 
-Se você permitir, o app lê os seus treinos do Apple Saúde (tipo, duração, calorias e distância) para transformá-los em atividades e, se você ligar a gravação, grava no Saúde as atividades registradas aqui. Esses dados não são usados para publicidade nem compartilhados com terceiros. O que vem do Saúde entra nos dados da sua conta e, com eles, na cópia guardada no servidor do GymBros (Firebase), nunca no iCloud. Calorias, distância e esforço vindos do Saúde nunca vão para posts nem para o X1. Se você postar uma atividade importada do Saúde no perfil ou numa liga, o post leva o tipo, a data e a duração do treino, visíveis para quem vê o post. Dá para desligar a qualquer momento em Ajustes do iPhone > Saúde > Acesso a Dados.
+Se você permitir, o app lê os seus treinos do Apple Saúde (tipo, duração, calorias e distância) para transformá-los em atividades e, se você ligar a gravação, grava no Saúde as atividades registradas aqui. Esses dados não são usados para publicidade nem compartilhados com terceiros. O que vem do Saúde entra nos dados da sua conta e, com eles, na cópia guardada no servidor do GymBros (Firebase), nunca no iCloud. Calorias, distância e esforço vindos do Saúde (inclusive os medidos pelo Apple Watch) nunca vão para posts, ligas nem para o X1. O card de Story, que você mesmo compartilha pela tela de compartilhar, pode mostrar as calorias do treino. Se você postar uma atividade importada do Saúde no perfil ou numa liga, o post leva o tipo, a data e a duração do treino, visíveis para quem vê o post. Dá para desligar a qualquer momento em Ajustes do iPhone > Saúde > Acesso a Dados.
 
 ## Música
 
@@ -26,7 +26,7 @@ Desligado por padrão. Se você ligar "Mostrar o que estou ouvindo" em Ajustes >
 
 ## Localização
 
-Com a sua permissão, o app usa a localização para salvar academias, avisar quando você chega ou sai de uma delas e desenhar a rota de corridas e pedaladas que você grava. Academias e rotas fazem parte dos dados da sua conta. A localização é compartilhada em dois casos. Treino ao vivo: enquanto você está num treino, vão para o servidor e para os amigos que adicionaram você a atividade, o exercício atual e onde você está (numa academia salva, o ponto dela; fora, a sua posição; em corrida, caminhada e bike, também o percurso recente), atualizados no máximo a cada 30 segundos. Ao terminar, fica só o tipo do treino e quando ele acabou. Vem ligado, e o primeiro acesso explica e deixa desligar; depois, dá para escolher em cada treino, no chip "Ao vivo", ou mudar o padrão em Mapa > Ajustes (engrenagem). Convite para treinar junto: se você escolher uma academia salva como local do convite, o nome e as coordenadas dela vão para o amigo convidado; digitar o local à mão envia só o texto.
+Com a sua permissão, o app usa a localização para salvar academias, avisar quando você chega ou sai de uma delas e desenhar a rota de corridas e pedaladas que você grava. Academias e rotas fazem parte dos dados da sua conta. A localização é compartilhada em dois casos. Treino ao vivo: enquanto você está num treino, vão para o servidor e para os seus amigos (quem você adicionou e também adicionou você) a atividade, o exercício atual e onde você está (numa academia salva, o ponto dela; fora, a sua posição; em corrida, caminhada e bike, também o percurso recente), atualizados no máximo a cada 30 segundos. Ao terminar, fica só o tipo do treino e quando ele acabou. Vem ligado, e o primeiro acesso explica e deixa desligar; depois, dá para escolher em cada treino, no chip "Ao vivo", ou mudar o padrão em Mapa > Ajustes (engrenagem). Convite para treinar junto: se você escolher uma academia salva como local do convite, o nome e as coordenadas dela vão para o amigo convidado; digitar o local à mão envia só o texto.
 
 ## Fotos
 
@@ -34,7 +34,7 @@ Fotos só entram no app quando você escolhe uma da galeria ou tira uma na câme
 
 ## Ligas, amigos e conta
 
-Para criar a conta, o app envia ao Firebase o seu nome, e-mail e senha; a senha é guardada pelo Google de forma que nem o GymBros consegue lê-la. Nada é publicado sem você escolher postar. O seu perfil público (nome, usuário, bio, bro, código de amigo e os números e conquistas que você deixar aparecer) pode ser visto por quem tem conta no app. Check-ins, recados e o seu nome e bro numa liga são vistos pelos participantes dela. Mensagens diretas (texto, força e convites para treinar junto, com o local escolhido) só podem ser lidas por quem mandou e por quem recebeu, e só dá para mandar para quem adicionou você; ficam guardadas no servidor e o app mostra as dos últimos 90 dias. No X1 vão o seu nome, o bro escolhido e o total que você fez na métrica; numa troca, os bros que você pode trocar (nome, forma e XP) ficam visíveis para os seus amigos. Rotinas que você publica são vistas por todos, com o seu nome. Num check-in de liga vão também a prova que a liga pede (se a foto é da câmera do app ou da galeria, a hora dela, se tem local e o aparelho que gravou o treino, o nome da academia quando a localização registrou a sua visita nela durante o treino) e, em ligas com revisão, a decisão do dono. Quem organiza uma liga pode exportar os check-ins dela numa planilha. As preferências de notificação, os amigos de quem você escondeu os seus treinos ou silenciou, e os check-ins que você já viu no Deck dos Bros também ficam na conta.
+Para criar a conta, o app envia ao Firebase o seu nome, e-mail e senha; a senha é guardada pelo Google de forma que nem o GymBros consegue lê-la. Nada é publicado sem você escolher postar. O seu perfil público (nome, usuário, bio, bro, código de amigo e os números e conquistas que você deixar aparecer) pode ser visto por quem tem conta no app. Check-ins, recados e o seu nome e bro numa liga são vistos pelos participantes dela. Mensagens diretas (texto, força e convites para treinar junto, com o local escolhido) só podem ser lidas por quem mandou e por quem recebeu, e só dá para mandar para quem adicionou você; ficam guardadas no servidor e o app mostra as dos últimos 90 dias. No X1 vão o seu nome, o bro escolhido e o total que você fez na métrica; numa troca, os bros que você pode trocar (nome, forma e XP) ficam visíveis para os seus amigos. Rotinas que você publica são vistas por todos, com o seu nome. Num check-in de liga vão também a prova que a liga pede (se a foto é da câmera do app ou da galeria, a hora dela, se tem local e o modelo do aparelho que gravou o treino (iPhone ou Apple Watch, sem o nome do aparelho), o nome da academia quando a localização registrou a sua visita nela durante o treino) e, em ligas com revisão, a decisão do dono. Quem organiza uma liga pode exportar os check-ins dela numa planilha. As preferências de notificação, os amigos de quem você escondeu os seus treinos ou silenciou, e os check-ins que você já viu no Deck dos Bros também ficam na conta.
 
 ## Denúncias, bloqueios e filtro
 
@@ -46,7 +46,7 @@ O GymBros usa o Firebase (Google LLC) para login e banco de dados, com os dados 
 
 ## Sair, backup e exclusão
 
-"Sair da conta" salva os seus dados na conta e depois os tira do iPhone. O backup é uma cópia extra num arquivo que você exporta e guarda onde quiser; o app não envia esse arquivo a ninguém. "Excluir conta", em Ajustes > Conta, apaga do servidor o seu login, o perfil, a cópia da conta, check-ins, recados, lugar nas ligas, amizades, bloqueios, denúncias, rotinas publicadas, o treino ao vivo e os bros para troca, e apaga tudo do iPhone. Mensagens, X1 e trocas também pertencem à outra pessoa e continuam com ela, sem o seu perfil. Para pedir a exclusão delas, use o contato abaixo.
+"Sair da conta" salva os seus dados na conta e depois os tira do iPhone. O backup é uma cópia extra num arquivo que você exporta e guarda onde quiser; o app não envia esse arquivo a ninguém. "Excluir conta", em Ajustes > Conta, apaga do servidor o seu login, o perfil, o código de amigo, a cópia da conta, check-ins, recados, lugar nas ligas, amizades, bloqueios, denúncias, rotinas publicadas, o treino ao vivo e os bros para troca, e apaga tudo do iPhone. Mensagens, X1 e trocas também pertencem à outra pessoa e continuam com ela, sem o seu perfil. Para pedir a exclusão delas, use o contato abaixo.
 
 ## Crianças
 
