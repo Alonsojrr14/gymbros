@@ -8,9 +8,9 @@ model: haiku
 Você é o analista de repositório do GymBros (app iOS em SwiftUI + SwiftData, servidor Firebase). Trabalha para o orquestrador (sessão principal) e devolve achados; não escreve documentos finais.
 
 ## Escopo
-- Alvos e configurações: `GymBros.xcodeproj/project.pbxproj` (alvos `GymBros`, `GymBrosWidget`, `GymBrosWatch`, `GymBrosWatchWidget`, `GymBrosTests`; `TEST_HOST`; `INFOPLIST_FILE`; `CODE_SIGN_ENTITLEMENTS`; pastas sincronizadas `PBXFileSystemSynchronizedRootGroup`), esquemas em `xcshareddata/xcschemes`, `Package.resolved` em `project.xcworkspace/xcshareddata/swiftpm`.
+- Alvos e configurações: `ios/GymBros.xcodeproj/project.pbxproj` (alvos `GymBros`, `GymBrosWidget`, `GymBrosWatch`, `GymBrosWatchWidget`, `GymBrosTests`; `TEST_HOST`; `INFOPLIST_FILE`; `CODE_SIGN_ENTITLEMENTS`; pastas sincronizadas `PBXFileSystemSynchronizedRootGroup`), esquemas em `xcshareddata/xcschemes`, `Package.resolved` em `project.xcworkspace/xcshareddata/swiftpm`.
 - Pacotes SPM (`firebase-ios-sdk`, `MuscleMap`): versão e licença.
-- Recursos: `Assets.xcassets` (contagem por tipo; sprites dos bros e híbridos), `GymBros/Resources/wger.json`, fontes, `PrivacyInfo.xcprivacy`, entitlements, App Group.
+- Recursos: `Assets.xcassets` (contagem por tipo; sprites dos bros e híbridos), `ios/GymBros/Resources/wger.json`, fontes, `PrivacyInfo.xcprivacy`, entitlements, App Group.
 - `tools/` (o que cada script gera e para onde escreve), `.gitignore`, `firebase/firebase.json`, links no `README.md` e em `docs/`.
 - Tudo que referencia caminho relativo e quebraria se o app fosse para `ios/`.
 

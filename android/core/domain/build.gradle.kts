@@ -10,7 +10,7 @@ kotlin {
 }
 
 // Vetores compartilhados gerados pelo iOS (GoldenVectorsTests): a mesma pasta que o teste Swift lê
-sourceSets["test"].resources.srcDir("../../../GymBrosTests/Fixtures")
+sourceSets["test"].resources.srcDir("../../../ios/GymBrosTests/Fixtures")
 
 dependencies {
     implementation(libs.serialization.json)

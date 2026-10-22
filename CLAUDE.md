@@ -1,26 +1,26 @@
 # GymBros
 
-App pessoal nativo para iPhone (SwiftUI + SwiftData, iOS 17) com Apple Watch, widgets, Live Activities e servidor no Firebase (plano Spark). Treinos chocam e evoluem um "bro"; há ligas, X1, amigos, feed, caixa de entrada, treino guiado e WOD. Conta obrigatória. Em andamento: preparar o repositório para um app Android nativo (Kotlin) com as mesmas regras.
+App pessoal nativo para iPhone (SwiftUI + SwiftData, iOS 17) com Apple Watch, widgets, Live Activities e servidor no Firebase (plano Spark). Treinos chocam e evoluem um "bro"; há ligas, X1, amigos, feed, caixa de entrada, treino guiado e WOD. Conta obrigatória. Em andamento: app Android nativo (Kotlin) em `android/`, com as mesmas regras provadas por vetores compartilhados.
 
 Responda e documente em português do Brasil, com acentuação correta. Identificadores de código ficam no original.
 
 ## Mapa
-- `GymBros/` app iOS (pasta sincronizada do Xcode: arquivo novo entra no alvo sem mexer no `project.pbxproj`). `Shared/` código comum com widget e relógio.
-- `GymBrosWidget/`, `GymBrosWatch/`, `GymBrosWatchWidget/`, `GymBrosTests/` (XCTest, `TEST_HOST` = app).
+- `ios/` app iOS: `ios/GymBros.xcodeproj`, `ios/GymBros/` (pasta sincronizada do Xcode: arquivo novo entra no alvo sem mexer no `project.pbxproj`), `ios/Shared/` (comum com widget e relógio), `ios/GymBrosWidget/`, `ios/GymBrosWatch/`, `ios/GymBrosWatchWidget/`, `ios/GymBrosTests/` (XCTest, `TEST_HOST` = app; `Fixtures/` = vetores compartilhados com o Android).
+- `android/` app Android (Kotlin): `:core:domain` com as regras e os formatos, testado contra `ios/GymBrosTests/Fixtures`. `JAVA_HOME=$(/usr/libexec/java_home -v 17) ./gradlew :core:domain:test`.
 - `firebase/` regras e índices do Firestore: **única autoridade do servidor** (não há Cloud Functions). XP, evolução, pareamento suíço e pontuação das ligas são calculados no cliente.
 - `docs/` é o **site público do GitHub Pages** (publicado da branch `swift`). Nada de engenharia interna nem achado de segurança aqui.
 - `engenharia/` documentos de engenharia (descoberta, arquitetura, requisitos, paridade, plano, segurança). Comece por `engenharia/README.md`.
-- `tools/` geradores de recursos (`tools/wger/build.py` → `GymBros/Resources/wger.json`, recorte de sprites). Não execute sem pedido.
+- `ios/tools/` geradores de recursos do iOS (`ios/tools/wger/build.py` → `ios/GymBros/Resources/wger.json`, recorte de sprites). Não execute sem pedido.
 - `graphify-out/` grafo do código (pode estar defasado; mapa de navegação, nunca prova).
 
 ## Build e teste (só no iPhone físico)
 ```sh
 UDID=00008150-001E15363C04C01C
 xcrun devicectl list devices            # confirmar que o iPhone está conectado
-xcodebuild -project GymBros.xcodeproj -scheme GymBros -destination "id=$UDID" \
+xcodebuild -project ios/GymBros.xcodeproj -scheme GymBros -destination "id=$UDID" \
   -derivedDataPath build -allowProvisioningUpdates build
 xcrun devicectl device install app --device $UDID build/Build/Products/Debug-iphoneos/GymBros.app
-xcodebuild test -project GymBros.xcodeproj -scheme GymBros -destination "id=$UDID" \
+xcodebuild test -project ios/GymBros.xcodeproj -scheme GymBros -destination "id=$UDID" \
   -derivedDataPath build -allowProvisioningUpdates
 ```
 Assinatura sempre com o Personal Team `5UV7WAAAL2`. Os testes rodam no aparelho do dono, com os dados reais: avise antes de rodar. Mudança aprovada no iOS só está entregue depois de "App installed".

@@ -145,7 +145,7 @@ Recuperação: apagar o registro devolve a conta para `USER`; um registro com `r
 Rodam dentro do app instalado no aparelho (`TEST_HOST`), como o resto da suíte:
 
 ```sh
-xcodebuild test -project GymBros.xcodeproj -scheme GymBros -destination 'id=<UDID>' -derivedDataPath build -allowProvisioningUpdates
+xcodebuild test -project ios/GymBros.xcodeproj -scheme GymBros -destination 'id=<UDID>' -derivedDataPath build -allowProvisioningUpdates
 ```
 
 `AccessTests` cobre a matriz (exata e exaustiva), negação de tudo fora da matriz, ausência de privilégio de `ADMIN` em `USER`/`DEVELOPER`, escopo próprio, roles somadas, mudança numa role sem efeito nas outras, role sem concessão, valores inválidos, usuário deslogado, sem atribuição, atribuição vazia, carregando, falha da consulta, troca de conta, logout, dono da liga, caixa de saída sem permissão (nada sobe e tudo fica pendente), moderação e amigos sem permissão, e `AdminActions` (nega antes do servidor; com `ADMIN`, cai no "precisa de servidor"; ninguém muda a própria role). `GymTestCase.signedInAccess(_:)` cria uma sessão de teste com a atribuição desejada.

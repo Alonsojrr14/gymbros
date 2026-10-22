@@ -4,5 +4,12 @@ xcuserdata/
 .DS_Store
 graphify-out/
 
-# Configuração do projeto Firebase (cada um baixa a sua do console)
-GymBros/Resources/GoogleService-Info.plist
+# Configuração do projeto Firebase (cada um baixa a sua do console), nos dois apps
+**/GoogleService-Info.plist
+**/google-services.json
+
+# Android
+.gradle/
+local.properties
+*.jks
+*.keystore

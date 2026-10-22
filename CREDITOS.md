@@ -2,8 +2,8 @@
 
 ## Exercícios: wger
 Imagens, vídeos e instruções de exercícios vêm do projeto [wger](https://wger.de), sob licenças Creative Commons
-(CC BY-SA 3.0, CC BY-SA 4.0 ou CC0, por item). Autor e licença de cada item ficam em `GymBros/Resources/wger.json`
-e aparecem no app junto do conteúdo e na tela "Créditos e licenças". Gerado por `tools/wger/build.py`.
+(CC BY-SA 3.0, CC BY-SA 4.0 ou CC0, por item). Autor e licença de cada item ficam em `ios/GymBros/Resources/wger.json`
+e aparecem no app junto do conteúdo e na tela "Créditos e licenças". Gerado por `ios/tools/wger/build.py`.
 
 - Uso comercial permitido, com atribuição (autor, licença, origem).
 - Adaptações desse conteúdo (ex.: instruções traduzidas) seguem a mesma licença (share-alike). Isso não se aplica ao código do app.
@@ -13,13 +13,13 @@ e aparecem no app junto do conteúdo e na tela "Créditos e licenças". Gerado p
 Ilustrações do [Everkinetic](https://github.com/everkinetic/data) (projeto de Greg Priday), licença CC BY-SA 4.0,
 para os exercícios que o wger não ilustra: os desenhos de `dist/png` e alguns de `src/images-png-unknown` (mesmos
 desenhos, sem exercício cadastrado, identificados à mão). A pasta `images-ai` do repositório é o formato do Adobe
-Illustrator, não imagem gerada por IA. Gerado por `tools/wger/everkinetic.py`.
+Illustrator, não imagem gerada por IA. Gerado por `ios/tools/wger/everkinetic.py`.
 
 ## Fotos e ilustrações: Wikimedia Commons
 Para os exercícios que nem o wger nem o Everkinetic cobrem (sobretudo CrossFit), imagens escolhidas à mão no
 [Wikimedia Commons](https://commons.wikimedia.org): domínio público (muitas de forças armadas dos EUA), CC0
 (sequências de levantamento olímpico de FunesFacuu), CC BY e CC BY-SA. Autor, licença e link de cada arquivo ficam
-em `GymBros/Resources/wger.json` e aparecem no app embaixo da imagem. Gerado por `tools/wger/commons.py`.
+em `ios/GymBros/Resources/wger.json` e aparecem no app embaixo da imagem. Gerado por `ios/tools/wger/commons.py`.
 Fotos com pessoas: a licença cobre a foto, não a imagem da pessoa; evite usá-las em anúncios.
 
 ## Mapa muscular: MuscleMap

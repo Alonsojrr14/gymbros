@@ -45,7 +45,7 @@ Ordem sugerida: conta e assinatura → código de desenvolvimento → servidor �
 
 - [ ] Suíte inteira passando no aparelho, num build limpo:
   ```sh
-  xcodebuild test -project GymBros.xcodeproj -scheme GymBros -destination 'id=<UDID>' -derivedDataPath build -allowProvisioningUpdates
+  xcodebuild test -project ios/GymBros.xcodeproj -scheme GymBros -destination 'id=<UDID>' -derivedDataPath build -allowProvisioningUpdates
   ```
 - [ ] Build **Release** compila sem warnings novos (`-configuration Release`).
 - [ ] Instalar o Release no aparelho e conferir: login sem a seção "Desenvolvimento", Ajustes sem "Diagnóstico" para conta comum, onboarding na primeira abertura.

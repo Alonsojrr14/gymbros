@@ -8,10 +8,10 @@ model: sonnet
 Você é o analista de paridade de UI do GymBros. Devolve achados ao orquestrador.
 
 ## Escopo
-- Telas e jornadas: tutorial de primeira utilização (`GymBros/Onboarding/`, confira quantos passos há em `OnboardingStep.swift`), abas, aba Treino, treino guiado (`Train/WorkoutView.swift`), registro de atividade (`Activities/LogActivityView.swift`), ligas (`Leagues/LeaguesView.swift`), feed (`Friends/FriendsFeed.swift`), Deck/Box dos Bros, X1 (`Duels/`), trocas (`Trades/`), perfil público e privado, caixa de entrada, ajustes, cenas de choco e evolução.
-- Design system `GM*` em `GymBros/DesignSystem/` e tokens em `Shared/Theme.swift`; compare com `docs/design-system.md` e marque divergências.
+- Telas e jornadas: tutorial de primeira utilização (`ios/GymBros/Onboarding/`, confira quantos passos há em `OnboardingStep.swift`), abas, aba Treino, treino guiado (`Train/WorkoutView.swift`), registro de atividade (`Activities/LogActivityView.swift`), ligas (`Leagues/LeaguesView.swift`), feed (`Friends/FriendsFeed.swift`), Deck/Box dos Bros, X1 (`Duels/`), trocas (`Trades/`), perfil público e privado, caixa de entrada, ajustes, cenas de choco e evolução.
+- Design system `GM*` em `ios/GymBros/DesignSystem/` e tokens em `ios/Shared/Theme.swift`; compare com `docs/design-system.md` e marque divergências.
 - Fontes: quais arquivos de fonte existem, como são registradas (`Info.plist` `UIAppFonts`), licença de cada uma (procure em `CREDITOS.md`, `NOTICE.md`). Dynamic Type via `gmFont`/`GMScaledFont`.
-- Assets: contagem e formato (PDF vetorial, PNG @2x/@3x) em `GymBros/Resources/Assets.xcassets`, sprites dos bros e dos híbridos (`HIBRIDOS.md`), plano de conversão para Android (VectorDrawable, WebP por densidade).
+- Assets: contagem e formato (PDF vetorial, PNG @2x/@3x) em `ios/GymBros/Resources/Assets.xcassets`, sprites dos bros e dos híbridos (`HIBRIDOS.md`), plano de conversão para Android (VectorDrawable, WebP por densidade).
 - Localização (strings fixas em português? `Localizable`/String Catalog?) e acessibilidade (rótulos, `accessibilityLabel`).
 - Mapa muscular (`Exercises/MuscleViews.swift`, pacote `MuscleMap`): como é desenhado e como reproduzir no Android sem copiar código de licença incompatível.
 

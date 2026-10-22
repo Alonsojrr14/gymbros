@@ -16,10 +16,10 @@ disable-model-invocation: true
 ## Ordem
 Tarefas AND da fundação em `engenharia/plano/backlog-android.md`, uma por vez, cada uma delegada ao `android-implementation-agent` com: ID, requisitos, critérios de aceite, arquivos esperados, comando de teste.
 1. Esqueleto Gradle (wrapper, catálogo de versões, módulos aprovados), `.gitignore` do Android.
-2. Tema e componentes base equivalentes aos `GM*` (tokens de `Shared/Theme.swift`).
-3. Regras de domínio puras em Kotlin + testes JVM consumindo `shared-fixtures/` (se aprovado). Divergência numérica com o Swift é falha.
+2. Tema e componentes base equivalentes aos `GM*` (tokens de `ios/Shared/Theme.swift`).
+3. Regras de domínio puras em Kotlin + testes JVM consumindo `ios/GymBrosTests/Fixtures` (vetores gerados pelo iOS). Divergência numérica com o Swift é falha.
 
 Depois de cada tarefa: confira você mesmo o diff e a saída dos testes, atualize `engenharia/paridade/matriz-ios-android.md` e `engenharia/plano/resultados-validacao.md`. Regras de domínio passam pelo `independent-reviewer`.
 
 ## Proibido
-Tocar `ios/` (ou `GymBros*/`, `Shared/`), `firebase/`, `docs/`; deploy de regras; dependência fora da matriz aprovada; declarar pronto sem testes rodados.
+Tocar `ios/` (ou `GymBros*/`, `ios/Shared/`), `firebase/`, `docs/`; deploy de regras; dependência fora da matriz aprovada; declarar pronto sem testes rodados.

@@ -3,7 +3,7 @@
 `recortar-sprite.swift`: recorta o monstro do fundo com o Vision do macOS (o mesmo recorte de objeto das Fotos) e deixa a borda nítida para o pixel art.
 
 ```sh
-swiftc -O tools/recortar-sprite.swift -o /tmp/recortar
+swiftc -O ios/tools/recortar-sprite.swift -o /tmp/recortar
 /tmp/recortar entrada.png saida.png [margem]
 ```
 
@@ -12,17 +12,17 @@ swiftc -O tools/recortar-sprite.swift -o /tmp/recortar
 `recortar-quadro.swift`: corta um quadro (x, y, largura, altura) de uma folha com as 10 evoluções, antes de passar no `recortar-sprite`.
 
 ```sh
-swift tools/recortar-quadro.swift folha.png quadro.png x y largura altura
+swift ios/tools/recortar-quadro.swift folha.png quadro.png x y largura altura
 ```
 
 Nas folhas 1536×1024 geradas até aqui, os quadros são: linha de cima (y 0–484) com x 0–288, 288–586, 586–905, 905–1217, 1217–1536 (bebê, rookie, champion força, resistência, agilidade); linha de baixo (y 484–1024) com x 0–258, 258–636, 636–935, 935–1217, 1217–1536 (champion técnica, ultimate força, resistência, agilidade, técnica).
 
-## Artes novas (`tools/artes/`)
+## Artes novas (`ios/tools/artes/`)
 
 Gera as artes pelo ChatGPT do navegador (a cota de imagem do chat é maior que a do Codex CLI), recorta e instala no app. Hoje cobre as formas híbridas do `HIBRIDOS.md`.
 
 ```sh
-cd tools/artes && npm install          # uma vez (playwright-core)
+cd ios/tools/artes && npm install          # uma vez (playwright-core)
 ./chrome.sh                            # Chrome com cópia do seu perfil, já logado no ChatGPT (porta 9333)
 python3 prompts.py                     # .work/jobs.json: prompt e referências de cada arte
 node gerar.mjs 2                       # gera o que falta em .work/raw (2 abas; pula o que já existe)
@@ -41,7 +41,7 @@ swift folha.swift .work/folha.png .work/raw/*.png   # revise: confira se cada ar
 Mesmo fluxo, com outra pasta de trabalho (`.work-viradas`) e os pedidos do `viradas.py` (ver `VIRADAS.md`):
 
 ```sh
-cd tools/artes && ./chrome.sh
+cd ios/tools/artes && ./chrome.sh
 ARTES_WORK=.work-viradas python3 viradas.py
 ARTES_WORK=.work-viradas node gerar.mjs 2        # 720 artes; para sozinho no limite do plano, é só rodar de novo depois
 swift folha.swift .work-viradas/folha.png .work-viradas/raw/urso_*.png   # revise por espécie

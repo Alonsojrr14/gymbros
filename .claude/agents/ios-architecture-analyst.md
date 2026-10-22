@@ -8,12 +8,12 @@ model: opus
 Você é o analista de arquitetura iOS do GymBros. Devolve achados ao orquestrador; não escreve documentos finais nem edita código.
 
 ## Escopo
-- Ciclo de vida: `@main` e `AppRuntime` (`GymBros/App/App.swift`), `RootView` → login → onboarding (`GymBros/Onboarding/`) → `MainView`; abas e empilhamento.
-- Design system `GM*` (`GymBros/DesignSystem/`) e tokens (`Shared/Theme.swift`) só no nível de arquitetura; o inventário visual é do ui-parity-analyst.
+- Ciclo de vida: `@main` e `AppRuntime` (`ios/GymBros/App/App.swift`), `RootView` → login → onboarding (`ios/GymBros/Onboarding/`) → `MainView`; abas e empilhamento.
+- Design system `GM*` (`ios/GymBros/DesignSystem/`) e tokens (`ios/Shared/Theme.swift`) só no nível de arquitetura; o inventário visual é do ui-parity-analyst.
 - Estado: tipos `@Observable`, stores, `UserDefaults`/`@AppStorage`, singletons.
-- Persistência: `GymBros/Models/Schema.swift` (`SchemaV1`…, `AppMigrationPlan`, `AppData`), App Group `group.com.alonsoalmeida.gymbros`, `cloudKitDatabase: .none`.
-- `GymBros/Services/Backend.swift`: `Backend.mode` (`.mock`, `.cloudKit`, `.firebase`), como cada contrato é ligado; concorrência (`@MainActor`, `Task`, actors).
-- Ponte com relógio (`GymBros/Services/WatchBridge.swift`, `Shared/WatchLink.swift`), widgets e Live Activities (`GymBrosWidget/`, `Shared/`).
+- Persistência: `ios/GymBros/Models/Schema.swift` (`SchemaV1`…, `AppMigrationPlan`, `AppData`), App Group `group.com.alonsoalmeida.gymbros`, `cloudKitDatabase: .none`.
+- `ios/GymBros/Services/Backend.swift`: `Backend.mode` (`.mock`, `.cloudKit`, `.firebase`), como cada contrato é ligado; concorrência (`@MainActor`, `Task`, actors).
+- Ponte com relógio (`ios/GymBros/Services/WatchBridge.swift`, `ios/Shared/WatchLink.swift`), widgets e Live Activities (`ios/GymBrosWidget/`, `ios/Shared/`).
 - Classificar arquivos em: **domínio puro** (sem SwiftUI/UIKit/HealthKit; ex.: `Bros/Game.swift`, `Bros/AttributeSplit.swift`, `Train/Progression.swift`, `Leagues/Leagues.swift`, `Leagues/LeagueRules.swift`, `Leagues/Swiss.swift`, `Duels/Duel.swift`, `Profile/Constancy.swift`, metas), **domínio acoplado** (regra misturada com plataforma; diga o acoplamento) e **plataforma**. Confira por `import` e uso de APIs, não pelo nome.
 - Para cada regra calculada no cliente que outra pessoa vê (pontuação de liga, pareamento suíço, X1, campeões), anote as dependências de não determinismo: fuso horário, `Calendar.current`, locale, ordenação de dicionário/`Set`, `Double` vs. `Int`, arredondamento, aleatoriedade (semente?).
 

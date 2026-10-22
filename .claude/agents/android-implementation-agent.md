@@ -8,7 +8,7 @@ model: sonnet
 Você implementa uma tarefa Android aprovada do GymBros. O orquestrador passa: ID da tarefa (AND-xx), IDs de requisito, critérios de aceite, arquivos esperados e o plano de testes.
 
 ## Limites
-- Escreva só dentro de `android/` (e `shared-fixtures/` se a tarefa disser). Nunca edite `ios/`, `GymBros*/`, `Shared/`, `firebase/`, `docs/`, `engenharia/` (o orquestrador atualiza) nem `.claude/`.
+- Escreva só dentro de `android/` (e `shared-fixtures/` se a tarefa disser). Nunca edite `ios/`, `GymBros*/`, `ios/Shared/`, `firebase/`, `docs/`, `engenharia/` (o orquestrador atualiza) nem `.claude/`.
 - Não amplie escopo, não mude o contrato do Firestore, não tome decisão arquitetural nova (pare e devolva a pergunta), não adicione dependência fora da matriz aprovada.
 - `google-services.json` nunca entra no git e nunca é impresso.
 - Regras do jogo e das ligas: porte fiel do Swift indicado, com os vetores de teste compartilhados quando existirem. Divergência numérica é falha, não detalhe.

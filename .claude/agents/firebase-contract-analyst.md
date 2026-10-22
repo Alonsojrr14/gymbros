@@ -8,7 +8,7 @@ model: opus
 Você é o analista do contrato Firebase do GymBros. O Firebase (projeto no plano Spark, Auth + Firestore, sem Cloud Functions nem Storage) é o contrato compartilhado entre iOS e o futuro Android. Devolve achados ao orquestrador.
 
 ## Fontes
-`GymBros/Services/FirebaseBackend.swift`, `FirebaseGame.swift`, `FirebaseSocial.swift`, `AccountSync.swift`, `Auth.swift`, `Backend.swift`, `GymBros/Leagues/LeagueRemote.swift`, `GymBros/Friends/CommentSync.swift`, `GymBros/Duels/DuelStore.swift`, `GymBros/Trades/`, `GymBros/Inbox/`, `firebase/firestore.rules`, `firebase/firestore.indexes.json`, `firebase/firebase.json`. Docs (`docs/firebase.md`, `docs/servidor-real.md`, `docs/excluir-conta.md`) são secundários.
+`ios/GymBros/Services/FirebaseBackend.swift`, `FirebaseGame.swift`, `FirebaseSocial.swift`, `AccountSync.swift`, `Auth.swift`, `Backend.swift`, `ios/GymBros/Leagues/LeagueRemote.swift`, `ios/GymBros/Friends/CommentSync.swift`, `ios/GymBros/Duels/DuelStore.swift`, `ios/GymBros/Trades/`, `ios/GymBros/Inbox/`, `firebase/firestore.rules`, `firebase/firestore.indexes.json`, `firebase/firebase.json`. Docs (`docs/firebase.md`, `docs/servidor-real.md`, `docs/excluir-conta.md`) são secundários.
 
 Atenção: o dono tem mudanças não commitadas em `FirebaseBackend.swift`, `FirebaseGame.swift`, `LeagueRemote.swift`, `firestore.rules` e um arquivo novo `CommentSync.swift`. Analise o que está no disco e diga quando algo é novo (compare com `git diff` se o orquestrador fornecer).
 

@@ -56,7 +56,7 @@ O app quase não usa controles padrão do iOS: telas, cabeçalhos, barra de abas
 - Check-in em várias ligas de uma vez: ao registrar atividade, ao concluir treino guiado ou pelo botão da liga (nova atividade ou uma já registrada, inclusive do Saúde).
 - Por amigo: esconder os seus treinos, silenciar, arquivar e limpar a conversa (só do seu lado), reagir às mensagens e aos comentários, e adicionar por **QR** (`gymbros://amigo/CÓDIGO`).
 - Coleção de bros (`GymBros/Bros/Monsters.swift`): ao entrar numa liga você escolhe quem te representa, um bro seu ou um ovo novo adotado na hora. O bro principal (tela inicial e widgets, trocável em "Meus bros") recebe o XP de toda atividade; o representante de cada liga marcada no check-in recebe 80% dele. Apagar uma atividade não tira o XP que ela deu.
-- Servidor: tudo o que envolve servidor passa por contratos (login, dados da conta, ligas, amigos, moderação, caixa de entrada, X1, trocas, rotinas públicas e papéis). `Backend.mode` em `GymBros/Services/Backend.swift` escolhe quem responde: `.firebase` (o servidor real, plano grátis: Auth e Firestore) quando `GymBros/Resources/GoogleService-Info.plist` existe, e `.mock` (dados simulados no próprio iPhone) nos testes e sem o arquivo ([docs/firebase.md](docs/firebase.md), [docs/servidor-real.md](docs/servidor-real.md)). O modo CloudKit existe, mas depende da conta paga do Apple Developer ([docs/cloudkit.md](docs/cloudkit.md)). A "Liga dos Bros" (código `AMIGOS`) tem 8 participantes simulados divididos em dois times (Gui, Lia e Rafa ainda não são seus amigos).
+- Servidor: tudo o que envolve servidor passa por contratos (login, dados da conta, ligas, amigos, moderação, caixa de entrada, X1, trocas, rotinas públicas e papéis). `Backend.mode` em `ios/GymBros/Services/Backend.swift` escolhe quem responde: `.firebase` (o servidor real, plano grátis: Auth e Firestore) quando `ios/GymBros/Resources/GoogleService-Info.plist` existe, e `.mock` (dados simulados no próprio iPhone) nos testes e sem o arquivo ([docs/firebase.md](docs/firebase.md), [docs/servidor-real.md](docs/servidor-real.md)). O modo CloudKit existe, mas depende da conta paga do Apple Developer ([docs/cloudkit.md](docs/cloudkit.md)). A "Liga dos Bros" (código `AMIGOS`) tem 8 participantes simulados divididos em dois times (Gui, Lia e Rafa ainda não são seus amigos).
 
 ## Metas e constância
 
@@ -68,7 +68,7 @@ O app quase não usa controles padrão do iOS: telas, cabeçalhos, barra de abas
 
 ## Biblioteca e CrossFit
 
-- 262 exercícios, com imagens, vídeos e instruções de licença comercial e crédito por item, embutidos em `GymBros/Resources/wger.json`: wger (CC BY-SA/CC0), ilustrações do Everkinetic (CC BY-SA 4.0) e fotos do Wikimedia Commons. Instruções em inglês traduzidas no próprio iPhone (iOS 18+). Tela "Créditos e licenças" nos Ajustes; detalhes em [CREDITOS.md](CREDITOS.md).
+- 262 exercícios, com imagens, vídeos e instruções de licença comercial e crédito por item, embutidos em `ios/GymBros/Resources/wger.json`: wger (CC BY-SA/CC0), ilustrações do Everkinetic (CC BY-SA 4.0) e fotos do Wikimedia Commons. Instruções em inglês traduzidas no próprio iPhone (iOS 18+). Tela "Créditos e licenças" nos Ajustes; detalhes em [CREDITOS.md](CREDITOS.md).
 - CrossFit: 42 movimentos (olímpicos, ginásticos, metcon) e modo WOD (`GymBros/Train/Wod.swift`) com 15 benchmarks (Fran, Grace, Cindy, Helen, Murph, DT…), cronômetro For Time / AMRAP / EMOM / Tabata, resultados com RX e recorde por WOD. Cada WOD vira atividade de crossfit.
 - Treino do coach (`GymBros/Train/WodImport.swift`): colar o texto ou ler até 6 prints do app do box; o app reconhece formato, data e movimentos (`WodMovements.swift`), agenda o WOD do dia e oferece começar ao chegar no box. "Meus WODs" (`WodTimeline.swift`) junta os WODs trazidos e os resultados numa linha do tempo.
 
@@ -98,7 +98,7 @@ O app quase não usa controles padrão do iOS: telas, cabeçalhos, barra de abas
 ## Rodar no iPhone
 
 ```sh
-xcodebuild -project GymBros.xcodeproj -scheme GymBros \
+xcodebuild -project ios/GymBros.xcodeproj -scheme GymBros \
   -destination 'id=<UDID>' -derivedDataPath build -allowProvisioningUpdates build
 xcrun devicectl device install app --device <UDID> build/Build/Products/Debug-iphoneos/GymBros.app
 ```
@@ -106,7 +106,7 @@ xcrun devicectl device install app --device <UDID> build/Build/Products/Debug-ip
 Testes (XCTest, mais de 370) no iPhone:
 
 ```sh
-xcodebuild test -project GymBros.xcodeproj -scheme GymBros \
+xcodebuild test -project ios/GymBros.xcodeproj -scheme GymBros \
   -destination 'id=<UDID>' -derivedDataPath build -allowProvisioningUpdates
 ```
 
