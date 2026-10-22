@@ -77,8 +77,17 @@ struct LogActivityView: View {
         return (xp, grows, BroGain.preview(each, roster: roster, leagues: allLeagues, selected: leagues))
     }
 
+    /// Treino que já ocupa esse horário (dois treinos não acontecem ao mesmo tempo)
+    private var clash: Activity? {
+        let end = date.addingTimeInterval(Double(minutes) * 60)
+        return activities.first { a in
+            a.uuid != editing?.uuid && a.date < end && a.date.addingTimeInterval(Double(a.minutes) * 60) > date
+        }
+    }
+
     var body: some View {
-        GMModal(editing == nil ? "Nova atividade" : "Editar atividade", confirm: "Salvar", confirmEnabled: (editing != nil && wasUnposted) || hasPostDestination(leagues), onConfirm: save) {
+        GMModal(editing == nil ? "Nova atividade" : "Editar atividade", confirm: "Salvar",
+                confirmEnabled: clash == nil && ((editing != nil && wasUnposted) || hasPostDestination(leagues)), onConfirm: save) {
             // Com rotina ou WOD informado, o tipo vem dele: uma "Corrida" não pode levar séries de musculação
             if workout.isEmpty {
                 GMSection("Atividade") { ActivityTypePicker(type: $type) }
@@ -115,6 +124,14 @@ struct LogActivityView: View {
                 }
             }
 
+            if let c = clash {
+                GMCard {
+                    Label("Já tem um treino nesse horário: \(c.typeName), \(GMDateText.time(c.date))–\(GMDateText.time(c.date.addingTimeInterval(Double(c.minutes) * 60))). Mude o horário ou a duração.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.warning)
+                }
+            }
             GMCard { previewView }
 
             if editing == nil {

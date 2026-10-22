@@ -286,8 +286,12 @@ object SnapshotRules {
         val xpByActivity = HashMap<String, Int>()
         val dayTotals = HashMap<LocalDate, Int>()
         val dayGained = HashMap<LocalDate, Int>()
+        var busyUntil: Instant? = null
         for (r in records.sortedBy { it.date }) {
-            val raw = roundToIntSwift(Game.xp(r.kind, r.minutes, r.effort).toDouble() * r.share)
+            val minutes = broMinutes(r.date, r.minutes, busyUntil)
+            val end = r.date.plusSeconds(maxOf(r.minutes, 0).toLong() * 60)
+            busyUntil = if (busyUntil == null || end > busyUntil) end else busyUntil
+            val raw = if (minutes > 0) roundToIntSwift(Game.xp(r.kind, minutes, r.effort).toDouble() * r.share) else 0
             val day = clock.day(r.date)
             val before = dayTotals[day] ?: 0
             val full = maxOf(minOf(raw, Game.DAILY_SOFT_CAP - before), 0)
@@ -327,6 +331,20 @@ object SnapshotRules {
         s.lastActivity = records.maxOfOrNull { it.date }
         s.todayXP = dayGained[clock.today] ?: 0
         return s
+    }
+
+    /** Para o bro, cada treino conta no máximo 2 h 30 (as ligas seguem com `Game.MAX_MINUTES`) */
+    const val BRO_MAX_MINUTES = 150
+
+    /**
+     * Minutos que contam para o bro: sem o trecho em cima de um treino anterior e até 2 h 30. Fonte: Game.swift
+     * (`broMinutes`). Os treinos vêm em ordem de início, então o que veio antes cobre exatamente [start, busyUntil).
+     */
+    fun broMinutes(start: Instant, minutes: Int, busyUntil: Instant?): Int {
+        val total = maxOf(minutes, 0)
+        if (busyUntil == null || busyUntil <= start) return minOf(total, BRO_MAX_MINUTES)
+        val covered = kotlin.math.ceil(java.time.Duration.between(start, busyUntil).toMillis() / 60_000.0).toInt()
+        return minOf(maxOf(total - covered, 0), BRO_MAX_MINUTES)
     }
 
     /** Dias seguidos com atividade, terminando hoje ou ontem */

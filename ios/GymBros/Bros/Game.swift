@@ -468,6 +468,18 @@ struct Snapshot {
 
 enum Game {
     static let maxMinutes = 240
+    /// Para o bro, cada treino conta no máximo 2 h 30 (as ligas seguem com `maxMinutes`)
+    static let broMaxMinutes = 150
+
+    /// Minutos que contam para o bro: sem o trecho que cai em cima de um treino anterior (dois treinos não acontecem
+    /// ao mesmo tempo) e até `broMaxMinutes`. `busyUntil` é onde termina o treino mais longo já contado; como os treinos
+    /// vêm em ordem de início, tudo o que veio antes e passa de `start` cobre exatamente [start, busyUntil).
+    static func broMinutes(start: Date, minutes: Int, busyUntil: Date?) -> Int {
+        let total = max(minutes, 0)
+        guard let busy = busyUntil, busy > start else { return min(total, broMaxMinutes) }
+        let covered = Int((busy.timeIntervalSince(start) / 60).rounded(.up))
+        return min(max(total - covered, 0), broMaxMinutes)
+    }
     /// Acima disso no mesmo dia o XP conta 1/3, até o teto diário
     static let dailySoftCap = 150
     static let dailyHardCap = 300
@@ -517,9 +529,13 @@ enum Game {
         }
         var dayTotals: [Date: Int] = [:]
         var dayGained: [Date: Int] = [:]
+        var busyUntil: Date?
 
         for r in records.sorted(by: { $0.date < $1.date }) {
-            let raw = Int((Double(xp(kind: r.kind, minutes: r.minutes, effort: r.effort)) * r.share).rounded())
+            let minutes = broMinutes(start: r.date, minutes: r.minutes, busyUntil: busyUntil)
+            let end = r.date.addingTimeInterval(Double(max(r.minutes, 0)) * 60)
+            busyUntil = max(busyUntil ?? end, end)
+            let raw = minutes > 0 ? Int((Double(xp(kind: r.kind, minutes: minutes, effort: r.effort)) * r.share).rounded()) : 0
             let day = calendar.startOfDay(for: r.date)
             let before = dayTotals[day, default: 0]
             let full = max(min(raw, dailySoftCap - before), 0)

@@ -211,3 +211,37 @@ final class BackupApplyChangesTests: GymTestCase {
         XCTAssertEqual(try ctx.fetch(FetchDescriptor<Activity>()).map(\.persistentModelID), [id])
     }
 }
+
+/// Regras do bro de 22/10: treinos no mesmo horário não somam duas vezes; cada treino conta no máximo 2 h 30
+final class BroMinutesTests: GymTestCase {
+    private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func rec(_ minutesFromT0: Int, _ minutes: Int, kind: ActivityKind = .musculacao) -> ActivityRecord {
+        ActivityRecord(id: UUID(), kind: kind, date: t0.addingTimeInterval(Double(minutesFromT0) * 60), minutes: minutes, effort: 5)
+    }
+
+    func testOverlapCountsOnlyTheFreePart() {
+        let a = rec(0, 60), b = rec(30, 60)
+        let s = Game.snapshot([a, b], now: t0, calendar: League.rulesCalendar)
+        XCTAssertEqual(s.xpByActivity[a.id], Game.xp(kind: .musculacao, minutes: 60, effort: 5))
+        XCTAssertEqual(s.xpByActivity[b.id], Game.xp(kind: .musculacao, minutes: 30, effort: 5))
+    }
+
+    func testSameTimeTwiceGivesNothing() {
+        let a = rec(0, 60), b = rec(0, 60)
+        let s = Game.snapshot([a, b], now: t0, calendar: League.rulesCalendar)
+        XCTAssertEqual(s.totalXP, Game.xp(kind: .musculacao, minutes: 60, effort: 5))
+    }
+
+    func testLongWorkoutCountsTwoAndAHalfHours() {
+        let a = rec(0, 240, kind: .caminhada)
+        let s = Game.snapshot([a], now: t0, calendar: League.rulesCalendar)
+        XCTAssertEqual(s.totalXP, Game.xp(kind: .caminhada, minutes: 150, effort: 5))
+    }
+
+    func testBackToBackIsFine() {
+        let a = rec(0, 60), b = rec(60, 60)
+        let s = Game.snapshot([a, b], now: t0, calendar: League.rulesCalendar)
+        XCTAssertEqual(s.xpByActivity[b.id], Game.xp(kind: .musculacao, minutes: 60, effort: 5))
+    }
+}

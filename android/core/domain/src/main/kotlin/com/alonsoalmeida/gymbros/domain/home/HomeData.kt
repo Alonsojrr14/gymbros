@@ -39,6 +39,12 @@ data class HomeActivity(
     val bros: List<MonsterForm>,
 )
 
+/** Horário ocupado por um treino (dois treinos não acontecem ao mesmo tempo) */
+data class BusySpan(val start: Instant, val minutes: Int, val typeName: String) {
+    val end: Instant get() = start.plusSeconds(minutes.toLong() * 60)
+    fun overlaps(from: Instant, minutes: Int): Boolean = start < from.plusSeconds(minutes.toLong() * 60) && end > from
+}
+
 /** O que a tela inicial mostra. Fonte: App.swift (`derive`, `companionContext`) e HomeView.swift */
 data class HomeData(
     val trainerName: String,
@@ -56,6 +62,8 @@ data class HomeData(
     val profilePhoto: ByteArray?,
     /** Academias salvas (onde foi o treino) */
     val gyms: List<Pair<String, String>>,
+    /** Treinos já registrados, para não deixar registrar outro no mesmo horário */
+    val busy: List<BusySpan>,
 )
 
 object HomeBuilder {
@@ -137,6 +145,10 @@ object HomeBuilder {
         val photo = copy?.profilePhoto?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() }
         val gyms = copy?.gyms.orEmpty().sortedBy { it.createdAt }.map { it.uuid.uppercase() to it.name }
         return HomeData(text("trainerName").orEmpty(), main, mood, Companion.line(context, clock), mainName, recent, activities.isNotEmpty(),
-                        roster, types, photo, gyms)
+                        roster, types, photo, gyms,
+                        activities.map { a ->
+                            val t = WorkoutType.byID(a.healthType) ?: WorkoutType.byID(BroCatalog.classicType[ActivityKind.of(a.kind).raw])
+                            BusySpan(a.date, a.minutes, t?.name ?: a.kind)
+                        })
     }
 }

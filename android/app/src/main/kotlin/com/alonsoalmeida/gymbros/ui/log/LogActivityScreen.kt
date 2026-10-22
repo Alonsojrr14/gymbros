@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
+import com.alonsoalmeida.gymbros.ui.components.GMDateText
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -92,7 +94,10 @@ fun LogActivityScreen(visible: Boolean, home: HomeData, onDismiss: () -> Unit, o
     val split = AttributeSplit.split(kind, minutes, effort, healthType = type)
     val preview = LogPreview.compute(home.roster, kind, minutes, effort, date, split, RuleClock(ZoneId.systemDefault(), Instant.now()))
 
-    GMModal(visible, "Nova atividade", onDismiss, confirm = "Salvar", onConfirm = {
+    // Treino que já ocupa esse horário: não salva (LogActivityView.swift `clash`)
+    val clash = home.busy.firstOrNull { it.overlaps(date, minutes) }
+
+    GMModal(visible, "Nova atividade", onDismiss, confirm = "Salvar", confirmEnabled = clash == null, onConfirm = {
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         onSave(AccountEdits.NewActivity(kind.raw, date, minutes, effort, note.trim(), type, AttributeSplit.encode(split), place?.first))
     }) {
@@ -131,6 +136,15 @@ fun LogActivityScreen(visible: Boolean, home: HomeData, onDismiss: () -> Unit, o
             }
         }
 
+        if (clash != null) {
+            GMCard {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Filled.Warning, null, tint = GMColors.warning, modifier = Modifier.size(20.dp))
+                    Text("Já tem um treino nesse horário: ${clash.typeName}, ${GMDateText.time(clash.start)}–${GMDateText.time(clash.end)}. Mude o horário ou a duração.",
+                         color = GMColors.warning, style = GMType.subheadline.copy(fontWeight = FontWeight.SemiBold))
+                }
+            }
+        }
         GMCard { PreviewView(preview) }
 
         GMSection("Postar em", footer = "Postar no perfil e nas ligas ainda está chegando no Android. A atividade fica no seu histórico, dá XP aos bros e aparece no iPhone.") {
