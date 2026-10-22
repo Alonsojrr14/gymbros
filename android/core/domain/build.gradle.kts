@@ -8,7 +8,11 @@ kotlin {
     jvmToolchain(17)
 }
 
+// Vetores compartilhados gerados pelo iOS (GoldenVectorsTests): a mesma pasta que o teste Swift lê
+sourceSets["test"].resources.srcDir("../../../GymBrosTests/Fixtures")
+
 dependencies {
+    testImplementation(libs.serialization.json)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.launcher)
