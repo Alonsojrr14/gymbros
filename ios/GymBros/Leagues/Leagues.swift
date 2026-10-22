@@ -156,7 +156,9 @@ enum LeagueScoring: String, CaseIterable, Identifiable, Codable {
         case .pontos:
             let xp = Game.xp(kind: i.kind, minutes: i.minutes, effort: i.effort)
             guard !weights.isEmpty else { return xp }
-            let factor = i.kind.weights.reduce(0) { $0 + $1.value * (weights[$1.key] ?? 1) }
+            // Na ordem fixa dos atributos: somar na ordem de um Dictionary (que muda a cada execução) podia mudar o último bit
+            // e, na borda do arredondamento, o placar (ND-9). A mesma ordem do app Android.
+            let factor = Attribute.allCases.reduce(0.0) { acc, a in i.kind.weights[a].map { acc + $0 * (weights[a] ?? 1) } ?? acc }
             return Int((Double(xp) * factor).rounded())
         case .treinos, .dias: return 1
         // Vem da tabela da liga (League.score)
