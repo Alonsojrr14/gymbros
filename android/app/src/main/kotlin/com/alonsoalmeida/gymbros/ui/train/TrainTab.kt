@@ -109,6 +109,7 @@ internal class TrainNav {
     var importing by mutableStateOf(false)
     var library by mutableStateOf(false)
     var soon by mutableStateOf<String?>(null)
+    var body by mutableStateOf(false)
     fun push(route: String) { stack = stack + route }
     fun pop() { stack = stack.dropLast(1) }
 }
@@ -180,6 +181,7 @@ fun TrainTab(env: AppEnv, home: HomeData) {
     ImportWodModal(nav.importing, env, data, nav, editing = null) { nav.importing = false }
     ExercisePickerModal(nav.library, env, data, onPick = null) { nav.library = false }
     SoonModal(nav.soon) { nav.soon = null }
+    com.alonsoalmeida.gymbros.ui.profile.BodyTrackerModal(nav.body, env) { nav.body = false }
 }
 
 @Composable
@@ -284,8 +286,8 @@ private fun TrainHome(env: AppEnv, home: HomeData, data: TrainData, nav: TrainNa
             GMDivider()
             GMRow("Biblioteca de exercícios", TrainIcons.of("books.vertical"), chevron = true, onClick = { nav.library = true })
             GMDivider()
-            // Peso e medidas é do Perfil (Profile/BodyTrackerView.swift), de outra frente
-            GMRow("Peso e medidas", TrainIcons.of("scalemass"), chevron = true, onClick = { nav.soon = "Peso e medidas" })
+            // Peso e medidas (Profile/BodyTrackerView.swift)
+            GMRow("Peso e medidas", TrainIcons.of("scalemass"), chevron = true, onClick = { nav.body = true })
             GMDivider()
             GMRow("Calculadora de anilhas", TrainIcons.of("circle.grid.2x1"), chevron = true, onClick = { plates = true })
         }
@@ -328,12 +330,15 @@ private fun TrainHome(env: AppEnv, home: HomeData, data: TrainData, nav: TrainNa
     com.alonsoalmeida.gymbros.ui.profile.ProfileModal(profile, env, home) { profile = false }
 }
 
-/** Apaga o treino; com atividade ligada, quem apaga é a atividade (o XP fica com os bros), de outra frente */
-internal fun deleteSession(env: AppEnv, s: Session, nav: TrainNav) {
+/** Apaga o treino; com atividade ligada, quem apaga é a atividade (o XP fica com os bros: RetiredActivities) */
+internal fun deleteSession(env: AppEnv, s: Session, @Suppress("UNUSED_PARAMETER") nav: TrainNav) {
     val activity = s.activityUUID
     if (activity == null) { TrainScope.edit(env) { TrainEdits.deleteSession(it, s.uuid) }; return }
-    val hook = TrainHooks.deleteActivity
-    if (hook != null) hook(env, activity) else nav.soon = "Apagar atividade"
+    TrainScope.edit(env) { c ->
+        val roster = com.alonsoalmeida.gymbros.domain.home.HomeBuilder.build(com.alonsoalmeida.gymbros.domain.backup.AccountCopy.decode(c),
+            com.alonsoalmeida.gymbros.domain.RuleClock(ZoneId.systemDefault(), Instant.now())).roster
+        com.alonsoalmeida.gymbros.domain.activities.ActivityEdits.delete(c, activity, roster)
+    }
 }
 
 internal fun plannedDayText(d: Instant): String {

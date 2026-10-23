@@ -81,16 +81,18 @@ import java.time.ZoneId
  * (LeaguePostSection) publica no perfil e nas ligas, com a foto guardada só no aparelho. O iPhone recebe na hora.
  */
 @Composable
-fun LogActivityScreen(visible: Boolean, home: HomeData, onDismiss: () -> Unit, onSave: (AccountEdits.NewActivity) -> Unit) {
+fun LogActivityScreen(visible: Boolean, home: HomeData, onDismiss: () -> Unit, onSave: (AccountEdits.NewActivity) -> Unit,
+                      initial: AccountEdits.NewActivity? = null) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val prefs = remember { context.getSharedPreferences("gymbros", Context.MODE_PRIVATE) }
-    var type by remember(visible) { mutableStateOf(WorkoutType.byID(BroCatalog.classicType["musculacao"])!!.id) }
-    var date by remember(visible) { mutableStateOf(Instant.now()) }
-    var minutes by remember(visible) { mutableIntStateOf(60) }
-    var effort by remember(visible) { mutableIntStateOf(6) }
-    var note by remember(visible) { mutableStateOf("") }
-    var place by remember(visible) { mutableStateOf<Pair<String, String>?>(null) }
+    // Editando (ActivityDetail → lápis): começa com o que a atividade já tem
+    var type by remember(visible, initial) { mutableStateOf(initial?.type ?: WorkoutType.byID(BroCatalog.classicType["musculacao"])!!.id) }
+    var date by remember(visible, initial) { mutableStateOf(initial?.date ?: Instant.now()) }
+    var minutes by remember(visible, initial) { mutableIntStateOf(initial?.minutes ?: 60) }
+    var effort by remember(visible, initial) { mutableIntStateOf(initial?.effort ?: 6) }
+    var note by remember(visible, initial) { mutableStateOf(initial?.note ?: "") }
+    var place by remember(visible, initial) { mutableStateOf(initial?.gymUUID?.let { g -> home.gyms.firstOrNull { it.first.equals(g, true) } }) }
     var choosingPlace by remember { mutableStateOf(false) }
     // Postar em: perfil e ligas (marcados por padrão, como no iPhone) e a foto
     val app = context.applicationContext as com.alonsoalmeida.gymbros.GymBrosApp
@@ -112,19 +114,20 @@ fun LogActivityScreen(visible: Boolean, home: HomeData, onDismiss: () -> Unit, o
     val preview = LogPreview.compute(home.roster, kind, minutes, effort, date, split, RuleClock(ZoneId.systemDefault(), Instant.now()))
 
     // Treino que já ocupa esse horário: não salva (LogActivityView.swift `clash`)
-    val clash = home.busy.firstOrNull { it.overlaps(date, minutes) }
+    val clash = home.busy.firstOrNull { b -> !(initial != null && b.start == initial.date && b.minutes == initial.minutes) && b.overlaps(date, minutes) }
 
-    GMModal(visible, "Nova atividade", onDismiss, confirm = "Salvar",
-            confirmEnabled = clash == null && com.alonsoalmeida.gymbros.ui.leagues.hasPostDestination(publish, destinations), onConfirm = {
+    GMModal(visible, if (initial == null) "Nova atividade" else "Editar atividade", onDismiss, confirm = "Salvar",
+            confirmEnabled = clash == null && (initial != null || com.alonsoalmeida.gymbros.ui.leagues.hasPostDestination(publish, destinations)), onConfirm = {
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        val a = AccountEdits.NewActivity(kind.raw, date, minutes, effort, note.trim(), type, AttributeSplit.encode(split), place?.first)
+        val a = AccountEdits.NewActivity(kind.raw, date, minutes, effort, note.trim(), type, AttributeSplit.encode(split), place?.first,
+                                         id = initial?.id ?: java.util.UUID.randomUUID().toString().uppercase())
         val chosen = destinations
         val p = photo
         val extras = extraPhotos
         val all = leaguesUi.leagues
         onSave(a)
-        // Depois de salvar: o check-in em cada destino escolhido (postCheckIns)
-        if (publish && chosen.isNotEmpty()) scope.launch {
+        // Depois de salvar uma nova: o check-in em cada destino escolhido (postCheckIns). Editando, os posts ficam como estão
+        if (initial == null && publish && chosen.isNotEmpty()) scope.launch {
             val activity = com.alonsoalmeida.gymbros.domain.leagues.LeagueActivityJson(a.id, a.kind, a.date, a.minutes, a.effort, a.note,
                                                                                          gymUUID = a.gymUUID, healthType = a.type)
             leaguesVm.store.post(com.alonsoalmeida.gymbros.data.leagues.LeagueStore.NewPost(activity, "", a.note, p?.bytes, p?.proof, p?.pose, extras,
@@ -177,7 +180,7 @@ fun LogActivityScreen(visible: Boolean, home: HomeData, onDismiss: () -> Unit, o
         }
         GMCard { PreviewView(preview) }
 
-        com.alonsoalmeida.gymbros.ui.leagues.LeaguePostSection(
+        if (initial == null) com.alonsoalmeida.gymbros.ui.leagues.LeaguePostSection(
             home, leaguesUi.leagues, roles, destinations, { destinations = it }, photo, { photo = it }, extraPhotos, { extraPhotos = it },
             subject = com.alonsoalmeida.gymbros.domain.leagues.PostSubject(type, date, minutes, place = place?.second),
             onAcceptTerms = {

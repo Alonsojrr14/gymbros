@@ -61,4 +61,6 @@ dependencies {
     implementation(libs.coroutines.play.services)
     // QR do código de amigo (FriendQRView do iOS): gerar o QR e ler o QR de uma foto da galeria; núcleo Java puro, Apache-2.0
     implementation(libs.zxing.core)
+    // Health Connect: importa treinos gravados por relógios e apps (o Apple Saúde do Android)
+    implementation(libs.health.connect)
 }
