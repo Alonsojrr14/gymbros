@@ -32,6 +32,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.initializer
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -74,8 +77,8 @@ import java.time.Instant
 import java.time.ZoneId
 
 /**
- * Nova atividade (Activities/LogActivityView.swift). No Android ainda não há treino feito (rotina/WOD) nem post no
- * perfil e nas ligas: a atividade vai para o histórico e dá XP aos bros, e o iPhone recebe na hora.
+ * Nova atividade (Activities/LogActivityView.swift). A atividade vai para o histórico e dá XP aos bros; o "Postar em"
+ * (LeaguePostSection) publica no perfil e nas ligas, com a foto guardada só no aparelho. O iPhone recebe na hora.
  */
 @Composable
 fun LogActivityScreen(visible: Boolean, home: HomeData, onDismiss: () -> Unit, onSave: (AccountEdits.NewActivity) -> Unit) {
@@ -89,6 +92,20 @@ fun LogActivityScreen(visible: Boolean, home: HomeData, onDismiss: () -> Unit, o
     var note by remember(visible) { mutableStateOf("") }
     var place by remember(visible) { mutableStateOf<Pair<String, String>?>(null) }
     var choosingPlace by remember { mutableStateOf(false) }
+    // Postar em: perfil e ligas (marcados por padrão, como no iPhone) e a foto
+    val app = context.applicationContext as com.alonsoalmeida.gymbros.GymBrosApp
+    val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+    val leaguesVm: com.alonsoalmeida.gymbros.ui.leagues.LeaguesViewModel = androidx.lifecycle.viewmodel.compose.viewModel(key = "leagues-$uid",
+        factory = androidx.lifecycle.viewmodel.viewModelFactory {
+            initializer { com.alonsoalmeida.gymbros.ui.leagues.LeaguesViewModel(com.alonsoalmeida.gymbros.data.leagues.LeagueStore.of(app, uid, app.container.copies)) }
+        })
+    val leaguesUi by leaguesVm.ui.collectAsStateWithLifecycle()
+    val roles by leaguesVm.roles.collectAsStateWithLifecycle()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var destinations by remember(visible) { mutableStateOf(setOf<String>()) }
+    var photo by remember(visible) { mutableStateOf<com.alonsoalmeida.gymbros.ui.leagues.PickedPhoto?>(null) }
+    var extraPhotos by remember(visible) { mutableStateOf(listOf<ByteArray>()) }
+    val publish = com.alonsoalmeida.gymbros.ui.leagues.canPublish(home, roles)
 
     val kind = WorkoutType.byID(type)?.kind ?: com.alonsoalmeida.gymbros.domain.ActivityKind.OUTRO
     val split = AttributeSplit.split(kind, minutes, effort, healthType = type)
@@ -97,9 +114,22 @@ fun LogActivityScreen(visible: Boolean, home: HomeData, onDismiss: () -> Unit, o
     // Treino que já ocupa esse horário: não salva (LogActivityView.swift `clash`)
     val clash = home.busy.firstOrNull { it.overlaps(date, minutes) }
 
-    GMModal(visible, "Nova atividade", onDismiss, confirm = "Salvar", confirmEnabled = clash == null, onConfirm = {
+    GMModal(visible, "Nova atividade", onDismiss, confirm = "Salvar",
+            confirmEnabled = clash == null && com.alonsoalmeida.gymbros.ui.leagues.hasPostDestination(publish, destinations), onConfirm = {
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        onSave(AccountEdits.NewActivity(kind.raw, date, minutes, effort, note.trim(), type, AttributeSplit.encode(split), place?.first))
+        val a = AccountEdits.NewActivity(kind.raw, date, minutes, effort, note.trim(), type, AttributeSplit.encode(split), place?.first)
+        val chosen = destinations
+        val p = photo
+        val extras = extraPhotos
+        val all = leaguesUi.leagues
+        onSave(a)
+        // Depois de salvar: o check-in em cada destino escolhido (postCheckIns)
+        if (publish && chosen.isNotEmpty()) scope.launch {
+            val activity = com.alonsoalmeida.gymbros.domain.leagues.LeagueActivityJson(a.id, a.kind, a.date, a.minutes, a.effort, a.note,
+                                                                                         gymUUID = a.gymUUID, healthType = a.type)
+            leaguesVm.store.post(com.alonsoalmeida.gymbros.data.leagues.LeagueStore.NewPost(activity, "", a.note, p?.bytes, p?.proof, p?.pose, extras,
+                                                                                           place = place?.second), chosen, all)
+        }
     }) {
         GMSection("Atividade") {
             ActivityTypePicker(type, home.typeHistory, prefs) { type = it }
@@ -147,9 +177,19 @@ fun LogActivityScreen(visible: Boolean, home: HomeData, onDismiss: () -> Unit, o
         }
         GMCard { PreviewView(preview) }
 
-        GMSection("Postar em", footer = "Postar no perfil e nas ligas ainda está chegando no Android. A atividade fica no seu histórico, dá XP aos bros e aparece no iPhone.") {
-            Text("Só no histórico, por enquanto.", color = GMColors.dim, style = GMType.footnote)
-        }
+        com.alonsoalmeida.gymbros.ui.leagues.LeaguePostSection(
+            home, leaguesUi.leagues, roles, destinations, { destinations = it }, photo, { photo = it }, extraPhotos, { extraPhotos = it },
+            subject = com.alonsoalmeida.gymbros.domain.leagues.PostSubject(type, date, minutes, place = place?.second),
+            onAcceptTerms = {
+                scope.launch {
+                    app.container.copies.edit { c ->
+                        AccountEdits.updateSettings(c ?: AccountEdits.empty(home.trainerName, Instant.now())) {
+                            it["termsAcceptedVersion"] = com.dd.plist.NSNumber(2); it["termsAcceptedAt"] = com.dd.plist.NSDate(java.util.Date())
+                        }
+                    }
+                }
+            },
+        )
     }
 
     if (choosingPlace) {
