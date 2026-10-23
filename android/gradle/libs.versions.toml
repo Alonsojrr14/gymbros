@@ -12,6 +12,7 @@ kotlin = "2.2.20"
 junit = "5.13.4"
 serialization = "1.9.0"
 ddplist = "1.28"
+zxing = "3.5.3"
 
 [libraries]
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
@@ -33,6 +34,8 @@ junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 ddplist = { module = "com.googlecode.plist:dd-plist", version.ref = "ddplist" }
+# QR do código de amigo: gerar e ler de uma foto (só o núcleo Java, sem câmera nem permissão)
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 
 [plugins]
