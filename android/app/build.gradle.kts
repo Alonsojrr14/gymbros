@@ -59,4 +59,6 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.coroutines.play.services)
+    // Health Connect: importa treinos gravados por relógios e apps (o Apple Saúde do Android)
+    implementation(libs.health.connect)
 }

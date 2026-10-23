@@ -4,6 +4,18 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Health Connect: só leitura dos tipos usados (SEC-AND-05). Treinos viram atividades; calorias e distância ficam na
+         conta e não vão para posts nem X1; peso vai para Peso e medidas. -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+
+    <!-- Saber se o Health Connect está instalado (Android 13 ou anterior, onde ele é um app à parte) -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
+
     <application
         android:name=".GymBrosApp"
         android:allowBackup="false"
@@ -27,5 +39,26 @@
                 <data android:scheme="gymbros" android:host="amigo" />
             </intent-filter>
         </activity>
+
+        <!-- Política de privacidade aberta pelo Health Connect ao pedir permissão (Android 13 ou anterior) -->
+        <activity
+            android:name=".HealthRationaleActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+
+        <!-- A mesma tela no Android 14 ou mais novo (Health Connect do sistema); só o sistema pode abrir -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".HealthRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>
