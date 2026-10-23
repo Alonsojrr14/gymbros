@@ -19,6 +19,12 @@ service cloud.firestore {
     function reachable(other) {
       return exists(doc('friendLinks', other + '->' + uid())) && !exists(doc('blocks', other + '->' + uid()));
     }
+    // Você está nesta liga (o documento de membro é `{liga}-{uid}`)
+    function memberOf(league) { return exists(doc('members', league + '-' + uid())); }
+    // Amizade dos dois lados
+    function friends(other) {
+      return exists(doc('friendLinks', uid() + '->' + other)) && exists(doc('friendLinks', other + '->' + uid()));
+    }
     // Só estes campos mudaram
     function only(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
 
@@ -52,15 +58,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Membros, check-ins, mural e pedidos de uma liga: só quem está nela lê (menor privilégio). Os seus você sempre lê
+    // (sair da liga, excluir a conta); amigos veem em que ligas você está ("ligas em comum").
     match /members/{id} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (resource.data.user == uid() || memberOf(resource.data.league) || friends(resource.data.user)
+                                    || isAdmin());
       allow create: if writesAsMe() && id == request.resource.data.league + '-' + uid();
       allow update: if wasMine() && writesAsMe();
       allow delete: if wasMine();
     }
 
+    // Posts do perfil seguem o perfil público; posts de liga pública no Feed, só para amigos de quem postou
     match /checkIns/{id} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (resource.data.user == uid() || resource.data.league == 'profile'
+                                    || memberOf(resource.data.league)
+                                    || (resource.data.feed == true && friends(resource.data.user)) || isAdmin());
       allow create: if writesAsMe();
       allow update: if wasMine() && writesAsMe();
       allow delete: if wasMine() || isAdmin();
@@ -77,14 +89,15 @@ service cloud.firestore {
     }
 
     match /messages/{id} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (resource.data.user == uid() || memberOf(resource.data.league) || isAdmin());
       allow create: if writesAsMe() && request.resource.data.text.size() <= 1000;
       allow update: if wasMine() && writesAsMe();
       allow delete: if wasMine() || isAdmin();
     }
 
+    // Pedido de entrada: quem pediu e os membros da liga (o dono decide)
     match /joinRequests/{id} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (resource.data.user == uid() || memberOf(resource.data.league));
       allow create, update: if writesAsMe() && id == request.resource.data.league + '-pedido-' + uid();
       allow delete: if wasMine();
     }
