@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.CircularProgressIndicator
@@ -125,7 +126,10 @@ private fun Divider() = Box(Modifier.fillMaxWidth().height(1.dp).background(GMCo
 
 /** Amigos (Friends.swift `FriendsView`) */
 @Composable
-fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDismiss: () -> Unit, onSoon: (String) -> Unit) {
+fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDismiss: () -> Unit, onSoon: (String) -> Unit,
+                  env: com.alonsoalmeida.gymbros.ui.AppEnv? = null) {
+    var qr by remember { mutableStateOf(false) }
+    var duels by remember { mutableStateOf(false) }
     val state by vm.state.collectAsStateValue()
     val roles by vm.roles.collectAsStateValue()
     val suggestions by vm.suggestions.collectAsStateValue()
@@ -164,6 +168,7 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
                         }
                         val c = home.friendCode
                         if (c != null) {
+                            GMIconButton(Icons.Filled.QrCode, "QR do código", { qr = true })
                             GMIconButton(Icons.Filled.Share, "Compartilhar código", {
                                 val send = Intent(Intent.ACTION_SEND).setType("text/plain")
                                     .putExtra(Intent.EXTRA_TEXT, "Me adiciona no GymBros! Meu código de amigo: $c (${friendLink(c)})")
@@ -173,7 +178,7 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
                     }
                 }
                 GMSection {
-                    Row(Modifier.fillMaxWidth().gmPress { onSoon("X1") }, verticalAlignment = Alignment.CenterVertically,
+                    Row(Modifier.fillMaxWidth().gmPress { if (env != null) duels = true else onSoon("X1") }, verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(32.dp).background(GMColors.trophy.copy(alpha = 0.18f), GMRadius.s), contentAlignment = Alignment.Center) {
                             Icon(Icons.Filled.Shield, null, tint = GMColors.trophy, modifier = Modifier.size(18.dp))
@@ -231,80 +236,9 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
             }
         }
     }
-    opened?.let { f -> FriendProfileScreen(f, home, vm, onDismiss = { opened = null }, onSoon = onSoon) }
-}
-
-/** Perfil do amigo (PublicProfile.swift `FriendProfileView`): cabeçalho, bro, números, conquistas e ações */
-@Composable
-fun FriendProfileScreen(friend: RemoteFriend, home: HomeData, vm: FriendsViewModel, onDismiss: () -> Unit, onSoon: (String) -> Unit) {
-    val profiles by vm.profiles.collectAsStateValue()
-    val state by vm.state.collectAsStateValue()
-    val photos by vm.photos.collectAsStateValue()
-    var menu by remember { mutableStateOf(false) }
-    var confirmRemove by remember { mutableStateOf(false) }
-    var confirmBlock by remember { mutableStateOf(false) }
-    LaunchedEffect(friend.id) { vm.loadProfile(friend.id) }
-    val p = profiles[friend.id]
-    val isFriend = state.friends.any { it.id == friend.id }
-
-    GMModal(true, "", onDismiss) {
-        Row(Modifier.fillMaxWidth()) {
-            Spacer(Modifier.weight(1f))
-            GMIconButton(Icons.Filled.MoreHoriz, "Mais opções", { menu = true })
-        }
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            PersonAvatar(friend.name, size = 110.dp, photo = photos[friend.id])
-            Text(friend.name, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
-            if (!p?.username.isNullOrEmpty()) Text("@${p!!.username}", color = GMColors.dim, style = GMType.subheadline)
-            if (!p?.bio.isNullOrEmpty()) Text(p!!.bio, color = Color.White, style = GMType.subheadline, textAlign = TextAlign.Center)
-        }
-        GMButton("Desafiar para um X1", { onSoon("X1") }, icon = Icons.Filled.Shield, kind = GMButtonKind.SECONDARY)
-        if (p == null) {
-            Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = GMColors.accent) }
-        } else if (p.extra.bro != null || p.extra.stats != null || !p.extra.achievements.isNullOrEmpty()) {
-            GMCard { PublicProfileCard(p) }
-        }
-        GMSection("Posts", footer = "Os posts do perfil chegam no Android junto com o Feed.") {
-            Text("Em breve no Android.", color = GMColors.dim, style = GMType.subheadline)
-        }
-    }
-
-    if (menu) {
-        GMSheet(onDismiss = { menu = false }) {
-            Text(friend.name, color = Color.White, style = GMType.headline)
-            if (isFriend) SheetAction("Desfazer amizade", Icons.Filled.PersonRemove, destructive = true) { menu = false; confirmRemove = true }
-            SheetAction("Bloquear ${friend.name}", Icons.Filled.Block, destructive = true) { menu = false; confirmBlock = true }
-        }
-    }
-    if (confirmRemove) {
-        GMSheet(onDismiss = { confirmRemove = false }) {
-            Text("Desfazer amizade com ${friend.name}?", color = Color.White, style = GMType.headline, textAlign = TextAlign.Center)
-            Text("Vocês continuam nas mesmas ligas.", color = GMColors.dim, style = GMType.subheadline)
-            SheetAction("Desfazer amizade", Icons.Filled.PersonRemove, destructive = true) {
-                vm.remove(friend.id, home); confirmRemove = false; onDismiss()
-            }
-        }
-    }
-    if (confirmBlock) {
-        GMSheet(onDismiss = { confirmBlock = false }) {
-            Text("Bloquear ${friend.name}?", color = Color.White, style = GMType.headline, textAlign = TextAlign.Center)
-            Text("A amizade é desfeita e ${friend.name} não te manda mensagens nem te desafia.", color = GMColors.dim,
-                 style = GMType.subheadline, textAlign = TextAlign.Center)
-            SheetAction("Bloquear", Icons.Filled.Block, destructive = true) {
-                vm.block(friend.id, friend.name, home); confirmBlock = false; onDismiss()
-            }
-        }
-    }
-}
-
-@Composable
-private fun SheetAction(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, destructive: Boolean = false, onClick: () -> Unit) {
-    val tint = if (destructive) GMColors.danger else Color.White
-    Row(Modifier.fillMaxWidth().gmPress(onClick = onClick).background(GMColors.raised, GMRadius.m).padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
-        Text(title, color = tint, style = GMType.body)
-    }
+    opened?.let { f -> FriendProfileScreen(f, home, vm, onDismiss = { opened = null }, onSoon = onSoon, env = env) }
+    home.friendCode?.let { c -> FriendQRModal(qr, c, onDismiss = { qr = false }) { vm.addByCode(it, home) } }
+    if (env != null) com.alonsoalmeida.gymbros.ui.duels.DuelsModal(duels, env, home, { duels = false })
 }
 
 /** Bro, números e conquistas (PublicProfile.swift `PublicProfileCard`, sem o cabeçalho) */

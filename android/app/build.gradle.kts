@@ -59,4 +59,6 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.coroutines.play.services)
+    // QR do código de amigo (FriendQRView do iOS): gerar o QR e ler o QR de uma foto da galeria; núcleo Java puro, Apache-2.0
+    implementation(libs.zxing.core)
 }
