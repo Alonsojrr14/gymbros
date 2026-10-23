@@ -58,38 +58,8 @@ import com.alonsoalmeida.gymbros.ui.theme.color
 @Composable
 fun GMDivider(modifier: Modifier = Modifier) = Box(modifier.fillMaxWidth().height(1.dp).background(GMColors.stroke))
 
-/** Abas em cápsula (GMChips.swift `GMSegmented`): a escolhida em verde */
-@Composable
-fun <T> GMSegmented(options: List<Pair<T, String>>, selection: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().background(GMColors.card, CircleShape).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        for ((value, label) in options) {
-            val on = value == selection
-            val bg by animateColorAsState(if (on) GMColors.accent else Color.Transparent, spring(), label = "seg")
-            Text(label, color = if (on) Color.Black else Color.White.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                 textAlign = TextAlign.Center, style = GMType.subheadline.copy(fontWeight = FontWeight.SemiBold),
-                 modifier = Modifier.weight(1f).defaultMinSize(minHeight = 40.dp).background(bg, CircleShape)
-                     .gmPress(role = Role.Tab) { onSelect(value) }.semantics { selected = on }.padding(vertical = 9.dp))
-        }
-    }
-}
 
-/** Uma ação de folha (GMSheets.swift `GMAction`) */
-data class GMAction(val title: String, val icon: ImageVector? = null, val destructive: Boolean = false, val action: () -> Unit)
 
-/** Folha de ações (gmActions do iOS): título, mensagem, um botão por ação e "Cancelar" */
-@Composable
-fun GMActions(visible: Boolean, onDismiss: () -> Unit, title: String? = null, message: String? = null, actions: List<GMAction>) {
-    if (!visible) return
-    GMSheet(onDismiss = onDismiss) {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (title != null) Text(title, color = Color.White, style = GMType.headline, textAlign = TextAlign.Center)
-            if (message != null) Text(message, color = GMColors.dim, style = GMType.subheadline, textAlign = TextAlign.Center)
-            for (a in actions) GMButton(a.title, { onDismiss(); a.action() }, icon = a.icon,
-                                         kind = if (a.destructive) GMButtonKind.DANGER else GMButtonKind.SECONDARY)
-            GMButton("Cancelar", onDismiss, kind = GMButtonKind.GHOST)
-        }
-    }
-}
 
 /** Número de não lidas (GMSettings.swift `GMCountBadge`) */
 @Composable

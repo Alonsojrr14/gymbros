@@ -68,68 +68,10 @@ import java.util.Base64
 // Componentes do design system que as telas das ligas usam e que ainda não existiam no Android
 // (ios/GymBros/DesignSystem: GMSurfaces, GMChips, GMToggles, GMIndicators, GMSheets, GMButtons).
 
-/** GMDivider: linha de 1 com o traço do tema */
-@Composable
-fun GMDivider() = Box(Modifier.fillMaxWidth().height(1.dp).background(GMColors.stroke))
 
-/** GMRow: ícone num quadrado discreto, título, subtítulo, algo à direita e a seta */
-@Composable
-fun GMRow(title: String, modifier: Modifier = Modifier, icon: ImageVector? = null, iconTint: Color = Color.White, subtitle: String? = null,
-          chevron: Boolean = false, onClick: (() -> Unit)? = null, trailing: @Composable RowScope.() -> Unit = {}) {
-    Row(
-        modifier.fillMaxWidth().then(if (onClick != null) Modifier.gmPress(onClick = onClick) else Modifier).heightIn(min = 40.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (icon != null) {
-            Box(Modifier.size(34.dp).background(GMColors.raised, GMRadius.s), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = iconTint, modifier = Modifier.size(18.dp))
-            }
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, color = Color.White, style = GMType.subheadline.copy(fontWeight = FontWeight.SemiBold))
-            if (subtitle != null) Text(subtitle, color = GMColors.dim, style = GMType.caption)
-        }
-        trailing()
-        if (chevron) Icon(Icons.Filled.ChevronRight, null, tint = GMColors.dim, modifier = Modifier.size(18.dp))
-    }
-}
 
-/** GMBadge: pílula pequena com a cor a 20% */
-@Composable
-fun GMBadge(text: String, tint: Color = GMColors.accent) {
-    Text(text, color = tint, style = GMType.caption2.copy(fontWeight = FontWeight.Bold), maxLines = 1,
-         modifier = Modifier.background(tint.copy(alpha = 0.2f), CircleShape).padding(horizontal = 7.dp, vertical = 3.dp))
-}
 
-/** GMToggle: título, subtítulo e o GMSwitch (cápsula verde com bolinha preta) */
-@Composable
-fun GMToggle(title: String, checked: Boolean, onChange: (Boolean) -> Unit, subtitle: String? = null) {
-    Row(
-        Modifier.fillMaxWidth().gmPress(role = Role.Switch) { onChange(!checked) }
-            .semantics(mergeDescendants = true) {
-                toggleableState = ToggleableState(checked); stateDescription = if (checked) "Ativado" else "Desativado"
-            },
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, color = Color.White, style = GMType.subheadline.copy(fontWeight = FontWeight.SemiBold))
-            if (subtitle != null) Text(subtitle, color = GMColors.dim, style = GMType.caption)
-        }
-        Box(Modifier.width(50.dp).height(30.dp).background(if (checked) GMColors.accent else Color.White.copy(alpha = 0.15f), CircleShape).padding(4.dp),
-            contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart) {
-            Box(Modifier.size(22.dp).background(if (checked) Color.Black else Color.White, CircleShape))
-        }
-    }
-}
 
-/** GMChoiceChips: pílulas que quebram linha; a escolhida em verde */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun <T> GMChoiceChips(options: List<Pair<T, String>>, selection: T, onSelect: (T) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for ((v, label) in options) GMChip(label, v == selection) { onSelect(v) }
-    }
-}
 
 /** GMFlow: itens que quebram linha */
 @OptIn(ExperimentalLayoutApi::class)
@@ -137,23 +79,7 @@ fun <T> GMChoiceChips(options: List<Pair<T, String>>, selection: T, onSelect: (T
 fun GMFlow(spacing: Dp = 8.dp, content: @Composable () -> Unit) =
     FlowRow(horizontalArrangement = Arrangement.spacedBy(spacing), verticalArrangement = Arrangement.spacedBy(spacing)) { content() }
 
-data class GMAction(val title: String, val icon: ImageVector? = null, val destructive: Boolean = false, val action: () -> Unit)
 
-/** gmActions: folha de baixo com título, mensagem, as ações e "Cancelar" (substitui Menu e confirmationDialog) */
-@Composable
-fun GMActions(visible: Boolean, onDismiss: () -> Unit, title: String? = null, message: String? = null, actions: List<GMAction>) {
-    if (!visible) return
-    GMSheet(onDismiss) {
-        if (title != null) Text(title, color = Color.White, style = GMType.headline, textAlign = TextAlign.Center)
-        if (message != null) Text(message, color = GMColors.dim, style = GMType.subheadline, textAlign = TextAlign.Center)
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            for (a in actions) {
-                GMButton(a.title, { onDismiss(); a.action() }, icon = a.icon, kind = if (a.destructive) GMButtonKind.DANGER else GMButtonKind.SECONDARY)
-            }
-            GMButton("Cancelar", onDismiss, kind = GMButtonKind.GHOST)
-        }
-    }
-}
 
 /** GMFloatingButton: círculo verde de 62 com sombra, no canto da tela */
 @Composable

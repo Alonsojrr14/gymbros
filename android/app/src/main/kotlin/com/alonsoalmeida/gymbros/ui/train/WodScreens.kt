@@ -787,7 +787,9 @@ private fun WodResultModal(env: AppEnv, home: HomeData, data: TrainData, wod: Wo
     val split = TrainSplit.split(ActivityKind.CROSSFIT, total, effort, wod = TrainSplit.WodSignal(wod.format, wod.exercises.ifEmpty { WodMovements.ids(wod.lines) }))
     val preview = LogPreview.compute(home.roster, ActivityKind.CROSSFIT, total, effort, start, split, RuleClock(ZoneId.systemDefault(), Instant.now()))
 
-    GMModal(true, "Resultado", onDismiss, confirm = "Salvar", onConfirm = {
+    val post = com.alonsoalmeida.gymbros.ui.leagues.rememberTrainingPost(home)
+    val typeID = com.alonsoalmeida.gymbros.domain.BroCatalog.classicType[ActivityKind.CROSSFIT.raw]
+    GMModal(true, "Resultado", onDismiss, confirm = "Salvar", confirmEnabled = post.canSave, onConfirm = {
         val r = WodResult(TrainEdits.newID(), wod.id, wod.name, wod.format.name, Instant.now(),
             seconds = if (wod.format is WodFormat.ForTime) seconds else null,
             rounds = when { wod.format is WodFormat.Amrap -> roundsDone; intervals != null && !intervals.emom -> blocksDone.sum(); else -> null },
@@ -807,7 +809,10 @@ private fun WodResultModal(env: AppEnv, home: HomeData, data: TrainData, wod: Wo
             if (loadsSession != null) out = TrainEdits.saveSession(out, loadsSession)
             out
         }
-        TrainHooks.onPost?.invoke(activityID, "${wod.name}$level · ${r.text}${if (rx) " RX" else ""}", postText())
+        // Depois de salvar: o check-in em cada destino escolhido (postCheckIns)
+        post.post(com.alonsoalmeida.gymbros.domain.leagues.LeagueActivityJson(activityID, ActivityKind.CROSSFIT.raw, start, total, effort,
+                                                                              "${wod.name}$level · ${r.text}", gymUUID = st.gymID, healthType = typeID),
+                  "${wod.name}$level · ${r.text}${if (rx) " RX" else ""}", postText())
         onDone()
     }) {
         GMCard {
@@ -860,9 +865,7 @@ private fun WodResultModal(env: AppEnv, home: HomeData, data: TrainData, wod: Wo
             }
             preview.message?.takeIf { preview.grows.isNotEmpty() }?.let { Text(it, color = Color.White, style = GMType.subheadline.copy(fontWeight = FontWeight.Bold)) }
         }
-        GMSection("Postar em", footer = if (TrainHooks.onPost == null) "Postar no perfil e nas ligas ainda está chegando no Android. O WOD fica no seu histórico, dá XP aos bros e aparece no iPhone." else null) {
-            Text(if (TrainHooks.onPost == null) "Só no histórico, por enquanto." else "Você escolhe onde postar depois de salvar.", color = GMColors.dim, style = GMType.footnote)
-        }
+        com.alonsoalmeida.gymbros.ui.leagues.TrainingPostSection(home, post, com.alonsoalmeida.gymbros.domain.leagues.PostSubject(typeID, start, total))
     }
 }
 

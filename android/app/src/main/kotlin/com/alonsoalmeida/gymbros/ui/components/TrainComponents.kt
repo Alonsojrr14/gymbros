@@ -212,16 +212,13 @@ object TrainIcons {
     val back: ImageVector get() = Icons.AutoMirrored.Filled.ArrowBack
 }
 
-/** Linha fina entre itens de um card (GMSurfaces.swift `GMDivider`) */
-@Composable
-fun GMDivider() = Box(Modifier.fillMaxWidth().height(1.dp).background(GMColors.stroke))
 
 /** Linha tocável: ícone, título, subtítulo e algo à direita (GMSurfaces.swift `GMRow`) */
 @Composable
 fun GMRow(title: String, icon: ImageVector? = null, iconTint: Color = Color.White, subtitle: String? = null, chevron: Boolean = false,
-          onClick: (() -> Unit)? = null, leading: (@Composable () -> Unit)? = null, trailing: @Composable RowScope.() -> Unit = {}) {
+          onClick: (() -> Unit)? = null, leading: (@Composable () -> Unit)? = null, modifier: Modifier = Modifier, trailing: @Composable RowScope.() -> Unit = {}) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).then(if (onClick != null) Modifier.gmPress(onClick = onClick) else Modifier),
+        modifier.fillMaxWidth().heightIn(min = 44.dp).then(if (onClick != null) Modifier.gmPress(onClick = onClick) else Modifier),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         leading?.invoke()
@@ -271,10 +268,15 @@ fun <T> GMSegmented(options: List<Pair<T, String>>, selection: T, onSelect: (T) 
     }
 }
 
+/** Mesma escolha com a ação antes do título (ordem usada nas telas do treino) */
+@Composable
+fun <T> GMChoiceChips(options: List<Pair<T, String>>, selection: T, onSelect: (T) -> Unit, title: String? = null) =
+    GMChoiceChips(options, selection, title, onSelect)
+
 /** Escolha entre pílulas que quebram linha (GMChips.swift `GMChoiceChips`) */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun <T> GMChoiceChips(options: List<Pair<T, String>>, selection: T, onSelect: (T) -> Unit, title: String? = null) {
+fun <T> GMChoiceChips(options: List<Pair<T, String>>, selection: T, title: String? = null, onSelect: (T) -> Unit) {
     val haptic = LocalHapticFeedback.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (title != null) Text(title, color = Color.White, style = GMType.subheadline.copy(fontWeight = FontWeight.SemiBold))
@@ -416,7 +418,7 @@ data class GMAction(val title: String, val icon: ImageVector? = null, val destru
 /** Folha de ações (GMSheets.swift `gmActions`): título, mensagem, ações e Cancelar; a ação roda depois de fechar */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GMActions(visible: Boolean, onDismiss: () -> Unit, actions: List<GMAction>, title: String? = null, message: String? = null) {
+fun GMActions(visible: Boolean, onDismiss: () -> Unit, title: String? = null, message: String? = null, actions: List<GMAction>) {
     if (!visible) return
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = GMColors.card,
                      shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {

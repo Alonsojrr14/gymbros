@@ -69,7 +69,10 @@ private fun Root(container: AppContainer) {
                                train = { com.alonsoalmeida.gymbros.ui.train.TrainTab(env, data) },
                                leagues = { com.alonsoalmeida.gymbros.ui.leagues.LeaguesTab(env, data) },
                                map = { com.alonsoalmeida.gymbros.ui.map.MapTab(env, data) },
-                               feed = { FeedScreen(data, friends) { soon = it } })
+                               feed = { FeedScreen(data, friends, env) { soon = it } })
+                    // Cenas de evolução e de chocar (App.swift `check`) e links de amigo (gymbros://amigo/CÓDIGO)
+                    com.alonsoalmeida.gymbros.ui.bros.BroEventsHost(env, data)
+                    com.alonsoalmeida.gymbros.ui.friends.FriendLinkHandler(data, friends)
                 }
                 SoonModal(soon) { soon = null }
             }

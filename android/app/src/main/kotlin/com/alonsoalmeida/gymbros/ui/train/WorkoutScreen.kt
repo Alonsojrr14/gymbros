@@ -731,8 +731,10 @@ private fun FinishWorkoutModal(env: AppEnv, home: HomeData, data: TrainData, ses
     val signals = done.map { TrainSplit.SetSignal(it.exerciseID, it.reps, it.rest) }
     val split = TrainSplit.split(ActivityKind.MUSCULACAO, minutes, effort, sets = signals)
     val preview = LogPreview.compute(home.roster, ActivityKind.MUSCULACAO, minutes, effort, session.start, split, RuleClock(ZoneId.systemDefault(), Instant.now()))
+    val post = com.alonsoalmeida.gymbros.ui.leagues.rememberTrainingPost(home)
+    val typeID = com.alonsoalmeida.gymbros.domain.BroCatalog.classicType[ActivityKind.MUSCULACAO.raw]
 
-    GMModal(true, "Concluir treino", onDismiss, confirm = "Salvar", confirmEnabled = done.isNotEmpty(), onConfirm = {
+    GMModal(true, "Concluir treino", onDismiss, confirm = "Salvar", confirmEnabled = done.isNotEmpty() && post.canSave, onConfirm = {
         val activityID = TrainEdits.newID()
         val finished = session.copy(end = Instant.now(), effort = effort, activityUUID = activityID, restEnd = null)
         val summary = if (records.isEmpty()) "" else "🏆 " + records.joinToString(" · ")
@@ -742,8 +744,9 @@ private fun FinishWorkoutModal(env: AppEnv, home: HomeData, data: TrainData, ses
             if (updateRoutine && routine != null && changes.isNotEmpty()) out = TrainEdits.saveRoutine(out, finished.applyTo(routine))
             TrainEdits.saveSession(out, finished)
         }
-        // "Postar em" (perfil e ligas) é de outra frente: o orquestrador liga aqui
-        TrainHooks.onPost?.invoke(activityID, session.title, summary)
+        // Depois de salvar: o check-in em cada destino escolhido (postCheckIns)
+        post.post(com.alonsoalmeida.gymbros.domain.leagues.LeagueActivityJson(activityID, ActivityKind.MUSCULACAO.raw, session.start, minutes, effort,
+                                                                              session.title, gymUUID = session.gymUUID, healthType = typeID), session.title, summary)
         onDone(finished)
     }) {
         GMCard {
@@ -794,9 +797,8 @@ private fun FinishWorkoutModal(env: AppEnv, home: HomeData, data: TrainData, ses
             }
         }
         GMSection { GMEffortPicker(effort) { effort = it } }
-        GMSection("Postar em", footer = if (TrainHooks.onPost == null) "Postar no perfil e nas ligas ainda está chegando no Android. O treino fica no seu histórico, dá XP aos bros e aparece no iPhone." else null) {
-            Text(if (TrainHooks.onPost == null) "Só no histórico, por enquanto." else "Você escolhe onde postar depois de salvar.", color = GMColors.dim, style = GMType.footnote)
-        }
+        com.alonsoalmeida.gymbros.ui.leagues.TrainingPostSection(home, post,
+            com.alonsoalmeida.gymbros.domain.leagues.PostSubject(typeID, session.start, minutes))
         GMSection(footer = if (done.isEmpty()) "Marque ao menos uma série feita para salvar." else null) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("+${preview.xp} XP", color = GMColors.accent, fontSize = 22.sp, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))

@@ -446,7 +446,7 @@ fun MemberProfile(env: AppEnv, home: HomeData, r: RankRow, onDismiss: () -> Unit
     val friends: FriendsViewModel = viewModel(key = "friends-${env.uid}", factory = viewModelFactory {
         initializer { FriendsViewModel(FriendsRepository(), env.copies, com.alonsoalmeida.gymbros.data.ProfilePhotosRepository(env.context)) }
     })
-    FriendProfileScreen(RemoteFriend(r.id, r.name, r.avatar.id, ""), home, friends, onDismiss) {}
+    FriendProfileScreen(RemoteFriend(r.id, r.name, r.avatar.id, ""), home, friends, onDismiss, onSoon = {}, env = env)
 }
 
 // MARK: Revisão (LeagueReviewViews.swift `LeagueReviewQueue`)
