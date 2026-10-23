@@ -3,6 +3,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Treino: aviso de fim do descanso (pedido ao começar um treino, só com o ajuste ligado) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".GymBrosApp"
@@ -27,5 +29,7 @@
                 <data android:scheme="gymbros" android:host="amigo" />
             </intent-filter>
         </activity>
+        <!-- Fim do descanso do treino (RestAlarm): só o próprio app dispara -->
+        <receiver android:name=".data.train.RestReceiver" android:exported="false" />
     </application>
 </manifest>
