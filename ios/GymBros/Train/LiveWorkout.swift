@@ -145,6 +145,7 @@ enum LiveWorkout {
     /// o esforço é a média dos últimos treinos; mudança na rotina vira oferta pendente na aba Treino.
     static func autoFinish(_ s: WorkoutSession, place: String?) async -> String {
         let ctx = AppData.container.mainContext
+        guard s.end == nil else { return "O treino já estava salvo." }
         cancelRest(s)
         await endAll()
         HeadphoneControl.shared.stop()
@@ -245,6 +246,8 @@ enum LiveWorkout {
 
     static var hasRunning: Bool { running() != nil }
     static var runningSession: WorkoutSession? { running() }
+    /// Treino com a tela de conclusão aberta: quem salva é ela (sair da academia agora não salva outra atividade)
+    static var concluding: UUID?
 }
 
 /// Live Activity do WOD em andamento

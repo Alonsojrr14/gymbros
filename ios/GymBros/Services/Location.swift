@@ -228,7 +228,7 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         insideID = nil
         pendingArrival = nil
         // Encerra só o treino daquele lugar (ou sem lugar definido)
-        guard autoFinish, let s = LiveWorkout.runningSession, s.gymUUID == nil || s.gymUUID == g.uuid,
+        guard autoFinish, let s = LiveWorkout.runningSession, LiveWorkout.concluding != s.uuid, s.gymUUID == nil || s.gymUUID == g.uuid,
               Date.now.timeIntervalSince(s.start) >= Self.minWorkoutMinutes * 60 else { return }
         let summary = await LiveWorkout.autoFinish(s, place: g.name)
         notify(id: "gym-finished", title: "Treino encerrado ao sair da \(g.name)", body: summary, category: nil)

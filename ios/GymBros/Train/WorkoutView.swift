@@ -1021,6 +1021,8 @@ struct FinishWorkoutView: View {
             }
         }
         .onChange(of: postTitle) { blocked = false }
+        .onAppear { LiveWorkout.concluding = session.uuid }
+        .onDisappear { if LiveWorkout.concluding == session.uuid { LiveWorkout.concluding = nil } }
     }
 
     /// XP do treino e o estágio de antes de cada bro que vai evoluir. O principal leva tudo e o bro de cada liga marcada,
@@ -1082,6 +1084,17 @@ struct FinishWorkoutView: View {
     }
 
     private func save() {
+        // Já salvo ao sair da academia: fica a mesma atividade, só com o esforço escolhido aqui
+        if session.end != nil {
+            if let id = session.activityUUID, let a = activities.first(where: { $0.uuid == id }) {
+                a.effort = effort
+                session.effort = effort
+                try? context.save()
+            }
+            dismiss()
+            onDone()
+            return
+        }
         let title = postTitle ?? session.title
         if !leagues.isEmpty && !ContentFilter.allows(title) {
             if postTitle == nil { postTitle = title }
