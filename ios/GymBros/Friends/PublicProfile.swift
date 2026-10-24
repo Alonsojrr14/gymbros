@@ -318,9 +318,11 @@ struct FriendProfileView: View {
     private func feed(_ p: PublicProfile) -> [FeedItem] {
         let avatar = p.bro?.form ?? friend.form
         return p.posts.map { r in
-            FeedItem(id: r.id, memberID: friend.id, name: friend.name, avatar: avatar, isMe: false, date: r.date, title: r.title, note: r.note,
-                     kind: r.kind, minutes: r.minutes, score: Game.xp(kind: r.kind, minutes: r.minutes, effort: r.effort), photo: nil,
-                     hasPhoto: r.hasPhoto, effort: r.effort)
+            var f = FeedItem(id: r.id, memberID: friend.id, name: friend.name, avatar: avatar, isMe: false, date: r.date, title: r.title, note: r.note,
+                             kind: r.kind, minutes: r.minutes, score: Game.xp(kind: r.kind, minutes: r.minutes, effort: r.effort), photo: nil,
+                             hasPhoto: r.hasPhoto, effort: r.effort)
+            f.comments = CommentScope(league: CloudType.profileFeed, owner: friend.id, isPublic: false, member: true)
+            return f
         }
     }
 }

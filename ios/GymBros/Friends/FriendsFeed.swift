@@ -15,6 +15,7 @@ func friendPosts(_ store: FriendsStore = .shared, leagues: Bool = false) -> [Fee
                                 kind: r.kind, minutes: r.minutes, score: Game.xp(kind: r.kind, minutes: r.minutes, effort: r.effort), photo: nil,
                                 hasPhoto: r.hasPhoto, effort: r.effort)
             item.postedIn = r.postedIn
+            item.comments = CommentScope(league: r.leagueCode, owner: f.id, isPublic: r.isPublic, member: false)
             return item
         }
     }
@@ -236,7 +237,7 @@ struct UnifiedFeedView: View {
             for f in store.friends where store.profiles[f.id] == nil { await store.loadProfile(f.id) }
         }
         // Reações e número de comentários dos posts na tela (os comentários em si só abrem no post)
-        .task(id: shown.prefix(60).map(\.id).joined()) { await CommentSync.pull(shown.prefix(60).map(\.id), context: context) }
+        .task(id: shown.prefix(60).map(\.id).joined()) { await CommentSync.pull(shown.prefix(60).map { ($0.id, $0.item.comments) }, context: context) }
     }
 
     // MARK: Post
@@ -364,7 +365,7 @@ struct UnifiedFeedView: View {
     /// Força é uma reação 💪 (o mesmo do deck e do detalhe); de novo, tira
     private func toggleStrength(_ f: FeedItem, mine: CheckInComment?) {
         guard AccessStore.shared.can(.commentsCreate) else { return }
-        if let mine { CommentSync.remove(mine, context: context) } else { CommentSync.add("💪", to: f.id, owner: f.memberID, context: context) }
+        if let mine { CommentSync.remove(mine, context: context) } else { CommentSync.add("💪", to: f.id, owner: f.memberID, scope: f.comments, context: context) }
         UIImpactFeedbackGenerator(style: mine == nil ? .medium : .light).impactOccurred()
     }
 

@@ -213,9 +213,11 @@ struct ActivityDetailView: View {
         let league = leagues.first { $0.uuid == c.leagueUUID }
         let score = league?.score(activity.scoreInput, hasPhoto: c.hasPhoto)
             ?? Game.xp(kind: activity.kind, minutes: activity.minutes, effort: activity.effort)
-        return FeedItem(id: c.uuid.uuidString, memberID: "me", name: trainerName, avatar: snapshot.form, isMe: true, date: c.date,
-                        title: c.title, note: c.note, kind: activity.kind, minutes: activity.minutes, score: score, photo: c.photo, place: c.place,
-                        hasPhoto: c.hasPhoto, effort: activity.effort, scoring: league?.scoring)
+        var f = FeedItem(id: c.uuid.uuidString, memberID: "me", name: trainerName, avatar: snapshot.form, isMe: true, date: c.date,
+                         title: c.title, note: c.note, kind: activity.kind, minutes: activity.minutes, score: score, photo: c.photo, place: c.place,
+                         hasPhoto: c.hasPhoto, effort: activity.effort, scoring: league?.scoring)
+        if let league { f.comments = CommentScope(league: league, owner: "me") }
+        return f
     }
 }
 

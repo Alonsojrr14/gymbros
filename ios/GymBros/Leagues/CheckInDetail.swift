@@ -108,8 +108,8 @@ struct CheckInDetailView: View {
         .gmModal(item: $person) { FriendProfileView(friend: $0) }
         // Comentários de todo mundo neste check-in, e as reações a eles
         .task {
-            await CommentSync.pull([item.id], context: context)
-            await CommentSync.pull(comments.filter { !$0.isReaction }.map { "c:\($0.uuid.uuidString)" }, context: context)
+            await CommentSync.pull([(item.id, item.comments)], context: context)
+            await CommentSync.pull(comments.filter { !$0.isReaction }.map { ("c:\($0.uuid.uuidString)", item.comments) }, context: context)
         }
     }
 
@@ -276,7 +276,7 @@ struct CheckInDetailView: View {
     private func commentActions(_ c: CheckInComment) -> [GMAction] {
         var list = ["👍", "❤️‍🔥", "💪", "😂"].map { e in
             GMAction("Reagir \(e)", icon: "face.smiling") {
-                CommentSync.add(e, to: "c:\(c.uuid.uuidString)", owner: c.authorID, context: context)
+                CommentSync.add(e, to: "c:\(c.uuid.uuidString)", owner: c.authorID, scope: item.comments, context: context)
             }
         }
         if c.isMine {
@@ -404,7 +404,7 @@ struct CheckInDetailView: View {
         guard AccessStore.shared.can(.commentsCreate) else { return }
         guard ContentFilter.allows(t) else { blocked = true; return }
         terms.run {
-            CommentSync.add(t, to: item.id, owner: item.memberID, context: context)
+            CommentSync.add(t, to: item.id, owner: item.memberID, scope: item.comments, context: context)
             if raw == text { text = "" }
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }

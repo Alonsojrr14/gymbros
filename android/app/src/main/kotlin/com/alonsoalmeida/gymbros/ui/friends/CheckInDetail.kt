@@ -141,14 +141,14 @@ fun CheckInDetailModal(item: FeedPost?, env: AppEnv, home: HomeData, onDismiss: 
     // Comentários de todo mundo neste check-in, e as reações a eles, ao vivo enquanto está aberto
     val watchIDs = listOf(item.id) + visible.filter { !it.isReaction }.map { "c:${it.id}" }
     DisposableEffect(watchIDs.joinToString()) {
-        social.watchComments(watchIDs)
+        social.watchComments(watchIDs, item.comments)
         onDispose { social.stopWatchingComments() }
     }
 
     fun send(raw: String) {
         val t = raw.trim()
         if (t.isEmpty()) return
-        if (!social.comment(t, item.id, item.memberID)) { blocked = true; return }
+        if (!social.comment(t, item.id, item.memberID, item.comments)) { blocked = true; return }
         if (raw == text) text = ""
         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
@@ -266,7 +266,7 @@ fun CheckInDetailModal(item: FeedPost?, env: AppEnv, home: HomeData, onDismiss: 
                       onDismiss()
                   }))
         commentMenu?.let { c ->
-            val list = Reactions.quick.map { e -> GMAction("Reagir $e", Icons.Filled.SentimentSatisfied) { social.comment(e, "c:${c.id}", c.authorID) } }.toMutableList()
+            val list = Reactions.quick.map { e -> GMAction("Reagir $e", Icons.Filled.SentimentSatisfied) { social.comment(e, "c:${c.id}", c.authorID, item.comments) } }.toMutableList()
             if (c.isMine) list += GMAction("Apagar comentário", Icons.Filled.Delete, destructive = true) { social.removeComment(c, reactionsTo(c)) }
             else list += GMAction("Denunciar comentário", Icons.Filled.Flag, destructive = true) {
                 moderation = ModerationRequest(ModerationTarget(c.authorID, c.authorName, ReportedKind.COMMENT, c.id), ModerationStep.REPORT)

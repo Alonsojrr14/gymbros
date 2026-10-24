@@ -159,7 +159,7 @@ fun BroDeckModal(cards: List<DeckCard>, start: Int, env: AppEnv, friends: List<R
     fun react(e: String) {
         if (index >= cards.size) return
         val c = cards[index]
-        social.comment(e, c.id, c.item.memberID)
+        social.comment(e, c.id, c.item.memberID, c.item.comments)
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         burst = e
     }
@@ -211,7 +211,7 @@ fun BroDeckModal(cards: List<DeckCard>, start: Int, env: AppEnv, friends: List<R
                     social.send(DirectKind.TEXT, c.item.memberID, data, friends, "Sobre \"${c.item.title}\": $text")
                     sentNote = "Mensagem enviada para ${c.item.name}."
                 } else {
-                    social.comment(text, c.id, c.item.memberID)
+                    social.comment(text, c.id, c.item.memberID, c.item.comments)
                     sentNote = "Comentário no check-in de ${c.item.name}."
                 }
                 replying = null

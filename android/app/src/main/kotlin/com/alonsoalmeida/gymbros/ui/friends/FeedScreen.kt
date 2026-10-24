@@ -130,7 +130,7 @@ private fun FeedContent(env: AppEnv, home: HomeData, friendsVm: FriendsViewModel
     LaunchedEffect(friendIDs, data.leagues.size) { social.refreshFeed(friends, data) }
     val shown = model.shown.take(150)
     // Reações e número de comentários dos posts na tela (os comentários em si só abrem no post)
-    LaunchedEffect(shown.take(60).joinToString { it.id }) { social.pullComments(shown.map { it.id }) }
+    LaunchedEffect(shown.take(60).joinToString { it.id }) { social.pullComments(shown.map { it.item }) }
     val visibleComments = data.moderation.visibleComments(data.comments)
     val byItem = remember(visibleComments) { visibleComments.groupBy { it.itemID } }
 

@@ -74,7 +74,21 @@ data class FeedPost(
     val place: String? = null,
     val postedIn: String? = null,
     val leagueID: String? = null,
+    /** Quem pode ver os comentários deste post (a regra do servidor confere pela liga) */
+    val comments: CommentScope = CommentScope.PROFILE,
 )
+
+/**
+ * Liga de um post para os comentários (CommentSync.swift `CommentScope`): `league` ("profile" no perfil), dono do post
+ * ("me" = você), se a liga é pública e se você está nela. Fora das suas ligas, só amigo de quem postou vê, e a consulta
+ * tem de dizer o dono e `feed` para o servidor conferir.
+ */
+data class CommentScope(val league: String, val owner: String, val isPublic: Boolean, val member: Boolean) {
+    companion object {
+        const val PROFILE_CODE = "profile"
+        val PROFILE = CommentScope(PROFILE_CODE, "me", isPublic = false, member = true)
+    }
+}
 
 /** Um check-in no feed unificado, com todos os lugares em que foi postado (FriendsFeed.swift `UnifiedPost`) */
 data class UnifiedPost(val item: FeedPost, val places: List<String>, val leagueIDs: Set<String>, val fromFriendProfile: Boolean = false) {
