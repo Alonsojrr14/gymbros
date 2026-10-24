@@ -66,21 +66,35 @@ struct MFitMaterializer {
     private func materialize(_ plan: MFitPlan) {
         let records = (try? context.fetch(FetchDescriptor<MFitImportRecord>())) ?? []
         let routines = (try? context.fetch(FetchDescriptor<Routine>())) ?? []
-        if let old = records.first(where: { $0.sourceID == plan.sourceID }) {
-            let ids = Set(old.routineUUIDs)
-            for r in routines where ids.contains(r.uuid) { context.delete(r) }
-            context.delete(old)
+        let old = records.first { $0.sourceID == plan.sourceID }
+
+        // Mapa dia(MFIT) -> Routine existente, pelos arrays paralelos do registro anterior (preserva nome e UUID)
+        var dayToRoutine: [String: Routine] = [:]
+        if let old, let oldPlan = old.plan {
+            let uuids = old.routineUUIDs
+            for (i, d) in oldPlan.days.enumerated() where i < uuids.count {
+                if let r = routines.first(where: { $0.uuid == uuids[i] }) { dayToRoutine[d.sourceID] = r }
+            }
         }
 
-        var createdUUIDs: [UUID] = []
+        var usedUUIDs: [UUID] = []
+        var matched = Set<String>()
         var order = routines.count
         for day in plan.days {
-            let routine = Routine(name: day.name.isEmpty ? (plan.name.isEmpty ? "Rotina MFIT" : plan.name) : day.name,
-                                  weekdays: (1...7).contains(day.dayTypeCode) ? [day.dayTypeCode] : [],
-                                  order: order)
-            order += 1
-            context.insert(routine)
-            createdUUIDs.append(routine.uuid)
+            let routine: Routine
+            if let existing = dayToRoutine[day.sourceID] {
+                routine = existing                       // mantém o nome que o usuário deu e o UUID
+                routine.items.forEach(context.delete)
+                routine.items = []
+                matched.insert(day.sourceID)
+            } else {
+                routine = Routine(name: day.name.isEmpty ? (plan.name.isEmpty ? "Rotina MFIT" : plan.name) : day.name,
+                                  weekdays: [], order: order)
+                order += 1
+                context.insert(routine)
+            }
+            if (1...7).contains(day.dayTypeCode) { routine.weekdays = [day.dayTypeCode] }
+            usedUUIDs.append(routine.uuid)
 
             var itemOrder = 0
             for block in day.blocks {
@@ -98,7 +112,14 @@ struct MFitMaterializer {
                 }
             }
         }
-        context.insert(MFitImportRecord(plan: plan, routineUUIDs: createdUUIDs))
+        // Dias que sumiram no MFIT: remove as rotinas órfãs desse plano
+        for (sid, r) in dayToRoutine where !matched.contains(sid) { context.delete(r) }
+
+        let keptName = old?.planName
+        if let old { context.delete(old) }
+        let record = MFitImportRecord(plan: plan, routineUUIDs: usedUUIDs)
+        if let keptName, !keptName.isEmpty { record.planName = keptName }   // preserva o nome do plano
+        context.insert(record)
     }
 
     private func upsertMedia(_ exerciseID: String, _ url: String) {

@@ -7,9 +7,14 @@ struct TrainView: View {
     @Query(sort: \Routine.order) private var routines: [Routine]
     @Query(sort: \WorkoutSession.start, order: .reverse) private var sessions: [WorkoutSession]
     @Query private var wodResults: [WodResult]
+    @Query private var mfitRecords: [MFitImportRecord]
     @AppStorage(WodPlan.key) private var plannedRaw = ""
     @State private var importing = false
     @State private var mfitImport = false
+    /// Planos importados (MFIT) expandidos na lista de rotinas
+    @State private var expandedPlans: Set<UUID> = []
+    @State private var renamingPlan: MFitImportRecord?
+    @State private var planNameDraft = ""
     @State private var coachWod: Wod?
     @State private var wodRun = WodRun.shared
     @State private var planDetail: PlannedWod?
@@ -81,14 +86,25 @@ struct TrainView: View {
                 }
 
                 GMSection("Minhas rotinas") {
-                    ForEach(routines) { r in
-                        GMRow(icon: nil, title: r.name,
-                              subtitle: weekdaysText(r.weekdays) + " · \(r.items.count) exercícios" + (PublicRoutinesStore.shared.isPublished(r) ? " · pública" : ""),
-                              action: { editing = r }) {
-                            GMIconButton(icon: "ellipsis", size: 32) { routineMenu = r }
+                    let groupedIDs = Set(mfitRecords.flatMap(\.routineUUIDs))
+                    // Plano importado do MFIT: um item que expande nos seus treinos (subs), cada um no seu dia
+                    ForEach(mfitRecords) { rec in
+                        let days = routines.filter { rec.routineUUIDs.contains($0.uuid) }.sorted { $0.order < $1.order }
+                        if !days.isEmpty {
+                            let open = expandedPlans.contains(rec.uuid)
+                            GMRow(icon: open ? "chevron.down" : "chevron.right", iconTint: Theme.accent,
+                                  title: rec.planName.isEmpty ? "Plano MFIT" : rec.planName,
+                                  subtitle: "\(days.count) treinos · " + days.map { weekdaysText($0.weekdays) }.joined(separator: " / "),
+                                  action: { togglePlan(rec.uuid) }) {
+                                GMIconButton(icon: "pencil", size: 32) { planNameDraft = rec.planName; renamingPlan = rec }
+                            }
+                            GMDivider()
+                            if open {
+                                ForEach(days) { r in routineRow(r) }
+                            }
                         }
-                        GMDivider()
                     }
+                    ForEach(routines.filter { !groupedIDs.contains($0.uuid) }) { r in routineRow(r) }
                     GMRow(icon: "plus", iconTint: Theme.accent, title: "Nova rotina", action: newRoutine)
                     GMDivider()
                     GMRow(icon: "square.stack", iconTint: Theme.accent, title: "Usar modelo pronto", chevron: true) { templates = true }
@@ -175,6 +191,17 @@ struct TrainView: View {
             .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.startWorkout)) { _ in startToday() }
             .gmModal(isPresented: $importing) { ImportWodView() }
             .gmModal(isPresented: $mfitImport) { MFitImportView() }
+            .gmSheet(isPresented: Binding(get: { renamingPlan != nil }, set: { if !$0 { renamingPlan = nil } })) { close in
+                VStack(spacing: 16) {
+                    Text("Renomear plano").font(.headline)
+                    GMTextField(placeholder: "Nome do plano", text: $planNameDraft)
+                    GMButton("Salvar") {
+                        let name = planNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if let rec = renamingPlan, !name.isEmpty { rec.planName = name; try? context.save() }
+                        close()
+                    }
+                }
+            }
             .task { await PublicRoutinesStore.shared.refresh() }
             .gmModal(item: $coachWod) { WodTimerView(wod: $0) }
             .gmModal(item: $planDetail) { PlannedWodView(initial: $0) }
@@ -293,6 +320,20 @@ struct TrainView: View {
 
     private func clearPendingUpdate() {
         pendingRaw = ""
+    }
+
+    @ViewBuilder
+    private func routineRow(_ r: Routine) -> some View {
+        GMRow(icon: nil, title: r.name,
+              subtitle: weekdaysText(r.weekdays) + " · \(r.items.count) exercícios" + (PublicRoutinesStore.shared.isPublished(r) ? " · pública" : ""),
+              action: { editing = r }) {
+            GMIconButton(icon: "ellipsis", size: 32) { routineMenu = r }
+        }
+        GMDivider()
+    }
+
+    private func togglePlan(_ id: UUID) {
+        if expandedPlans.contains(id) { expandedPlans.remove(id) } else { expandedPlans.insert(id) }
     }
 
     private func start(_ routine: Routine?) {
