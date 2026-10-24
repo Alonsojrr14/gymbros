@@ -82,7 +82,7 @@ fun ComposerField(value: String, onChange: (String) -> Unit, placeholder: String
                 value, onChange, maxLines = maxLines, textStyle = GMType.body.copy(color = Color.White),
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(GMColors.accent),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences),
-                modifier = Modifier.fillMaxWidth().semantics { contentDescription = placeholder },
+                modifier = Modifier.fillMaxWidth().gmRevealOnFocus().semantics { contentDescription = placeholder },
             )
         }
         trailing()

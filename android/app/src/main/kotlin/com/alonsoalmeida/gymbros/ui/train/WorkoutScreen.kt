@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.alonsoalmeida.gymbros.ui.train
 
 import android.content.Context
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -348,8 +351,8 @@ private fun WorkoutContent(env: AppEnv, home: HomeData, data: TrainData, session
             }
         }
 
-        // Descanso e ações sempre à mão, sem rolar até o fim
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Descanso e ações sempre à mão, sem rolar até o fim; com o teclado aberto saem da frente (no iOS ficam atrás dele)
+        if (!androidx.compose.foundation.layout.WindowInsets.isImeVisible) Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val end = session.restEnd
             if (resting && end != null) {
                 val left = ((end.toEpochMilli() - nowMs + 999) / 1000).toInt().coerceAtLeast(0)

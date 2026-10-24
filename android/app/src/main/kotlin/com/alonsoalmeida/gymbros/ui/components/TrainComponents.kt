@@ -31,6 +31,7 @@ import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -314,12 +315,17 @@ private fun parseNum(s: String): Double? = s.replace(".", "").replace(",", ".").
 private fun NumberField(value: Double, onChange: (Double) -> Unit, decimals: Boolean, modifier: Modifier, style: androidx.compose.ui.text.TextStyle,
                         align: TextAlign = TextAlign.Center, placeholder: String = "0") {
     var text by remember { mutableStateOf(numText(value, decimals)) }
-    LaunchedEffect(value) { if (parseNum(text) != value) text = numText(value, decimals) }
-    BasicTextField(text, { t -> text = t; parseNum(t)?.let(onChange) ?: if (t.isEmpty()) onChange(0.0) else Unit },
+    var focused by remember { mutableStateOf(false) }
+    // Vazio enquanto digita fica vazio (apagar não volta ao número anterior); vazio ao sair do campo vira 0
+    LaunchedEffect(value) { if (parseNum(text) != value && !(focused && text.isEmpty())) text = numText(value, decimals) }
+    BasicTextField(text, { t -> text = t; parseNum(t)?.let(onChange) },
         singleLine = true, textStyle = style.copy(color = Color.White, textAlign = align, fontFeatureSettings = "tnum"),
         cursorBrush = SolidColor(GMColors.accent),
         keyboardOptions = KeyboardOptions(keyboardType = if (decimals) KeyboardType.Decimal else KeyboardType.Number),
-        modifier = modifier, decorationBox = { inner ->
+        modifier = modifier.gmRevealOnFocus().onFocusChanged {
+            if (focused && !it.isFocused && parseNum(text) == null) { onChange(0.0); text = numText(0.0, decimals) }
+            focused = it.isFocused
+        }, decorationBox = { inner ->
             Box(contentAlignment = Alignment.Center) {
                 if (text.isEmpty()) Text(placeholder, color = GMColors.dim, style = style, textAlign = align)
                 inner()
@@ -396,7 +402,7 @@ fun GMSearchField(text: String, onChange: (String) -> Unit, placeholder: String)
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(Icons.Filled.Search, null, tint = GMColors.dim, modifier = Modifier.size(18.dp))
         BasicTextField(text, onChange, singleLine = true, textStyle = GMType.body.copy(color = Color.White), cursorBrush = SolidColor(GMColors.accent),
-            modifier = Modifier.weight(1f), decorationBox = { inner ->
+            modifier = Modifier.weight(1f).gmRevealOnFocus(), decorationBox = { inner ->
                 Box { if (text.isEmpty()) Text(placeholder, color = GMColors.dim, style = GMType.body); inner() }
             })
         if (text.isNotEmpty()) Box(Modifier.size(24.dp).gmPress { onChange("") }.semantics { contentDescription = "Limpar busca" }, contentAlignment = Alignment.Center) {
@@ -409,7 +415,7 @@ fun GMSearchField(text: String, onChange: (String) -> Unit, placeholder: String)
 @Composable
 fun GMTextArea(text: String, onChange: (String) -> Unit, placeholder: String, minHeight: Dp = 56.dp, background: Color = GMColors.raised) {
     BasicTextField(text, onChange, textStyle = GMType.body.copy(color = Color.White), cursorBrush = SolidColor(GMColors.accent),
-        modifier = Modifier.fillMaxWidth().heightIn(min = minHeight).background(background, GMRadius.m).padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = minHeight).gmRevealOnFocus().background(background, GMRadius.m).padding(horizontal = 14.dp, vertical = 12.dp),
         decorationBox = { inner -> Box { if (text.isEmpty()) Text(placeholder, color = GMColors.dim.copy(alpha = 0.7f), style = GMType.body); inner() } })
 }
 

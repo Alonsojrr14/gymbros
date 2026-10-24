@@ -1,5 +1,6 @@
 package com.alonsoalmeida.gymbros.ui.auth
 
+import com.alonsoalmeida.gymbros.ui.components.gmRevealOnFocus
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -190,7 +191,7 @@ fun GMTextField(
         keyboardOptions = keyboard,
         keyboardActions = KeyboardActions(onDone = { onDone() }),
         visualTransformation = if (secure && !visible) PasswordVisualTransformation() else VisualTransformation.None,
-        modifier = Modifier.fillMaxWidth().semantics { contentType?.let { this.contentType = it } },
+        modifier = Modifier.fillMaxWidth().gmRevealOnFocus().semantics { contentType?.let { this.contentType = it } },
         decorationBox = { inner ->
             Row(
                 Modifier.fillMaxWidth()
