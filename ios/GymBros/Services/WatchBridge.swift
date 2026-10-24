@@ -84,9 +84,11 @@ final class WatchBridge: NSObject {
 
     private static let watchStartsKey = "watchGuidedStarts"
 
-    /// Inícios de treinos guiados que o relógio está gravando: o treino do Saúde vem de lá (não exporta outro)
+    /// Inícios de treinos guiados que o relógio está gravando: o treino do Saúde vem de lá (não exporta outro).
+    /// Com folga de segundos: a cópia da conta guarda a data sem as frações, e a atividade volta dela depois de sincronizar
     nonisolated static func isRecordedOnWatch(_ date: Date) -> Bool {
-        (UserDefaults.standard.array(forKey: watchStartsKey) as? [Double] ?? []).contains(date.timeIntervalSince1970)
+        let t = date.timeIntervalSince1970
+        return (UserDefaults.standard.array(forKey: watchStartsKey) as? [Double] ?? []).contains { abs($0 - t) < 2 }
     }
 
     private func markRecordedOnWatch(_ start: Date) {
@@ -97,8 +99,10 @@ final class WatchBridge: NSObject {
 
     private func link(_ saved: WatchGuidedSaved) {
         let ctx = AppData.container.mainContext
-        let start = saved.start
-        if let a = try? ctx.fetch(FetchDescriptor<Activity>(predicate: #Predicate { $0.date == start })).first {
+        let from = saved.start.addingTimeInterval(-2), to = saved.start.addingTimeInterval(2)
+        if let a = try? ctx.fetch(FetchDescriptor<Activity>(predicate: #Predicate { $0.date > from && $0.date < to && $0.healthUUID == nil })).first {
+            // O iPhone já tinha gravado o treino no Saúde: fica só o do relógio, com batimentos
+            if let old = a.healthWrittenUUID, old != saved.healthUUID { HealthSync.deleteWritten(old) }
             a.healthWrittenUUID = saved.healthUUID
             if let kcal = saved.kcal, kcal > 0 { a.kcal = kcal }
             try? ctx.save()

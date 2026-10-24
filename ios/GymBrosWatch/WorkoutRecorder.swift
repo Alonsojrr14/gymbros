@@ -133,8 +133,11 @@ final class WorkoutRecorder: NSObject {
     }
 
     private func endGuided() async {
-        guard let session, let builder else { return }
+        guard let session, let builder, !stopping else { return }
+        stopping = true
         let start = guidedStart
+        // Aviso atrasado do mesmo treino não recomeça a gravação
+        autoStarted = start
         session.end()
         try? await builder.endCollection(at: .now)
         // Sem nenhuma série feita, o iPhone não salva atividade: o treino do Saúde também não fica

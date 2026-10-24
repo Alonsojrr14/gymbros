@@ -75,6 +75,8 @@ enum HealthSync {
         let weight: Double
         if let bodyWeight { weight = bodyWeight } else { weight = await bodyMass() ?? BodyProfile.weightForEstimates }
         for a in list {
+            // Já tem treino no Saúde nesse horário (o do relógio, de outro app): gravar outro só duplica
+            if await hasWorkout(overlapping: a) { continue }
             if let id = try? await write(a, weight: weight) {
                 a.healthWrittenUUID = id.uuidString
                 try? context.save()
@@ -86,6 +88,17 @@ enum HealthSync {
     nonisolated static func activeKcal(kind: ActivityKind, minutes: Int, effort: Int, weight: Double) -> Double {
         let met = kind.met * (0.6 + 0.08 * Double(effort))
         return max(met - 1, 0) * 3.5 * weight / 200 * Double(minutes)
+    }
+
+    /// Mesma regra da importação: dividir mais da metade do treino é o mesmo treino
+    private static func hasWorkout(overlapping a: Activity) async -> Bool {
+        let start = a.date, end = a.date.addingTimeInterval(Double(max(a.minutes, 1)) * 60)
+        let q = HKSampleQueryDescriptor(predicates: [.workout(HKQuery.predicateForSamples(withStart: start, end: end))], sortDescriptors: [])
+        let found = (try? await q.result(for: store)) ?? []
+        return found.contains { w in
+            let shared = min(end, w.endDate).timeIntervalSince(max(start, w.startDate))
+            return shared > 0.5 * min(end.timeIntervalSince(start), w.endDate.timeIntervalSince(w.startDate))
+        }
     }
 
     private static func write(_ a: Activity, weight: Double) async throws -> UUID? {
