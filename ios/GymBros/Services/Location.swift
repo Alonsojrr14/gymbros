@@ -230,6 +230,10 @@ final class GymLocation: NSObject, CLLocationManagerDelegate {
         // Encerra só o treino daquele lugar (ou sem lugar definido)
         guard autoFinish, let s = LiveWorkout.runningSession, LiveWorkout.concluding != s.uuid, s.gymUUID == nil || s.gymUUID == g.uuid,
               Date.now.timeIntervalSince(s.start) >= Self.minWorkoutMinutes * 60 else { return }
+        // O GPS dentro do prédio oscila e o iOS avisa saídas que não aconteceram: só encerra longe do lugar de verdade
+        guard let here = await currentLocation(),
+              here.distance(from: CLLocation(latitude: g.latitude, longitude: g.longitude)) > g.radius + max(here.horizontalAccuracy, 50)
+        else { return }
         let summary = await LiveWorkout.autoFinish(s, place: g.name)
         notify(id: "gym-finished", title: "Treino encerrado ao sair da \(g.name)", body: summary, category: nil)
     }

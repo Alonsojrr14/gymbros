@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alonsoalmeida.gymbros.data.train.RestAlarm
+import com.alonsoalmeida.gymbros.data.train.TrainCopy
 import com.alonsoalmeida.gymbros.data.train.TrainData
 import com.alonsoalmeida.gymbros.data.train.TrainEdits
 import com.alonsoalmeida.gymbros.data.train.TrainHooks
@@ -721,6 +722,7 @@ private fun FinishWorkoutModal(env: AppEnv, home: HomeData, data: TrainData, ses
                                onDone: (Session) -> Unit) {
     var effort by remember { mutableIntStateOf(7) }
     var updateRoutine by remember { mutableStateOf(false) }
+    var saved by remember { mutableStateOf(false) }
     val minutes = maxOf(((Instant.now().epochSecond - session.start.epochSecond) / 60).toInt(), 1)
     val done = session.doneWorkSets
     val volume = session.volume
@@ -734,11 +736,16 @@ private fun FinishWorkoutModal(env: AppEnv, home: HomeData, data: TrainData, ses
     val post = com.alonsoalmeida.gymbros.ui.leagues.rememberTrainingPost(home)
     val typeID = com.alonsoalmeida.gymbros.domain.BroCatalog.classicType[ActivityKind.MUSCULACAO.raw]
 
-    GMModal(true, "Concluir treino", onDismiss, confirm = "Salvar", confirmEnabled = done.isNotEmpty() && post.canSave, onConfirm = {
+    GMModal(true, "Concluir treino", onDismiss, confirm = "Salvar", confirmEnabled = done.isNotEmpty() && post.canSave && !saved, onConfirm = save@{
+        // Um toque só: o mesmo treino nunca vira duas atividades (salvo antes, aqui ou em outro aparelho)
+        if (saved) return@save
+        saved = true
+        if (data.sessions.any { it.uuid == session.uuid && it.end != null }) { onDone(session); return@save }
         val activityID = TrainEdits.newID()
         val finished = session.copy(end = Instant.now(), effort = effort, activityUUID = activityID, restEnd = null)
         val summary = if (records.isEmpty()) "" else "🏆 " + records.joinToString(" · ")
         TrainScope.edit(env) { c ->
+            if (TrainCopy.read(c).sessions.any { it.uuid == session.uuid && it.end != null }) return@edit c
             var out = TrainEdits.addActivity(c, activityID, ActivityKind.MUSCULACAO.raw, session.start, minutes, effort, session.title,
                                              AttributeSplit.encode(split), session.gymUUID)
             if (updateRoutine && routine != null && changes.isNotEmpty()) out = TrainEdits.saveRoutine(out, finished.applyTo(routine))
