@@ -58,7 +58,7 @@ struct WorkoutView: View {
             }
             if guided && !session.exerciseIDs.isEmpty {
                 ScrollView { guidedContent.padding(16).padding(.bottom, resting ? 180 : 90) }
-                    .scrollDismissesKeyboard(.immediately)
+                    .scrollDismissesKeyboard(.interactively)
             } else {
             ScrollViewReader { proxy in
                 ScrollView {
@@ -82,7 +82,7 @@ struct WorkoutView: View {
                     .padding(16)
                     .padding(.bottom, resting ? 180 : 90)
                 }
-                .scrollDismissesKeyboard(.immediately)
+                .scrollDismissesKeyboard(.interactively)
                 .onChange(of: scrollTarget) { _, target in
                     guard let target else { return }
                     withAnimation(.snappy) { proxy.scrollTo(target, anchor: .top) }

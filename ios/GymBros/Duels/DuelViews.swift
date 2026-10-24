@@ -707,7 +707,7 @@ struct DuelPeoplePicker: View {
                     }
                     .padding(.bottom, 8)
                 }
-                .scrollDismissesKeyboard(.immediately)
+                .scrollDismissesKeyboard(.interactively)
                 .frame(maxHeight: 460)
             }
         }

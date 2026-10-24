@@ -85,7 +85,7 @@ struct GMScreen<Content: View, Trailing: View>: View {
                         .padding(.top, 4)
                         .padding(.bottom, bottomInset)
                 }
-                .scrollDismissesKeyboard(.immediately)
+                .scrollDismissesKeyboard(.interactively)
                 .onChange(of: tour.scrollTarget) { _, target in
                     guard let target else { return }
                     withAnimation(.snappy) { proxy.scrollTo(OnboardingScroll.id(target), anchor: .center) }
@@ -135,7 +135,7 @@ struct GMModal<Content: View>: View {
                     .padding(16)
                     .padding(.bottom, 40)
             }
-            .scrollDismissesKeyboard(.immediately)
+            .scrollDismissesKeyboard(.interactively)
         }
         .background(Theme.bg.ignoresSafeArea())
         .gmKeyboardDone()

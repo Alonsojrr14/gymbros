@@ -1072,7 +1072,7 @@ struct LeagueWorkoutTypePicker: View {
                 }
                 .padding(.bottom, 12)
             }
-            .scrollDismissesKeyboard(.immediately)
+            .scrollDismissesKeyboard(.interactively)
             .overlay {
                 if types.isEmpty { ContentUnavailableView.search(text: query) }
             }

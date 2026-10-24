@@ -51,9 +51,7 @@ struct GMCompactStepper: View {
             stepButton("minus") { value = max(value - step, range.lowerBound) }
             VStack(spacing: editable ? -2 : 0) {
                 if editable {
-                    TextField("0", value: $value, format: .number.precision(.fractionLength(0...(decimals ? 2 : 0))))
-                        .keyboardType(decimals ? .decimalPad : .numberPad)
-                        .multilineTextAlignment(.center)
+                    GMNumberInput(value: $value, range: range, decimals: decimals)
                         .font(.body.bold().monospacedDigit())
                         .frame(width: 52)
                 } else {
@@ -188,5 +186,44 @@ struct GMRuler: View {
             let i = index(v)
             if i != position { withAnimation(.snappy) { position = i } }
         }
+    }
+}
+
+/// Número digitável que pode ficar vazio enquanto você digita (apagar não volta ao valor anterior).
+/// Vazio ao sair do campo vira o mínimo (0); aceita vírgula ou ponto.
+struct GMNumberInput: View {
+    @Binding var value: Double
+    var range: ClosedRange<Double> = 0...Double.greatestFiniteMagnitude
+    var decimals = false
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField("0", text: $text)
+            .keyboardType(decimals ? .decimalPad : .numberPad)
+            .multilineTextAlignment(.center)
+            .focused($focused)
+            .onAppear { text = Self.format(value, decimals) }
+            .onChange(of: value) { _, v in if !focused || Self.parse(text) != v { text = Self.format(v, decimals) } }
+            .onChange(of: text) { _, t in
+                guard let v = Self.parse(t) else { return }
+                let clamped = min(max(v, range.lowerBound), range.upperBound)
+                if clamped != value { value = clamped }
+            }
+            .onChange(of: focused) { _, isOn in
+                guard !isOn else { return }
+                if Self.parse(text) == nil { value = range.lowerBound }
+                text = Self.format(value, decimals)
+            }
+    }
+
+    static func parse(_ t: String) -> Double? {
+        let clean = t.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        return clean.isEmpty ? nil : Double(clean)
+    }
+
+    static func format(_ v: Double, _ decimals: Bool) -> String {
+        guard decimals else { return String(Int(v.rounded())) }
+        return v.formatted(.number.precision(.fractionLength(0...2)).grouping(.never).locale(GMDateText.locale))
     }
 }
