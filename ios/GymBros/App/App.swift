@@ -115,6 +115,7 @@ struct Banner: Equatable {
 struct MainView: View {
     @Query(sort: \Activity.date, order: .reverse) private var activities: [Activity]
     @Query private var customs: [CustomExercise]
+    @Query private var exerciseMedia: [ExerciseMedia]
     @Query(sort: \Routine.order) private var routines: [Routine]
     @Query(filter: #Predicate<WorkoutSession> { $0.end != nil }, sort: \WorkoutSession.start) private var sessions: [WorkoutSession]
     @Query(sort: \Monster.createdAt) private var monsters: [Monster]
@@ -154,6 +155,7 @@ struct MainView: View {
         let d = derive()
         let roster = d.roster, s = d.main, history = d.history, mainName = d.mainName
         let _ = Exercise.register(customs)
+        let _ = Exercise.registerMedia(exerciseMedia)
         let logs = sessions.map(\.log)
         let hatched = roster.snapshots.values.filter { $0.stage > .egg }
         let achievements = Achievements.evaluate(.init(activities: activities.map(\.record),
@@ -288,6 +290,10 @@ struct MainView: View {
             guard !Task.isCancelled else { return }
             let running = (try? context.fetchCount(FetchDescriptor<WorkoutSession>(predicate: #Predicate { $0.end == nil }))) ?? 0
             tour.startIfEligible(modalOpen: recovered || arrivalPrompt || !evolutions.isEmpty || dex, busy: running > 0)
+        }
+        .task(id: phase) {
+            guard phase == .active else { return }
+            await MFitSync.autoSyncIfDue(context: context)
         }
         .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.startWorkout)) { _ in tab = 1 }
         // Força, convites e mensagens chegam mesmo com a caixa de entrada fechada (com servidor, por push)

@@ -1,3 +1,4 @@
+import AVKit
 import MuscleMap
 import SwiftData
 import SwiftUI
@@ -130,30 +131,37 @@ struct ExerciseInfoView: View {
     var body: some View {
         let m = exercise.muscles
         GMModal(exercise.name) {
-            if !exercise.photoAssets.isEmpty {
-                ExercisePhotos(exercise: exercise)
-            }
-            if let v = exercise.wgerVideo {
-                Button { video = v } label: {
-                    Label("Ver vídeo de demonstração", systemImage: "play.circle.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Theme.accent, in: .rect(cornerRadius: Theme.radiusL))
-                        .foregroundStyle(.black)
+            // Vídeo do MFIT (gravado pelo personal) tem prioridade: quando existe, não mostramos as mídias da base.
+            if let s = Exercise.media[exercise.id], let url = URL(string: s) {
+                VideoPlayer(player: AVPlayer(url: url))
+                    .frame(height: 300)
+                    .clipShape(.rect(cornerRadius: Theme.radiusM))
+            } else {
+                if !exercise.photoAssets.isEmpty {
+                    ExercisePhotos(exercise: exercise)
                 }
-                .buttonStyle(GMPress())
-            }
-            if let url = exercise.videoURL {
-                Link(destination: url) {
-                    Label("Buscar vídeos no YouTube", systemImage: "play.rectangle.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Theme.video, in: .rect(cornerRadius: Theme.radiusL))
-                        .foregroundStyle(.white)
+                if let v = exercise.wgerVideo {
+                    Button { video = v } label: {
+                        Label("Ver vídeo de demonstração", systemImage: "play.circle.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.accent, in: .rect(cornerRadius: Theme.radiusL))
+                            .foregroundStyle(.black)
+                    }
+                    .buttonStyle(GMPress())
                 }
-                .buttonStyle(GMPress())
+                if let url = exercise.videoURL {
+                    Link(destination: url) {
+                        Label("Buscar vídeos no YouTube", systemImage: "play.rectangle.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.video, in: .rect(cornerRadius: Theme.radiusL))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(GMPress())
+                }
             }
             GMCard {
                 GMValueRow(label: "Grupo", value: exercise.group.name)

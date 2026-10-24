@@ -8,6 +8,13 @@ extension Exercise {
     }
 
     static var customNotes: [String: String] = [:]
+
+    /// Vídeos de demonstração importados (exerciseID -> URL), vindos de ExerciseMedia.
+    static var media: [String: String] = [:]
+
+    static func registerMedia(_ items: [ExerciseMedia]) {
+        media = Dictionary(items.map { ($0.exerciseID, $0.videoURL) }, uniquingKeysWith: { a, _ in a })
+    }
 }
 
 struct CustomExerciseForm: View {

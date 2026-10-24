@@ -195,20 +195,44 @@ enum SchemaV5: VersionedSchema {
     }
 }
 
+/// V6: `MFitImportRecord` (entidade nova — treinos prescritos importados do MFIT; adição pura, como a V4 fez com `CheckInReview`)
+enum SchemaV6: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(6, 0, 0) }
+    static var models: [any PersistentModel.Type] {
+        [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
+         CustomExercise.self, League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
+         WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self,
+         LeagueMessage.self, CheckInReview.self, MFitImportRecord.self]
+    }
+}
+
+/// V7: `ExerciseMedia` (entidade nova — vídeo de demonstração por exercício, vindo da importação; adição pura)
+enum SchemaV7: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(7, 0, 0) }
+    static var models: [any PersistentModel.Type] {
+        [Activity.self, Routine.self, RoutineItem.self, WorkoutSession.self, LoggedSet.self,
+         CustomExercise.self, League.self, LeagueCheckIn.self, Monster.self, BodyEntry.self, ExerciseNote.self,
+         WodResult.self, RouteRecord.self, GymVisit.self, Gym.self, CheckInComment.self, PersonalRecord.self,
+         LeagueMessage.self, CheckInReview.self, MFitImportRecord.self, ExerciseMedia.self]
+    }
+}
+
 enum AppMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] { [SchemaV1.self, SchemaV2.self, SchemaV3.self, SchemaV4.self, SchemaV5.self] }
+    static var schemas: [any VersionedSchema.Type] { [SchemaV1.self, SchemaV2.self, SchemaV3.self, SchemaV4.self, SchemaV5.self, SchemaV6.self, SchemaV7.self] }
     static var stages: [MigrationStage] {
         [.lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self),
          .lightweight(fromVersion: SchemaV2.self, toVersion: SchemaV3.self),
          .lightweight(fromVersion: SchemaV3.self, toVersion: SchemaV4.self),
-         .lightweight(fromVersion: SchemaV4.self, toVersion: SchemaV5.self)]
+         .lightweight(fromVersion: SchemaV4.self, toVersion: SchemaV5.self),
+         .lightweight(fromVersion: SchemaV5.self, toVersion: SchemaV6.self),
+         .lightweight(fromVersion: SchemaV6.self, toVersion: SchemaV7.self)]
     }
 }
 
 /// Container único do app, compartilhado com os botões do Live Activity (que rodam no processo do app)
 @MainActor
 enum AppData {
-    static let schema = Schema(versionedSchema: SchemaV5.self)
+    static let schema = Schema(versionedSchema: SchemaV7.self)
 
     /// Cópia do banco que não abriu (migração que falhou); o app começa com um banco novo em vez de fechar ao abrir
     private(set) static var recoveredCopy: URL?

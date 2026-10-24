@@ -9,6 +9,7 @@ struct TrainView: View {
     @Query private var wodResults: [WodResult]
     @AppStorage(WodPlan.key) private var plannedRaw = ""
     @State private var importing = false
+    @State private var mfitImport = false
     @State private var coachWod: Wod?
     @State private var wodRun = WodRun.shared
     @State private var planDetail: PlannedWod?
@@ -96,6 +97,9 @@ struct TrainView: View {
                         GMRow(icon: "person.2.fill", iconTint: Theme.accent, title: "Rotinas públicas", subtitle: "Dos bros e dos amigos: curta e salve uma cópia", chevron: true)
                     }
                     .buttonStyle(GMPress())
+                    GMDivider()
+                    GMRow(icon: "square.and.arrow.down", iconTint: Theme.accent, title: "Importar do MFIT",
+                          subtitle: "Traga os treinos do seu personal", chevron: true) { mfitImport = true }
                 }
 
                 GMSection("CrossFit") {
@@ -170,6 +174,7 @@ struct TrainView: View {
             .navigationDestination(item: $editing) { RoutineEditView(routine: $0) }
             .onReceive(NotificationCenter.default.publisher(for: NotificationRouter.startWorkout)) { _ in startToday() }
             .gmModal(isPresented: $importing) { ImportWodView() }
+            .gmModal(isPresented: $mfitImport) { MFitImportView() }
             .task { await PublicRoutinesStore.shared.refresh() }
             .gmModal(item: $coachWod) { WodTimerView(wod: $0) }
             .gmModal(item: $planDetail) { PlannedWodView(initial: $0) }
