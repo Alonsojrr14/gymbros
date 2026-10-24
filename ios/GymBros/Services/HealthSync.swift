@@ -163,7 +163,7 @@ enum HealthSync {
 
         let existing = try context.fetch(FetchDescriptor<Activity>())
         let known = Set(existing.compactMap(\.healthUUID)).union(existing.compactMap(\.healthWrittenUUID)).union(ignored)
-        var ranges = existing.map { ($0.date, $0.date.addingTimeInterval(Double($0.minutes) * 60)) }
+        var ranges = existing.map { ($0.date, $0.date.addingTimeInterval(Double($0.minutes) * 60), Optional($0)) }
 
         var result = Result()
         for w in workouts {
@@ -173,11 +173,17 @@ enum HealthSync {
                   w.sourceRevision.source.bundleIdentifier != Bundle.main.bundleIdentifier else { continue }
             let start = w.startDate, end = w.endDate
             // Sobreposição de mais da metade do treino com algo já registrado → mesmo treino
-            let overlaps = ranges.contains { r in
+            let overlap = ranges.first { r in
                 let shared = min(end, r.1).timeIntervalSince(max(start, r.0))
                 return shared > 0.5 * min(end.timeIntervalSince(start), r.1.timeIntervalSince(r.0))
             }
-            if overlaps {
+            if let overlap {
+                // Treino do GymBros gravado também no Exercício (relógio ou iPhone): fica o de lá, medido; sai a estimativa do iPhone
+                if let a = overlap.2, a.healthUUID == nil, a.healthWrittenUUID != id {
+                    HealthSync.deleteWritten(a.healthWrittenUUID)
+                    a.healthWrittenUUID = id
+                    if let kcal = w.statistics(for: HKQuantityType(.activeEnergyBurned))?.sumQuantity()?.doubleValue(for: .kilocalorie()) { a.kcal = kcal }
+                }
                 result.skippedOverlap += 1
                 continue
             }
@@ -195,7 +201,7 @@ enum HealthSync {
             activity.source = w.sourceRevision.source.name
             context.insert(activity)
             ActivitySplits.stamp(activity, context: context)
-            ranges.append((start, end))
+            ranges.append((start, end, nil))
             result.imported.append(activity)
         }
         try context.save()

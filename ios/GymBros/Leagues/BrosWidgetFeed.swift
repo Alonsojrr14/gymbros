@@ -42,7 +42,7 @@ enum HealthAutoPost {
 
     static var isOn: Bool { UserDefaults.standard.bool(forKey: key) }
 
-    static func post(_ imported: [Activity], context: ModelContext) {
+    static func post(_ imported: [Activity], context: ModelContext, title: String? = nil) {
         guard isOn, Terms.canPublish, !imported.isEmpty else { return }
         let leagues = ((try? context.fetch(FetchDescriptor<League>())) ?? []).filter { $0.hasStarted && !$0.isOver && !$0.isPastSeason }
         let posted = Set(((try? context.fetch(FetchDescriptor<LeagueCheckIn>())) ?? []).map(\.activityUUID))
@@ -53,7 +53,7 @@ enum HealthAutoPost {
             var subject = PostSubject(activity: main)
             subject.photo = nil
             let targets = Set(leagues.filter { $0.problems(subject).isEmpty }.map(\.uuid)).union([ProfileFeed.id])
-            postCheckIns(activity: main, leagues: targets, title: sorted.count > 1 ? sorted.map(\.typeName).joined(separator: " + ") : main.typeName,
+            postCheckIns(activity: main, leagues: targets, title: sorted.count > 1 ? sorted.map(\.typeName).joined(separator: " + ") : title ?? main.typeName,
                          note: "", photo: nil, context: context, grouped: Array(sorted.dropFirst()))
         }
         try? context.save()

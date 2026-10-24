@@ -128,6 +128,8 @@ struct MainView: View {
     @AppStorage("reminderMinute") private var reminderMinute = 18 * 60
     @AppStorage("reminderRoutineOnly") private var reminderRoutineOnly = false
     @AppStorage("weeklySummary") private var weeklySummary = true
+    /// Treinos de musculação ou crossfit vindos do Saúde em dia de rotina, esperando "O que você fez?" (ids separados por vírgula)
+    @AppStorage("health.askRoutine") private var askRoutine = ""
     @AppStorage(NotificationPrefs.pausedKey) private var notificationsPaused = false
     @State private var inbox = InboxStore.shared
     /// Observado só para redesenhar quando "Tornar principal" muda o principal
@@ -328,6 +330,13 @@ struct MainView: View {
                        guard let code = friendLink else { return }
                        Task { _ = try? await FriendsStore.shared.add(code: code) }
                    }])
+        .gmActions(isPresented: Binding(get: { healthAsk != nil }, set: { if !$0, let a = healthAsk { answer(a, routine: nil) } }),
+                   title: "O que você fez?",
+                   message: healthAsk.map { "\($0.typeName) de \($0.date.formatted(date: .abbreviated, time: .shortened)), \(durationText($0.minutes)), vindo do Saúde." },
+                   actions: healthAsk.map { a in
+                       routinesOn(a.date).map { r in GMAction(r.name, icon: "dumbbell.fill") { answer(a, routine: r) } }
+                           + [GMAction("Outro treino", icon: "figure.mixed.cardio") { answer(a, routine: nil) }]
+                   } ?? [])
         .fullScreenCover(isPresented: Binding(get: { watchWorkout.active && !watchWorkout.minimized },
                                               set: { if !$0 { watchWorkout.minimized = true } })) {
             WatchWorkoutView()
@@ -472,9 +481,34 @@ struct MainView: View {
                            checkIns: (try? context.fetch(FetchDescriptor<LeagueCheckIn>())) ?? checkIns,
                            leagues: (try? context.fetch(FetchDescriptor<League>())) ?? leagues).xpByActivity
         let xp = r.imported.reduce(0) { $0 + (fresh[$1.uuid] ?? 0) }
-        HealthAutoPost.post(r.imported, context: context)
+        // Musculação ou crossfit de outro app em dia de rotina: pergunta qual rotina foi antes de postar
+        let ask = r.imported.filter { [.musculacao, .crossfit].contains($0.kind) && !routinesOn($0.date).isEmpty }
+        askRoutine = (askRoutine.split(separator: ",").map(String.init) + ask.map(\.uuid.uuidString)).joined(separator: ",")
+        HealthAutoPost.post(r.imported.filter { a in !ask.contains { $0 === a } }, context: context)
         let n = r.imported.count
         show(Banner(symbol: "heart.fill", text: "\(n) treino\(n == 1 ? "" : "s") do Saúde · +\(xp) XP"))
+    }
+
+    private func routinesOn(_ date: Date) -> [Routine] {
+        let day = Calendar.current.component(.weekday, from: date)
+        return routines.filter { $0.weekdays.contains(day) }
+    }
+
+    /// Primeiro treino do Saúde ainda sem resposta (some da fila se a atividade foi apagada)
+    private var healthAsk: Activity? {
+        askRoutine.split(separator: ",").lazy.compactMap { id in activities.first { $0.uuid.uuidString == id } }.first
+    }
+
+    /// Marca a rotina escolhida na atividade e posta como o Saúde já postaria, com o nome da rotina
+    private func answer(_ a: Activity, routine: Routine?) {
+        let id = a.uuid.uuidString
+        guard askRoutine.contains(id) else { return }
+        askRoutine = askRoutine.split(separator: ",").map(String.init).filter { $0 != id }.joined(separator: ",")
+        if let routine {
+            a.note = a.note.isEmpty ? routine.name : "\(routine.name) · \(a.note)"
+            try? context.save()
+        }
+        HealthAutoPost.post([a], context: context, title: routine?.name)
     }
 
     /// Descobertas do BroBook e cena de evolução, para qualquer monstro da coleção
