@@ -79,11 +79,17 @@ data class SocialCopy(
     fun myPosts(leagueUUID: String, avatar: MonsterForm): List<FeedPost> = checkIns.filter { it.leagueUUID.equals(leagueUUID, true) && it.review != "denied" }
         .mapNotNull { c -> post(c, avatar, leagueUUID.uppercase().takeIf { it != HomeBuilder.PROFILE_FEED }) }
 
+    /** Liga do seu post para os comentários: o perfil ou uma liga sua */
+    fun commentScope(leagueID: String?): com.alonsoalmeida.gymbros.domain.social.CommentScope {
+        val l = leagueID?.let { id -> leagues.firstOrNull { it.uuid.equals(id, true) } } ?: return com.alonsoalmeida.gymbros.domain.social.CommentScope.PROFILE
+        return com.alonsoalmeida.gymbros.domain.social.CommentScope(l.code, "me", isPublic = !isPrivate(l), member = true)
+    }
+
     fun post(c: CheckInRow, avatar: MonsterForm, leagueID: String?): FeedPost? {
         val a = activities[c.activityUUID.uppercase()] ?: return null
         val kind = ActivityKind.of(a.kind)
         return FeedPost(c.uuid.uppercase(), "me", trainerName, avatar, true, c.date, c.title, c.note, kind, a.minutes,
-                        Game.xp(kind, a.minutes, a.effort), c.hadPhoto == true, a.effort, c.place, null, leagueID)
+                        Game.xp(kind, a.minutes, a.effort), c.hadPhoto == true, a.effort, c.place, null, leagueID, commentScope(leagueID))
     }
 
     fun prefs(id: String) = FriendPrefs.of(friendPrefsRaw, id)

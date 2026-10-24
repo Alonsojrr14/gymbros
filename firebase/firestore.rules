@@ -79,11 +79,19 @@ service cloud.firestore {
     }
 
     // Comentários e reações nos check-ins: quem vê o post vê todos. Apaga quem escreveu, o dono do post ou a moderação.
+    function seesPost(c) {
+      return c.league == 'profile' || memberOf(c.league) || (c.feed == true && friends(c.poster));
+    }
+
+    // Comentário segue o post: lê quem pode ver o check-in comentado (liga do post em `league`, pública em `feed`, autor em `poster`)
     match /comments/{id} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (resource.data.user == uid() || resource.data.owner == uid() || resource.data.poster == uid()
+        || isAdmin() || seesPost(resource.data));
       allow create: if writesAsMe() && request.resource.data.text is string
         && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 500
-        && request.resource.data.item is string && request.resource.data.owner is string;
+        && request.resource.data.item is string && request.resource.data.owner is string
+        && request.resource.data.league is string && request.resource.data.feed is bool && request.resource.data.poster is string
+        && (request.resource.data.poster == uid() || seesPost(request.resource.data));
       allow update: if false;
       allow delete: if wasMine() || isAdmin() || (signedIn() && resource.data.owner == uid());
     }

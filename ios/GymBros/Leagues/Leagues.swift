@@ -487,6 +487,8 @@ struct FeedItem: Identifiable {
     var postedIn: String?
     /// Fotos a mais do post (a primeira é `photo`)
     var extraPhotos: [Data] = []
+    /// Quem pode ver os comentários deste post (a regra do servidor confere pela liga)
+    var comments = CommentScope.profile
 }
 
 struct RankRow: Identifiable {
@@ -569,6 +571,7 @@ enum LeagueBoard {
             f.pending = settings.reviewRequired && c.reviewRaw == ReviewState.pending
             f.proof = c.proof
             f.leagueID = league.uuid
+            f.comments = CommentScope(league: league, owner: "me")
             f.extraPhotos = Array(c.photos.dropFirst())
             return f
         }
@@ -583,6 +586,7 @@ enum LeagueBoard {
                              place: r.place, hasPhoto: r.hasPhoto, effort: r.effort, teamID: m.teamID, scoring: league.scoring)
             f.proof = r.proof ?? CheckInProof()
             f.leagueID = league.uuid
+            f.comments = CommentScope(league: league, owner: m.id)
             // Check-in de antes da revisão ser ligada já valia
             f.pending = settings.reviewRequired && decided[r.id] == nil && r.date >= (settings.reviewSince ?? .distantPast)
             return f

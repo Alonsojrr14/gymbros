@@ -1,5 +1,6 @@
 package com.alonsoalmeida.gymbros.data.leagues
 
+import com.alonsoalmeida.gymbros.domain.social.CommentScope
 import android.content.Context
 import com.alonsoalmeida.gymbros.data.AccountCopyRepository
 import com.alonsoalmeida.gymbros.data.CopyState
@@ -109,10 +110,10 @@ class LeagueStore private constructor(context: Context, val uid: String, val cop
         }
     }
 
-    fun pullComments(items: List<String>) {
+    fun pullComments(league: String, items: List<String>) {
         if (items.isEmpty()) return
         scope.launch {
-            runCatching { remote.comments(items) }.onSuccess { list ->
+            runCatching { remote.comments(league, items) }.onSuccess { list ->
                 val mine = uid
                 val byItem = list.filter { it.user != mine }.groupBy { it.item }
                 _comments.value = _comments.value + items.associateWith { byItem[it].orEmpty() }
@@ -236,11 +237,11 @@ class LeagueStore private constructor(context: Context, val uid: String, val cop
                                             "date" to Instant.now()))
     }
 
-    suspend fun addComment(text: String, item: String, owner: String, name: String) {
+    suspend fun addComment(text: String, item: String, owner: String, name: String, where: CommentScope) {
         val id = LeagueEdits.newID()
         val now = Instant.now()
         edit { c -> LeagueEdits.add(c, "comments", mapOf("uuid" to id, "itemID" to item, "text" to text, "date" to now, "authorID" to "me", "authorName" to "")) }
-        scope.launch { runCatching { remote.addComment(id, item, owner, text, name, now) } }
+        scope.launch { runCatching { remote.addComment(id, item, owner, text, name, now, where) } }
     }
 
     suspend fun removeComment(id: String) {

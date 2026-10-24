@@ -59,6 +59,9 @@ struct RemoteCheckIn: Codable, Identifiable, Sendable {
     var proof: CheckInProof?
     /// Liga pública em que foi postado ("🔥 Liga dos Bros"), para o Feed dos amigos; nil = perfil
     var postedIn: String?
+    /// Código da liga do post ("profile" = perfil) e se ela é pública: os comentários seguem quem pode ver o post
+    var leagueCode = CloudType.profileFeed
+    var isPublic = false
 
     var kind: ActivityKind { ActivityKind(rawValue: kindRaw) ?? .outro }
     var input: ScoreInput {

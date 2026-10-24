@@ -530,6 +530,8 @@ extension RemoteCheckIn {
                   hasPhoto: d["hasPhoto"] as? Bool ?? false, photoURL: (d["photo"] as? String).flatMap { photos[$0] },
                   workoutTypeID: (d["workoutType"] as? Int).map { UInt($0) }, place: d["place"] as? String,
                   proof: (d["proof"] as? String).map(CheckInProof.init(rawValue:)))
+        leagueCode = d["league"] as? String ?? CloudType.profileFeed
+        isPublic = d["feed"] as? Bool ?? false
     }
 }
 

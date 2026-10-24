@@ -1,5 +1,6 @@
 package com.alonsoalmeida.gymbros.data.leagues
 
+import com.alonsoalmeida.gymbros.domain.social.CommentScope
 import com.alonsoalmeida.gymbros.domain.leagues.CheckInProof
 import com.alonsoalmeida.gymbros.domain.leagues.LeagueSettings
 import com.alonsoalmeida.gymbros.domain.leagues.LeagueTeams
@@ -192,11 +193,11 @@ class LeagueRemote(private val db: FirebaseFirestore = FirebaseFirestore.getInst
 
     // MARK: Comentários (CommentSync.swift)
 
-    suspend fun comments(items: List<String>): List<RemoteComment> {
+    suspend fun comments(league: String, items: List<String>): List<RemoteComment> {
         val out = mutableListOf<RemoteComment>()
         for (chunk in items.distinct().chunked(30)) {
             if (chunk.isEmpty()) continue
-            db.collection("comments").whereIn("item", chunk).get().await().documents.forEach { d ->
+            db.collection("comments").whereEqualTo("league", league).whereIn("item", chunk).get().await().documents.forEach { d ->
                 val user = d.getString("user") ?: return@forEach
                 out += RemoteComment(d.id, user, d.getString("userName") ?: "", d.getString("item") ?: return@forEach,
                                      d.getString("text") ?: return@forEach, d.date("date") ?: Instant.now())
@@ -205,10 +206,11 @@ class LeagueRemote(private val db: FirebaseFirestore = FirebaseFirestore.getInst
         return out
     }
 
-    suspend fun addComment(id: String, item: String, owner: String, text: String, name: String, date: Instant) {
+    suspend fun addComment(id: String, item: String, owner: String, text: String, name: String, date: Instant, scope: CommentScope) {
         val me = me()
         db.collection("comments").document(id).set(mapOf(
             "user" to me, "userName" to name, "item" to item, "owner" to if (owner == "me") me else owner, "text" to text, "date" to ts(date),
+            "league" to scope.league, "feed" to scope.isPublic, "poster" to if (scope.owner == "me") me else scope.owner,
         )).await()
     }
 

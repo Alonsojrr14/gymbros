@@ -297,7 +297,7 @@ struct BroDeckView: View {
     /// Reação vira um comentário com o emoji no check-in (como no detalhe)
     private func react(_ e: String) {
         guard index < cards.count else { return }
-        CommentSync.add(e, to: cards[index].id, owner: cards[index].item.memberID, context: context)
+        CommentSync.add(e, to: cards[index].id, owner: cards[index].item.memberID, scope: cards[index].item.comments, context: context)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         withAnimation(.spring(duration: 0.3)) { burst = e }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -334,7 +334,7 @@ struct BroDeckView: View {
                     Task { _ = try? await InboxStore.shared.send(.text, to: c.item.memberID, text: "Sobre \"\(c.item.title)\": \(text)") }
                     sentNote = "Mensagem enviada para \(c.item.name)."
                 } else {
-                    CommentSync.add(text, to: c.id, owner: c.item.memberID, context: context)
+                    CommentSync.add(text, to: c.id, owner: c.item.memberID, scope: c.item.comments, context: context)
                     sentNote = "Comentário no check-in de \(c.item.name)."
                 }
                 close()

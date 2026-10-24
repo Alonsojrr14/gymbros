@@ -157,7 +157,8 @@ fun FriendProfileScreen(friend: RemoteFriend, home: HomeData, vm: FriendsViewMod
                         val avatar = p.extra.bro?.form ?: friend.form
                         val posts = mod.visiblePosts(extras?.posts.orEmpty().map { r ->
                             FeedPost(r.id, friend.id, name, avatar, false, r.date, r.title, r.note, r.kind, r.minutes, Game.xp(r.kind, r.minutes, r.effort),
-                                     r.hasPhoto, r.effort, r.place)
+                                     r.hasPhoto, r.effort, r.place,
+                                     comments = com.alonsoalmeida.gymbros.domain.social.CommentScope(com.alonsoalmeida.gymbros.domain.social.CommentScope.PROFILE_CODE, friend.id, false, true))
                         })
                         if (extras == null) {
                             Box(Modifier.fillMaxWidth().padding(top = 20.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = GMColors.accent) }

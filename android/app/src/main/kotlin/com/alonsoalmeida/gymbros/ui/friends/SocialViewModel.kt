@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.friends
 
+import com.alonsoalmeida.gymbros.domain.social.CommentScope
+
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -132,17 +134,21 @@ class SocialViewModel(private val env: AppEnv, private val repo: SocialRepositor
         val mod = social.moderation
         val visibleFriends = friends.filter { !mod.isBlocked(it.id) }
         val byID = visibleFriends.associateBy { it.id }
-        fun post(r: RemoteCheckIn, leagueID: String?): FeedPost? {
+        fun post(r: RemoteCheckIn, leagueID: String?, scope: CommentScope): FeedPost? {
             val f = byID[r.memberID] ?: return null
             return FeedPost(r.id, f.id, f.name, remote.forms[f.id] ?: f.form, false, r.date, r.title, r.note, r.kind, r.minutes,
-                            Game.xp(r.kind, r.minutes, r.effort), r.hasPhoto, r.effort, r.place, r.postedIn, leagueID)
+                            Game.xp(r.kind, r.minutes, r.effort), r.hasPhoto, r.effort, r.place, r.postedIn, leagueID, scope)
         }
         val leagueFeeds = social.publicLeagues().map { l ->
-            val items = social.myPosts(l.uuid, myAvatar) + remote.inLeagues[l.code].orEmpty().mapNotNull { post(it, l.uuid.uppercase()) }
+            val items = social.myPosts(l.uuid, myAvatar) +
+                remote.inLeagues[l.code].orEmpty().mapNotNull { post(it, l.uuid.uppercase(), CommentScope(l.code, it.memberID, isPublic = true, member = true)) }
             LeagueFeed("${l.emoji} ${l.name}", l.uuid.uppercase(), mod.visiblePosts(items))
         }
-        val profile = remote.profilePosts.values.flatten().mapNotNull { post(it, null) }
-        val fromLeagues = remote.leaguePosts.values.flatten().mapNotNull { post(it, null) }
+        val profile = remote.profilePosts.values.flatten().mapNotNull { post(it, null, CommentScope(CommentScope.PROFILE_CODE, it.memberID, false, true)) }
+        // Liga pública em que você não está: só por ser amigo de quem postou
+        val fromLeagues = remote.leaguePosts.values.flatten().mapNotNull {
+            post(it, null, CommentScope(it.league ?: CommentScope.PROFILE_CODE, it.memberID, it.feed, member = false))
+        }
         val friendPosts = mod.visiblePosts(profile + fromLeagues)
         val all = UnifiedFeed.build(leagueFeeds, friendPosts)
         val shown = all.filter { it.item.isMe || it.item.memberID in byID }
@@ -168,12 +174,13 @@ class SocialViewModel(private val env: AppEnv, private val repo: SocialRepositor
     }
 
     /** Reações e número de comentários dos posts na tela (CommentSync.pull, os 60 primeiros), uma leitura por abertura */
-    fun pullComments(ids: List<String>) {
-        val asked = ids.take(60).toSet()
+    fun pullComments(posts: List<FeedPost>) {
+        val items = posts.take(60).map { it.id to it.comments }
+        val asked = items.map { it.first }.toSet()
         if (asked.isEmpty() || asked == lastPulled) return
         lastPulled = asked
         viewModelScope.launch {
-            val remote = runCatching { repo.comments(asked) }.getOrNull() ?: return@launch
+            val remote = runCatching { repo.comments(items) }.getOrNull() ?: return@launch
             edit { copy -> SocialEdits.syncRemote(copy, name, asked, remote) }
         }
     }
@@ -181,10 +188,10 @@ class SocialViewModel(private val env: AppEnv, private val repo: SocialRepositor
     private var stopComments: (() -> Unit)? = null
 
     /** Post aberto: os comentários de todo mundo nele (e as reações a eles) chegam ao vivo */
-    fun watchComments(itemIDs: List<String>) {
+    fun watchComments(itemIDs: List<String>, scope: CommentScope) {
         stopComments?.invoke()
         val asked = itemIDs.toSet()
-        stopComments = repo.watchComments(itemIDs) { remote ->
+        stopComments = repo.watchComments(itemIDs.map { it to scope }) { remote ->
             edit { copy -> SocialEdits.syncRemote(copy, name, asked, remote) }
         }
     }
@@ -192,14 +199,14 @@ class SocialViewModel(private val env: AppEnv, private val repo: SocialRepositor
     fun stopWatchingComments() { stopComments?.invoke(); stopComments = null }
 
     /** Comentário ou reação seu: na conta (vai para o iPhone) e no servidor (os outros veem). Falso se o filtro barrou */
-    fun comment(text: String, itemID: String, owner: String): Boolean {
+    fun comment(text: String, itemID: String, owner: String, scope: CommentScope): Boolean {
         val t = text.trim()
         if (t.isEmpty()) return true
         if (!ContentFilter.allows(t)) return false
         val c = SocialComment(UUID.randomUUID().toString().uppercase(), itemID, t, Instant.now())
         viewModelScope.launch {
             env.copies.edit { copy -> SocialEdits.addComment(copy, name, c) }
-            runCatching { repo.publishComment(c, owner, name) }
+            runCatching { repo.publishComment(c, owner, name, scope) }
         }
         return true
     }
@@ -215,7 +222,7 @@ class SocialViewModel(private val env: AppEnv, private val repo: SocialRepositor
 
     /** Força é uma reação 💪 (o mesmo do deck e do detalhe); de novo, tira */
     fun toggleStrength(post: FeedPost, mine: SocialComment?) {
-        if (mine != null) removeComment(mine) else comment("💪", post.id, post.memberID)
+        if (mine != null) removeComment(mine) else comment("💪", post.id, post.memberID, post.comments)
     }
 
     /** Apagar o seu check-in: sai do servidor e da conta, com os comentários dele; a atividade continua no histórico */

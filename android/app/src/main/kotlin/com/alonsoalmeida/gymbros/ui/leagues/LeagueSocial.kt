@@ -1,5 +1,6 @@
 package com.alonsoalmeida.gymbros.ui.leagues
 
+import com.alonsoalmeida.gymbros.domain.social.CommentScope
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -261,15 +262,17 @@ fun CheckInDetailScreen(item: FeedItem, env: AppEnv, home: HomeData, vm: Leagues
     val reactions = comments.filter { isReaction(it.text) }
     val league = ui.league(item.leagueID)
     val moderated = league?.takeIf { it.canModerate(env.uid) }
+    val commentScope = league?.let { CommentScope(it.code, item.memberID, !it.settings.isPrivate, member = true) }
 
     LaunchedEffect(item.id, comments.size) {
-        vm.store.pullComments(listOf(item.id) + comments.filter { !isReaction(it.text) }.map { "c:${it.id}" })
+        val l = league ?: return@LaunchedEffect
+        vm.store.pullComments(l.code, listOf(item.id) + comments.filter { !isReaction(it.text) }.map { "c:${it.id}" })
     }
 
     fun send(raw: String) {
         val t = raw.trim()
         if (t.isEmpty()) return
-        scope.launch { vm.store.addComment(t, item.id, item.memberID, home.trainerName) }
+        commentScope?.let { s -> scope.launch { vm.store.addComment(t, item.id, item.memberID, home.trainerName, s) } }
         if (raw == text) text = ""
     }
 
@@ -409,7 +412,7 @@ fun CheckInDetailScreen(item: FeedItem, env: AppEnv, home: HomeData, vm: Leagues
               }))
     commentMenu?.let { c ->
         GMActions(true, { commentMenu = null }, "Comentário", actions = listOf("👍", "❤️‍🔥", "💪", "😂").map { e ->
-            GMAction("Reagir $e", Icons.Filled.EmojiEmotions) { scope.launch { vm.store.addComment(e, "c:${c.id}", c.authorID, home.trainerName) } }
+            GMAction("Reagir $e", Icons.Filled.EmojiEmotions) { commentScope?.let { s -> scope.launch { vm.store.addComment(e, "c:${c.id}", c.authorID, home.trainerName, s) } } }
         } + if (c.isMine) listOf(GMAction("Apagar comentário", Icons.Filled.Delete, destructive = true) {
             scope.launch { lines("c:${c.id}").filter { it.isMine }.forEach { vm.store.removeComment(it.id) }; vm.store.removeComment(c.id) }
         }) else emptyList())

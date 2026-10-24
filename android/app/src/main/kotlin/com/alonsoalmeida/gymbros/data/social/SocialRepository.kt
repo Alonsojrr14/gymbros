@@ -12,6 +12,7 @@ import com.alonsoalmeida.gymbros.domain.social.ReportedContent
 import com.alonsoalmeida.gymbros.domain.social.SocialComment
 import com.alonsoalmeida.gymbros.domain.social.TrainInvite
 import com.google.firebase.Timestamp
+import com.alonsoalmeida.gymbros.domain.social.CommentScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
@@ -28,6 +29,8 @@ import java.util.UUID
 data class RemoteCheckIn(
     val id: String, val memberID: String, val date: Instant, val kind: ActivityKind, val minutes: Int, val effort: Int,
     val title: String, val note: String, val hasPhoto: Boolean, val place: String?, val league: String?, val postedIn: String? = null,
+    /** Postado numa liga pública (vai para o Feed dos amigos) */
+    val feed: Boolean = false,
 )
 
 /**
@@ -47,7 +50,8 @@ class SocialRepository(private val db: FirebaseFirestore = FirebaseFirestore.get
         val date = d.get("date").instant() ?: return null
         return RemoteCheckIn(d.id, user, date, ActivityKind.of(d.getString("kind") ?: "outro"), (d.getLong("minutes") ?: 0).toInt(),
                              (d.getLong("effort") ?: 5).toInt(), d.getString("title") ?: "", d.getString("note") ?: "",
-                             d.getBoolean("hasPhoto") ?: false, d.getString("place"), d.getString("league"), postedIn)
+                             d.getBoolean("hasPhoto") ?: false, d.getString("place"), d.getString("league"), postedIn,
+                             d.getBoolean("feed") ?: false)
     }
 
     // MARK: Posts
@@ -109,32 +113,51 @@ class SocialRepository(private val db: FirebaseFirestore = FirebaseFirestore.get
     }
 
     /** Comentários dos outros nesses posts (os seus vêm da cópia da conta) */
-    suspend fun comments(itemIDs: Collection<String>): List<SocialComment> {
+    /** Uma consulta por liga (e, fora das suas ligas, por dono e `feed`): é o que a regra do servidor consegue conferir */
+    private fun query(scope: CommentScope, me: String): com.google.firebase.firestore.Query {
+        var q: com.google.firebase.firestore.Query = db.collection(COMMENTS).whereEqualTo("league", scope.league)
+        if (!scope.member && scope.league != CommentScope.PROFILE_CODE) {
+            q = q.whereEqualTo("poster", if (scope.owner == "me") me else scope.owner).whereEqualTo("feed", true)
+        }
+        return q
+    }
+
+    /** Comentários e reações desses posts (CommentSync.pull), agrupados pela liga de cada um */
+    suspend fun comments(items: List<Pair<String, CommentScope>>): List<SocialComment> {
         val me = me()
         val out = ArrayList<SocialComment>()
-        for (chunk in itemIDs.distinct().chunked(30)) {
-            db.collection(COMMENTS).whereIn("item", chunk).get().await().documents.mapNotNullTo(out) { comment(it, me) }
+        for ((scope, group) in items.groupBy({ it.second }, { it.first })) {
+            for (chunk in group.distinct().chunked(30)) {
+                // Erro em qualquer grupo cancela tudo: quem chama não apaga os comentários guardados por engano
+                query(scope, me).whereIn("item", chunk).get().await().documents.mapNotNullTo(out) { comment(it, me) }
+            }
         }
         return out
     }
 
     /** Ao vivo, com o post aberto: comentário novo de outra pessoa aparece na hora. Devolve como parar */
-    fun watchComments(itemIDs: List<String>, onChange: (List<SocialComment>) -> Unit): () -> Unit {
+    fun watchComments(items: List<Pair<String, CommentScope>>, onChange: (List<SocialComment>) -> Unit): () -> Unit {
         val me = runCatching { me() }.getOrNull() ?: return {}
-        val ids = itemIDs.distinct().take(30)
-        if (ids.isEmpty()) return {}
-        val reg = db.collection(COMMENTS).whereIn("item", ids).addSnapshotListener { snap, _ ->
-            if (snap != null && !snap.metadata.hasPendingWrites()) onChange(snap.documents.mapNotNull { comment(it, me) })
+        val groups = items.groupBy({ it.second }, { it.first }).mapValues { it.value.distinct().take(30) }.filterValues { it.isNotEmpty() }
+        val latest = java.util.concurrent.ConcurrentHashMap<CommentScope, List<SocialComment>>()
+        val regs = groups.map { (scope, ids) ->
+            query(scope, me).whereIn("item", ids).addSnapshotListener { snap, _ ->
+                if (snap == null || snap.metadata.hasPendingWrites()) return@addSnapshotListener
+                latest[scope] = snap.documents.mapNotNull { comment(it, me) }
+                onChange(latest.values.flatten())
+            }
         }
-        return { reg.remove() }
+        return { regs.forEach { it.remove() } }
     }
 
     /** Sobe o seu comentário ou reação. `owner`: dono do post ("me" = você) */
-    suspend fun publishComment(c: SocialComment, owner: String, myName: String) {
+    suspend fun publishComment(c: SocialComment, owner: String, myName: String, scope: CommentScope) {
         val me = me()
         db.collection(COMMENTS).document(c.id.uppercase()).set(mapOf(
             "user" to me, "userName" to myName, "item" to c.itemID, "owner" to (if (owner == "me") me else owner),
             "text" to c.text, "date" to Timestamp(Date.from(c.date)),
+            // Liga do post e se é pública: o servidor só deixa ler quem pode ver o post
+            "league" to scope.league, "feed" to scope.isPublic, "poster" to (if (scope.owner == "me") me else scope.owner),
         )).await()
     }
 
