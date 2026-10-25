@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alonsoalmeida.gymbros.data.train.LiveWorkout
 import com.alonsoalmeida.gymbros.data.train.RestAlarm
 import com.alonsoalmeida.gymbros.data.train.TrainCopy
 import com.alonsoalmeida.gymbros.data.train.TrainData
@@ -135,7 +136,8 @@ import java.time.ZoneId
  * Treino em andamento (Train/WorkoutView.swift): lista ou guiado, séries com carga e reps, descanso com cronômetro,
  * superset, aquecimento, troca de exercício, objetivo, notas e conclusão. O treino aberto fica na cópia da conta sem
  * `end` (como no iOS): fechar o app ou minimizar não perde nada, e o iPhone vê o mesmo treino.
- * Ficam de fora no Android: Live Activity, relógio, modo fone (aviso falado) e "ao vivo para os amigos".
+ * O Live Activity vira a notificação do treino em andamento (`LiveWorkout`); com esta tela aberta, os botões dela passam
+ * por aqui. Ficam de fora no Android: relógio, modo fone (aviso falado) e "ao vivo para os amigos".
  */
 @Composable
 internal fun WorkoutScreen(env: AppEnv, home: HomeData, data: TrainData, id: String, onDismiss: () -> Unit) {
@@ -257,6 +259,33 @@ private fun WorkoutContent(env: AppEnv, home: HomeData, data: TrainData, session
             guidedFocus = null
         } else s = cancelRest(s)
         update(s)
+    }
+
+    // Botões da notificação (Série feita, Pular descanso) com a tela aberta: a tela é a dona da sessão, então aplica aqui e
+    // grava na hora (com o app em segundo plano a tela não recompõe e a gravação atrasada não sairia)
+    val liveEdit = remember { arrayOfNulls<Session>(2) } // [sessão vista pela tela, resultado do último botão]
+    val onLive: (LiveWorkout.Action) -> Unit = handler@{ a ->
+        if (closed) return@handler
+        // Dois toques seguidos sem recompor: o segundo parte do resultado do primeiro
+        val base = if (liveEdit[0] === latest) liveEdit[1] ?: latest else latest
+        val n = when (a) {
+            LiveWorkout.Action.SKIP_REST -> cancelRest(base)
+            LiveWorkout.Action.SET_DONE -> {
+                val done = LiveWorkout.completeNext(base) ?: return@handler
+                val rest = done.rest
+                setToggled(if (rest == null) cancelRest(done.session) else startRest(rest, base = done.session), done.exerciseID)
+            }
+        }
+        liveEdit[0] = latest; liveEdit[1] = n
+        update(n)
+        saved = n
+        persistOpen(env, n)
+    }
+    val liveAction by rememberUpdatedState(onLive)
+    DisposableEffect(session.uuid) {
+        val h: (LiveWorkout.Action) -> Unit = { liveAction(it) }
+        LiveWorkout.screen = h
+        onDispose { if (LiveWorkout.screen === h) LiveWorkout.screen = null }
     }
 
     fun swap(old: String, new: Exercise) {

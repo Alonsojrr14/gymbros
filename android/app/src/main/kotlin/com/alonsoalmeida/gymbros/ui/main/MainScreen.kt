@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +70,9 @@ fun MainScreen(form: MonsterForm, home: @Composable () -> Unit, train: @Composab
                map: @Composable () -> Unit, feed: @Composable () -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var visited by rememberSaveable { mutableStateOf(listOf(0)) }
+    // Toque na notificação do treino em andamento: vai para a aba Treino, que abre o treino
+    val liveOpen by com.alonsoalmeida.gymbros.data.train.LiveWorkout.open.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(liveOpen) { if (liveOpen != null) { tab = 1; if (1 !in visited) visited = visited + 1 } }
     Box(Modifier.fillMaxSize().background(GMColors.bg)) {
         for (i in 0..4) {
             if (i !in visited && i != tab) continue
