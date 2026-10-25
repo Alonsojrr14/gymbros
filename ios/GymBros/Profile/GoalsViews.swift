@@ -13,7 +13,6 @@ struct GoalsView: View {
     var body: some View {
         let weight = body_.compactMap(\.weight).first
         GMScreen("Metas", back: true) {
-            BodyProfileSection()
             GMSection("Minhas metas", footer: "Bater a meta de cada período mantém a sequência viva. O período atual só entra na sequência quando a meta for batida.") {
                 if goals.isEmpty {
                     Text("Nenhuma meta. Comece por um modelo ou monte a sua.").font(.subheadline).foregroundStyle(Theme.dim)

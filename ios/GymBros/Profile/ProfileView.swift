@@ -319,6 +319,7 @@ struct EditProfileView: View {
                 GMDivider()
                 GMToggle(title: "Conquistas", isOn: $showAchievements)
             }
+            BodyProfileSection()
         }
         .termsGate($terms)
         .onChange(of: name + username + bio) { blocked = false }
