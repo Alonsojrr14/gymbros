@@ -156,6 +156,8 @@ extension CLLocationCoordinate2D {
 struct FriendPin: View {
     let friend: LiveFriend
     let date: Date
+    /// Foto pública do amigo; sem ela (escondeu ou não tem), aparece o bro principal
+    var photo: Data?
     @State private var pulse = false
 
     var body: some View {
@@ -169,8 +171,14 @@ struct FriendPin: View {
                 }
                 Circle().fill(Theme.bg).frame(width: 46, height: 46)
                     .overlay(Circle().stroke(friend.isLive ? friend.color : Theme.dim, lineWidth: 3))
-                MonsterSprite(form: friend.form).frame(width: 34, height: 34)
-                    .saturation(friend.isLive ? 1 : 0.2)
+                if let photo, let img = UIImage(data: photo) {
+                    Image(uiImage: img).resizable().scaledToFill()
+                        .frame(width: 40, height: 40).clipShape(.circle)
+                        .saturation(friend.isLive ? 1 : 0.2)
+                } else {
+                    MonsterSprite(form: friend.form).frame(width: 34, height: 34)
+                        .saturation(friend.isLive ? 1 : 0.2)
+                }
                 Image(systemName: friend.kind.symbol)
                     .font(.system(size: 9, weight: .bold))
                     .frame(width: 18, height: 18)

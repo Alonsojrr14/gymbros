@@ -25,6 +25,8 @@ struct MapScreen: View {
     @State private var cheered: Set<String> = []
     @State private var chat: LiveFriend?
     @State private var tick = Date.now
+    @State private var photos = ProfilePhotos.shared
+    @Environment(\.scenePhase) private var phase
     @AppStorage(LiveShare.key) private var shareLive = LiveShare.defaultOn
 
     var body: some View {
@@ -60,6 +62,10 @@ struct MapScreen: View {
                 here = await GymLocation.shared.currentLocation()
                 focusPlaces()
             }
+            // Fotos dos amigos no mapa: só a versão é escutada, com a tela aberta (ProfilePhotos)
+            .onChange(of: FriendsLive.all.map(\.id), initial: true) { _, ids in if phase == .active { photos.follow(ids) } }
+            .onChange(of: phase) { _, p in if p == .active { photos.follow(FriendsLive.all.map(\.id)) } else { photos.stop() } }
+            .onDisappear { photos.stop() }
             // Amigos em movimento (corrida) andam no mapa
             .task {
                 while !Task.isCancelled {
@@ -90,7 +96,7 @@ struct MapScreen: View {
                 }
                 ForEach(FriendsLive.all) { f in
                     Annotation(f.name, coordinate: f.coordinate(base: b, at: tick)) {
-                        FriendPin(friend: f, date: tick).onTapGesture { focus(f); friend = f }
+                        FriendPin(friend: f, date: tick, photo: photos.photo(f.id)).onTapGesture { focus(f); friend = f }
                     }
                     .annotationTitles(.hidden)
                 }
@@ -232,13 +238,37 @@ struct MapScreen: View {
 
     private var friendsSection: some View {
         let list = FriendsLive.all.sorted { ($0.isLive ? 0 : 1, $0.start ?? .distantFuture) < ($1.isLive ? 0 : 1, $1.start ?? .distantFuture) }
-        return GMSection("Amigos agora", footer: "Prévia com amigos simulados. Quando as ligas tiverem servidor, aparecem seus amigos de verdade: só quem ligar \"Compartilhar treino ao vivo\".") {
+        let footer = Backend.mode == .firebase
+            ? "Só aparecem amigos que ligaram \"Compartilhar treino ao vivo\", durante o treino."
+            : "Prévia com amigos simulados. Quando as ligas tiverem servidor, aparecem seus amigos de verdade: só quem ligar \"Compartilhar treino ao vivo\"."
+        return GMSection("Amigos agora", footer: footer) {
+            if list.isEmpty { friendsEmpty }
             ForEach(list) { f in
                 Button { focus(f); friend = f } label: { LiveFriendRow(friend: f, date: tick).foregroundStyle(.white) }
                     .buttonStyle(GMPress())
                 if f.id != list.last?.id { GMDivider() }
             }
         }
+    }
+
+    private var friendsEmpty: some View {
+        let hasFriends = !FriendsStore.shared.friendIDs.isEmpty
+        return HStack(spacing: 12) {
+            Image(systemName: hasFriends ? "moon.zzz.fill" : "person.badge.plus")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Theme.dim)
+                .frame(width: 42, height: 42)
+                .background(Theme.raised, in: .circle)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(hasFriends ? "Ninguém treinando agora" : "Sem amigos ainda").font(.subheadline.weight(.semibold))
+                Text(hasFriends ? "Quando um amigo começar um treino ao vivo, ele aparece aqui e no mapa."
+                                : "Adicione amigos na aba Feed para ver quem está treinando.")
+                    .font(.caption).foregroundStyle(Theme.dim)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func focus(_ f: LiveFriend) {

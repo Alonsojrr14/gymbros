@@ -1,5 +1,6 @@
 package com.alonsoalmeida.gymbros.ui.map
 
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -265,12 +266,13 @@ private fun BigMap(camera: MapController, s: MapUiState, gyms: List<Gym>, here: 
                    inside: Gym?, running: Boolean, locating: Boolean, onFriend: (LiveFriend) -> Unit, onToggleFriends: () -> Unit,
                    onMe: () -> Unit, onStatus: () -> Unit) {
     val circles = remember(gyms) { gyms.map { MapCircle(it.coordinate, it.radius, GMColors.accent) } }
+    val photos = rememberFriendPhotos(if (friends) s.live.map { it.id } else emptyList())
     val lines = s.data.routes.take(10).map { MapLine(it.coordinates, routeColor(it.kind), 4f, 0.85f) } +
         if (friends) s.live.filter { it.isLive && it.moves }.map { MapLine(it.route, liveColor(it.kind), 5f) } else emptyList()
     GymMapView(camera, circles, lines, Modifier.fillMaxWidth().height(340.dp).clip(GMRadius.card).background(GMColors.card)) {
         gyms.forEach { g -> MapPin(camera, g.coordinate, 16.dp) { GymPin(g.name) } }
         here?.let { MapPin(camera, it, 10.dp) { MePin() } }
-        if (friends && base != null) s.live.forEach { f -> MapPin(camera, f.coordinate(base), 23.dp) { FriendPin(f, now) { onFriend(f) } } }
+        if (friends && base != null) s.live.forEach { f -> MapPin(camera, f.coordinate(base), 23.dp) { FriendPin(f, now, photos[f.id]) { onFriend(f) } } }
         Box(Modifier.align(Alignment.TopEnd).padding(10.dp)) { GMIconButton(Icons.Filled.MyLocation, "Minha localização", onMe, size = 36.dp) }
         if (s.social == true) FriendsToggle(friends, s.live.count { it.isLive }, onToggleFriends, Modifier.align(Alignment.TopStart).padding(10.dp))
         StatusPill(gyms, here, inside, running, locating, onStatus, Modifier.align(Alignment.BottomCenter).padding(10.dp))
@@ -326,13 +328,15 @@ private fun PermissionBanner(onClick: () -> Unit) {
 
 /** Pino do amigo no mapa (FriendsLive.swift `FriendPin`): o bro na bolinha com a cor da atividade e o nome com o tempo */
 @Composable
-private fun FriendPin(f: LiveFriend, now: Instant, onClick: () -> Unit) {
+private fun FriendPin(f: LiveFriend, now: Instant, photo: ByteArray?, onClick: () -> Unit) {
     val tint = liveColor(f.kind)
     Column(Modifier.gmPress(onClick = onClick).semantics(mergeDescendants = true) {}, horizontalAlignment = Alignment.CenterHorizontally,
            verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Box(Modifier.size(46.dp).background(GMColors.bg, CircleShape).border(3.dp, if (f.isLive) tint else GMColors.dim, CircleShape),
             contentAlignment = Alignment.Center) {
-            MonsterSprite(f.form, Modifier.size(34.dp), saturation = if (f.isLive) 1f else 0.2f)
+            // Foto pública do amigo; sem ela (escondeu ou não tem), o bro principal
+            if (photo != null) PersonAvatar(f.name, 40.dp, photo = photo)
+            else MonsterSprite(f.form, Modifier.size(34.dp), saturation = if (f.isLive) 1f else 0.2f)
         }
         Row(Modifier.background(GMColors.bg.copy(alpha = 0.85f), CircleShape).padding(horizontal = 7.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -551,4 +555,27 @@ private fun RouteShape(r: RouteRow, modifier: Modifier) {
         }
         drawPath(path, color, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
+}
+
+/** Fotos dos amigos no mapa (ProfilePhotos): escuta só a versão, com a aba aberta, e baixa a foto quando ela muda */
+@Composable
+private fun rememberFriendPhotos(ids: List<String>): Map<String, ByteArray> {
+    val context = LocalContext.current
+    val repo = remember { com.alonsoalmeida.gymbros.data.ProfilePhotosRepository(context.applicationContext) }
+    var photos by remember { mutableStateOf(mapOf<String, ByteArray>()) }
+    val scope = rememberCoroutineScope()
+    val key = ids.distinct().sorted()
+    DisposableEffect(key) {
+        val versions = mutableMapOf<String, String>()
+        val stop = repo.watch(key) { id, version ->
+            if (versions[id] == version) return@watch
+            versions[id] = version
+            scope.launch {
+                val data = repo.photo(id, version)
+                photos = if (data != null) photos + (id to data) else photos - id
+            }
+        }
+        onDispose { stop() }
+    }
+    return photos
 }
