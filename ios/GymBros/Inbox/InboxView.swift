@@ -52,6 +52,7 @@ struct InboxView: View {
                 if let error { Text(error).font(.caption).foregroundStyle(Theme.danger) }
             }
             .navigationDestination(for: String.self) { ConversationView(peerID: $0) }
+            .screenTip(.inbox, blocked: composing || duelsOpen || choosingFighter != nil)
         }
         .task { await permission.refresh() }
         // Enquanto a tela está aberta, busca de tempos em tempos (com servidor, chegaria por push)

@@ -12,6 +12,7 @@ struct SettingsView: View {
     @Query(sort: \Monster.createdAt) private var monsters: [Monster]
     @State private var confirmReset = false
     @State private var testBroAdded = false
+    @State private var tipsReset = false
     @State private var confirmSignOut = false
     @State private var signOutError: String?
     @State private var auth = AuthStore.shared
@@ -87,6 +88,15 @@ struct SettingsView: View {
                         GMNavRow(icon: "sparkles", tint: Theme.accent, title: "Ver tutorial do app")
                     }
                     .buttonStyle(GMPress())
+                    GMDivider()
+                    Button {
+                        ScreenTipCenter.shared.reset()
+                        tipsReset = true
+                    } label: {
+                        GMNavRow(icon: "lightbulb.fill", tint: Theme.accent, title: "Rever dicas das telas", value: tipsReset ? "Voltam a aparecer" : nil)
+                    }
+                    .buttonStyle(GMPress())
+                    .accessibilityHint("As dicas de cada tela aparecem de novo na próxima vez que você abrir a tela")
                     if showsDiagnostics {
                         GMDivider()
                         link(DiagnosticsSettingsPage { dismiss() }) {

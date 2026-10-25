@@ -25,6 +25,7 @@ struct TradeHubView: View {
                 try? await Task.sleep(for: .seconds(fresh ? 3 : 30))
             }
         }
+        .screenTip(.trades, blocked: composing || store.arrived != nil)
         .gmSheet(isPresented: $composing) { close in TradeComposer { close() } }
         .gmActions(isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } }),
                    title: confirming.map { "Trocar \($0.mine.name) por \($0.theirs.name)?" },

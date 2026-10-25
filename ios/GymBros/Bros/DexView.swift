@@ -16,7 +16,7 @@ struct DexView: View {
                 GMSegmented(options: [(0, "Meus bros"), (1, "BroBook"), (2, "Conquistas")], selection: $tab)
                 switch tab {
                 case 0: MyBrosList()
-                case 1: monsters
+                case 1: monsters.screenTip(.brobook, blocked: entry != nil)
                 default: trophies
                 }
             }

@@ -230,6 +230,7 @@ struct UnifiedFeedView: View {
                 ForEach(shown.prefix(150)) { p in post(p, comments: byItem[p.id] ?? []) }
             }
         }
+        .screenTip(.feed, blocked: opened != nil || friends.isOpen)
         .gmModal(item: $opened) { CheckInDetailView(item: $0) }
         .gmModal(isPresented: $friends.isOpen) { FriendsView() }
         .task {

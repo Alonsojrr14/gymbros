@@ -209,6 +209,7 @@ struct WodListView: View {
                 }
             }
         }
+        .screenTip(.wod, blocked: custom || importing)
         .gmModal(isPresented: $custom) { CustomWodView() }
         .gmModal(isPresented: $importing) { ImportWodView() }
     }

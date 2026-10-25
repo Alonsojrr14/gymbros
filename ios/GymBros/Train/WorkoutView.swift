@@ -101,6 +101,7 @@ struct WorkoutView: View {
             .ignoresSafeArea(.keyboard)
         }
         .gmKeyboardDone()
+        .screenTip(.workout, blocked: session.exerciseIDs.isEmpty || picking || finishing)
         .gmModal(isPresented: $picking) { ExercisePicker(onPick: add) }
         .gmModal(item: $swapping) { box in
             SwapExerciseView(current: box.id, exclude: Set(session.exerciseIDs), history: history) { swap(box.id, to: $0) }

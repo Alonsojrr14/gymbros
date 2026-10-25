@@ -42,6 +42,7 @@ struct MapScreen: View {
                 gymSection
                 if !routes.isEmpty { routesSection }
             }
+            .screenTip(.map, blocked: settings || editing != nil || outdoor != nil)
             .gmSheet(isPresented: $settings) { _ in settingsSheet }
             .gmModal(item: $editing) { GymEditorView(gym: $0.gym) }
             .gmModal(item: $outdoor) { RouteRunView(kind: $0) }

@@ -257,6 +257,7 @@ struct BroDeckView: View {
         }
         .padding(16)
         .background(Theme.bg.ignoresSafeArea())
+        .screenTip(.deck, blocked: replying || cards.isEmpty)
         .gmSheet(isPresented: $replying) { close in replySheet(close) }
     }
 

@@ -50,6 +50,7 @@ struct LeaguesView: View {
                     }
                 }
             }
+            .screenTip(.leagues, blocked: creating || joining || proOpen)
             .gmModal(isPresented: $creating) { CreateLeagueView() }
             .onReceive(NotificationCenter.default.publisher(for: StartIntentRouter.createLeague)) { _ in creating = true }
             .onReceive(NotificationCenter.default.publisher(for: StartIntentRouter.joinLeague)) { _ in joinCode = ""; joining = true }
@@ -251,6 +252,7 @@ struct LeagueDetailView: View {
                 .padding(.bottom, 90)
             }
         }
+        .screenTip(.leagueDetail, blocked: checkingIn || menu)
         .gmModal(isPresented: $checkingIn) { CheckInForm(preselected: [league.uuid]) }
         .gmModal(isPresented: $editing) { CreateLeagueView(league: league) }
         .gmModal(item: $opened) { CheckInDetailView(item: $0) }

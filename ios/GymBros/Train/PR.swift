@@ -101,6 +101,7 @@ struct PRBookView: View {
                 }
             }
         }
+        .screenTip(.records, blocked: session)
         .gmModal(isPresented: $session) { PRSessionView() }
         .gmModal(item: $single) { PRSessionView(only: $0.id) }
         .gmActions(isPresented: Binding(get: { menu != nil }, set: { if !$0 { menu = nil } }), title: menu.map(Exercise.name) ?? "",

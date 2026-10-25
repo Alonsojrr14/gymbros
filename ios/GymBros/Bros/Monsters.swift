@@ -172,6 +172,7 @@ struct MyBrosList: View {
                 .font(.caption).foregroundStyle(Theme.dim)
         }
         .task { await trades.refresh() }
+        .screenTip(.box, blocked: trading || selectedID != nil)
         .gmModal(isPresented: $trading) { TradeHubView() }
         .sheet(isPresented: Binding(get: { selectedID != nil }, set: { if !$0 { selectedID = nil } })) {
             if let m = roster.monster(selectedID) { broSheet(m, roster) }

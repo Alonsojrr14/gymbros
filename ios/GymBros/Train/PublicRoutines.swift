@@ -195,6 +195,7 @@ struct PublicRoutinesView: View {
             }
         }
         .task { await store.refresh() }
+        .screenTip(.publicRoutines, blocked: opened != nil)
         .gmModal(item: $opened) { r in PublicRoutineDetail(routine: r, order: mine.count) }
     }
 

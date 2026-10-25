@@ -30,6 +30,7 @@ struct DuelsView: View {
                 try? await Task.sleep(for: .seconds(Duels.refreshInterval(store.duels, now: .now)))
             }
         }
+        .screenTip(.duels, blocked: picking || startPicking)
         // Uma folha só: escolher a pessoa e, no mesmo lugar, a métrica (com voltar)
         .gmSheet(isPresented: $picking) { close in
             DuelChallengeFlow(friends: candidates.friends, others: candidates.others) { close() }

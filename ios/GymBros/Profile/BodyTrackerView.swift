@@ -110,6 +110,7 @@ struct BodyTrackerView: View {
                 }
             }
         }
+        .screenTip(.body, blocked: adding || comparing)
         .gmModal(isPresented: $adding) { BodyEntryForm(entry: nil) }
         .gmModal(isPresented: $comparing) { ProgressCompareView() }
         .gmModal(item: $editing) { BodyEntryForm(entry: $0) }
