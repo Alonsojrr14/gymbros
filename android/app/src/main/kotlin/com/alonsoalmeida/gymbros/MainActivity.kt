@@ -1,6 +1,8 @@
 package com.alonsoalmeida.gymbros
 
+import android.content.Intent
 import android.os.Bundle
+import com.alonsoalmeida.gymbros.data.train.LiveWorkout
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -34,7 +36,14 @@ class MainActivity : ComponentActivity() {
                          navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
         val container = (application as GymBrosApp).container
+        // Toque na notificação do treino em andamento: abre o treino (só na primeira criação, não ao girar a tela)
+        if (savedInstanceState == null) LiveWorkout.take(intent)
         setContent { GymBrosTheme { Root(container) } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        LiveWorkout.take(intent)
     }
 }
 
@@ -79,6 +88,8 @@ private fun Root(container: AppContainer) {
                     com.alonsoalmeida.gymbros.ui.map.GymMonitor(env)
                     // Lembrete para treinar e resumo da semana, reagendados quando a conta muda (App.swift `publish`)
                     com.alonsoalmeida.gymbros.ui.settings.ReminderScheduler(env)
+                    // Notificação do treino e do WOD em andamento (o Live Activity do iOS)
+                    androidx.compose.runtime.LaunchedEffect(current.id) { LiveWorkout.watch(container.context) }
                 }
                 SoonModal(soon) { soon = null }
             }

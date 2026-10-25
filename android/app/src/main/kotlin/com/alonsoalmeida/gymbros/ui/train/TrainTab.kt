@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alonsoalmeida.gymbros.data.train.LiveWorkout
 import com.alonsoalmeida.gymbros.data.train.RestAlarm
 import com.alonsoalmeida.gymbros.data.train.TrainCopy
 import com.alonsoalmeida.gymbros.data.train.TrainData
@@ -149,8 +151,19 @@ fun TrainTab(env: AppEnv, home: HomeData) {
         val s = WorkoutStart.session(routine, data.history, data.deloadActive(now), data.autoWarmup, now)
         TrainScope.edit(env) { TrainEdits.saveSession(it, s) }
         nav.workout = s.uuid
-        // O aviso de fim do descanso é opcional: só pede a permissão com o ajuste ligado (iOS pede ao começar)
-        if (data.restNotification && Build.VERSION.SDK_INT >= 33 && !RestAlarm.canNotify(context)) notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        // Notificação do treino em andamento (o Live Activity do iOS) e aviso de fim do descanso: pede ao começar
+        if (Build.VERSION.SDK_INT >= 33 && !RestAlarm.canNotify(context)) notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    // Toque na notificação do treino em andamento: abre o treino ou o WOD
+    val liveOpen by LiveWorkout.open.collectAsState()
+    LaunchedEffect(liveOpen, data) {
+        when (liveOpen) {
+            LiveWorkout.OPEN_WORKOUT -> data.inProgress?.let { nav.workout = it.uuid }
+            LiveWorkout.OPEN_WOD -> WodRunStore.state.value?.let { nav.wod = it.wod }
+            else -> return@LaunchedEffect
+        }
+        LiveWorkout.opened()
     }
 
     when (val top = nav.stack.lastOrNull()) {

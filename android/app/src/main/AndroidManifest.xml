@@ -3,8 +3,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Treino: aviso de fim do descanso (pedido ao começar um treino, só com o ajuste ligado); lembrete para treinar e
-         resumo da semana (pedido ao ligar um deles em Ajustes → Notificações) -->
+    <!-- Treino: notificação do treino em andamento e aviso de fim do descanso (pedido ao começar um treino); lembrete para
+         treinar e resumo da semana (pedido ao ligar um deles em Ajustes → Notificações) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Mapa e lugares de treino (SEC-AND-06): a posição só é usada no aparelho para o mapa, a cerca das academias e a
@@ -56,6 +56,8 @@
         </activity>
         <!-- Fim do descanso do treino (RestAlarm): só o próprio app dispara -->
         <receiver android:name=".data.train.RestReceiver" android:exported="false" />
+        <!-- Botões da notificação do treino em andamento (Série feita, Pular descanso, +1 rodada): só o próprio app dispara -->
+        <receiver android:name=".data.train.LiveWorkoutReceiver" android:exported="false" />
         <!-- Entrada e saída da cerca das academias: só o Google Play Services dispara, pelo PendingIntent do app -->
         <receiver android:name=".data.map.GeofenceReceiver" android:exported="false" />
         <!-- Registra a cerca de novo depois de reiniciar ou atualizar (o sistema entrega a receptor não exportado) -->
