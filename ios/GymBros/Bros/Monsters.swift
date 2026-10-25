@@ -168,7 +168,7 @@ struct MyBrosList: View {
         let roster = Roster(monsters: monsters, activities: activities, checkIns: checkIns, leagues: leagues)
         VStack(alignment: .leading, spacing: 16) {
             box(roster, selected: selectedID)
-            Text("Toque num bro para ver a ficha dele: treinos, evoluções e X1. O principal aparece na tela inicial e nos widgets e recebe o XP das atividades que não vão para nenhuma liga. Cada liga dá XP só ao bro que te representa nela. Ovos novos você adota ao entrar numa liga.")
+            Text("Toque num bro para ver a ficha dele: treinos, evoluções e X1. O principal aparece na tela inicial e nos widgets e recebe o XP de todas as atividades. O bro que te representa numa liga também ganha 80% do XP dos check-ins dela. Ovos novos você adota ao entrar numa liga.")
                 .font(.caption).foregroundStyle(Theme.dim)
         }
         .task { await trades.refresh() }
