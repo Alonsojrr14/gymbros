@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.leagues
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -187,6 +189,7 @@ fun LeagueDetailScreen(league: League, env: AppEnv, home: HomeData, vm: LeaguesV
         }
     }) {
         Cover(league, now)
+        ScreenTipHost(env, ScreenTip.LEAGUE_DETAIL, blocked = checkingIn || menu)
         if (league.isOver(now) && league.format == LeagueFormat.CHALLENGE && !settings.rankingsDisabled) ChallengeFinalCard(league, total, feed, ::share)
         if (!settings.rankingsDisabled) Stats(league, total, now) { tab = 1 }
         if (toReview.isNotEmpty()) {

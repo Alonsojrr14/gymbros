@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.friends
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -134,6 +136,7 @@ private fun FeedContent(env: AppEnv, home: HomeData, friendsVm: FriendsViewModel
     val visibleComments = data.moderation.visibleComments(data.comments)
     val byItem = remember(visibleComments) { visibleComments.groupBy { it.itemID } }
 
+    ScreenTipHost(env, ScreenTip.FEED, blocked = opened != null || ranking || deck != null)
     BroStories(model.stories) { p -> deck = p.cards to p.start }
     if (friends.isNotEmpty()) FriendsRankCard(model.ranking) { ranking = true }
     if (shown.isEmpty()) {

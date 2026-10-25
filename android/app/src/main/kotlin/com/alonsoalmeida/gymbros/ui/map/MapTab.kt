@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.map
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -227,6 +229,7 @@ fun MapTab(env: AppEnv, home: HomeData) {
         if (s.data.routes.isNotEmpty()) RoutesSection(s.data.routes.take(20)) { route = it.id }
     }
 
+    ScreenTipHost(env, ScreenTip.MAP, blocked = settings || editing != null || route != null || friend != null || askAlways)
     s.data.routes.firstOrNull { it.id == route }?.let { r -> GMSheet({ route = null }) { RouteDetail(r) } }
     s.live.firstOrNull { it.id == friend }?.let { f -> GMSheet({ friend = null }) { LiveDetail(f, now) } }
     if (settings) GMSheet({ settings = false }) {

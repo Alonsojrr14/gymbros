@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.train
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Canvas
@@ -601,6 +603,7 @@ internal fun PRBookScreen(env: AppEnv, data: TrainData, nav: TrainNav) {
         }.sortedWith { a, b -> Exercises.byName.compare(Exercises.name(a.id), Exercises.name(b.id)) }
     }
     GMScreen("Meus PRs", bottomInset = 120.dp, leading = { BackButton(nav) }) {
+        ScreenTipHost(env, ScreenTip.RECORDS, blocked = session || single != null || menu != null)
         GMCard {
             androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("🏆", fontSize = 36.sp)

@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.train
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import android.content.ClipboardManager
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -149,6 +151,7 @@ internal fun WodListScreen(env: AppEnv, data: TrainData, nav: TrainNav) {
     var custom by remember { mutableStateOf(false) }
     GMScreen("WODs", bottomInset = 120.dp, leading = { BackButton(nav) }) {
         Text("CrossFit: benchmarks e cronômetro", color = GMColors.dim, style = GMType.subheadline)
+        ScreenTipHost(env, ScreenTip.WOD, blocked = custom || nav.importing || nav.wod != null)
         GMButton("WOD livre (monte o seu)", { custom = true }, icon = TrainIcons.of("timer"), kind = GMButtonKind.SECONDARY)
         GMButton("Importar treino do coach", { nav.importing = true }, icon = TrainIcons.of("doc.on.clipboard"), kind = GMButtonKind.SECONDARY)
         Column(Modifier.background(GMColors.card, GMRadius.card).padding(12.dp)) {

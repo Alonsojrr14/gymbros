@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.bros
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -105,7 +107,7 @@ private fun remaining(end: Instant, now: Instant): String =
 
 /** Trocas de bros com amigos (TradeViews.swift `TradeHubView`): as que chegaram, as que você mandou e as que já aconteceram */
 @Composable
-internal fun TradeHub(visible: Boolean, home: HomeData, vm: BrosViewModel, applied: Set<String>, onDismiss: () -> Unit) {
+internal fun TradeHub(visible: Boolean, env: com.alonsoalmeida.gymbros.ui.AppEnv, home: HomeData, vm: BrosViewModel, applied: Set<String>, onDismiss: () -> Unit) {
     if (!visible) return
     val st by vm.state.collectAsStateWithLifecycle()
     var composing by rememberSaveable { mutableStateOf(false) }
@@ -133,6 +135,7 @@ internal fun TradeHub(visible: Boolean, home: HomeData, vm: BrosViewModel, appli
 
     GMModal(true, "Trocas", onDismiss, confirm = "Nova troca", onConfirm = { composing = true }) {
         Text("Troque bros com amigos, 1 por 1. Ovos não entram.", color = GMColors.dim, style = GMType.subheadline)
+        ScreenTipHost(env, ScreenTip.TRADES, blocked = composing || st.arrived != null)
         val incoming = TradeRules.incoming(st.all, now)
         val sent = TradeRules.sent(st.all, now)
         val ready = TradeRules.ready(st.all, applied)

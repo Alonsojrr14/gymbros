@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.duels
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -266,6 +268,7 @@ fun DuelsModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -> U
         }
         val records = s.records(now)
         RecordCard(Duels.tally(records), s.me.form)
+        ScreenTipHost(env, ScreenTip.DUELS, blocked = picking || target != null || answering != null)
 
         val incoming = s.incoming(now)
         val active = s.active(now)

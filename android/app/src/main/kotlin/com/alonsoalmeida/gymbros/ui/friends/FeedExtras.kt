@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.friends
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -175,6 +177,7 @@ fun BroDeckModal(cards: List<DeckCard>, start: Int, env: AppEnv, friends: List<R
                 Spacer(Modifier.weight(1f))
                 Spacer(Modifier.size(40.dp))
             }
+            ScreenTipHost(env, ScreenTip.DECK, blocked = replying != null || cards.isEmpty())
             if (index < cards.size) {
                 val c = cards[index]
                 Box(contentAlignment = Alignment.Center) {

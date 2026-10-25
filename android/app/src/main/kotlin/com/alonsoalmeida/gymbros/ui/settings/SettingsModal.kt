@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.NoAccounts
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PanTool
@@ -67,6 +68,7 @@ import com.alonsoalmeida.gymbros.ui.components.GMSection
 import com.alonsoalmeida.gymbros.ui.components.MonsterSprite
 import com.alonsoalmeida.gymbros.ui.components.PersonAvatar
 import com.alonsoalmeida.gymbros.ui.components.gmPress
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipCenter
 import com.alonsoalmeida.gymbros.ui.legal.Legal
 import com.alonsoalmeida.gymbros.ui.profile.ConfirmDialog
 import com.alonsoalmeida.gymbros.ui.profile.Hairline
@@ -96,6 +98,7 @@ fun SettingsModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -
     val profile by profileViewModel(env).state.collectAsStateWithLifecycle()
     var page by rememberSaveable { mutableStateOf<Page?>(null) }
     var confirmSignOut by remember { mutableStateOf(false) }
+    var tipsReset by remember { mutableStateOf(false) }
     val settings = profile?.data?.settings.orEmpty()
     LaunchedEffect(Unit) { vm.refresh() }
 
@@ -123,6 +126,11 @@ fun SettingsModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -
 
         GMSection("Ajuda") {
             NavRow(Icons.AutoMirrored.Filled.HelpOutline, Attribute.AGILIDADE.color(), "Como funciona") { page = Page.HOW }
+            Hairline()
+            NavRow(Icons.Filled.Lightbulb, GMColors.accent, "Rever dicas das telas", if (tipsReset) "Voltam a aparecer" else null) {
+                ScreenTipCenter.reset(env)
+                tipsReset = true
+            }
         }
 
         GMSection(footer = error) {

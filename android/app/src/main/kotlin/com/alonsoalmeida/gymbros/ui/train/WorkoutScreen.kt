@@ -2,6 +2,8 @@
 
 package com.alonsoalmeida.gymbros.ui.train
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
@@ -340,6 +342,7 @@ private fun WorkoutContent(env: AppEnv, home: HomeData, data: TrainData, session
                     Text(home.monsterName, color = Color.White, style = GMType.caption.copy(fontWeight = FontWeight.Bold), maxLines = 1)
                 }
             }
+            ScreenTipHost(env, ScreenTip.WORKOUT, blocked = session.exerciseIDs.isEmpty() || picking || finishing)
             if (session.exerciseIDs.isNotEmpty()) {
                 GMSegmented(listOf(false to "Lista", true to "Guiado"), guided, { guided = it; prefs(context).edit().putBoolean("guidedWorkout", it).apply() },
                             Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp))

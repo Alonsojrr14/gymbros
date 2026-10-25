@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.leagues
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -121,6 +123,7 @@ fun LeaguesTab(env: AppEnv, home: HomeData) {
         }
     }
 
+    ScreenTipHost(env, ScreenTip.LEAGUES, blocked = home.termsVersion < TERMS_VERSION || roles.isNullOrEmpty() || opened != null || creating || joining)
     opened?.let { id ->
         val l = ui.league(id)
         if (l == null) LaunchedEffect(id) { opened = null }

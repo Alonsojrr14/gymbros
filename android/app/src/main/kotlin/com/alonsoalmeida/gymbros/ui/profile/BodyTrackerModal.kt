@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.profile
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -85,6 +87,7 @@ fun BodyTrackerModal(visible: Boolean, env: AppEnv, onDismiss: () -> Unit) {
     }
 
     GMModal(true, "Peso e medidas", onDismiss) {
+        ScreenTipHost(env, ScreenTip.BODY, blocked = adding || editing != null || menu != null || confirmDelete != null || measure != null)
         Row(Modifier.fillMaxWidth()) {
             Spacer(Modifier.weight(1f))
             GMIconButton(Icons.Filled.Add, "Novo registro", { adding = true })

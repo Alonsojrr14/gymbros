@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.train
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -153,6 +155,7 @@ internal fun PublicRoutinesScreen(env: AppEnv, data: TrainData, nav: TrainNav) {
         RoutineSort.FRIENDS -> all.filter { it.authorID in friends }.sortedByDescending { it.createdAt }
     }
     GMScreen("Rotinas públicas", bottomInset = 120.dp, leading = { BackButton(nav) }) {
+        ScreenTipHost(env, ScreenTip.PUBLIC_ROUTINES, blocked = opened != null)
         GMChoiceChips(RoutineSort.entries.map { it to it.label }, sort, { sort = it })
         if (list.isEmpty()) {
             GMEmptyState(TrainIcons.of("person.2"), if (sort == RoutineSort.FRIENDS) "Nenhuma rotina dos seus amigos" else "Nenhuma rotina ainda",

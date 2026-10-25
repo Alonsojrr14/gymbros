@@ -99,6 +99,8 @@ import com.alonsoalmeida.gymbros.domain.bros.TradeRules
 import com.alonsoalmeida.gymbros.domain.home.HomeData
 import com.alonsoalmeida.gymbros.domain.profile.AchievementItem
 import com.alonsoalmeida.gymbros.ui.AppEnv
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import com.alonsoalmeida.gymbros.ui.copy
 import com.alonsoalmeida.gymbros.ui.components.GMCard
 import com.alonsoalmeida.gymbros.ui.components.GMModal
@@ -158,10 +160,14 @@ fun BrosModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -> Un
                 val now = java.time.Instant.now()
                 val offers = TradeRules.incoming(trades.all, now).size + TradeRules.ready(trades.all, settings.tradeApplied).size
                 BroBox(home, offers, onTrade = { trading = true }, onSelect = { selected = it })
+                ScreenTipHost(env, ScreenTip.BOX, blocked = trading || selected != null)
                 Text("Toque num bro para ver a ficha dele: treinos, evoluções e X1. O principal aparece na tela inicial e nos widgets e recebe o XP das atividades que não vão para nenhuma liga. Cada liga dá XP só ao bro que te representa nela. Ovos novos você adota ao entrar numa liga.",
                      color = GMColors.dim, style = GMType.caption)
             }
-            1 -> BroBook(home.snapshot, revealAll, isKnown, onReveal = { vm.setRevealAll(!revealAll) }, onOpen = { entry = it.id })
+            1 -> {
+                BroBook(home.snapshot, revealAll, isKnown, onReveal = { vm.setRevealAll(!revealAll) }, onOpen = { entry = it.id })
+                ScreenTipHost(env, ScreenTip.BROBOOK, blocked = entry != null)
+            }
             else -> Trophies(achievements)
         }
     }
@@ -170,7 +176,7 @@ fun BrosModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -> Un
         BroSheet(home, id, vm, liveIDs, isKnown, onSelect = { selected = it }, onDismiss = { selected = null })
     }
     entry?.let { id -> MonsterForm.byID(id)?.let { DexEntry(it, home.snapshot, isKnown) { entry = null } } }
-    TradeHub(trading, home, vm, settings.tradeApplied) { trading = false }
+    TradeHub(trading, env, home, vm, settings.tradeApplied) { trading = false }
     trades.arrived?.let { TradeArrived(home, it) { vm.dismissArrival() } }
 }
 

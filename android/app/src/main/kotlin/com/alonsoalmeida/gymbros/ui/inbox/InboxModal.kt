@@ -1,5 +1,7 @@
 package com.alonsoalmeida.gymbros.ui.inbox
 
+import com.alonsoalmeida.gymbros.domain.onboarding.ScreenTip
+import com.alonsoalmeida.gymbros.ui.onboarding.ScreenTipHost
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.MutableTransitionState
@@ -169,6 +171,7 @@ fun InboxModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -> U
     FullScreen("Caixa de entrada", close, trailing = {
         if (tab == InboxTab.MESSAGES) GMIconButton(Icons.Filled.Edit, "Nova mensagem", { composing = true })
     }) {
+        ScreenTipHost(env, ScreenTip.INBOX, blocked = composing || conversation != null)
         GMSegmented(listOf(InboxTab.ACTIVITY to label("Notificações", unreadActivity), InboxTab.MESSAGES to label("Mensagens", unreadMessages)), tab, {
             if (tab == InboxTab.ACTIVITY && it != tab) social.markActivitySeen()
             tab = it
