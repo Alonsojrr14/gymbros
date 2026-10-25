@@ -82,7 +82,7 @@ class ProfileViewModel(private val copies: AccountCopyRepository, private val pu
         return true
     }
 
-    /** Interruptores de "O que aparece para os outros" (`publicPhoto`, `publicMonster`, `publicStats`, `publicAchievements`) */
+    /** Interruptores de "O que aparece para os outros" (`publicPhoto`, `publicMonster`, `publicStats`, `publicAchievements`, `publicBros`) */
     fun setVisibility(key: String, on: Boolean) = viewModelScope.launch {
         copies.edit { copy -> ProfileEdits.set(copy ?: AccountEdits.empty("", Instant.now()), key, on) }
         if (key == "publicPhoto") publishAvatar() else publish()
@@ -158,7 +158,8 @@ class ProfileViewModel(private val copies: AccountCopyRepository, private val pu
         val s = (copies.state.value as? CopyState.Ready)?.copy ?: return
         val ui = build(s)
         runCatching {
-            publisher.publish(ui.data.name, ui.data.username, ui.data.bio, ui.data.publicNumbers.takeIf { ui.data.showStats }, ui.data.showAchievements)
+            publisher.publish(ui.data.name, ui.data.username, ui.data.bio, ui.data.publicNumbers.takeIf { ui.data.showStats }, ui.data.showAchievements,
+                              ui.data.publicBros.takeIf { ui.data.showBros })
         }.onFailure { _message.value = "Salvo na conta. O perfil público atualiza quando a internet voltar." }
     }
 

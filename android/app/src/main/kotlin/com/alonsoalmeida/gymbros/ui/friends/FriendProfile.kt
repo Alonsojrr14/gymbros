@@ -138,7 +138,7 @@ fun FriendProfileScreen(friend: RemoteFriend, home: HomeData, vm: FriendsViewMod
                 } else if (p == null) {
                     Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = GMColors.accent) }
                 } else {
-                    if (p.extra.bro != null || p.extra.stats != null || !p.extra.achievements.isNullOrEmpty()) GMCard { PublicProfileCard(p) }
+                    if (p.extra.bro != null || p.extra.stats != null || p.extra.bros != null || !p.extra.achievements.isNullOrEmpty()) GMCard { PublicProfileCard(p) }
                     if (data != null) {
                         val common = data.leagues.filter { !it.isPastSeason && it.code in extras?.commonLeagues.orEmpty() }
                         if (common.isNotEmpty()) {

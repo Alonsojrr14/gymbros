@@ -3,6 +3,7 @@ package com.alonsoalmeida.gymbros.ui.friends
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alonsoalmeida.gymbros.data.AccountCopyRepository
+import com.alonsoalmeida.gymbros.data.CopyState
 import com.alonsoalmeida.gymbros.data.FriendError
 import com.alonsoalmeida.gymbros.data.FriendException
 import com.alonsoalmeida.gymbros.data.FriendsRepository
@@ -11,14 +12,18 @@ import com.alonsoalmeida.gymbros.data.LeagueMember
 import com.alonsoalmeida.gymbros.data.PublicProfile
 import com.alonsoalmeida.gymbros.data.PublicBro
 import com.alonsoalmeida.gymbros.domain.backup.AccountEdits
+import com.alonsoalmeida.gymbros.domain.RuleClock
 import com.alonsoalmeida.gymbros.domain.home.HomeData
+import com.alonsoalmeida.gymbros.domain.profile.ProfileBuilder
 import com.dd.plist.NSDate
 import com.dd.plist.NSNumber
 import com.dd.plist.NSString
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.util.Date
 
@@ -122,7 +127,12 @@ class FriendsViewModel(private val repo: FriendsRepository, private val copies: 
         val s = home.snapshot
         val bro = PublicBro(home.monsterName.ifEmpty { s.form.name }, s.form.id, s.level, s.progress)
         runCatching { photosRepo.publish(home.profilePhoto, home.showPhoto) }
-        runCatching { repo.publishBro(code, bro, home.showBro) }.onSuccess { used ->
+        // "Bros e atributos" acompanham os treinos, como o iPhone publica ao abrir; sem a cópia da conta, ficam como estão
+        val copy = (copies.state.value as? CopyState.Ready)?.copy
+        val data = copy?.let { withContext(Dispatchers.Default) {
+            runCatching { ProfileBuilder.build(it, home.roster, RuleClock(java.time.ZoneId.systemDefault(), Instant.now())) }.getOrNull()
+        } }
+        runCatching { repo.publishBro(code, bro, home.showBro, data?.publicBros?.takeIf { data.showBros }, updateBros = data != null) }.onSuccess { used ->
             if (used != code) copies.edit { copy -> AccountEdits.updateSettings(copy ?: AccountEdits.empty(home.trainerName, Instant.now())) { it["friendCode"] = NSString(used) } }
         }
     }

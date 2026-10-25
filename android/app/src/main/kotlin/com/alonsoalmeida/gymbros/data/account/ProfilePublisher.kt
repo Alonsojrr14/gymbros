@@ -1,6 +1,7 @@
 package com.alonsoalmeida.gymbros.data.account
 
 import com.alonsoalmeida.gymbros.domain.profile.ContentFilter
+import com.alonsoalmeida.gymbros.domain.profile.PublicBros
 import com.alonsoalmeida.gymbros.domain.profile.PublicNumbers
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -16,12 +17,12 @@ import kotlinx.serialization.json.put
 /**
  * Perfil público (`profiles/{uid}`) acompanhando o que você muda no Android, como o iPhone publica
  * (FirebaseBackend.swift `publish`, PublicProfile.mine): nome, @usuário e bio passam pelo filtro de palavras; o que você
- * escondeu sai do ar na hora. Os números (regra simples) são publicados daqui; as conquistas continuam as que o iPhone
+ * escondeu sai do ar na hora. Os números e "Bros e atributos" (`bros`) são publicados daqui; as conquistas continuam as que o iPhone
  * publicou (o Android ainda não calcula todas). Só mexe num perfil que já existe: quem cria (com a reserva do código) é
  * o FriendsViewModel. As regras exigem o código reservado por você (`codeIsMine`), que o merge preserva.
  */
 class ProfilePublisher(private val db: FirebaseFirestore = FirebaseFirestore.getInstance()) {
-    suspend fun publish(name: String, username: String, bio: String, numbers: PublicNumbers?, showAchievements: Boolean) {
+    suspend fun publish(name: String, username: String, bio: String, numbers: PublicNumbers?, showAchievements: Boolean, bros: PublicBros?) {
         val me = FirebaseAuth.getInstance().currentUser?.uid ?: return
         val ref = db.collection("profiles").document(me)
         val doc = ref.get().await()
@@ -32,6 +33,7 @@ class ProfilePublisher(private val db: FirebaseFirestore = FirebaseFirestore.get
             extra["stats"] = buildJsonObject { put("checkIns", numbers.checkIns); put("activeDays", numbers.activeDays); put("leagues", numbers.leagues) }
         } else extra.remove("stats")
         if (!showAchievements) extra.remove("achievements")
+        if (bros != null) extra["bros"] = Json.encodeToJsonElement(PublicBros.serializer(), bros) else extra.remove("bros")
         val text = Json.encodeToString(JsonElement.serializer(), JsonObject(extra))
         val fields = mapOf("name" to ContentFilter.publishable(name), "username" to ContentFilter.publishable(username),
                            "bio" to ContentFilter.publishable(bio), "public" to text)

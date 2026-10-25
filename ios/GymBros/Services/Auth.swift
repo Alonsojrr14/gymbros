@@ -224,7 +224,7 @@ enum AccountData {
     /// Chaves de usuário: vão na cópia da conta e saem do aparelho ao sair. As do servidor simulado
     /// (`mock…`), o tutorial (já separado por conta) e o dono dos dados ficam.
     static let userKeys: [String] = Backup.settingKeys + [
-        "achievementsSeen", "profilePhoto", "publicStats", "publicMonster", "publicAchievements",
+        "achievementsSeen", "profilePhoto", "publicStats", "publicMonster", "publicAchievements", "publicBros",
         "remindersOn", "reminderMinute", "reminderRoutineOnly", "weeklySummary", "storyFrame", "headphoneInfoSeen",
         "dexRevealAll", "deloadUntil", "deloadSnooze", "barCountsBar", PendingRoutineUpdate.key,
         "gymNotifyArrival", "gymAutoFinish", "gymInsideID", "gymArrival",

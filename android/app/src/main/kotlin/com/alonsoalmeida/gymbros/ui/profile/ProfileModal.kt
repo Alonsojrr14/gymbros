@@ -210,6 +210,7 @@ private fun PublicPart(data: ProfileData, home: HomeData, nick: String, onOpen: 
                                               s.form.id, s.level, s.progress) else null,
         stats = if (data.showStats) PublicStats(data.publicNumbers.checkIns, data.publicNumbers.activeDays, data.publicNumbers.leagues) else null,
         achievements = if (data.showAchievements) unlocked.map { Badge(it.title, it.symbol) } else null,
+        bros = if (data.showBros) data.publicBros else null,
     ))
     val posts = data.activities.filter { ActivityEdits.PROFILE_FEED in it.postedIn }
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -251,7 +252,7 @@ private fun EditProfileModal(visible: Boolean, vm: ProfileViewModel, home: HomeD
             if (blocked) Text(ContentFilter.MESSAGE, color = GMColors.danger, style = GMType.footnote)
         }
         GMSection("O que aparece para os outros",
-                  footer = "Nome, @usuário, bio e os posts do perfil sempre aparecem. Peso, medidas, recordes, metas, notas e as atividades que você não postou ficam sempre privados.") {
+                  footer = "Nome, @usuário, bio e os posts do perfil sempre aparecem. Em \"Bros e atributos\", os atributos somam todos os seus treinos, mas só aparece o percentual de cada um. Peso, medidas, recordes, metas, notas e as atividades que você não postou ficam sempre privados.") {
             ToggleRow("Foto do perfil", data.showPhoto, { vm.setVisibility("publicPhoto", it) })
             Hairline()
             ToggleRow("Bro principal", data.showMonster, { vm.setVisibility("publicMonster", it) })
@@ -259,6 +260,8 @@ private fun EditProfileModal(visible: Boolean, vm: ProfileViewModel, home: HomeD
             ToggleRow("Números (check-ins, dias, ligas)", data.showStats, { vm.setVisibility("publicStats", it) })
             Hairline()
             ToggleRow("Conquistas", data.showAchievements, { vm.setVisibility("publicAchievements", it) })
+            Hairline()
+            ToggleRow("Bros e atributos", data.showBros, { vm.setVisibility("publicBros", it) })
         }
     }
     LegalModal(terms, "Termos de uso", Legal.terms, "Atualizados", onDismiss = { terms = false }, confirm = "Aceitar", onConfirm = {

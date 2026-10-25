@@ -302,10 +302,12 @@ struct FirebaseFriendsBackend: FriendsBackend {
             p.bro = extra.bro
             p.stats = extra.stats
             p.achievements = extra.achievements
+            p.bros = extra.bros
         }
-        // A pessoa escondeu os treinos de você: sem posts e sem números
+        // A pessoa escondeu os treinos de você: sem posts e sem números (nem a atividade favorita, que sai dos posts)
         if let hidden = d["hiddenFrom"] as? [String], hidden.contains(try Fire.me()) {
             p.stats = nil
+            p.bros?.favorite = nil
             return p
         }
         let posts = try await Fire.db.collection(FireCollection.checkIns)
@@ -340,7 +342,7 @@ struct FirebaseFriendsBackend: FriendsBackend {
     /// Código já reservado por alguém: gera outro, guarda como o seu e tenta de novo.
     func publish(_ profile: PublicProfile, friendCode: String) async throws {
         let me = try Fire.me()
-        let extra = PublicProfile.Extra(bro: profile.bro, stats: profile.stats, achievements: profile.achievements)
+        let extra = PublicProfile.Extra(bro: profile.bro, stats: profile.stats, achievements: profile.achievements, bros: profile.bros)
         var code = friendCode
         let fields: (String) -> [String: Any] = { code in
             Fire.fields([

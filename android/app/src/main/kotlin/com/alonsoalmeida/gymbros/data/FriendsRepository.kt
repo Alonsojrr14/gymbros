@@ -22,7 +22,8 @@ data class FriendsState(val friends: List<RemoteFriend> = emptyList(), val incom
 
 /** Perfil público (PublicProfile.swift): só o que a pessoa deixou aparecer */
 @Serializable
-data class PublicExtra(val bro: PublicBro? = null, val stats: PublicStats? = null, val achievements: List<Badge>? = null)
+data class PublicExtra(val bro: PublicBro? = null, val stats: PublicStats? = null, val achievements: List<Badge>? = null,
+                       val bros: com.alonsoalmeida.gymbros.domain.profile.PublicBros? = null)
 
 @Serializable
 data class PublicBro(val name: String, val formID: String, val level: Int, val progress: Double) {
@@ -119,9 +120,9 @@ class FriendsRepository(private val db: FirebaseFirestore = FirebaseFirestore.ge
     suspend fun profile(id: String): PublicProfile {
         val d = db.collection("profiles").document(id).get().await()
         var extra = (d.getString("public"))?.let { runCatching { json.decodeFromString(PublicExtra.serializer(), it) }.getOrNull() } ?: PublicExtra()
-        // A pessoa escondeu os treinos de você: sem números
+        // A pessoa escondeu os treinos de você: sem números (nem a atividade favorita, que sai dos posts)
         @Suppress("UNCHECKED_CAST")
-        if ((d.get("hiddenFrom") as? List<String>)?.contains(me()) == true) extra = extra.copy(stats = null)
+        if ((d.get("hiddenFrom") as? List<String>)?.contains(me()) == true) extra = extra.copy(stats = null, bros = extra.bros?.copy(favorite = null))
         return PublicProfile(id, d.getString("name") ?: "", d.getString("username") ?: "", d.getString("bio") ?: "", extra)
     }
 
@@ -176,11 +177,12 @@ class FriendsRepository(private val db: FirebaseFirestore = FirebaseFirestore.ge
     }
 
     /**
-     * Mantém o bro do seu perfil público em dia (forma, apelido, nível), como o iPhone faz ao publicar o perfil. Só a
-     * parte do bro muda: números e conquistas continuam os que o iPhone publicou. As regras exigem a reserva do
+     * Mantém o bro do seu perfil público em dia (forma, apelido, nível) e "Bros e atributos" (`bros`; nulo = escondido;
+     * `updateBros` falso = deixa como está), como o iPhone faz ao publicar o perfil. Números e conquistas continuam os que o iPhone publicou. As regras exigem a reserva do
      * código (`friendCodes`); sem ela, reserva antes. Devolve o código em uso (outro, se o seu já era de alguém).
      */
-    suspend fun publishBro(code: String, bro: PublicBro?, show: Boolean): String {
+    suspend fun publishBro(code: String, bro: PublicBro?, show: Boolean, bros: com.alonsoalmeida.gymbros.domain.profile.PublicBros?,
+                           updateBros: Boolean): String {
         val me = me()
         val profile = db.collection("profiles").document(me)
         val current = profile.get().await()
@@ -188,6 +190,9 @@ class FriendsRepository(private val db: FirebaseFirestore = FirebaseFirestore.ge
             ?: kotlinx.serialization.json.JsonObject(emptyMap())
         val newPublic = kotlinx.serialization.json.JsonObject(LinkedHashMap(publicJson).apply {
             if (show && bro != null) put("bro", json.encodeToJsonElement(PublicBro.serializer(), bro)) else remove("bro")
+            if (updateBros) {
+                if (bros != null) put("bros", json.encodeToJsonElement(com.alonsoalmeida.gymbros.domain.profile.PublicBros.serializer(), bros)) else remove("bros")
+            }
         })
         val text = Json.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), newPublic)
         val formID = if (show) bro?.formID else null

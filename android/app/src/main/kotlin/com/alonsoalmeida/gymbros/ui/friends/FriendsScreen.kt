@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Block
@@ -40,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -49,10 +53,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alonsoalmeida.gymbros.data.PublicProfile
+import com.alonsoalmeida.gymbros.domain.Attribute
 import com.alonsoalmeida.gymbros.data.RemoteFriend
 import com.alonsoalmeida.gymbros.domain.MonsterForm
 import com.alonsoalmeida.gymbros.domain.Stage
 import com.alonsoalmeida.gymbros.domain.home.HomeData
+import com.alonsoalmeida.gymbros.domain.profile.PublicBros
+import com.alonsoalmeida.gymbros.domain.social.label
+import com.alonsoalmeida.gymbros.domain.social.symbol
 import com.alonsoalmeida.gymbros.ui.auth.GMTextField
 import com.alonsoalmeida.gymbros.ui.auth.LegalModal
 import com.alonsoalmeida.gymbros.ui.components.GMButton
@@ -61,16 +69,20 @@ import com.alonsoalmeida.gymbros.ui.components.GMCard
 import com.alonsoalmeida.gymbros.ui.components.GMEmptyState
 import com.alonsoalmeida.gymbros.ui.components.GMIconButton
 import com.alonsoalmeida.gymbros.ui.components.GMModal
+import com.alonsoalmeida.gymbros.ui.components.GMProgressBar
+import com.alonsoalmeida.gymbros.ui.components.GMRow
 import com.alonsoalmeida.gymbros.ui.components.GMSection
 import com.alonsoalmeida.gymbros.ui.components.GMSheet
 import com.alonsoalmeida.gymbros.ui.components.LivingMonster
 import com.alonsoalmeida.gymbros.ui.components.MonsterSprite
 import com.alonsoalmeida.gymbros.ui.components.PersonAvatar
+import com.alonsoalmeida.gymbros.ui.components.Symbols
 import com.alonsoalmeida.gymbros.ui.components.gmPress
 import com.alonsoalmeida.gymbros.ui.legal.Legal
 import com.alonsoalmeida.gymbros.ui.theme.GMColors
 import com.alonsoalmeida.gymbros.ui.theme.GMRadius
 import com.alonsoalmeida.gymbros.ui.theme.GMType
+import com.alonsoalmeida.gymbros.ui.theme.color
 
 /** Link do QR e do convite (FriendQR.link do iOS) */
 fun friendLink(code: String) = "gymbros://amigo/$code"
@@ -241,7 +253,7 @@ fun FriendsScreen(visible: Boolean, home: HomeData, vm: FriendsViewModel, onDism
     if (env != null) com.alonsoalmeida.gymbros.ui.duels.DuelsModal(duels, env, home, { duels = false })
 }
 
-/** Bro, números e conquistas (PublicProfile.swift `PublicProfileCard`, sem o cabeçalho) */
+/** Bro, números, bros e atributos e conquistas (PublicProfile.swift `PublicProfileCard`, sem o cabeçalho) */
 @Composable
 fun PublicProfileCard(p: PublicProfile) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -266,9 +278,13 @@ fun PublicProfileCard(p: PublicProfile) {
                 }
             }
         }
+        p.extra.bros?.let { b ->
+            if (p.extra.bro != null || p.extra.stats != null) Divider()
+            PublicBrosSection(b)
+        }
         val a = p.extra.achievements.orEmpty()
         if (a.isNotEmpty()) {
-            if (p.extra.bro != null || p.extra.stats != null) Divider()
+            if (p.extra.bro != null || p.extra.stats != null || p.extra.bros != null) Divider()
             Text("Conquistas · ${a.size}", color = GMColors.dim, style = GMType.caption.copy(fontWeight = FontWeight.Bold))
             for (row in a.take(6).chunked(2)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -282,6 +298,65 @@ fun PublicProfileCard(p: PublicProfile) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Bros e atributos no perfil público (PublicProfile.swift `PublicBrosSection`): o bro de maior nível, a atividade
+ * favorita, o BroBook e os atributos gerais, com o de mais afinidade em destaque
+ */
+@Composable
+fun PublicBrosSection(b: PublicBros) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Bros e atributos", color = GMColors.dim, style = GMType.caption.copy(fontWeight = FontWeight.Bold))
+        b.top?.let { t ->
+            GMRow(t.name, subtitle = "Bro de maior nível", modifier = Modifier.semantics(mergeDescendants = true) {}, leading = {
+                Box(Modifier.size(34.dp).background(GMColors.raised, GMRadius.s), contentAlignment = Alignment.Center) {
+                    MonsterSprite(t.form, Modifier.size(30.dp))
+                }
+            }) {
+                Text(if (t.form.stage == Stage.EGG) "Ovo" else "Nível ${t.level}", color = GMColors.dim,
+                     style = GMType.caption.copy(fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"))
+            }
+        }
+        b.favorite?.let { f ->
+            GMRow(f.activity.label, Symbols.of(f.activity.symbol), GMColors.accent, "Atividade favorita",
+                  modifier = Modifier.semantics(mergeDescendants = true) {}) {
+                Text("${f.count}×", color = GMColors.dim, style = GMType.caption.copy(fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"))
+            }
+        }
+        val dex = b.dexFound.toDouble() / maxOf(b.dexTotal, 1)
+        Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            GMRow("BroBook", Icons.AutoMirrored.Filled.MenuBook, GMColors.accent, "${b.dexFound} de ${b.dexTotal} formas") {
+                Text("${Math.round(dex * 100)}%", color = GMColors.dim, style = GMType.caption.copy(fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum"))
+            }
+            GMProgressBar(dex, height = 6.dp)
+        }
+        b.dominant?.let { dominant ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Mais afinidade com", color = GMColors.dim, style = GMType.caption.copy(fontWeight = FontWeight.SemiBold))
+                    Icon(Symbols.of(dominant), null, tint = dominant.color(), modifier = Modifier.size(13.dp))
+                    Text(dominant.label, color = dominant.color(), style = GMType.caption.copy(fontWeight = FontWeight.SemiBold))
+                }
+                for (a in Attribute.entries) BroAttributeRow(a, b.percent(a), a == dominant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BroAttributeRow(a: Attribute, percent: Int, highlighted: Boolean) {
+    Row(Modifier.semantics(mergeDescendants = true) { contentDescription = "${a.label}, $percent%" },
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.width(130.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(Symbols.of(a), null, tint = if (highlighted) a.color() else Color.White, modifier = Modifier.size(16.dp))
+            Text(a.label, color = if (highlighted) a.color() else Color.White,
+                 style = GMType.subheadline.copy(fontWeight = if (highlighted) FontWeight.Bold else FontWeight.SemiBold))
+        }
+        GMProgressBar(percent / 100.0, Modifier.weight(1f), tint = if (highlighted) a.color() else a.color().copy(alpha = 0.5f), height = 6.dp)
+        Text("$percent%", color = if (highlighted) Color.White else GMColors.dim, style = GMType.caption.copy(fontFeatureSettings = "tnum"),
+             modifier = Modifier.width(40.dp), textAlign = TextAlign.End)
     }
 }
 

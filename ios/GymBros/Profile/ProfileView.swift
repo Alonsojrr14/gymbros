@@ -37,6 +37,7 @@ struct ProfileView: View {
     @AppStorage("publicMonster") private var showMonster = true
     @AppStorage("publicStats") private var showStats = true
     @AppStorage("publicAchievements") private var showAchievements = true
+    @AppStorage("publicBros") private var showBros = true
     @AppStorage("discovered") private var discovered = ""
 
     @State private var tab = 1
@@ -249,7 +250,9 @@ struct ProfileView: View {
                     id: "me", name: name, username: username, bio: bio,
                     bro: showMonster ? .init(name: r.main?.displayName(s.form) ?? s.form.name, formID: s.form.id, level: s.level, progress: s.progress) : nil,
                     stats: showStats ? publicStats : nil,
-                    achievements: showAchievements ? best.map { .init(title: $0.title, symbol: $0.symbol) } : nil
+                    achievements: showAchievements ? best.map { .init(title: $0.title, symbol: $0.symbol) } : nil,
+                    bros: showBros ? PublicProfile.bros(roster: r, activities: activities, checkIns: checkIns,
+                                                        discovered: Set(discovered.split(separator: ",").map(String.init))) : nil
                 ), showHeader: false)
             }
             postsCalendar(avatar: s.form)
@@ -290,6 +293,7 @@ struct EditProfileView: View {
     @AppStorage("publicMonster") private var showMonster = true
     @AppStorage("publicStats") private var showStats = true
     @AppStorage("publicAchievements") private var showAchievements = true
+    @AppStorage("publicBros") private var showBros = true
     @AppStorage(ProfilePhotos.showKey) private var showPhoto = true
     @State private var name = ""
     @State private var username = ""
@@ -310,7 +314,7 @@ struct EditProfileView: View {
                 if blocked { ContentBlockedNote() }
             }
             GMSection("O que aparece para os outros",
-                      footer: "Nome, @usuário, bio e os posts do perfil sempre aparecem. Peso, medidas, recordes, metas, notas e as atividades que você não postou ficam sempre privados.") {
+                      footer: "Nome, @usuário, bio e os posts do perfil sempre aparecem. Em \"Bros e atributos\", os atributos somam todos os seus treinos, mas só aparece o percentual de cada um. Peso, medidas, recordes, metas, notas e as atividades que você não postou ficam sempre privados.") {
                 GMToggle(title: "Foto do perfil", isOn: $showPhoto)
                 GMDivider()
                 GMToggle(title: "Bro principal", isOn: $showMonster)
@@ -318,6 +322,8 @@ struct EditProfileView: View {
                 GMToggle(title: "Números (check-ins, dias, ligas)", isOn: $showStats)
                 GMDivider()
                 GMToggle(title: "Conquistas", isOn: $showAchievements)
+                GMDivider()
+                GMToggle(title: "Bros e atributos", isOn: $showBros)
             }
             BodyProfileSection()
         }

@@ -614,10 +614,12 @@ struct CloudKitFriendsBackend: FriendsBackend {
             p.bro = extra.bro
             p.stats = extra.stats
             p.achievements = extra.achievements
+            p.bros = extra.bros
         }
-        // A pessoa escondeu os treinos de você: sem posts e sem números
+        // A pessoa escondeu os treinos de você: sem posts e sem números (nem a atividade favorita, que sai dos posts)
         if let hidden = r["hiddenFrom"] as? [String], hidden.contains(try await Cloud.me()) {
             p.stats = nil
+            p.bros?.favorite = nil
             return p
         }
         let posts = try await Cloud.query(CloudType.checkIn, NSPredicate(format: "league == %@ AND user == %@", CloudType.profileFeed, id),
@@ -637,7 +639,7 @@ struct CloudKitFriendsBackend: FriendsBackend {
         r["bio"] = profile.bio
         r["friendCode"] = friendCode
         r["broFormID"] = profile.bro?.formID
-        let extra = PublicProfile.Extra(bro: profile.bro, stats: profile.stats, achievements: profile.achievements)
+        let extra = PublicProfile.Extra(bro: profile.bro, stats: profile.stats, achievements: profile.achievements, bros: profile.bros)
         r["public"] = (try? JSONEncoder().encode(extra)).flatMap { String(data: $0, encoding: .utf8) }
         r["hiddenFrom"] = FriendPrefs.hiddenFrom()
         _ = try await Cloud.save([r])
@@ -721,6 +723,7 @@ extension PublicProfile {
         var bro: Bro?
         var stats: Stats?
         var achievements: [Badge]?
+        var bros: Bros?
     }
 }
 

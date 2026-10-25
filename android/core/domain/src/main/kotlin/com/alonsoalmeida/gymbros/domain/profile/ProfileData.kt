@@ -12,6 +12,7 @@ import com.alonsoalmeida.gymbros.domain.Species
 import com.alonsoalmeida.gymbros.domain.Stage
 import com.alonsoalmeida.gymbros.domain.WorkoutType
 import com.alonsoalmeida.gymbros.domain.activities.ActivityEdits
+import com.alonsoalmeida.gymbros.domain.bros.Dex
 import com.alonsoalmeida.gymbros.domain.train.ExerciseType
 import com.alonsoalmeida.gymbros.domain.train.Exercises
 import com.alonsoalmeida.gymbros.domain.train.Muscle
@@ -99,9 +100,13 @@ data class ProfileData(
     val showMonster: Boolean,
     val showStats: Boolean,
     val showAchievements: Boolean,
+    /** "Bros e atributos" (`publicBros`, padrão sim) */
+    val showBros: Boolean,
     val activities: List<ProfileActivity>,
     val publicNumbers: PublicNumbers,
     val achievements: List<AchievementItem>,
+    /** Bros e atributos como saem no perfil público (mesmo com o interruptor desligado: o próprio perfil mostra) */
+    val publicBros: PublicBros,
     /** Snapshot do jogador com todas as atividades (`Game.cachedSnapshot`) */
     val player: Snapshot,
     val body: List<BodyEntryData>,
@@ -167,6 +172,12 @@ object ProfileBuilder {
         val numbers = publicNumbers(activities.map { it.id to it.date }, checkIns.mapNotNull { it.str("activityUUID")?.uppercase() },
                                     leagues.count { it.str("nextUUID") == null }, clock)
 
+        val posted = checkIns.mapNotNull { it.str("activityUUID")?.uppercase() }.toSet()
+        val postedKinds = activities.filter { it.id in posted }.map { it.kind }
+        val dex = Dex.allForms()
+        val seen = Dex.discovered(ProfileEdits.text(copy, "discovered"), roster)
+        val bros = PublicBrosRules.build(roster, player, postedKinds, dex.count { it.id in seen }, dex.size)
+
         val finished = sessions.count { it.str("end") != null }
         val discovered = (ProfileEdits.text(copy, "discovered") ?: "").split(",").count { it.isNotEmpty() }
         val achievements = achievements(records, activities.count { it.fromHealth }, player, finished,
@@ -190,7 +201,8 @@ object ProfileBuilder {
             bio = ProfileEdits.text(copy, "profileBio").orEmpty(),
             showPhoto = ProfileEdits.bool(settings, "publicPhoto", true), showMonster = ProfileEdits.bool(settings, "publicMonster", true),
             showStats = ProfileEdits.bool(settings, "publicStats", true), showAchievements = ProfileEdits.bool(settings, "publicAchievements", true),
-            activities = activities, publicNumbers = numbers, achievements = achievements, player = player, body = body, settings = settings,
+            showBros = ProfileEdits.bool(settings, "publicBros", true),
+            activities = activities, publicNumbers = numbers, achievements = achievements, publicBros = bros, player = player, body = body, settings = settings,
         )
     }
 

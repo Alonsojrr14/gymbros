@@ -1,0 +1,218 @@
+{
+  "about": "Bros e atributos do perfil público (public.bros): percentuais dos atributos gerais (maior resto, desempate na ordem forca, resistencia, agilidade, tecnica), atributo dominante, atividade favorita (desempate na ordem de ActivityKind) e bro de maior XP (desempate: o primeiro). Lido por PublicBrosTests (iOS) e PublicBrosTest (Android).",
+  "attributes": [
+    {
+      "values": {},
+      "percent": null,
+      "dominant": null
+    },
+    {
+      "values": {
+        "forca": 0.0
+      },
+      "percent": null,
+      "dominant": null
+    },
+    {
+      "values": {
+        "forca": 100.0
+      },
+      "percent": {
+        "forca": 100,
+        "resistencia": 0,
+        "agilidade": 0,
+        "tecnica": 0
+      },
+      "dominant": "forca"
+    },
+    {
+      "values": {
+        "forca": 1.0,
+        "resistencia": 1.0,
+        "agilidade": 1.0
+      },
+      "percent": {
+        "forca": 34,
+        "resistencia": 33,
+        "agilidade": 33,
+        "tecnica": 0
+      },
+      "dominant": "forca"
+    },
+    {
+      "values": {
+        "forca": 10.0,
+        "resistencia": 30.0,
+        "agilidade": 30.0,
+        "tecnica": 30.0
+      },
+      "percent": {
+        "forca": 10,
+        "resistencia": 30,
+        "agilidade": 30,
+        "tecnica": 30
+      },
+      "dominant": "resistencia"
+    },
+    {
+      "values": {
+        "resistencia": 50.0,
+        "agilidade": 50.0
+      },
+      "percent": {
+        "forca": 0,
+        "resistencia": 50,
+        "agilidade": 50,
+        "tecnica": 0
+      },
+      "dominant": "resistencia"
+    },
+    {
+      "values": {
+        "forca": 1234.5,
+        "resistencia": 987.25,
+        "agilidade": 120.0,
+        "tecnica": 456.75
+      },
+      "percent": {
+        "forca": 44,
+        "resistencia": 35,
+        "agilidade": 4,
+        "tecnica": 17
+      },
+      "dominant": "forca"
+    },
+    {
+      "values": {
+        "forca": 0.1,
+        "resistencia": 0.2,
+        "agilidade": 0.3,
+        "tecnica": 0.4
+      },
+      "percent": {
+        "forca": 10,
+        "resistencia": 20,
+        "agilidade": 30,
+        "tecnica": 40
+      },
+      "dominant": "tecnica"
+    },
+    {
+      "values": {
+        "forca": 2.0,
+        "resistencia": 2.0,
+        "agilidade": 2.0,
+        "tecnica": 1.0
+      },
+      "percent": {
+        "forca": 29,
+        "resistencia": 29,
+        "agilidade": 28,
+        "tecnica": 14
+      },
+      "dominant": "forca"
+    },
+    {
+      "values": {
+        "forca": 17.6,
+        "resistencia": 3.3,
+        "agilidade": 0.0,
+        "tecnica": 79.1
+      },
+      "percent": {
+        "forca": 18,
+        "resistencia": 3,
+        "agilidade": 0,
+        "tecnica": 79
+      },
+      "dominant": "tecnica"
+    }
+  ],
+  "favorite": [
+    {
+      "kinds": [],
+      "favorite": null
+    },
+    {
+      "kinds": [
+        "yoga"
+      ],
+      "favorite": {
+        "kind": "yoga",
+        "count": 1
+      }
+    },
+    {
+      "kinds": [
+        "corrida",
+        "musculacao",
+        "corrida",
+        "musculacao",
+        "yoga"
+      ],
+      "favorite": {
+        "kind": "musculacao",
+        "count": 2
+      }
+    },
+    {
+      "kinds": [
+        "outro",
+        "bike",
+        "bike",
+        "outro",
+        "outro"
+      ],
+      "favorite": {
+        "kind": "outro",
+        "count": 3
+      }
+    },
+    {
+      "kinds": [
+        "danca",
+        "lutas"
+      ],
+      "favorite": {
+        "kind": "lutas",
+        "count": 1
+      }
+    }
+  ],
+  "top": [
+    {
+      "xp": [],
+      "index": null
+    },
+    {
+      "xp": [
+        0
+      ],
+      "index": 0
+    },
+    {
+      "xp": [
+        10,
+        50,
+        50,
+        3
+      ],
+      "index": 1
+    },
+    {
+      "xp": [
+        0,
+        0
+      ],
+      "index": 0
+    },
+    {
+      "xp": [
+        5,
+        1,
+        9
+      ],
+      "index": 2
+    }
+  ]
+}

@@ -29,6 +29,36 @@ struct PublicProfile: Codable, Identifiable, Sendable {
         let symbol: String
     }
 
+    /// Bros e atributos ("Bros e atributos", chave `publicBros`). No JSON de `public` fica em `bros`, com os mesmos nomes no Android:
+    /// `top` {name, formID, level} = o bro de maior XP; `dexFound`/`dexTotal` = formas descobertas no BroBook e o total;
+    /// `favorite` {kind, count} = o `ActivityKind.rawValue` mais postado e quantas vezes; `attributes` {forca, resistencia,
+    /// agilidade, tecnica} = percentual inteiro (soma 100) dos atributos de todos os treinos. Perfis antigos não têm `bros`.
+    struct Bros: Codable, Sendable {
+        struct Top: Codable, Sendable {
+            let name: String
+            let formID: String
+            let level: Int
+
+            var form: MonsterForm { MonsterForm.byID(formID) ?? .egg }
+        }
+
+        struct Favorite: Codable, Sendable {
+            let kind: String
+            let count: Int
+
+            var activity: ActivityKind { ActivityKind(rawValue: kind) ?? .outro }
+        }
+
+        var top: Top?
+        let dexFound: Int
+        let dexTotal: Int
+        var favorite: Favorite?
+        var attributes: [String: Int]?
+
+        var dominant: Attribute? { Self.dominant(attributes) }
+        func percent(_ a: Attribute) -> Int { attributes?[a.rawValue] ?? 0 }
+    }
+
     let id: String
     let name: String
     var username = ""
@@ -37,6 +67,7 @@ struct PublicProfile: Codable, Identifiable, Sendable {
     var bro: Bro?
     var stats: Stats?
     var achievements: [Badge]?
+    var bros: Bros?
     /// Check-ins postados no perfil, do mais novo para o mais antigo
     var posts: [RemoteCheckIn] = []
     /// Check-ins recentes em ligas públicas (para o Feed; as privadas não chegam)
@@ -53,6 +84,22 @@ extension PublicProfile {
         return .init(checkIns: posted.count, activeDays: days.count, leagues: leagues.filter { !$0.isPastSeason }.count)
     }
 
+    /// Bros e atributos: o bro de maior XP, o BroBook, a atividade mais postada (as não postadas ficam privadas, como nos números)
+    /// e os atributos gerais, somados de todos os treinos (`Game.snapshot` do jogador, sem a divisão entre os bros).
+    @MainActor
+    static func bros(roster: Roster, activities: [Activity], checkIns: [LeagueCheckIn], discovered: Set<String>) -> Bros {
+        let top = Bros.topIndex(roster.monsters.map { roster.snapshot($0.uuid).totalXP }).map { i -> Bros.Top in
+            let m = roster.monsters[i], s = roster.snapshot(m.uuid)
+            let name = ContentFilter.publishable(m.displayName(s.form))
+            return .init(name: name.isEmpty ? s.form.name : name, formID: s.form.id, level: s.level)
+        }
+        let posted = Set(checkIns.map(\.activityUUID))
+        let player = Game.cachedSnapshot(activities.map(\.record))
+        return Bros(top: top, dexFound: DexView.allForms.filter { discovered.contains($0.id) }.count, dexTotal: DexView.allForms.count,
+                    favorite: Bros.favorite(activities.filter { posted.contains($0.uuid) }.map(\.kind)),
+                    attributes: Bros.percentages(player.lifetimeAttributes))
+    }
+
     /// O seu perfil público, respeitando o que você escondeu em "O que aparece para os outros".
     /// Texto barrado pelo filtro de palavras sobe vazio (o apelido do bro volta ao nome da forma).
     @MainActor
@@ -66,7 +113,51 @@ extension PublicProfile {
             id: "me", name: text("trainerName"), username: text("profileUsername"), bio: text("profileBio"),
             bro: shows("publicMonster") ? .init(name: broName.isEmpty ? s.form.name : broName, formID: s.form.id, level: s.level, progress: s.progress) : nil,
             stats: shows("publicStats") ? stats(activities: activities, checkIns: checkIns, leagues: leagues) : nil,
-            achievements: shows("publicAchievements") ? unlocked.map { .init(title: $0.title, symbol: $0.symbol) } : nil)
+            achievements: shows("publicAchievements") ? unlocked.map { .init(title: $0.title, symbol: $0.symbol) } : nil,
+            bros: shows("publicBros") ? bros(roster: roster, activities: activities, checkIns: checkIns,
+                                             discovered: Set((d.string(forKey: "discovered") ?? "").split(separator: ",").map(String.init))) : nil)
+    }
+}
+
+/// Regras puras de "Bros e atributos", iguais às do Android (vetor `Fixtures/gymbros-public-bros.json`)
+extension PublicProfile.Bros {
+    /// Percentual inteiro de cada atributo, somando 100 (maior resto; empate na ordem de `Attribute.allCases`). Sem treino: nil.
+    static func percentages(_ attrs: [Attribute: Double]) -> [String: Int]? {
+        let values = Attribute.allCases.map { max(attrs[$0] ?? 0, 0) }
+        let total = values.reduce(0, +)
+        guard total > 0 else { return nil }
+        let exact = values.map { $0 * 100 / total }
+        var out = exact.map { Int($0.rounded(.down)) }
+        let rest = 100 - out.reduce(0, +)
+        let ranked = exact.indices.sorted { a, b in
+            let fa = exact[a] - exact[a].rounded(.down), fb = exact[b] - exact[b].rounded(.down)
+            return fa != fb ? fa > fb : a < b
+        }
+        for i in ranked.prefix(rest) { out[i] += 1 }
+        return Dictionary(uniqueKeysWithValues: zip(Attribute.allCases.map(\.rawValue), out))
+    }
+
+    /// O de maior percentual; empate fica com o primeiro de `Attribute.allCases`
+    static func dominant(_ percent: [String: Int]?) -> Attribute? {
+        guard let percent else { return nil }
+        var best: Attribute?
+        for a in Attribute.allCases where best == nil || (percent[a.rawValue] ?? 0) > (percent[best!.rawValue] ?? 0) { best = a }
+        return best
+    }
+
+    /// A atividade que mais aparece; empate fica com a primeira de `ActivityKind.allCases`
+    static func favorite(_ kinds: [ActivityKind]) -> Favorite? {
+        let counts = Dictionary(kinds.map { ($0, 1) }, uniquingKeysWith: +)
+        var best: ActivityKind?
+        for k in ActivityKind.allCases where (counts[k] ?? 0) > 0 && (best == nil || counts[k]! > counts[best!]!) { best = k }
+        return best.map { Favorite(kind: $0.rawValue, count: counts[$0]!) }
+    }
+
+    /// Posição do bro de maior XP (o nível acompanha o XP); empate fica com o primeiro
+    static func topIndex(_ xp: [Int]) -> Int? {
+        var best: Int?
+        for (i, v) in xp.enumerated() where best == nil || v > xp[best!] { best = i }
+        return best
     }
 }
 
@@ -131,8 +222,12 @@ struct PublicProfileCard: View {
                     stat("\(s.leagues)", "Ligas")
                 }
             }
-            if let a = profile.achievements, !a.isEmpty {
+            if let b = profile.bros {
                 if showHeader || profile.bro != nil || profile.stats != nil { GMDivider() }
+                PublicBrosSection(bros: b)
+            }
+            if let a = profile.achievements, !a.isEmpty {
+                if showHeader || profile.bro != nil || profile.stats != nil || profile.bros != nil { GMDivider() }
                 Text("Conquistas · \(a.count)").font(.caption.bold()).foregroundStyle(Theme.dim)
                 GMFlow {
                     ForEach(a.prefix(6), id: \.self) { b in
@@ -153,6 +248,73 @@ struct PublicProfileCard: View {
             Text(label).font(.caption).foregroundStyle(Theme.dim)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// Bros e atributos no perfil público: o bro de maior nível, a atividade favorita, o BroBook e os atributos gerais,
+/// com o de mais afinidade em destaque
+struct PublicBrosSection: View {
+    let bros: PublicProfile.Bros
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Bros e atributos").font(.caption.bold()).foregroundStyle(Theme.dim)
+            if let t = bros.top {
+                HStack(spacing: 12) {
+                    MonsterSprite(form: t.form)
+                        .frame(width: 34, height: 34)
+                        .background(Theme.raised, in: .rect(cornerRadius: Theme.radiusS))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(t.name).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        Text("Bro de maior nível").font(.caption).foregroundStyle(Theme.dim)
+                    }
+                    Spacer(minLength: 8)
+                    Text(t.form.stage == .egg ? "Ovo" : "Nível \(t.level)").font(.caption.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(Theme.dim)
+                }
+                .accessibilityElement(children: .combine)
+            }
+            if let f = bros.favorite {
+                GMRow(icon: f.activity.symbol, iconTint: Theme.accent, title: f.activity.name, subtitle: "Atividade favorita") {
+                    Text("\(f.count)×").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(Theme.dim)
+                }
+                .accessibilityElement(children: .combine)
+            }
+            VStack(spacing: 8) {
+                GMRow(icon: "book.fill", iconTint: Theme.accent, title: "BroBook", subtitle: "\(bros.dexFound) de \(bros.dexTotal) formas") {
+                    Text("\(Int((dexProgress * 100).rounded()))%").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(Theme.dim)
+                }
+                GMProgressBar(value: dexProgress, height: 6)
+            }
+            .accessibilityElement(children: .combine)
+            if let dominant = bros.dominant {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 4) {
+                        Text("Mais afinidade com").foregroundStyle(Theme.dim)
+                        Label(dominant.name, systemImage: dominant.symbol).foregroundStyle(dominant.color)
+                    }
+                    .font(.caption.weight(.semibold))
+                    ForEach(Attribute.allCases) { a in attribute(a, highlighted: a == dominant) }
+                }
+            }
+        }
+    }
+
+    private var dexProgress: Double { Double(bros.dexFound) / Double(max(bros.dexTotal, 1)) }
+
+    private func attribute(_ a: Attribute, highlighted: Bool) -> some View {
+        let p = bros.percent(a)
+        return HStack(spacing: 8) {
+            Label(a.name, systemImage: a.symbol)
+                .font(.subheadline.weight(highlighted ? .bold : .semibold))
+                .foregroundStyle(highlighted ? a.color : .white)
+                .frame(width: 130, alignment: .leading)
+            GMProgressBar(value: Double(p) / 100, tint: highlighted ? a.color : a.color.opacity(0.5), height: 6)
+            Text("\(p)%").font(.caption.monospacedDigit()).foregroundStyle(highlighted ? .white : Theme.dim)
+                .frame(width: 40, alignment: .trailing)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(a.name), \(p)%")
     }
 }
 
@@ -194,7 +356,7 @@ struct FriendProfileView: View {
                     GMEmptyState(icon: "flag", title: "Perfil denunciado",
                                  message: "Você não vê mais o conteúdo deste perfil. " + ModerationStore.reviewNote)
                 } else if let profile {
-                    if profile.bro != nil || profile.stats != nil || !(profile.achievements ?? []).isEmpty {
+                    if profile.bro != nil || profile.stats != nil || profile.bros != nil || !(profile.achievements ?? []).isEmpty {
                         GMCard { PublicProfileCard(profile: profile, showHeader: false) }
                     }
                     commonLeagues
