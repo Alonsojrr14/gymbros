@@ -201,6 +201,27 @@ fun GMDateTimePicker(date: Instant, onChange: (Instant) -> Unit) {
     }
 }
 
+/** Só o horário, em minutos do dia: uma linha que abre o relógio numa folha de baixo (GMCalendar.swift `GMTimeField`) */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GMTimeField(minuteOfDay: Int, onChange: (Int) -> Unit, title: String = "Horário", enabled: Boolean = true) {
+    var open by remember { mutableStateOf(false) }
+    FieldRow(Icons.Filled.Schedule, title, "%02d:%02d".format(minuteOfDay / 60, minuteOfDay % 60)) { if (enabled) open = true }
+    if (open) {
+        val state = rememberTimePickerState(minuteOfDay / 60, minuteOfDay % 60, is24Hour = true)
+        GMSheet(onDismiss = { open = false }) {
+            Text(title, color = Color.White, style = GMType.headline)
+            TimePicker(state, colors = TimePickerDefaults.colors(clockDialColor = GMColors.raised, selectorColor = GMColors.accent,
+                                                               timeSelectorSelectedContainerColor = GMColors.accent.copy(alpha = 0.25f),
+                                                               timeSelectorSelectedContentColor = GMColors.accent))
+            GMButton("Confirmar", {
+                onChange(state.hour * 60 + state.minute)
+                open = false
+            })
+        }
+    }
+}
+
 /** Folha de baixo do app (gmSheet do iOS): fundo do app, conteúdo centralizado com espaçamento 16 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

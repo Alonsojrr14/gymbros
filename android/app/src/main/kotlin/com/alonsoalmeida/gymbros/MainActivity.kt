@@ -44,6 +44,8 @@ private fun Root(container: AppContainer) {
     val user by container.auth.user.collectAsStateWithLifecycle()
     val current = user
     if (current == null) {
+        // Sem conta, nenhum lembrete fica agendado (a conta é obrigatória)
+        androidx.compose.runtime.LaunchedEffect(Unit) { com.alonsoalmeida.gymbros.data.reminders.LocalReminders.cancelAll(container.context) }
         LoginScreen(viewModel(factory = viewModelFactory { initializer { LoginViewModel(container.auth) } }))
     } else {
         // Um ViewModel por conta: trocar de conta nunca mostra dados da anterior
@@ -75,6 +77,8 @@ private fun Root(container: AppContainer) {
                     com.alonsoalmeida.gymbros.ui.friends.FriendLinkHandler(data, friends)
                     // Cerca dos lugares de treino registrada a cada abertura, como o startMonitoring do iOS
                     com.alonsoalmeida.gymbros.ui.map.GymMonitor(env)
+                    // Lembrete para treinar e resumo da semana, reagendados quando a conta muda (App.swift `publish`)
+                    com.alonsoalmeida.gymbros.ui.settings.ReminderScheduler(env)
                 }
                 SoonModal(soon) { soon = null }
             }
