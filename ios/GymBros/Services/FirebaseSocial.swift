@@ -159,12 +159,14 @@ final class LivePresence {
     private var last: Status?
     private var lastWrite = Date.distantPast
     private var pending: Task<Void, Never>?
+    /// Treinos já encerrados: uma atualização atrasada (a posição chega depois do fim) não os põe ao vivo de novo
+    private var ended: Set<String> = []
 
     private var enabled: Bool { Backend.mode == .firebase && FirebaseSession.uid != nil }
 
     /// Estado novo do treino `id`. Mudança de exercício ou de série sobe na hora (respeitando o intervalo mínimo)
     func update(_ id: String, _ status: Status) {
-        guard enabled else { return }
+        guard enabled, !ended.contains(id) else { return }
         guard LiveShare.isSharing(id) else { return end(id) }
         let changed = workoutID != id || last != status
         workoutID = id
@@ -181,10 +183,15 @@ final class LivePresence {
     }
 
     /// Treino encerrado (ou "Ao vivo" desligado nele): fica só o "visto há…"
+    /// "Ao vivo" religado no mesmo treino: volta a publicar
+    func resume(_ id: String) { ended.remove(id) }
+
     func end(_ id: String) {
         // Só encerra o que estava publicando (um treino não compartilhado não deixa rastro). Com o app reaberto no meio do
         // treino, a memória está vazia: encerra se o treino compartilhava, senão ele ficaria "ao vivo" para os amigos
-        guard enabled, workoutID == id || (workoutID == nil && LiveShare.isSharing(id)) else { return }
+        guard enabled, !ended.contains(id) else { return }
+        ended.insert(id)
+        guard workoutID == id || (workoutID == nil && LiveShare.isSharing(id)) else { return }
         pending?.cancel()
         let kind = last?.kind
         workoutID = nil
@@ -222,6 +229,7 @@ final class LivePresence {
 
     /// Musculação: exercício e série atuais, e o que já terminou
     func workout(_ s: WorkoutSession, state st: WorkoutAttributes.ContentState) {
+        guard s.end == nil else { return }
         let gym = GymLocation.shared.gym(s.gymUUID)
         let done = s.exerciseIDs.compactMap { id -> String? in
             let sets = s.orderedSets.filter { $0.exerciseID == id && !$0.warmup }

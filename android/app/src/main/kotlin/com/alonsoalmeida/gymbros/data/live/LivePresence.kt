@@ -58,6 +58,8 @@ object LivePresence {
     private var last: LiveStatus? = null
     private var lastWrite = 0L
     private var pending: Job? = null
+    /** Treinos já encerrados: uma atualização atrasada (a posição chega depois do fim) não os põe ao vivo de novo */
+    private val ended = mutableSetOf<String>()
     /** Fora da academia: a posição lida uma vez por treino (treino → posição) */
     private var located: Pair<String, Coordinate>? = null
     private var locating: String? = null
@@ -69,6 +71,7 @@ object LivePresence {
     /** Estado novo do treino `id` (`update`) */
     fun update(c: Context, id: String, from: Source, status: LiveStatus) {
         val me = uid() ?: return
+        if (id in ended) return
         val app = c.applicationContext
         if (!LiveShare.isSharing(id, TrainCopy.settings(copy(app)))) return end(id)
         val changed = workoutID != id || !status.sameAs(last)
@@ -88,7 +91,11 @@ object LivePresence {
     }
 
     /** Treino encerrado (ou "Ao vivo" desligado nele): fica só o "visto há…". Só encerra o que estava publicando */
+    /** "Ao vivo" religado no mesmo treino: volta a publicar */
+    fun resume(id: String) { ended -= id }
+
     fun end(id: String) {
+        ended += id
         if (workoutID != id) return
         val kind = last?.kind
         clear()
@@ -197,7 +204,7 @@ object LiveShareStore {
 
     /** Liga ou desliga só este treino (o chip "Ao vivo"); desligar tira do ar na hora */
     fun set(c: Context, id: String, on: Boolean) {
-        if (!on) LivePresence.end(id)
+        if (on) LivePresence.resume(id) else LivePresence.end(id)
         val copies = (c.applicationContext as GymBrosApp).container.copies
         scope.launch {
             copies.edit { x ->
