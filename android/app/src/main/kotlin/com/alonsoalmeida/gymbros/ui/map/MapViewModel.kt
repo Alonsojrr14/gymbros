@@ -48,10 +48,18 @@ class MapViewModel(
         }
     }
 
-    fun update(h: HomeData) { home = h }
+    /** A aba pediu os amigos antes da conta carregar: busca assim que ela chegar */
+    private var wanted = false
+
+    fun update(h: HomeData) {
+        val first = home == null
+        home = h
+        if (first && wanted) start()
+    }
 
     /** Aba visível: confere a permissão, busca os amigos e liga um ouvinte por amigo em `live/{uid}` */
     fun start() {
+        wanted = true
         val h = home ?: return
         viewModelScope.launch {
             if (h.termsVersion < FriendsViewModel.TERMS_VERSION) { _state.update { it.copy(social = false) }; return@launch }
@@ -71,6 +79,7 @@ class MapViewModel(
     }
 
     fun stop() {
+        wanted = false
         stopLive?.invoke()
         stopLive = null
     }
