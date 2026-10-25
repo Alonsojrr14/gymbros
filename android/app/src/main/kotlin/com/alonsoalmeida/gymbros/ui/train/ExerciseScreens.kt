@@ -66,6 +66,7 @@ import com.alonsoalmeida.gymbros.domain.train.clock
 import com.alonsoalmeida.gymbros.domain.train.meters
 import com.alonsoalmeida.gymbros.domain.train.muscleLoad
 import com.alonsoalmeida.gymbros.domain.train.normalized
+import com.alonsoalmeida.gymbros.domain.home.HomeData
 import com.alonsoalmeida.gymbros.ui.AppEnv
 import com.alonsoalmeida.gymbros.ui.auth.GMTextField
 import com.alonsoalmeida.gymbros.ui.components.ExerciseImages
@@ -684,4 +685,32 @@ internal fun PRSessionModal(env: AppEnv, data: TrainData, only: String?, onDismi
         GMSection("Quando") { GMDateTimePicker(date) { date = it } }
     }
     ExercisePickerModal(picking, env, data, onPick = { if (it.id !in ids) ids = ids + it.id }) { picking = false }
+}
+
+/**
+ * Telas do Treino abertas de fora da aba, numa janela própria por cima (o NavigationLink do iOS): `stats` é o pill
+ * "Recordes" do perfil (ProfileView.swift abre `ExerciseStatsList`, com o detalhe de cada exercício) e `session/{id}` é o
+ * "Ver séries" do detalhe da atividade (ActivityDetail.swift abre `SessionDetailView`). Voltar da primeira tela fecha.
+ */
+@Composable
+fun TrainPageModal(route: String?, env: AppEnv, home: HomeData, onDismiss: () -> Unit) {
+    if (route == null) return
+    val data = rememberTrainData(env)
+    val nav = remember(route) { TrainNav().apply { push(route) } }
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = { if (nav.stack.size > 1) nav.pop() else onDismiss() },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        val top = nav.stack.lastOrNull()
+        if (top == null) {
+            LaunchedEffect(Unit) { onDismiss() }
+            return@Dialog
+        }
+        val arg = top.substringAfter('/', "")
+        when (top.substringBefore('/')) {
+            "exercise" -> ExerciseDetailScreen(env, data, arg, nav)
+            "session" -> SessionDetailScreen(env, home, data, arg, nav)
+            else -> ExerciseStatsScreen(data, nav)
+        }
+    }
 }

@@ -85,7 +85,9 @@ class ProfilePublisher(private val db: FirebaseFirestore = FirebaseFirestore.get
             var sample = 1
             while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 512) sample *= 2
             val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
-            val img = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size, opts) ?: return null
+            // De pé conforme o EXIF antes de recortar (foto de câmera vem deitada com a orientação só marcada)
+            val img = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size, opts)
+                ?.let { com.alonsoalmeida.gymbros.ui.components.Photos.upright(it, data) } ?: return null
             val side = minOf(img.width, img.height)
             val crop = android.graphics.Bitmap.createBitmap(img, (img.width - side) / 2, (img.height - side) / 2, side, side)
             val out = android.graphics.Bitmap.createScaledBitmap(crop, 512, 512, true)

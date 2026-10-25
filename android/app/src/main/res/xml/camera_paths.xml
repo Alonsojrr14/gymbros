@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Só a pasta das fotos da câmera, no cache privado do app (CameraFiles) -->
+<paths>
+    <cache-path name="camera" path="camera/" />
+</paths>

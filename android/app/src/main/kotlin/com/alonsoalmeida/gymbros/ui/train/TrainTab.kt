@@ -440,7 +440,7 @@ internal fun BackButton(nav: TrainNav) = GMIconButton(TrainIcons.back, "Voltar",
 
 /** Treino feito: séries tocáveis para corrigir carga ou reps (TrainView.swift `SessionDetailView`) */
 @Composable
-private fun SessionDetailScreen(env: AppEnv, home: HomeData, data: TrainData, id: String, nav: TrainNav) {
+internal fun SessionDetailScreen(env: AppEnv, home: HomeData, data: TrainData, id: String, nav: TrainNav) {
     val session = data.sessions.firstOrNull { it.uuid == id }
     if (session == null) { nav.pop(); return }
     var editing by remember { mutableStateOf<String?>(null) }

@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAddAlt1
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.TableChart
@@ -149,6 +150,9 @@ fun LeagueDetailScreen(league: League, env: AppEnv, home: HomeData, vm: LeaguesV
     var choosingSuccessor by remember { mutableStateOf(false) }
     var postingDaily by remember { mutableStateOf(false) }
     var creatingChallenge by remember { mutableStateOf(false) }
+    // Treino do dia aberto (LeaguesView.swift `dailySession`)
+    var dailySession by rememberSaveable { mutableStateOf<String?>(null) }
+    val train = com.alonsoalmeida.gymbros.ui.train.rememberTrainData(env)
 
     LaunchedEffect(league.code) { vm.refresh(league) }
 
@@ -191,7 +195,17 @@ fun LeagueDetailScreen(league: League, env: AppEnv, home: HomeData, vm: LeaguesV
                       iconTint = GMColors.accent, subtitle = "Aprove ou negue antes de pontuar", chevron = true, onClick = { reviewing = true })
             }
         }
-        settings.dailyWorkout?.takeIf { it.isToday(now) }?.let { DailyWorkoutCard(it) }
+        settings.dailyWorkout?.takeIf { it.isToday(now) }?.let { w ->
+            DailyWorkoutCard(w) {
+                // LiveWorkout.startSession(routine: w.routine): cargas sugeridas, aquecimento automático e deload, como na aba Treino
+                val routine = com.alonsoalmeida.gymbros.domain.train.Routine(com.alonsoalmeida.gymbros.domain.train.Session.newID(), w.title,
+                    items = w.items.mapIndexed { i, x -> com.alonsoalmeida.gymbros.domain.train.RoutineItem(x.exerciseID, x.sets, x.reps, rest = 90, order = i) })
+                val start = Instant.now()
+                val session = com.alonsoalmeida.gymbros.domain.train.WorkoutStart.session(routine, train.history, train.deloadActive(start), train.autoWarmup, start)
+                com.alonsoalmeida.gymbros.data.train.TrainScope.edit(env) { com.alonsoalmeida.gymbros.data.train.TrainEdits.saveSession(it, session) }
+                dailySession = session.uuid
+            }
+        }
         settings.parentClub?.let { parent ->
             ui.leagues.firstOrNull { it.seriesKey.equals(parent, true) && !it.isPastSeason }?.let { club ->
                 Text("Desafio do clube ${club.emoji} ${club.name}", color = GMColors.dim, style = GMType.caption.copy(fontWeight = FontWeight.SemiBold))
@@ -243,6 +257,7 @@ fun LeagueDetailScreen(league: League, env: AppEnv, home: HomeData, vm: LeaguesV
     profile?.let { r -> MemberProfile(env, home, r) { profile = null } }
     if (reviewing) LeagueReviewQueue(league, toReview, env, home, vm) { reviewing = false }
     if (postingDaily) DailyWorkoutEditor(league, env, vm, now) { postingDaily = false }
+    dailySession?.let { id -> com.alonsoalmeida.gymbros.ui.train.WorkoutScreen(env, home, train, id) { dailySession = null } }
 
     val isOwner = league.isMine
     val canRestart = league.format == LeagueFormat.CHALLENGE && league.isOver(now) && !league.isPastSeason && isOwner
@@ -769,15 +784,16 @@ private fun ChallengeFinalCard(l: League, rank: List<RankRow>, feed: List<FeedIt
     }
 }
 
-/** Treino do dia (LeagueModerationViews.swift `DailyWorkoutCard`). Começar o treino guiado ainda não existe no Android. */
+/** Treino do dia (LeagueModerationViews.swift `DailyWorkoutCard`): "Começar" abre o treino guiado com os exercícios do dia */
 @Composable
-private fun DailyWorkoutCard(w: com.alonsoalmeida.gymbros.domain.leagues.DailyWorkout) {
+private fun DailyWorkoutCard(w: com.alonsoalmeida.gymbros.domain.leagues.DailyWorkout, start: () -> Unit) {
     GMCard {
         Text("TREINO DO DIA", color = GMColors.accent, style = GMType.caption2.copy(fontWeight = FontWeight.Black))
         Text(w.title, color = Color.White, style = GMType.headline)
-        if (w.items.isNotEmpty()) Text(w.items.joinToString(" · ") { "${it.exerciseID.replace('-', ' ')} ${it.sets}×${it.reps}" },
+        if (w.items.isNotEmpty()) Text(w.items.joinToString(" · ") { "${com.alonsoalmeida.gymbros.domain.train.Exercises.name(it.exerciseID)} ${it.sets}×${it.reps}" },
                                         color = GMColors.dim, style = GMType.caption, maxLines = 3)
         if (w.note.isNotEmpty()) Text(w.note, color = GMColors.dim, style = GMType.caption, maxLines = 6)
+        if (w.items.isNotEmpty()) GMButton("Começar", start, icon = Icons.Filled.PlayArrow, full = false, small = true)
     }
 }
 

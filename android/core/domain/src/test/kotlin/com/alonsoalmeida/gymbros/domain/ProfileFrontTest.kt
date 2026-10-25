@@ -11,6 +11,8 @@ import com.alonsoalmeida.gymbros.domain.profile.ContentFilter
 import com.alonsoalmeida.gymbros.domain.profile.Measure
 import com.alonsoalmeida.gymbros.domain.profile.ProfileBuilder
 import com.alonsoalmeida.gymbros.domain.profile.ProfileEdits
+import com.alonsoalmeida.gymbros.domain.train.SessionLog
+import com.alonsoalmeida.gymbros.domain.train.SetLog
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -226,5 +228,25 @@ class ProfileFrontTest {
         assertEquals(p.activities.isNotEmpty(), first.unlocked)
         assertTrue(p.achievements.none { it.id == "pr1" })
         assertEquals(JsonPrimitive("x"), JsonPrimitive("x"))
+    }
+
+    @Test
+    fun achievementsFromGuidedWorkouts() {
+        val roster = HomeBuilder.build(AccountCopy.decode(iphone), clock).roster
+        val d1 = Instant.parse("2027-01-10T12:00:00Z")
+        val logs = listOf(
+            SessionLog(d1, listOf(SetLog("supino-reto", 60.0, 10, 10, true), SetLog("supino-reto", 60.0, 10, 10, true))),
+            SessionLog(d1.plusSeconds(86_400), listOf(SetLog("supino-reto", 70.0, 8, 10, true), SetLog("supino-reto", 1000.0, 8, 10, false))),
+        )
+        val p = ProfileBuilder.build(iphone, roster, clock, logs, dexTotal = 40)
+        val ids = p.achievements.map { it.id }
+        // Mesma ordem do Achievements.evaluate do iPhone
+        assertEquals(listOf("guiado10", "pr1", "pr25", "ton10", "ton100", "corpo"), ids.subList(ids.indexOf("guiado10"), ids.indexOf("corpo") + 1))
+        assertEquals(ids.indexOf("dex25") + 1, ids.indexOf("dexall"))
+        assertEquals(1.0, p.achievements.first { it.id == "pr1" }.current)
+        // 60×10×2 + 70×8 (a série não feita fica de fora) = 1760 kg
+        assertEquals(1.76, p.achievements.first { it.id == "ton10" }.current, 1e-9)
+        assertEquals(2.0, p.achievements.first { it.id == "guiado10" }.current)
+        assertEquals(0.2, p.achievements.first { it.id == "guiado10" }.progress, 1e-9)
     }
 }

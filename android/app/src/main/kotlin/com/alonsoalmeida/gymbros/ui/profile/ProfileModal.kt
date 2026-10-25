@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -73,6 +74,7 @@ import com.alonsoalmeida.gymbros.ui.friends.PublicProfileCard
 import com.alonsoalmeida.gymbros.ui.legal.Legal
 import com.alonsoalmeida.gymbros.ui.log.LogActivityScreen
 import com.alonsoalmeida.gymbros.ui.settings.SettingsModal
+import com.alonsoalmeida.gymbros.ui.train.TrainPageModal
 import com.alonsoalmeida.gymbros.ui.theme.GMColors
 import com.alonsoalmeida.gymbros.ui.theme.GMRadius
 import com.alonsoalmeida.gymbros.ui.theme.GMType
@@ -85,7 +87,7 @@ import java.time.temporal.TemporalAdjusters
 
 /**
  * Perfil (a bolinha no topo das abas: Profile/ProfileView.swift): parte pública (o que amigos veem) e privada
- * (números, calendário, estatísticas, todas as atividades, peso). Recordes, metas, sequências, retrospectiva, histórico
+ * (números, recordes, estatísticas, calendário, todas as atividades, peso). Metas, sequências, retrospectiva, histórico
  * de X1 e títulos nos clubes ainda não chegaram ao Android e ficam de fora.
  */
 @Composable
@@ -99,6 +101,7 @@ fun ProfileModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () ->
     var settings by rememberSaveable { mutableStateOf(false) }
     var editing by rememberSaveable { mutableStateOf(false) }
     var stats by rememberSaveable { mutableStateOf(false) }
+    var records by rememberSaveable { mutableStateOf(false) }
     var all by rememberSaveable { mutableStateOf(false) }
     var body by rememberSaveable { mutableStateOf(false) }
     var logging by rememberSaveable { mutableStateOf(false) }
@@ -121,12 +124,13 @@ fun ProfileModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () ->
         message?.let { Text(it, color = GMColors.warning, style = GMType.footnote, modifier = Modifier.align(Alignment.CenterHorizontally)) }
         Segmented(listOf(0 to "Público", 1 to "Privado"), tab) { tab = it }
         if (tab == 0) PublicPart(data, home, state.mainNick) { detail = it }
-        else PrivatePart(data, onStats = { stats = true }, onAll = { all = true }, onBody = { body = true }, onDay = { day = it.toString() })
+        else PrivatePart(data, onRecords = { records = true }, onStats = { stats = true }, onAll = { all = true }, onBody = { body = true }, onDay = { day = it.toString() })
         GMButton("Registrar atividade", { logging = true }, icon = Icons.Filled.AddCircle)
     }
 
     SettingsModal(settings, env, home) { settings = false }
     EditProfileModal(editing, vm, home, ui?.data) { editing = false }
+    TrainPageModal(if (records) "stats" else null, env, home) { records = false }
     StatsModal(stats, ui?.data) { stats = false }
     HistoryModal(all, env, home) { all = false }
     BodyTrackerModal(body, env) { body = false }
@@ -170,7 +174,7 @@ private fun Stat(value: String, label: String, modifier: Modifier) {
 }
 
 @Composable
-private fun PrivatePart(data: ProfileData, onStats: () -> Unit, onAll: () -> Unit, onBody: () -> Unit, onDay: (LocalDate) -> Unit) {
+private fun PrivatePart(data: ProfileData, onRecords: () -> Unit, onStats: () -> Unit, onAll: () -> Unit, onBody: () -> Unit, onDay: (LocalDate) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Row(Modifier.fillMaxWidth()) {
             Stat("${data.activities.size}", "Atividades", Modifier.weight(1f))
@@ -178,6 +182,7 @@ private fun PrivatePart(data: ProfileData, onStats: () -> Unit, onAll: () -> Uni
             Stat(hoursText(data.totalMinutes), "Duração", Modifier.weight(1f))
         }
         Row(Modifier.fillMaxWidth().background(GMColors.card, CircleShape).padding(6.dp)) {
+            Pill(Icons.Filled.MilitaryTech, "Recordes", Modifier.weight(1f), onRecords)
             Pill(Icons.Filled.Bolt, "Estatísticas", Modifier.weight(1f), onStats)
             Pill(Icons.Filled.MonitorWeight, "Peso", Modifier.weight(1f), onBody)
         }
@@ -210,7 +215,7 @@ private fun PublicPart(data: ProfileData, home: HomeData, nick: String, onOpen: 
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Text("É assim que seus amigos te veem", color = GMColors.dim, style = GMType.caption, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         GMCard { PublicProfileCard(profile) }
-        GMSection("Posts · ${posts.size}", footer = if (posts.isEmpty()) "Ao registrar uma atividade no iPhone, marque \"Meu perfil\" em \"Postar em\"." else null) {
+        GMSection("Posts · ${posts.size}", footer = if (posts.isEmpty()) "Ao registrar uma atividade, marque \"Meu perfil\" em \"Postar em\"." else null) {
             if (posts.isEmpty()) Text("Nenhum post ainda.", color = GMColors.dim, style = GMType.subheadline)
             posts.forEachIndexed { i, a ->
                 if (i > 0) Hairline()

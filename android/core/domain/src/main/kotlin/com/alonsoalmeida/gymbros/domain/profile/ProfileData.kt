@@ -12,6 +12,12 @@ import com.alonsoalmeida.gymbros.domain.Species
 import com.alonsoalmeida.gymbros.domain.Stage
 import com.alonsoalmeida.gymbros.domain.WorkoutType
 import com.alonsoalmeida.gymbros.domain.activities.ActivityEdits
+import com.alonsoalmeida.gymbros.domain.train.ExerciseType
+import com.alonsoalmeida.gymbros.domain.train.Exercises
+import com.alonsoalmeida.gymbros.domain.train.Muscle
+import com.alonsoalmeida.gymbros.domain.train.Progression
+import com.alonsoalmeida.gymbros.domain.train.SessionLog
+import com.alonsoalmeida.gymbros.domain.train.muscleLoad
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -54,6 +60,7 @@ data class PublicNumbers(val checkIns: Int, val activeDays: Int, val leagues: In
 
 data class AchievementItem(val id: String, val title: String, val detail: String, val symbol: String, val current: Double, val goal: Double) {
     val unlocked: Boolean get() = current >= goal
+    val progress: Double get() = minOf(current / goal, 1.0)
 }
 
 /** Registro de peso e medidas (Models/Body.swift `BodyEntry`) */
@@ -109,7 +116,11 @@ object ProfileBuilder {
     private fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content
     private fun list(copy: JsonObject?, key: String): List<JsonObject> = (copy?.get(key) as? JsonArray)?.mapNotNull { it as? JsonObject }.orEmpty()
 
-    fun build(copy: JsonObject?, roster: Roster, clock: RuleClock): ProfileData {
+    /**
+     * `logs` são os treinos guiados concluídos (do mais antigo ao mais novo) e `dexTotal` o total de formas do BroBook:
+     * com eles entram as conquistas de recordes, toneladas, "Corpo inteiro" e "BroBook completo", como no iPhone.
+     */
+    fun build(copy: JsonObject?, roster: Roster, clock: RuleClock, logs: List<SessionLog>? = null, dexTotal: Int? = null): ProfileData {
         val settings = ProfileEdits.settings(copy)
         val checkIns = list(copy, "checkIns")
         val postsBy = checkIns.groupBy { it.str("activityUUID")?.uppercase() }
@@ -160,7 +171,8 @@ object ProfileBuilder {
         val discovered = (ProfileEdits.text(copy, "discovered") ?: "").split(",").count { it.isNotEmpty() }
         val achievements = achievements(records, activities.count { it.fromHealth }, player, finished,
                                         species = roster.snapshots.values.filter { it.stage > Stage.EGG }.map { it.form.species }.toSet().size,
-                                        ultimates = roster.snapshots.values.count { it.stage == Stage.ULTIMATE }, discovered = discovered, clock = clock)
+                                        ultimates = roster.snapshots.values.count { it.stage == Stage.ULTIMATE }, discovered = discovered, clock = clock,
+                                        logs = logs, dexTotal = dexTotal)
 
         val body = list(copy, "body").mapNotNull { b ->
             BodyEntryData(
@@ -194,11 +206,12 @@ object ProfileBuilder {
     }
 
     /**
-     * Conquistas (Achievements.evaluate). Recordes, toneladas e "Corpo inteiro" dependem das séries do treino guiado e
-     * do catálogo de exercícios, que ainda não chegaram ao Android: ficam de fora daqui.
+     * Conquistas (Achievements.evaluate). Recordes, toneladas e "Corpo inteiro" dependem das séries do treino guiado
+     * (`logs`, do mais antigo ao mais novo, com o catálogo de exercícios e o PR Book já instalados) e "BroBook completo"
+     * do total de formas (`dexTotal`): sem eles, essas conquistas ficam de fora.
      */
     fun achievements(acts: List<ActivityRecord>, fromHealth: Int, s: Snapshot, sessions: Int, species: Int, ultimates: Int,
-                     discovered: Int, clock: RuleClock): List<AchievementItem> {
+                     discovered: Int, clock: RuleClock, logs: List<SessionLog>? = null, dexTotal: Int? = null): List<AchievementItem> {
         val n = acts.size.toDouble()
         val kinds = acts.map { it.kind }.toSet().size.toDouble()
         val longest = (acts.maxOfOrNull { it.minutes } ?: 0).toDouble()
@@ -222,13 +235,40 @@ object ProfileBuilder {
             a("maratona", "Maratonista", "Uma atividade de 2 horas", "timer", longest, 120.0),
             a("madrugador", "Madrugador", "Treine antes das 7h", "sunrise", if (hours.any { it < 7 }) 1.0 else 0.0, 1.0),
             a("coruja", "Coruja", "Treine depois das 21h", "moon.stars", if (hours.any { it >= 21 }) 1.0 else 0.0, 1.0),
-            a("guiado10", "Disciplina", "10 treinos guiados", "list.clipboard", sessions.toDouble(), 10.0),
+            a("guiado10", "Disciplina", "10 treinos guiados", "list.clipboard", (logs?.size ?: sessions).toDouble(), 10.0),
+        ) + guided(logs) + listOf(
             a("especies2", "Nova espécie", "Choque um bro de outra espécie", "pawprint", species.toDouble(), 2.0),
             a("especies4", "Colecionador", "Bros de 4 espécies diferentes", "pawprint.fill", species.toDouble(), 4.0),
             a("especies8", "Zoológico completo", "Bros das 8 espécies", "tortoise.fill", species.toDouble(), maxOf(Species.catalog.size, 2).toDouble()),
             a("ultimate2", "Treinador de elite", "2 bros no estágio Lenda", "crown.fill", ultimates.toDouble(), 2.0),
             a("dex25", "Pesquisador", "Descubra 25 formas no BroBook", "book", discovered.toDouble(), 25.0),
+        ) + listOfNotNull(
+            dexTotal?.let { a("dexall", "BroBook completo", "Descubra todas as formas", "book.fill", discovered.toDouble(), it.toDouble()) },
+        ) + listOf(
             a("saude", "Conectado", "Importe um treino do Apple Saúde", "heart.text.square", fromHealth.toDouble(), 1.0),
+        )
+    }
+
+    /** As conquistas que saem das séries do treino guiado (recordes, toneladas e "Corpo inteiro") */
+    private fun guided(logs: List<SessionLog>?): List<AchievementItem> {
+        if (logs == null) return emptyList()
+        val done = logs.flatMap { it.sets }.filter { it.done }
+        val tons = done.filter { Exercises.byID(it.exerciseID)?.type != ExerciseType.DISTANCE }.sumOf { it.weight * it.reps } / 1000
+        var prs = 0
+        for (k in 1 until logs.size) prs += Progression.records(logs[k], logs.subList(0, k)).size
+        // Semana completa: todos os músculos do mapa trabalhados em alguma janela de 7 dias
+        val fullWeek = logs.any { s ->
+            val from = s.date.minusSeconds(7 * 86_400L)
+            val hit = muscleLoad(logs.filter { it.date <= s.date && it.date > from }.flatMap { it.sets }).keys
+            Muscle.tracked.all { it in hit }
+        }
+        fun a(id: String, t: String, d: String, sym: String, cur: Double, goal: Double) = AchievementItem(id, t, d, sym, cur, goal)
+        return listOf(
+            a("pr1", "Recordista", "Bata seu primeiro recorde", "medal", prs.toDouble(), 1.0),
+            a("pr25", "Máquina de PRs", "25 recordes", "medal.fill", prs.toDouble(), 25.0),
+            a("ton10", "Dez toneladas", "10 t levantadas no total", "scalemass", tons, 10.0),
+            a("ton100", "Cem toneladas", "100 t levantadas no total", "scalemass.fill", tons, 100.0),
+            a("corpo", "Corpo inteiro", "Treine todos os músculos do mapa em 7 dias", "figure.stand", if (fullWeek) 1.0 else 0.0, 1.0),
         )
     }
 }

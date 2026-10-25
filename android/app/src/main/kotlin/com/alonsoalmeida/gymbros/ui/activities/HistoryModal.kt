@@ -127,8 +127,8 @@ private fun Summary(acts: List<ProfileActivity>, home: HomeData) {
 }
 
 /**
- * Detalhe de uma atividade (Activities/ActivityDetail.swift): dados, onde foi publicada, editar e apagar. Foto de
- * check-in, percurso, séries e Stories ainda não chegaram ao Android.
+ * Detalhe de uma atividade (Activities/ActivityDetail.swift): dados, onde foi publicada, as séries do treino guiado,
+ * editar e apagar. Foto de check-in, percurso, Stories e postar pelo lápis ainda não chegaram ao Android.
  */
 @Composable
 fun ActivityDetailModal(activityID: String?, env: AppEnv, home: HomeData, onDismiss: () -> Unit) {
@@ -137,6 +137,8 @@ fun ActivityDetailModal(activityID: String?, env: AppEnv, home: HomeData, onDism
     val ui by vm.state.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var sets by remember { mutableStateOf(false) }
+    val train = com.alonsoalmeida.gymbros.ui.train.rememberTrainData(env)
     val a = ui?.data?.activities?.firstOrNull { it.id.equals(activityID, true) }
     // Apagada aqui ou no outro aparelho: a tela fecha
     if (ui != null && a == null) {
@@ -181,7 +183,7 @@ fun ActivityDetailModal(activityID: String?, env: AppEnv, home: HomeData, onDism
 
         val leagues = home.leagues.associateBy { it.uuid.uppercase() }
         val dests = a.postedIn.sortedBy { id -> if (id == ActivityEdits.PROFILE_FEED) -1 else home.leagues.indexOfFirst { it.uuid.equals(id, true) }.let { if (it < 0) 999 else it } }
-        GMSection("Publicado em", footer = if (dests.isEmpty()) "Ainda não foi postada. Postar no perfil ou numa liga ainda está chegando no Android; no iPhone, toque no lápis." else null) {
+        GMSection("Publicado em", footer = if (dests.isEmpty()) "Ainda não foi postada. Para postar no perfil ou numa liga, abra uma liga, toque em \"Novo check-in\" e escolha \"Já registrada\" (vale para os últimos 7 dias)." else null) {
             if (dests.isEmpty()) Text("Nenhum destino", color = GMColors.dim, style = GMType.subheadline)
             dests.forEachIndexed { i, id ->
                 if (i > 0) Hairline()
@@ -203,9 +205,11 @@ fun ActivityDetailModal(activityID: String?, env: AppEnv, home: HomeData, onDism
                 }
             }
         }
-        if (a.hasWorkout) {
-            GMSection("Treino", footer = "As séries deste treino aparecem no iPhone.") {
-                Text("Treino guiado ou WOD", color = GMColors.dim, style = GMType.subheadline)
+        // Treino guiado ligado: "Ver séries" abre o treino feito, como no iPhone (o WOD não tem essa seção lá)
+        train.sessions.firstOrNull { it.activityUUID.equals(a.id, true) }?.let { s ->
+            GMSection("Treino") {
+                com.alonsoalmeida.gymbros.ui.components.GMRow("Ver séries", com.alonsoalmeida.gymbros.ui.components.TrainIcons.of("list.bullet.rectangle"),
+                    subtitle = "${s.doneWorkSets.size} séries · ${s.exerciseIDs.size} exercícios", chevron = true, onClick = { sets = true })
             }
         }
         GMButton("Apagar atividade", { confirmDelete = true }, icon = Icons.Filled.Delete, kind = GMButtonKind.SECONDARY)
@@ -218,6 +222,10 @@ fun ActivityDetailModal(activityID: String?, env: AppEnv, home: HomeData, onDism
                                                        n.effort, n.note, n.gymUUID))
             editing = false
         })
+    }
+    if (a != null) {
+        val session = train.sessions.firstOrNull { it.activityUUID.equals(a.id, true) }
+        com.alonsoalmeida.gymbros.ui.train.TrainPageModal(if (sets && session != null) "session/${session.uuid}" else null, env, home) { sets = false }
     }
     if (confirmDelete && a != null) {
         ConfirmDialog("Apagar atividade?", "Os check-ins dela no perfil e nas ligas também somem.", "Apagar",

@@ -64,6 +64,18 @@
             </intent-filter>
         </receiver>
 
+        <!-- Foto da câmera em resolução cheia (TakePicture): o app da câmera recebe só a URI de um arquivo em cache/camera/,
+             com permissão temporária; não exportado, sem acesso a mais nada -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.camera"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/camera_paths" />
+        </provider>
+
         <!-- Política de privacidade aberta pelo Health Connect ao pedir permissão (Android 13 ou anterior) -->
         <activity
             android:name=".HealthRationaleActivity"

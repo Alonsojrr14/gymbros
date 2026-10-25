@@ -353,7 +353,7 @@ fun CheckInFormScreen(env: AppEnv, home: HomeData, vm: LeaguesViewModel, presele
     }) {
         GMSegmented(listOf(false to "Nova atividade", true to "Já registrada"), useExisting) { useExisting = it }
         if (useExisting) {
-            GMSection("Atividades recentes", footer = "Treinos guiados e os importados do Apple Saúde aparecem aqui. Atividades do mesmo dia podem ir juntas num check-in só: toque em mais de uma.") {
+            GMSection("Atividades recentes", footer = "Treinos guiados e os importados do Health Connect aparecem aqui. Atividades do mesmo dia podem ir juntas num check-in só: toque em mais de uma.") {
                 if (recent.isEmpty()) Text("Nada registrado nos últimos 7 dias.", color = GMColors.dim, style = GMType.body)
                 recent.forEachIndexed { i, a ->
                     val id = a.uuid.uppercase()

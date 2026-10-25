@@ -2,6 +2,8 @@ package com.alonsoalmeida.gymbros.ui.components
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
@@ -144,8 +146,29 @@ object Photos {
         var sample = 1
         while (maxOf(o.outWidth, o.outHeight) / (sample * 2) >= 1280) sample *= 2
         val b = BitmapFactory.decodeByteArray(data, 0, data.size, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
-        compressed(b)
+        compressed(upright(b, data))
     }.getOrNull()
+
+    /**
+     * De pé conforme o EXIF: a câmera grava o sensor deitado e só marca a orientação, e a versão reduzida sai sem EXIF
+     * (o UIImage do iOS já chega de pé). Sem a marca, fica como está.
+     */
+    fun upright(b: Bitmap, data: ByteArray): Bitmap {
+        val o = runCatching { ExifInterface(data.inputStream()).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
+            .getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+        val m = Matrix()
+        when (o) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> m.setRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> m.setRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> m.setRotate(270f)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> m.setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> m.setScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> { m.setRotate(90f); m.postScale(-1f, 1f) }
+            ExifInterface.ORIENTATION_TRANSVERSE -> { m.setRotate(-90f); m.postScale(-1f, 1f) }
+            else -> return b
+        }
+        return Bitmap.createBitmap(b, 0, 0, b.width, b.height, m, true)
+    }
 
     fun compressed(b: Bitmap): ByteArray {
         val scale = minOf(1f, 1280f / maxOf(b.width, b.height))

@@ -7,18 +7,25 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
 import com.alonsoalmeida.gymbros.domain.leagues.PhotoProof
 import com.alonsoalmeida.gymbros.ui.components.Photos
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 /** Foto escolhida, já reduzida, com a prova de onde veio (CheckInProof.swift `PhotoProofs`) */
 data class PickedPhoto(val bytes: ByteArray, val proof: PhotoProof, val pose: String? = null)
@@ -41,17 +48,50 @@ fun rememberPhotoPickers(pose: String? = null, onPicked: (PickedPhoto) -> Unit, 
             onMany(withContext(Dispatchers.IO) { uris.mapNotNull { u -> read(context, u)?.let(Photos::compressed) } })
         }
     }
-    // Câmera do sistema sem arquivo: o Android devolve uma foto pequena. A hora é a do toque, como a câmera do app no iPhone.
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bmp ->
-        if (bmp != null) onPicked(PickedPhoto(Photos.compressed(bmp), PhotoProof(PhotoProof.CAMERA, Instant.now()), pose))
+    // Câmera do sistema gravando em arquivo (resolução cheia) no cache privado; depois de reduzida, o arquivo some.
+    // A hora é a da foto tirada, como a câmera do app no iPhone.
+    var shot by rememberSaveable { mutableStateOf<String?>(null) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val name = shot ?: return@rememberLauncherForActivityResult
+        shot = null
+        scope.launch {
+            val bytes = withContext(Dispatchers.IO) {
+                val file = CameraFiles.file(context, name)
+                (if (ok) runCatching { file.readBytes() }.getOrNull()?.let(Photos::compressed) else null).also { file.delete() }
+            }
+            if (bytes != null) onPicked(PickedPhoto(bytes, PhotoProof(PhotoProof.CAMERA, Instant.now()), pose))
+        }
     }
     val req = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-    return PhotoPickers({ gallery.launch(req) }, { runCatching { camera.launch(null) } }, { many.launch(req) })
+    return PhotoPickers({ gallery.launch(req) }, {
+        runCatching {
+            val (name, uri) = CameraFiles.new(context)
+            shot = name
+            camera.launch(uri)
+        }
+    }, { many.launch(req) })
+}
+
+/**
+ * Arquivo da câmera em `cache/camera/`, entregue ao app da câmera por um FileProvider não exportado (só esse arquivo,
+ * com permissão de escrita só durante a captura). Nada fica: o arquivo some depois de lido.
+ */
+object CameraFiles {
+    private fun dir(context: Context) = File(context.cacheDir, "camera").apply { mkdirs() }
+
+    fun file(context: Context, name: String) = File(dir(context), name)
+
+    /** Arquivo novo e a URI para a câmera; sobras de uma captura interrompida (app fechado no meio) somem antes */
+    fun new(context: Context): Pair<String, Uri> {
+        dir(context).listFiles()?.forEach { it.delete() }
+        val name = "${UUID.randomUUID()}.jpg"
+        return name to FileProvider.getUriForFile(context, "${context.packageName}.camera", file(context, name))
+    }
 }
 
 private fun read(context: Context, uri: Uri): ByteArray? = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
 
-/** A hora e o local saem do arquivo original (a versão reduzida não tem EXIF), como PhotoProof.library */
+/** A hora e o local saem do arquivo original (a versão reduzida, já de pé, não tem EXIF), como PhotoProof.library */
 private fun fromGallery(context: Context, uri: Uri): PickedPhoto? {
     val raw = read(context, uri) ?: return null
     val small = Photos.compressed(raw) ?: return null

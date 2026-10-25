@@ -5,12 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.alonsoalmeida.gymbros.data.AccountCopyRepository
 import com.alonsoalmeida.gymbros.data.CopyState
 import com.alonsoalmeida.gymbros.data.account.ProfilePublisher
+import com.alonsoalmeida.gymbros.data.train.TrainCopy
 import com.alonsoalmeida.gymbros.domain.MonsterForm
 import com.alonsoalmeida.gymbros.domain.Roster
 import com.alonsoalmeida.gymbros.domain.RuleClock
 import com.alonsoalmeida.gymbros.domain.activities.ActivityEdits
 import com.alonsoalmeida.gymbros.domain.backup.AccountCopy
 import com.alonsoalmeida.gymbros.domain.backup.AccountEdits
+import com.alonsoalmeida.gymbros.domain.bros.Dex
 import com.alonsoalmeida.gymbros.domain.home.HomeBuilder
 import com.alonsoalmeida.gymbros.domain.profile.BodyEdits
 import com.alonsoalmeida.gymbros.domain.profile.ContentFilter
@@ -54,7 +56,9 @@ class ProfileViewModel(private val copies: AccountCopyRepository, private val pu
     private fun build(copy: JsonObject?): ProfileUiState {
         val clock = RuleClock(ZoneId.systemDefault(), Instant.now())
         val home = HomeBuilder.build(copy?.let(AccountCopy::decode), clock)
-        val data = ProfileBuilder.build(copy, home.roster, clock)
+        // Treinos guiados (com os personalizados e o PR Book instalados) para as conquistas de recordes, toneladas e músculos
+        val train = TrainCopy.read(copy).also(TrainCopy::install)
+        val data = ProfileBuilder.build(copy, home.roster, clock, train.history, Dex.allForms().size)
         val main = home.roster.main
         return ProfileUiState(data, home.roster, main?.name.orEmpty(), home.snapshot.form, main?.uuid)
     }

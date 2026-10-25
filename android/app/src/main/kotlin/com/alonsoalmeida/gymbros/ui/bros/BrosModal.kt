@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,7 +21,26 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Accessibility
+import androidx.compose.material.icons.filled.ArrowCircleUp
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.CrueltyFree
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.MilitaryTech
+import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.MonitorWeight
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Scale
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.WbTwilight
+import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Pets
@@ -40,10 +61,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -53,7 +76,9 @@ import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,10 +97,10 @@ import com.alonsoalmeida.gymbros.domain.Stage
 import com.alonsoalmeida.gymbros.domain.bros.Dex
 import com.alonsoalmeida.gymbros.domain.bros.TradeRules
 import com.alonsoalmeida.gymbros.domain.home.HomeData
+import com.alonsoalmeida.gymbros.domain.profile.AchievementItem
 import com.alonsoalmeida.gymbros.ui.AppEnv
 import com.alonsoalmeida.gymbros.ui.copy
 import com.alonsoalmeida.gymbros.ui.components.GMCard
-import com.alonsoalmeida.gymbros.ui.components.GMEmptyState
 import com.alonsoalmeida.gymbros.ui.components.GMModal
 import com.alonsoalmeida.gymbros.ui.components.GMProgressBar
 import com.alonsoalmeida.gymbros.ui.components.LivingMonster
@@ -116,6 +141,9 @@ fun BrosModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -> Un
     val discovered = remember(settings.discovered, home.roster) { Dex.discovered(settings.discovered, home.roster) }
     val revealAll = settings.revealAll
     val isKnown: (MonsterForm) -> Boolean = { revealAll || it.id in discovered }
+    // Conquistas (Achievements.evaluate): as mesmas que o perfil monta, com os treinos guiados e o total do BroBook
+    val profile by com.alonsoalmeida.gymbros.ui.profile.profileViewModel(env).state.collectAsStateWithLifecycle()
+    val achievements = profile?.data?.achievements.orEmpty()
 
     GMModal(true, "Bros", onDismiss) {
         Text(when (tab) {
@@ -123,7 +151,7 @@ fun BrosModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -> Un
             1 -> "Todas as formas de todas as espécies"
             else -> "Marcas que você já bateu e as que faltam"
         }, color = GMColors.dim, style = GMType.subheadline)
-        Hero(home.snapshot, discovered)
+        Hero(home.snapshot, discovered, achievements)
         BroSegmented(listOf(0 to "Meus bros", 1 to "BroBook", 2 to "Conquistas"), tab) { tab = it }
         when (tab) {
             0 -> {
@@ -134,8 +162,7 @@ fun BrosModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -> Un
                      color = GMColors.dim, style = GMType.caption)
             }
             1 -> BroBook(home.snapshot, revealAll, isKnown, onReveal = { vm.setRevealAll(!revealAll) }, onOpen = { entry = it.id })
-            else -> GMEmptyState(Icons.Filled.EmojiEvents, "Conquistas em breve no Android",
-                                 "As conquistas dependem do treino guiado, que ainda está chegando no Android. No iPhone elas já aparecem.")
+            else -> Trophies(achievements)
         }
     }
 
@@ -149,7 +176,7 @@ fun BrosModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -> Un
 
 /** Seu bro em destaque, o anel do BroBook e os números da coleção */
 @Composable
-private fun Hero(s: Snapshot, discovered: Set<String>) {
+private fun Hero(s: Snapshot, discovered: Set<String>, achievements: List<AchievementItem>) {
     val all = remember { Dex.allForms() }
     val known = all.count { it.id in discovered }
     val progress = known.toFloat() / maxOf(all.size, 1)
@@ -170,6 +197,7 @@ private fun Hero(s: Snapshot, discovered: Set<String>) {
             Text("${Math.round(progress * 100)} % do BroBook", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
             Stat(Icons.Filled.AutoAwesome, GMColors.accent, "$known de ${all.size} formas")
             Stat(Icons.Filled.Pets, Attribute.AGILIDADE.color(), "$hatched de ${Species.all.count { it.isReady }} espécies chocadas")
+            Stat(Icons.Filled.EmojiEvents, GMColors.trophy, "${achievements.count { it.unlocked }} de ${achievements.size} conquistas")
         }
     }
 }
@@ -180,6 +208,108 @@ private fun Stat(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Co
         Icon(icon, null, tint = tint, modifier = Modifier.size(14.dp))
         Text(text, color = Color.White.copy(alpha = 0.85f), style = GMType.caption.copy(fontWeight = FontWeight.SemiBold))
     }
+}
+
+// MARK: Conquistas
+
+/** Aba Conquistas (DexView.swift `trophies`): contagem no topo e a grade, desbloqueadas primeiro e depois as mais perto */
+@Composable
+private fun Trophies(list: List<AchievementItem>) {
+    val unlocked = list.count { it.unlocked }
+    val sorted = remember(list) { list.sortedWith(compareBy({ if (it.unlocked) 0 else 1 }, { -it.progress })) }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        GMCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Desbloqueadas", color = Color.White, style = GMType.subheadline.copy(fontWeight = FontWeight.SemiBold))
+                Spacer(Modifier.weight(1f))
+                Text("$unlocked/${list.size}", color = GMColors.trophy, style = GMType.subheadline.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"))
+            }
+            GMProgressBar(unlocked.toDouble() / maxOf(list.size, 1), tint = GMColors.trophy)
+        }
+        for (row in sorted.chunked(2)) PairRow(10.dp, row)
+    }
+}
+
+/** Duas colunas da mesma altura (a do card mais alto), como a linha do LazyVGrid */
+@Composable
+private fun PairRow(spacing: androidx.compose.ui.unit.Dp, row: List<AchievementItem>) {
+    androidx.compose.ui.layout.SubcomposeLayout { c ->
+        val gap = spacing.roundToPx()
+        val w = (c.maxWidth - gap) / 2
+        val h = subcompose("medir") { row.forEach { Trophy(it) } }
+            .maxOfOrNull { it.measure(androidx.compose.ui.unit.Constraints(minWidth = w, maxWidth = w)).height } ?: 0
+        val placed = subcompose("pôr") { row.forEach { Trophy(it) } }.map { it.measure(androidx.compose.ui.unit.Constraints.fixed(w, h)) }
+        layout(c.maxWidth, h) { placed.forEachIndexed { i, p -> p.placeRelative(i * (w + gap), 0) } }
+    }
+}
+
+@Composable
+private fun Trophy(a: AchievementItem) {
+    val pct = (a.progress * 100).toInt()
+    Column(
+        Modifier.fillMaxSize().heightIn(min = 176.dp).background(GMColors.card, GMRadius.card)
+            .border(1.dp, if (a.unlocked) GMColors.trophy.copy(alpha = 0.4f) else Color.Transparent, GMRadius.card).padding(14.dp)
+            .semantics(mergeDescendants = true) { stateDescription = if (a.unlocked) "Feito" else "$pct%" },
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            Modifier.size(54.dp).then(if (a.unlocked) Modifier.shadow(10.dp, CircleShape, ambientColor = GMColors.trophy, spotColor = GMColors.trophy) else Modifier)
+                .background(if (a.unlocked) Brush.linearGradient(listOf(GMColors.trophy, GMColors.streak)) else SolidColor(GMColors.raised), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { AchievementIcon(a.symbol, if (a.unlocked) Color.Black else GMColors.dim) }
+        Text(a.title, color = Color.White, style = GMType.subheadline.copy(fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
+        Text(a.detail, color = GMColors.dim, style = GMType.caption, textAlign = TextAlign.Center)
+        Spacer(Modifier.weight(1f))
+        if (a.unlocked) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Verified, null, tint = GMColors.trophy, modifier = Modifier.size(12.dp))
+                Text("Feito", color = GMColors.trophy, style = GMType.caption2.copy(fontWeight = FontWeight.Bold))
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                GMProgressBar(a.progress, Modifier.weight(1f), tint = GMColors.trophy, height = 5.dp)
+                Text("$pct%", color = GMColors.dim, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            }
+        }
+    }
+}
+
+/** O SF Symbol de cada conquista no equivalente Material; os números ("10.circle") viram o próprio número */
+@Composable
+private fun AchievementIcon(symbol: String, tint: Color) {
+    val number = symbol.substringBefore(".circle", "").takeIf { it.isNotEmpty() && it.all(Char::isDigit) }
+    if (number != null) {
+        Box(Modifier.size(26.dp).border(2.5.dp, tint, CircleShape), contentAlignment = Alignment.Center) {
+            Text(number, color = tint, fontSize = if (number.length > 2) 9.sp else 11.sp, fontWeight = FontWeight.Black)
+        }
+        return
+    }
+    val icon = when (symbol) {
+        "figure.walk" -> Icons.AutoMirrored.Filled.DirectionsWalk
+        "sparkles" -> Icons.Filled.AutoAwesome
+        "arrow.up.circle" -> Icons.Filled.ArrowCircleUp
+        "trophy" -> Icons.Filled.EmojiEvents
+        "crown", "crown.fill" -> Icons.Filled.WorkspacePremium
+        "flame" -> Icons.Filled.Whatshot
+        "flame.fill" -> Icons.Filled.LocalFireDepartment
+        "bolt.heart" -> Icons.Filled.MonitorHeart
+        "square.grid.2x2" -> Icons.Filled.GridView
+        "timer" -> Icons.Filled.Timer
+        "sunrise" -> Icons.Filled.WbTwilight
+        "moon.stars" -> Icons.Filled.NightsStay
+        "list.clipboard" -> Icons.Filled.ContentPaste
+        "medal", "medal.fill" -> Icons.Filled.MilitaryTech
+        "scalemass" -> Icons.Filled.Scale
+        "scalemass.fill" -> Icons.Filled.MonitorWeight
+        "figure.stand" -> Icons.Filled.Accessibility
+        "pawprint", "pawprint.fill" -> Icons.Filled.Pets
+        "tortoise.fill" -> Icons.Filled.CrueltyFree
+        "book" -> Icons.AutoMirrored.Filled.MenuBook
+        "book.fill" -> Icons.Filled.AutoStories
+        "heart.text.square" -> Icons.Filled.Favorite
+        else -> Icons.Filled.EmojiEvents
+    }
+    Icon(icon, null, tint = tint, modifier = Modifier.size(24.dp))
 }
 
 // MARK: Box
