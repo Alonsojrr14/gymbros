@@ -3,7 +3,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Treino: aviso de fim do descanso (pedido ao começar um treino, só com o ajuste ligado) -->
+    <!-- Treino: aviso de fim do descanso (pedido ao começar um treino, só com o ajuste ligado); lembrete para treinar e
+         resumo da semana (pedido ao ligar um deles em Ajustes → Notificações) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Mapa e lugares de treino (SEC-AND-06): a posição só é usada no aparelho para o mapa, a cerca das academias e a
@@ -13,7 +14,8 @@
     <!-- "O tempo todo": só para a chegada e a saída da academia com o app fechado, pedida depois de uma explicação e só
          com "Avisar ao chegar" ou "Encerrar treino ao sair" ligado e um lugar salvo (regras do Google Play) -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <!-- A cerca some ao reiniciar o aparelho: o app só a registra de novo (nenhum outro trabalho no boot) -->
+    <!-- A cerca e os alarmes dos lembretes somem ao reiniciar o aparelho: o app só os registra de novo (nenhum outro
+         trabalho no boot) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Health Connect: só leitura dos tipos usados (SEC-AND-05). Treinos viram atividades; calorias e distância ficam na
@@ -61,6 +63,16 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- Lembrete para treinar e resumo da semana (LocalReminders): o alarme é do próprio app; reiniciar, atualizar ou
+             mudar a hora/fuso refaz a agenda (o sistema entrega a receptor não exportado) -->
+        <receiver android:name=".data.reminders.ReminderReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
         </receiver>
 

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.NoAccounts
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -79,11 +80,11 @@ import com.alonsoalmeida.gymbros.ui.theme.GMType
 import com.alonsoalmeida.gymbros.ui.theme.color
 import kotlinx.coroutines.launch
 
-private enum class Page { PROFILE, TRAINING, HEALTH, ACCOUNT, PRIVACY, HOW }
+private enum class Page { PROFILE, NOTIFICATIONS, TRAINING, HEALTH, ACCOUNT, PRIVACY, HOW }
 
 /**
  * Ajustes (App/SettingsView.swift + SettingsPages.swift): cartão do perfil e grupos que levam às telas de cada assunto.
- * O que o Android ainda não tem (notificações, música, backup em arquivo, Pro, "Vem aí", tutorial, diagnóstico) fica de
+ * O que o Android ainda não tem (música, backup em arquivo, Pro, "Vem aí", tutorial, diagnóstico) fica de
  * fora em vez de aparecer quebrado.
  */
 @Composable
@@ -102,6 +103,10 @@ fun SettingsModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -
         Hero(env, home, profile?.mainNick.orEmpty()) { page = Page.PROFILE }
 
         GMSection("App") {
+            val (notifyValue, notifyOff) = notificationsValue(settings)
+            NavRow(Icons.Filled.NotificationsActive, GMColors.badge, "Notificações", notifyValue,
+                   valueTint = if (notifyOff) GMColors.warning else GMColors.dim) { page = Page.NOTIFICATIONS }
+            Hairline()
             val warmup = ProfileEdits.bool(settings, "autoWarmup", true)
             NavRow(Icons.Filled.FitnessCenter, GMColors.streak, "Treino", if (warmup) "Aquecimento ligado" else null) { page = Page.TRAINING }
             if (health.available || health.needsUpdate) {
@@ -129,6 +134,7 @@ fun SettingsModal(visible: Boolean, env: AppEnv, home: HomeData, onDismiss: () -
 
     when (page) {
         Page.PROFILE -> ProfileSettingsPage(env) { page = null }
+        Page.NOTIFICATIONS -> NotificationSettingsPage(env) { page = null }
         Page.TRAINING -> TrainingSettingsPage(env) { page = null }
         Page.HEALTH -> HealthSettingsPage(vm) { page = null }
         Page.ACCOUNT -> AccountSettingsPage(env, home, vm) { page = null }

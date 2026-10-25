@@ -142,7 +142,8 @@ object TrainCopy {
             routines, sessions, customs, notes, prs, wods,
             goals = TrainingGoal.decode(str(TrainingGoal.KEY)),
             autoWarmup = bool(st["autoWarmup"]) ?: true,
-            restNotification = bool(st["restNotification"]) ?: false,
+            // "Pausar todas" (`notify.paused`) também cala o fim do descanso, como o LiveWorkout.swift
+            restNotification = (bool(st["restNotification"]) ?: false) && bool(st["notify.paused"]) != true,
             barWeight = bar,
             plannedRaw = str(WodPlan.KEY),
             deloadUntil = epoch(st[Deload.UNTIL_KEY]),
