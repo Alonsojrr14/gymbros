@@ -193,6 +193,8 @@ final class LivePresence {
             try? await Fire.db.collection(FireCollection.live).document(me).setData(Fire.fields([
                 "user": me, "start": nil, "now": "", "done": [String](), "route": [Double](), "endedAt": Date.now,
                 "kind": kind?.rawValue, "updatedAt": Date.now,
+                // A última posição e a música não ficam no servidor depois do treino
+                "latitude": nil, "longitude": nil, "music": nil,
             ]), merge: true)
         }
     }

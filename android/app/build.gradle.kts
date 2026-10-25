@@ -1,5 +1,7 @@
 // App Android do GymBros (ADR-001/002/005). Firebase pelo google-services.json em android/app/ (fora do git; os dois
 // pacotes, normal e .debug, registrados no projeto do Firebase).
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -21,6 +23,18 @@ android {
         versionName = "0.1"
     }
 
+    // Chave da release fora do repositório (~/.gymbros/keystore.properties); sem ela, a release sai sem assinatura
+    val keystoreFile = file("${System.getProperty("user.home")}/.gymbros/keystore.properties")
+    val keystore = Properties().apply { if (keystoreFile.exists()) keystoreFile.inputStream().use { load(it) } }
+    signingConfigs {
+        if (keystore.isNotEmpty()) create("release") {
+            storeFile = file(keystore.getProperty("storeFile"))
+            storePassword = keystore.getProperty("storePassword")
+            keyAlias = keystore.getProperty("keyAlias")
+            keyPassword = keystore.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -28,7 +42,10 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
+            // APK enviado por e-mail: só os processadores de celular (o motor do mapa vem por ABI)
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
     }
 

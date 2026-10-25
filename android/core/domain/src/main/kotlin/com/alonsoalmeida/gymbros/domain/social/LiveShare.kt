@@ -92,10 +92,10 @@ object LivePresenceRules {
         "music" to null, "endedAt" to null, "updatedAt" to now,
     )
 
-    /** Treino encerrado (ou "Ao vivo" desligado nele): fica só o "visto há…" (`LivePresence.end`) */
+    /** Treino encerrado (ou "Ao vivo" desligado nele): fica só o "visto há…"; a posição e a música saem (`LivePresence.end`) */
     fun endedFields(uid: String, kind: ActivityKind?, now: Instant): Map<String, Any?> = linkedMapOf(
         "user" to uid, "start" to null, "now" to "", "done" to emptyList<String>(), "route" to emptyList<Double>(), "endedAt" to now,
-        "kind" to kind?.raw, "updatedAt" to now,
+        "kind" to kind?.raw, "updatedAt" to now, "latitude" to null, "longitude" to null, "music" to null,
     )
 
     /**

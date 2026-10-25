@@ -6,8 +6,12 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function uid() { return request.auth.uid; }
-    // Documento novo ou alterado em seu nome
-    function writesAsMe() { return signedIn() && request.resource.data.user == uid(); }
+    // Conta ativa: sem roles/{uid} é USER; com a lista sem nenhuma role válida, a conta foi desativada e não grava mais
+    function active() {
+      return !exists(doc('roles', uid())) || get(doc('roles', uid())).data.roles.hasAny(['USER', 'ADMIN', 'DEVELOPER']);
+    }
+    // Documento novo ou alterado em seu nome, por conta ativa
+    function writesAsMe() { return signedIn() && active() && request.resource.data.user == uid(); }
     // Documento que já era seu
     function wasMine() { return signedIn() && resource.data.user == uid(); }
     function doc(c, id) { return /databases/$(database)/documents/$(c)/$(id); }
@@ -21,6 +25,8 @@ service cloud.firestore {
     }
     // Você está nesta liga (o documento de membro é `{liga}-{uid}`)
     function memberOf(league) { return exists(doc('members', league + '-' + uid())); }
+    // O mesmo depois da gravação (entrar na liga e postar no mesmo lote)
+    function memberAfter(league) { return existsAfter(doc('members', league + '-' + uid())); }
     // Amizade dos dois lados
     function friends(other) {
       return exists(doc('friendLinks', uid() + '->' + other)) && exists(doc('friendLinks', other + '->' + uid()));
@@ -36,7 +42,7 @@ service cloud.firestore {
 
     match /profiles/{id} {
       allow read: if signedIn();
-      allow create, update: if signedIn() && id == uid() && codeIsMine();
+      allow create, update: if signedIn() && active() && id == uid() && codeIsMine();
       allow delete: if signedIn() && id == uid();
       // Admin tira do ar nome, bio e o resto do perfil denunciado
       allow update: if isAdmin() && only(['name', 'username', 'bio', 'public']);
@@ -45,7 +51,7 @@ service cloud.firestore {
     // "eu->você": só quem pede cria e apaga; só as duas pontas leem
     match /friendLinks/{id} {
       allow read: if signedIn() && (resource.data.from == uid() || resource.data.to == uid());
-      allow create, update: if signedIn() && request.resource.data.from == uid()
+      allow create, update: if signedIn() && active() && request.resource.data.from == uid()
                             && id == uid() + '->' + request.resource.data.to;
       allow delete: if signedIn() && resource.data.from == uid();
     }
@@ -53,8 +59,8 @@ service cloud.firestore {
     // Liga: o dono (`owner`) edita as regras e pode passar a liga para outra pessoa
     match /leagues/{code} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.owner == uid() && request.resource.data.code == code;
-      allow update: if signedIn() && resource.data.owner == uid();
+      allow create: if signedIn() && active() && request.resource.data.owner == uid() && request.resource.data.code == code;
+      allow update: if signedIn() && active() && resource.data.owner == uid();
       allow delete: if false;
     }
 
@@ -73,7 +79,7 @@ service cloud.firestore {
       allow read: if signedIn() && (resource.data.user == uid() || resource.data.league == 'profile'
                                     || memberOf(resource.data.league)
                                     || (resource.data.feed == true && friends(resource.data.user)) || isAdmin());
-      allow create: if writesAsMe();
+      allow create: if writesAsMe() && (request.resource.data.league == 'profile' || memberAfter(request.resource.data.league));
       allow update: if wasMine() && writesAsMe();
       allow delete: if wasMine() || isAdmin();
     }
@@ -98,7 +104,7 @@ service cloud.firestore {
 
     match /messages/{id} {
       allow read: if signedIn() && (resource.data.user == uid() || memberOf(resource.data.league) || isAdmin());
-      allow create: if writesAsMe() && request.resource.data.text.size() <= 1000;
+      allow create: if writesAsMe() && request.resource.data.text.size() <= 1000 && memberAfter(request.resource.data.league);
       allow update: if wasMine() && writesAsMe();
       allow delete: if wasMine() || isAdmin();
     }
@@ -114,7 +120,7 @@ service cloud.firestore {
     // quem já tinha te adicionado). Não se edita nem se apaga ("limpar conversa" é só do seu lado).
     match /directMessages/{id} {
       allow read: if signedIn() && uid() in resource.data.participants;
-      allow create: if signedIn()
+      allow create: if signedIn() && active()
                     && request.resource.data.from == uid()
                     && request.resource.data.to != uid()
                     && request.resource.data.participants == [uid(), request.resource.data.to]
@@ -128,14 +134,14 @@ service cloud.firestore {
     // Datas do servidor: ninguém adianta nem atrasa o relógio do X1.
     match /duels/{id} {
       allow read: if signedIn() && uid() in resource.data.participants;
-      allow create: if signedIn()
+      allow create: if signedIn() && active()
                     && request.resource.data.challenger == uid()
                     && request.resource.data.challenged != uid()
                     && request.resource.data.participants == [uid(), request.resource.data.challenged]
                     && request.resource.data.createdAt == request.time
                     && !('answer' in request.resource.data)
                     && reachable(request.resource.data.challenged);
-      allow update: if signedIn() && (
+      allow update: if signedIn() && active() && (
                       (uid() == resource.data.challenged && !('answer' in resource.data)
                         && only(['answer', 'answeredAt', 'challengedFormID'])
                         && request.resource.data.answer in ['accepted', 'declined']
@@ -149,14 +155,14 @@ service cloud.firestore {
     // Trocas: quem propõe cria; o outro aceita ou recusa em até 48 h; quem propôs pode cancelar antes da resposta
     match /trades/{id} {
       allow read: if signedIn() && uid() in resource.data.participants;
-      allow create: if signedIn()
+      allow create: if signedIn() && active()
                     && request.resource.data.from == uid()
                     && request.resource.data.to != uid()
                     && request.resource.data.participants == [uid(), request.resource.data.to]
                     && request.resource.data.createdAt == request.time
                     && !('answer' in request.resource.data)
                     && reachable(request.resource.data.to);
-      allow update: if signedIn() && !('answer' in resource.data)
+      allow update: if signedIn() && active() && !('answer' in resource.data)
                     && only(['answer', 'answeredAt']) && request.resource.data.answeredAt == request.time
                     && ((uid() == resource.data.to && request.resource.data.answer in ['accepted', 'declined']
                           && request.time < resource.data.createdAt + duration.value(48, 'h'))
@@ -167,7 +173,7 @@ service cloud.firestore {
     // Bros que cada um pode trocar: lê quem a pessoa adicionou
     match /tradeBros/{id} {
       allow get: if signedIn() && (id == uid() || exists(doc('friendLinks', id + '->' + uid())));
-      allow write: if signedIn() && id == uid() && request.resource.data.user == uid();
+      allow create, update: if signedIn() && active() && id == uid() && request.resource.data.user == uid();
       allow delete: if signedIn() && id == uid();
     }
 
@@ -183,7 +189,7 @@ service cloud.firestore {
     // Bloqueios: cada um vê e mexe só nos seus; as regras de mensagem, X1 e troca leem o do outro lado
     match /blocks/{id} {
       allow read: if wasMine();
-      allow create, update: if writesAsMe() && id == uid() + '->' + request.resource.data.blocked;
+      allow create, update: if signedIn() && request.resource.data.user == uid() && id == uid() + '->' + request.resource.data.blocked;
       allow delete: if wasMine();
     }
 
@@ -198,7 +204,7 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if writesAsMe() && request.resource.data.likes == 0 && request.resource.data.saves == 0
                     && request.resource.data.createdAt == request.time;
-      allow update: if signedIn() && (
+      allow update: if signedIn() && active() && (
                       (wasMine() && writesAsMe() && request.resource.data.likes == resource.data.likes
                         && request.resource.data.saves == resource.data.saves && request.resource.data.createdAt == resource.data.createdAt)
                       || (only(['likes']) && (request.resource.data.likes == resource.data.likes + 1
@@ -219,7 +225,7 @@ service cloud.firestore {
     // o dono ou um admin (moderação) tiram do ar
     match /avatars/{id} {
       allow read: if signedIn();
-      allow create, update: if signedIn() && id == uid()
+      allow create, update: if signedIn() && active() && id == uid()
                             && request.resource.data.keys().hasOnly(['data', 'updatedAt'])
                             && request.resource.data.data is bytes && request.resource.data.data.size() < 150000;
       allow delete: if signedIn() && (id == uid() || isAdmin());
@@ -229,7 +235,7 @@ service cloud.firestore {
     match /friendCodes/{code} {
       allow get: if signedIn();
       allow list: if false;
-      allow create: if signedIn() && request.resource.data.user == uid() && code.matches('^[A-HJ-NP-Z2-9]{6}$');
+      allow create: if signedIn() && active() && request.resource.data.user == uid() && code.matches('^[A-HJ-NP-Z2-9]{6}$');
       allow delete: if signedIn() && resource.data.user == uid();
     }
 
@@ -240,7 +246,7 @@ service cloud.firestore {
                   || (exists(doc('friendLinks', id + '->' + uid())) && exists(doc('friendLinks', uid() + '->' + id))
                       && !exists(doc('blocks', id + '->' + uid()))));
       allow list: if false;
-      allow create, update: if signedIn() && id == uid() && request.resource.data.user == uid();
+      allow create, update: if signedIn() && active() && id == uid() && request.resource.data.user == uid();
       // Excluir a conta apaga o seu (na exclusão não há request.resource, então o write acima recusaria)
       allow delete: if signedIn() && id == uid();
     }
