@@ -14,6 +14,8 @@ serialization = "1.9.0"
 ddplist = "1.28"
 zxing = "3.5.3"
 health-connect = "1.1.0-beta01"
+maplibre = "13.7.1"
+play-services-location = "21.3.0"
 
 [libraries]
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
@@ -39,6 +41,10 @@ ddplist = { module = "com.googlecode.plist:dd-plist", version.ref = "ddplist" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 # Health Connect: treinos de relógios e apps viram atividades (HealthSync.swift no iOS)
 health-connect = { module = "androidx.health.connect:connect-client", version.ref = "health-connect" }
+# Mapa da aba Mapa: MapLibre com o estilo gratuito do OpenFreeMap (sem chave nem conta)
+maplibre = { module = "org.maplibre.gl:android-sdk", version.ref = "maplibre" }
+# Posição atual e cerca das academias (chegada e saída), como o CoreLocation do iOS
+play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
 serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 
 [plugins]

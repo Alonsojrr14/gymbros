@@ -136,6 +136,9 @@ class AccountCopyRepository(context: Context) {
         }
         if (hash != null && hash == known && work != null) {
             _state.value = CopyState.Ready(work)
+            // Mudança feita aqui que não chegou a subir (ex.: em segundo plano, sem rede): sobe agora
+            val base = read(baseFile(uid))
+            if (base != null && digest(work!!) != digest(base)) scheduleUpload(0)
             return@withLock
         }
         val parts = (0 until count).map { n ->
@@ -163,6 +166,12 @@ class AccountCopyRepository(context: Context) {
             _state.value = CopyState.Ready(next)
         }
         scheduleUpload(1_500)
+    }
+
+    /** Sobe já o que mudou (trabalho em segundo plano, que não pode esperar o atraso normal) */
+    suspend fun flush() {
+        pendingUpload?.cancel()
+        runCatching { upload() }
     }
 
     private fun scheduleUpload(delayMs: Long) {

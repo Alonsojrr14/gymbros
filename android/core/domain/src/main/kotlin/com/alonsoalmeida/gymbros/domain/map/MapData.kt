@@ -15,9 +15,9 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.util.Base64
 
-// Aba Mapa em lista (ADR-010: "aba Mapa como lista"; mapa visual, GPS e cerca da academia ficam para a v1.1).
-// Fonte: ios/GymBros/Friends/MapScreen.swift, Models/Gym.swift, Models/RouteRecord.swift, Services/Route.swift.
-// Lê só o que já está na cópia da conta (`gyms`, `visits`, `routes`, `activities.gymUUID`): nada é gravado aqui.
+// Números e listas da aba Mapa. Fonte: ios/GymBros/Friends/MapScreen.swift, Models/Gym.swift, Models/RouteRecord.swift,
+// Services/Route.swift. Lê o que está na cópia da conta (`gyms`, `visits`, `routes`, `activities.gymUUID`); quem grava
+// lugares e idas é o GymPlaces.
 
 /** Nome de cada categoria (Game.swift `ActivityKind.name`) */
 fun kindName(k: ActivityKind): String = when (k) {

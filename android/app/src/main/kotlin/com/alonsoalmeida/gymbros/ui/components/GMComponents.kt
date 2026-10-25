@@ -121,11 +121,12 @@ fun GMCard(modifier: Modifier = Modifier, padding: Dp = 16.dp, content: @Composa
 
 /** GMSection: título pequeno em maiúsculas, card e rodapé (substitui as seções de formulário) */
 @Composable
-fun GMSection(title: String? = null, footer: String? = null, content: @Composable ColumnScope.() -> Unit) {
+fun GMSection(title: String? = null, footer: String? = null, trailing: (@Composable () -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (title != null) {
+        if (title != null) Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title.uppercase(), color = GMColors.dim, style = GMType.caption.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp),
-                 modifier = Modifier.padding(horizontal = 4.dp))
+                 modifier = Modifier.padding(horizontal = 4.dp).weight(1f))
+            trailing?.invoke()
         }
         GMCard(content = content)
         if (footer != null) Text(footer, color = GMColors.dim, style = GMType.caption, modifier = Modifier.padding(horizontal = 4.dp))

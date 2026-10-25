@@ -6,6 +6,16 @@
     <!-- Treino: aviso de fim do descanso (pedido ao começar um treino, só com o ajuste ligado) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Mapa e lugares de treino (SEC-AND-06): a posição só é usada no aparelho para o mapa, a cerca das academias e a
+         confirmação de saída; nunca vai para o servidor. Precisa/aproximada pedidas ao abrir o mapa ou cadastrar um lugar. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- "O tempo todo": só para a chegada e a saída da academia com o app fechado, pedida depois de uma explicação e só
+         com "Avisar ao chegar" ou "Encerrar treino ao sair" ligado e um lugar salvo (regras do Google Play) -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- A cerca some ao reiniciar o aparelho: o app só a registra de novo (nenhum outro trabalho no boot) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- Health Connect: só leitura dos tipos usados (SEC-AND-05). Treinos viram atividades; calorias e distância ficam na
          conta e não vão para posts nem X1; peso vai para Peso e medidas. -->
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
@@ -44,6 +54,15 @@
         </activity>
         <!-- Fim do descanso do treino (RestAlarm): só o próprio app dispara -->
         <receiver android:name=".data.train.RestReceiver" android:exported="false" />
+        <!-- Entrada e saída da cerca das academias: só o Google Play Services dispara, pelo PendingIntent do app -->
+        <receiver android:name=".data.map.GeofenceReceiver" android:exported="false" />
+        <!-- Registra a cerca de novo depois de reiniciar ou atualizar (o sistema entrega a receptor não exportado) -->
+        <receiver android:name=".data.map.GymBootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Política de privacidade aberta pelo Health Connect ao pedir permissão (Android 13 ou anterior) -->
         <activity

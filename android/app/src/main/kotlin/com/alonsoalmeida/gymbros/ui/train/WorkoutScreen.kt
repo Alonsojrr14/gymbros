@@ -70,6 +70,7 @@ import com.alonsoalmeida.gymbros.data.train.RestAlarm
 import com.alonsoalmeida.gymbros.data.train.TrainCopy
 import com.alonsoalmeida.gymbros.data.train.TrainData
 import com.alonsoalmeida.gymbros.data.train.TrainEdits
+import com.alonsoalmeida.gymbros.data.map.GymLocation
 import com.alonsoalmeida.gymbros.data.train.TrainHooks
 import com.alonsoalmeida.gymbros.data.train.TrainScope
 import com.alonsoalmeida.gymbros.domain.ActivityKind
@@ -171,8 +172,12 @@ private fun WorkoutContent(env: AppEnv, home: HomeData, data: TrainData, session
     // Concluído ou descartado: nada mais deste treino é gravado por aqui
     var closed by remember { mutableStateOf(false) }
     val isClosed by rememberUpdatedState(closed)
-    LaunchedEffect(session) { if (session != saved && !closed) { delay(700); if (!isClosed) { saved = session; TrainScope.edit(env) { TrainEdits.saveSession(it, session) } } } }
-    DisposableEffect(session.uuid) { onDispose { if (!isClosed && latest != saved && latest.end == null) TrainScope.edit(env) { TrainEdits.saveSession(it, latest) } } }
+    LaunchedEffect(session) { if (session != saved && !closed) { delay(700); if (!isClosed) { saved = session; persistOpen(env, session) } } }
+    DisposableEffect(session.uuid) { onDispose { if (!isClosed && latest != saved && latest.end == null) persistOpen(env, latest) } }
+    // Encerrado fora desta tela (saída da academia ou no iPhone) ou descartado: fecha sem gravar por cima
+    LaunchedEffect(data.sessions) {
+        if (!closed && data.sessions.none { it.uuid == session.uuid && it.end == null }) { closed = true; RestAlarm.cancel(context); onDismiss() }
+    }
 
     // Relógio da tela (cronômetro e descanso), lido só nos pedaços que mudam
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -719,12 +724,22 @@ private fun SwapModal(current: String, exclude: Set<String>, history: List<Sessi
     }
 }
 
+/** Grava o treino aberto, salvo se ele já foi encerrado ou apagado (nunca reabre um treino salvo) */
+private fun persistOpen(env: AppEnv, s: Session) = TrainScope.edit(env) { c ->
+    if (TrainCopy.read(c).sessions.none { it.uuid == s.uuid && it.end == null }) c else TrainEdits.saveSession(c, s)
+}
+
 /** Concluir treino (WorkoutView.swift `FinishWorkoutView`) */
 @Composable
 private fun FinishWorkoutModal(env: AppEnv, home: HomeData, data: TrainData, session: Session, history: List<SessionLog>, onDismiss: () -> Unit,
                                onDone: (Session) -> Unit) {
     var effort by remember { mutableIntStateOf(7) }
     var updateRoutine by remember { mutableStateOf(false) }
+    // Com esta tela aberta, sair da academia não encerra o treino (LiveWorkout.concluding)
+    DisposableEffect(session.uuid) {
+        GymLocation.concluding = session.uuid
+        onDispose { if (GymLocation.concluding == session.uuid) GymLocation.concluding = null }
+    }
     var saved by remember { mutableStateOf(false) }
     val minutes = maxOf(((Instant.now().epochSecond - session.start.epochSecond) / 60).toInt(), 1)
     val done = session.doneWorkSets

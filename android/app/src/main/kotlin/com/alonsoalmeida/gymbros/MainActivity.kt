@@ -73,6 +73,8 @@ private fun Root(container: AppContainer) {
                     // Cenas de evolução e de chocar (App.swift `check`) e links de amigo (gymbros://amigo/CÓDIGO)
                     com.alonsoalmeida.gymbros.ui.bros.BroEventsHost(env, data)
                     com.alonsoalmeida.gymbros.ui.friends.FriendLinkHandler(data, friends)
+                    // Cerca dos lugares de treino registrada a cada abertura, como o startMonitoring do iOS
+                    com.alonsoalmeida.gymbros.ui.map.GymMonitor(env)
                 }
                 SoonModal(soon) { soon = null }
             }

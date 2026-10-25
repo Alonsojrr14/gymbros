@@ -63,4 +63,7 @@ dependencies {
     implementation(libs.zxing.core)
     // Health Connect: importa treinos gravados por relógios e apps (o Apple Saúde do Android)
     implementation(libs.health.connect)
+    // Aba Mapa: mapa vetorial (OpenFreeMap) e localização/cerca das academias
+    implementation(libs.maplibre)
+    implementation(libs.play.services.location)
 }

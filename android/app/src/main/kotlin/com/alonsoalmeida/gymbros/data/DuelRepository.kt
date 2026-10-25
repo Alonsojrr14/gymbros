@@ -110,9 +110,16 @@ data class LiveFriend(
     val place: String,
     val now: String,
     val endedAt: Instant?,
+    /** Última posição enviada e o percurso (corrida, caminhada, bike), para o mapa */
+    val location: com.alonsoalmeida.gymbros.domain.map.Coordinate? = null,
+    val route: List<com.alonsoalmeida.gymbros.domain.map.Coordinate> = emptyList(),
 ) {
     val form: MonsterForm get() = MonsterForm.byID(formID) ?: MonsterForm.EGG
     val isLive: Boolean get() = start != null
+    /** Anda no mapa (deixa rastro) */
+    val moves: Boolean get() = route.size > 1
+    /** Onde aparece: a posição, o fim do percurso ou, sem nada, o lugar base (FriendsLive.swift `coordinate`) */
+    fun coordinate(base: com.alonsoalmeida.gymbros.domain.map.Coordinate): com.alonsoalmeida.gymbros.domain.map.Coordinate = location ?: route.lastOrNull() ?: base
 
     companion object {
         /** Quem terminou há mais que isso some da lista */
@@ -127,8 +134,13 @@ data class LiveFriend(
             val stale = now.epochSecond - reportedAt.epochSecond > STALE_SECONDS
             val start = if (stale) null else (d["start"] as? Timestamp)?.toDate()?.toInstant()
             val ended = (d["endedAt"] as? Timestamp)?.toDate()?.toInstant() ?: if (stale) reportedAt else null
+            val flat = (d["route"] as? List<*>).orEmpty().mapNotNull { (it as? Number)?.toDouble() }
+            val route = (0 until flat.size - 1 step 2).map { com.alonsoalmeida.gymbros.domain.map.Coordinate(flat[it], flat[it + 1]) }
+            val lat = (d["latitude"] as? Number)?.toDouble()
+            val lon = (d["longitude"] as? Number)?.toDouble()
             return LiveFriend(id, d["name"] as? String ?: "", d["formID"] as? String ?: MonsterForm.EGG.id, kind, start,
-                              d["place"] as? String ?: "", d["now"] as? String ?: "", ended)
+                              d["place"] as? String ?: "", d["now"] as? String ?: "", ended,
+                              if (lat != null && lon != null) com.alonsoalmeida.gymbros.domain.map.Coordinate(lat, lon) else null, route)
         }
     }
 }

@@ -75,12 +75,14 @@ fun MainScreen(form: MonsterForm, home: @Composable () -> Unit, train: @Composab
             val on = tab == i
             Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (on) 1f else 0f }
                     .then(if (on) Modifier else Modifier.semantics { hideFromAccessibility() })) {
-                when (i) {
-                    0 -> home()
-                    1 -> train()
-                    2 -> leagues()
-                    3 -> map()
-                    4 -> feed()
+                androidx.compose.runtime.CompositionLocalProvider(com.alonsoalmeida.gymbros.ui.map.LocalTabVisible provides on) {
+                    when (i) {
+                        0 -> home()
+                        1 -> train()
+                        2 -> leagues()
+                        3 -> map()
+                        4 -> feed()
+                    }
                 }
             }
         }
