@@ -147,6 +147,7 @@ enum LiveWorkout {
         let ctx = AppData.container.mainContext
         guard s.end == nil else { return "O treino já estava salvo." }
         cancelRest(s)
+        LiveShare.end(s.uuid.uuidString)
         await endAll()
         HeadphoneControl.shared.stop()
         // Como na conclusão: só série de trabalho conta (só aquecimento não salva)

@@ -182,8 +182,9 @@ final class LivePresence {
 
     /// Treino encerrado (ou "Ao vivo" desligado nele): fica só o "visto há…"
     func end(_ id: String) {
-        // Só encerra o que estava publicando (um treino não compartilhado não deixa rastro)
-        guard enabled, workoutID == id else { return }
+        // Só encerra o que estava publicando (um treino não compartilhado não deixa rastro). Com o app reaberto no meio do
+        // treino, a memória está vazia: encerra se o treino compartilhava, senão ele ficaria "ao vivo" para os amigos
+        guard enabled, workoutID == id || (workoutID == nil && LiveShare.isSharing(id)) else { return }
         pending?.cancel()
         let kind = last?.kind
         workoutID = nil
