@@ -37,13 +37,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val container = (application as GymBrosApp).container
         // Toque na notificação do treino em andamento: abre o treino (só na primeira criação, não ao girar a tela)
-        if (savedInstanceState == null) LiveWorkout.take(intent)
+        if (savedInstanceState == null) { LiveWorkout.take(intent); com.alonsoalmeida.gymbros.data.route.RouteRecorder.take(intent) }
         setContent { GymBrosTheme { Root(container) } }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         LiveWorkout.take(intent)
+        // "Encerrar" na notificação do percurso: abre na conclusão
+        com.alonsoalmeida.gymbros.data.route.RouteRecorder.take(intent)
     }
 }
 
@@ -90,6 +92,8 @@ private fun Root(container: AppContainer) {
                     com.alonsoalmeida.gymbros.ui.settings.ReminderScheduler(env)
                     // Notificação do treino e do WOD em andamento (o Live Activity do iOS)
                     androidx.compose.runtime.LaunchedEffect(current.id) { LiveWorkout.watch(container.context) }
+                    // Corrida, caminhada ou bike gravando pelo GPS: a tela fica por cima de qualquer aba
+                    com.alonsoalmeida.gymbros.ui.map.RouteHost(env, data)
                 }
                 SoonModal(soon) { soon = null }
             }

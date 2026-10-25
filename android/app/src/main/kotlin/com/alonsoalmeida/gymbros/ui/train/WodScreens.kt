@@ -324,6 +324,7 @@ internal fun WodTimerScreen(env: AppEnv, home: HomeData, data: TrainData, wod: W
                 GMIconLabel(gym?.second ?: if (s.placeAsked) "Sem local" else "Onde você está?", TrainIcons.of("mappin.and.ellipse"), if (gym != null) GMColors.accent else Color.White,
                             modifier = Modifier.heightIn(min = 32.dp).gmPress { choosingPlace = true }
                                 .background(if (gym != null) GMColors.accent.copy(alpha = 0.18f) else GMColors.raised, CircleShape).padding(horizontal = 12.dp, vertical = 6.dp))
+                com.alonsoalmeida.gymbros.ui.components.LiveShareChip(env, com.alonsoalmeida.gymbros.data.live.LivePresence.liveID(s))
             }
             if (parts.isNotEmpty() && !overview) Progress(s, parts) { i -> if (s.startedAt == null && i != s.phase) update { it.view(i) } }
             when {

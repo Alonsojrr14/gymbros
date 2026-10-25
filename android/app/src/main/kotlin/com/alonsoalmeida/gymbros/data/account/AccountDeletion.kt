@@ -38,6 +38,9 @@ class AccountDeletion(private val context: Context, private val copies: AccountC
         val me = user.uid
         checkCanDelete()
         val saved = (copies.state.value as? CopyState.Ready)?.copy
+        // Nada pendente do treino ao vivo pode recriar `live/{uid}` depois de apagado; o percurso aberto é descartado
+        com.alonsoalmeida.gymbros.data.live.LivePresence.reset()
+        com.alonsoalmeida.gymbros.data.route.RouteRecorder.discard()
         // Sobe o que falta e para a sincronização (nada volta para a nuvem no meio da exclusão); sem conseguir, nada sai
         runCatching { copies.signOut() }.onFailure {
             throw DeleteAccountException("Não deu para salvar seus dados antes de excluir. Confira a internet e tente de novo.")

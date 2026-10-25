@@ -62,6 +62,9 @@ import com.alonsoalmeida.gymbros.ui.auth.GMTextField
 import com.alonsoalmeida.gymbros.ui.auth.LegalModal
 import com.alonsoalmeida.gymbros.ui.components.GMButton
 import com.alonsoalmeida.gymbros.ui.components.GMScreen
+import com.alonsoalmeida.gymbros.ui.components.GMToggle
+import com.alonsoalmeida.gymbros.domain.social.LiveShare
+import androidx.compose.material.icons.filled.Sensors
 import com.alonsoalmeida.gymbros.ui.components.LivingMonster
 import com.alonsoalmeida.gymbros.ui.components.gmPress
 import com.alonsoalmeida.gymbros.ui.legal.Legal
@@ -81,7 +84,7 @@ import com.alonsoalmeida.gymbros.ui.theme.GMType
 fun OnboardingGate(env: AppEnv, home: HomeData, content: @Composable () -> Unit) {
     val vm = profileViewModel(env)
     when {
-        home.trainerName.isEmpty() -> OnboardingScreen(home.termsVersion >= ProfileViewModel.TERMS_VERSION) { vm.onboard(it) }
+        home.trainerName.isEmpty() -> OnboardingScreen(home.termsVersion >= ProfileViewModel.TERMS_VERSION) { name, live -> vm.onboard(name, live) }
         home.termsVersion < ProfileViewModel.TERMS_VERSION -> TermsRequiredScreen { vm.acceptTerms() }
         else -> {
             val settings = settingsViewModel(env)
@@ -94,12 +97,18 @@ fun OnboardingGate(env: AppEnv, home: HomeData, content: @Composable () -> Unit)
     }
 }
 
-/** Apresentação (App/OnboardingView.swift): o nome, o aceite e o ovo. O passo do treino ao vivo ainda não chegou ao Android */
+/**
+ * Apresentação (App/OnboardingView.swift): o nome, o aceite e o ovo; por último, o treino ao vivo explicado, que vem
+ * ligado e pode ser desligado aqui (`shareLive`, nos ajustes da conta como no iPhone).
+ */
 @Composable
-private fun OnboardingScreen(alreadyAccepted: Boolean, onStart: (String) -> Unit) {
+private fun OnboardingScreen(alreadyAccepted: Boolean, onStart: (String, Boolean) -> Unit) {
     val haptic = LocalHapticFeedback.current
     var name by rememberSaveable { mutableStateOf("") }
     var received by rememberSaveable { mutableStateOf(false) }
+    var liveStep by rememberSaveable { mutableStateOf(false) }
+    var shareLive by rememberSaveable { mutableStateOf(LiveShare.DEFAULT_ON) }
+    if (liveStep) return LiveStep(shareLive, { shareLive = it }) { onStart(name.trim(), shareLive) }
     var agreed by rememberSaveable { mutableStateOf(alreadyAccepted) }
     val nameOK = name.isNotBlank()
     val scale by animateFloatAsState(if (received) 1.1f else 0.9f, spring(dampingRatio = 0.6f), label = "egg")
@@ -125,14 +134,35 @@ private fun OnboardingScreen(alreadyAccepted: Boolean, onStart: (String) -> Unit
             if (!alreadyAccepted) LegalConsent(agreed) { agreed = it }
         }
         Spacer(Modifier.weight(1f))
-        GMButton(if (received) "Começar a jornada" else "Receber meu ovo", {
+        GMButton(if (received) "Continuar" else "Receber meu ovo", {
             if (!received) {
                 if (nameOK && agreed) {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     received = true
                 }
-            } else onStart(name.trim())
+            } else liveStep = true
         }, enabled = nameOK && agreed)
+    }
+}
+
+/** Último passo da apresentação (OnboardingView `liveView`): o que os amigos veem durante o treino */
+@Composable
+private fun LiveStep(on: Boolean, onChange: (Boolean) -> Unit, onStart: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().background(GMColors.bg).safeDrawingPadding().verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        Spacer(Modifier.weight(1f))
+        Icon(Icons.Filled.Sensors, null, tint = GMColors.accent, modifier = Modifier.size(54.dp))
+        Text("Treine ao vivo com os amigos", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+        Text("Enquanto você está num treino, seus amigos veem no mapa onde você está treinando, a atividade e o exercício atual, e podem mandar força ou chamar para treinar junto. Fora do treino, nada é compartilhado.",
+             color = GMColors.dim, style = GMType.body, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 8.dp))
+        Box(Modifier.fillMaxWidth().background(GMColors.card, GMRadius.l).padding(16.dp)) {
+            GMToggle("Compartilhar treino ao vivo", on, onChange, subtitle = "Dá para mudar em cada treino, no chip \"Ao vivo\", ou em Mapa > Ajustes.")
+        }
+        Spacer(Modifier.weight(1f))
+        GMButton("Começar a jornada", onStart)
     }
 }
 

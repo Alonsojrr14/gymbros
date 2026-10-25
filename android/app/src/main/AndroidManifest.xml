@@ -7,8 +7,11 @@
          treinar e resumo da semana (pedido ao ligar um deles em Ajustes → Notificações) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Mapa e lugares de treino (SEC-AND-06): a posição só é usada no aparelho para o mapa, a cerca das academias e a
-         confirmação de saída; nunca vai para o servidor. Precisa/aproximada pedidas ao abrir o mapa ou cadastrar um lugar. -->
+    <!-- Mapa e lugares de treino (SEC-AND-06): a posição é usada no aparelho para o mapa, a cerca das academias, a
+         confirmação de saída e o percurso ao ar livre. Só sai do aparelho no treino ao vivo (SEC-AND-07): com "Compartilhar
+         treino ao vivo" ligado para aquele treino, `live/{uid}` leva o lugar (ou a posição) e, no percurso, os últimos
+         pontos, e as regras só deixam amigos mútuos sem bloqueio lerem. Precisa/aproximada pedidas ao abrir o mapa,
+         cadastrar um lugar ou começar um percurso. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- "O tempo todo": só para a chegada e a saída da academia com o app fechado, pedida depois de uma explicação e só
@@ -17,6 +20,11 @@
     <!-- A cerca e os alarmes dos lembretes somem ao reiniciar o aparelho: o app só os registra de novo (nenhum outro
          trabalho no boot) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Percurso ao ar livre (SEC-AND-06): serviço em primeiro plano do tipo `location`, só entre "Começar" e "Terminar",
+         sempre iniciado por um toque com o app na frente e com a notificação contínua visível (tempo, distância, ritmo;
+         Pausar e Encerrar). Usa a localização "durante o uso": não depende de ACCESS_BACKGROUND_LOCATION. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!-- Health Connect: só leitura dos tipos usados (SEC-AND-05). Treinos viram atividades; calorias e distância ficam na
          conta e não vão para posts nem X1; peso vai para Peso e medidas. -->
@@ -58,6 +66,13 @@
         <receiver android:name=".data.train.RestReceiver" android:exported="false" />
         <!-- Botões da notificação do treino em andamento (Série feita, Pular descanso, +1 rodada): só o próprio app dispara -->
         <receiver android:name=".data.train.LiveWorkoutReceiver" android:exported="false" />
+        <!-- Percurso ao ar livre gravando pelo GPS (RouteRecorder): só o próprio app inicia (SEC-AND-02, SEC-AND-06) -->
+        <service
+            android:name=".data.route.RouteService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+        <!-- Pausar/Continuar da notificação do percurso: só o próprio app dispara -->
+        <receiver android:name=".data.route.RouteReceiver" android:exported="false" />
         <!-- Entrada e saída da cerca das academias: só o Google Play Services dispara, pelo PendingIntent do app -->
         <receiver android:name=".data.map.GeofenceReceiver" android:exported="false" />
         <!-- Registra a cerca de novo depois de reiniciar ou atualizar (o sistema entrega a receptor não exportado) -->

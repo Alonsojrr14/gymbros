@@ -331,6 +331,7 @@ private fun WorkoutContent(env: AppEnv, home: HomeData, data: TrainData, session
                             if (gym != null) GMColors.accent else Color.White,
                             modifier = Modifier.heightIn(min = 32.dp).gmPress { choosingPlace = true }
                                 .background(if (gym != null) GMColors.accent.copy(alpha = 0.18f) else GMColors.raised, CircleShape).padding(horizontal = 12.dp, vertical = 6.dp))
+                com.alonsoalmeida.gymbros.ui.components.LiveShareChip(env, session.uuid)
                 Spacer(Modifier.weight(1f))
                 Row(Modifier.background(GMColors.accent.copy(alpha = 0.12f), CircleShape).border(1.dp, GMColors.accent.copy(alpha = 0.4f), CircleShape)
                         .padding(start = 6.dp, end = 10.dp, top = 3.dp, bottom = 3.dp).clearAndSetSemantics { contentDescription = "Treinando com ${home.monsterName}" },

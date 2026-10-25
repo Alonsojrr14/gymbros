@@ -147,8 +147,8 @@ data class LiveFriend(
 
 /**
  * Treino ao vivo dos amigos (FirebaseSocial.swift `LiveFriendsStore`): um ouvinte por amigo em `live/{uid}` (as regras
- * só deixam ler amigos mútuos). Quem chama liga só com a aba Mapa visível e desliga ao sair (ADR-013). Só leitura:
- * compartilhar o seu treino ao vivo fica para a v1.1 (ADR-010).
+ * só deixam ler amigos mútuos). Quem chama liga só com a aba Mapa visível e desliga ao sair (ADR-013). Só leitura: o
+ * seu treino ao vivo é publicado pelo `LivePresence` (data/live).
  */
 class LiveFriendsRepository(private val db: FirebaseFirestore = FirebaseFirestore.getInstance()) {
     /** Escuta os amigos `ids`; `onChange` recebe os documentos por id (null: sem documento). Devolve como parar */

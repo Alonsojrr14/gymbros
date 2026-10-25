@@ -98,6 +98,24 @@ class MapController {
         }
     }
 
+    /**
+     * Enquadra todos os pontos (o `MKMapRect` do RouteMap no iOS): o percurso com 20 % de folga mais 300 m de cada lado.
+     * Calculado pela distância, como o `focus`, para funcionar antes de o mapa ter tamanho.
+     */
+    fun fit(points: List<Coordinate>, animate: Boolean = false) {
+        if (points.isEmpty()) return
+        val minLat = points.minOf { it.latitude }; val maxLat = points.maxOf { it.latitude }
+        val minLon = points.minOf { it.longitude }; val maxLon = points.maxOf { it.longitude }
+        val center = Coordinate((minLat + maxLat) / 2, (minLon + maxLon) / 2)
+        val height = (maxLat - minLat) * 111_320.0
+        val width = (maxLon - minLon) * 111_320.0 * cos(Math.toRadians(center.latitude))
+        focus(center, maxOf(height, width) * 1.4 + 600, animate)
+    }
+
+    /** A pessoa arrastou ou deu zoom no mapa: quem segue a sua posição para de seguir até pedir de novo */
+    var moved by mutableIntStateOf(0)
+        internal set
+
     /** Posição na tela (px, relativa ao mapa); lê `version` para recalcular quando a câmera anda */
     fun project(c: Coordinate): Offset? {
         version
@@ -155,6 +173,9 @@ fun GymMapView(
                             style++
                         }
                         m.addOnCameraMoveListener { controller.version++ }
+                        m.addOnCameraMoveStartedListener { reason ->
+                            if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) controller.moved++
+                        }
                         m.addOnCameraIdleListener { controller.version++ }
                         m.addOnMapClickListener { ll -> tap?.invoke(Coordinate(ll.latitude, ll.longitude)); tap != null }
                         controller.attach(m)

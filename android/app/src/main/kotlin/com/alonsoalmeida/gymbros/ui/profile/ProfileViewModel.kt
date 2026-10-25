@@ -139,10 +139,11 @@ class ProfileViewModel(private val copies: AccountCopyRepository, private val pu
     fun deleteBody(id: String) = edit { BodyEdits.delete(it, id) }
 
     /** Apresentação (OnboardingView.receive/start): aceite dos termos, ovo e nome, nessa ordem */
-    fun onboard(name: String) = viewModelScope.launch {
+    fun onboard(name: String, shareLive: Boolean) = viewModelScope.launch {
         copies.edit { copy ->
             val base = copy ?: AccountEdits.empty("", Instant.now())
-            ProfileEdits.setAll(acceptTerms(base), mapOf("lastFormID" to MonsterForm.EGG.id, "trainerName" to name.trim()))
+            ProfileEdits.setAll(acceptTerms(base), mapOf("lastFormID" to MonsterForm.EGG.id, "trainerName" to name.trim(),
+                                                         com.alonsoalmeida.gymbros.domain.social.LiveShare.KEY to shareLive))
         }
     }
 

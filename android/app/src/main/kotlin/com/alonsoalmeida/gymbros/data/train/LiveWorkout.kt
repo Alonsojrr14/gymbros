@@ -14,6 +14,8 @@ import com.alonsoalmeida.gymbros.MainActivity
 import com.alonsoalmeida.gymbros.R
 import com.alonsoalmeida.gymbros.data.AccountCopyRepository
 import com.alonsoalmeida.gymbros.data.CopyState
+import com.alonsoalmeida.gymbros.data.live.LivePresence
+import com.alonsoalmeida.gymbros.data.live.LiveShareStore
 import com.alonsoalmeida.gymbros.domain.train.Exercises
 import com.alonsoalmeida.gymbros.domain.train.Session
 import com.alonsoalmeida.gymbros.domain.train.WodFormat
@@ -116,7 +118,7 @@ object LiveWorkout {
         watching = scope.launch {
             combine(container.auth.user, container.copies.state, WodRunStore.state) { user, state, wod -> Triple(user != null, state, wod) }
                 .collectLatest { (signedIn, state, wod) ->
-                    if (!signedIn) { cancelAll(c); return@collectLatest }
+                    if (!signedIn) { cancelAll(c); liveSession = null; liveWod = null; return@collectLatest }
                     // Abrindo a conta: deixa o que já está na tela
                     val ready = state as? CopyState.Ready ?: return@collectLatest
                     // Redesenha no fim do descanso e nas viradas do WOD (minuto do EMOM, fase do Tabata, fim do tempo)
@@ -141,7 +143,26 @@ object LiveWorkout {
     private fun render(c: Context, copy: JsonObject?, wod: WodRunState?): Instant? {
         val data = TrainCopy.read(copy).also(TrainCopy::install)
         val now = Instant.now()
-        return listOfNotNull(renderWorkout(c, data.inProgress, now), renderWod(c, wod, now)).minOrNull()
+        live(c, copy, data.inProgress, wod)
+        return listOfNotNull(renderWorkout(c, data.inProgress, now), renderWod(c, wod, now, copy)).minOrNull()
+    }
+
+    // MARK: Treino ao vivo para os amigos
+
+    /** Treino e WOD que estavam em andamento no último desenho: quando somem (salvos ou descartados), saem do ar */
+    private var liveSession: String? = null
+    private var liveWod: String? = null
+
+    /**
+     * Treino ao vivo (LivePresence): o treino guiado sobe a cada mudança da sessão, como o `LiveWorkout.refresh` do iOS;
+     * o WOD sobe em `renderWod`, com a parte atual. Treino ou WOD que acabou (aqui, no iPhone ou pela saída da academia)
+     * sai do ar e a escolha do chip "Ao vivo" dele é apagada (`LiveShare.end`).
+     */
+    private fun live(c: Context, copy: JsonObject?, s: Session?, w: WodRunState?) {
+        if (s != null) LivePresence.workout(c, s, copy)
+        if (s?.uuid != liveSession) { liveSession?.let { LiveShareStore.end(c, it) }; liveSession = s?.uuid }
+        val wid = w?.let(LivePresence::liveID)
+        if (wid != liveWod) { liveWod?.let { LiveShareStore.end(c, it) }; liveWod = wid }
     }
 
     /** A conta que está aberta, com a cópia pronta (o processo pode ter sido acordado só pela notificação) */
@@ -292,7 +313,7 @@ object LiveWorkout {
     }
 
     /** WOD em andamento (Wod.swift `publishLive` + WodLiveActivity): devolve a próxima virada para redesenhar nela */
-    private fun renderWod(c: Context, w: WodRunState?, now: Instant): Instant? {
+    private fun renderWod(c: Context, w: WodRunState?, now: Instant, copy: JsonObject?): Instant? {
         val sessionStart = w?.sessionStart
         if (w == null || (w.startedAt == null && sessionStart == null)) { cancel(c, WOD_ID); return null }
         val f = w.wod.format
@@ -303,6 +324,8 @@ object LiveWorkout {
         var end: Instant? = null
         var refresh: Instant? = null
         var round = false
+        // Para os amigos (LivePresence.wod): a parte antes do WOD ou a fase do cronômetro, sem rodadas nem pausa (`label`)
+        val liveLabel: String
         if (w.startedAt == null && sessionStart != null) {
             // Antes do cronômetro do WOD (aquecimento, força… ou esperando o WOD): relógio do treino todo, com a parte atual
             val i = w.working
@@ -310,9 +333,11 @@ object LiveWorkout {
             text = if (parts.isEmpty()) here else "$here · ${minOf(i, parts.size) + 1} de ${parts.size + 1}"
             format = "Treino"
             base = sessionStart
+            liveLabel = text
         } else {
             val e = w.elapsed(now)
             val sec = e.toInt()
+            liveLabel = label(f, sec)
             val totalSec = f.totalSeconds
             val shows = when (f) { is WodFormat.ForTime, is WodFormat.Amrap -> true; is WodFormat.Intervals -> !f.emom; else -> false }
             val rounds = w.roundsShown(now).let { if (shows) " · $it rodada${if (it == 1) "" else "s"}" else "" }
@@ -338,6 +363,7 @@ object LiveWorkout {
                 }
             }
         }
+        LivePresence.wod(c, w, liveLabel, copy)
         val key = listOf(w.wod.id, w.wod.name, format, text, base?.toEpochMilli(), end?.toEpochMilli(), round).joinToString("|")
         post(c, WOD_ID, key) {
             builder(c).setContentTitle(w.wod.name).setContentText(text).setSubText(format)

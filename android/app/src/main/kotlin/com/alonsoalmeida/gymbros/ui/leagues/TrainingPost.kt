@@ -38,12 +38,13 @@ class TrainingPost internal constructor(val vm: LeaguesViewModel, private val sc
     /** Toda atividade vai para pelo menos um lugar quando a conta pode postar (hasPostDestination) */
     val canSave: Boolean get() = hasPostDestination(publish, destinations)
 
-    fun post(activity: LeagueActivityJson, title: String, note: String) {
+    /** `on`: quem fecha a tela logo depois de salvar passa um escopo que sobrevive a ela */
+    fun post(activity: LeagueActivityJson, title: String, note: String, on: CoroutineScope = scope) {
         val chosen = destinations
         if (!publish || chosen.isEmpty()) return
         val p = photo
         val more = extras
-        scope.launch { vm.store.post(LeagueStore.NewPost(activity, title, note, p?.bytes, p?.proof, p?.pose, more), chosen, leagues) }
+        on.launch { vm.store.post(LeagueStore.NewPost(activity, title, note, p?.bytes, p?.proof, p?.pose, more), chosen, leagues) }
     }
 }
 

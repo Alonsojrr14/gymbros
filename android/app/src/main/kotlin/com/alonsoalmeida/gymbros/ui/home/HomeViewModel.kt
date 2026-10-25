@@ -58,6 +58,9 @@ class HomeViewModel(private val uid: String, private val name: String, private v
     fun signOut(done: () -> Unit) {
         viewModelScope.launch {
             _signOutError.value = null
+            // O treino ao vivo sai do ar e o percurso aberto é descartado enquanto a sessão ainda vale (as regras pedem o dono)
+            com.alonsoalmeida.gymbros.data.route.RouteRecorder.discard()
+            com.alonsoalmeida.gymbros.data.live.LivePresence.signOut()
             runCatching { copies.signOut() }
                 .onSuccess { done() }
                 .onFailure { _signOutError.value = "Não deu para salvar seus dados na nuvem. Confira a internet e tente de novo." }

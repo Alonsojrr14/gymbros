@@ -92,6 +92,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import com.alonsoalmeida.gymbros.data.map.GymLocation
+import com.alonsoalmeida.gymbros.data.route.RouteRecorder
+import com.alonsoalmeida.gymbros.domain.social.LiveShare
 import com.alonsoalmeida.gymbros.data.train.TrainCopy
 import com.alonsoalmeida.gymbros.data.train.TrainEdits
 import com.alonsoalmeida.gymbros.data.train.TrainScope
@@ -108,8 +110,8 @@ import kotlinx.coroutines.launch
 import kotlin.math.cos
 
 // Aba Mapa (ios/GymBros/Friends/MapScreen.swift): o mapa com você, os lugares de treino (raio e nome), os percursos e os
-// amigos ao vivo com rastro; onde você está, amigos agora, números do mês, lugares (adicionar e editar) e percursos.
-// Gravar o percurso pelo GPS continua só no iPhone.
+// amigos ao vivo com rastro; onde você está, amigos agora, números do mês, começar corrida/caminhada/bike pelo GPS
+// (RouteRun.kt), lugares (adicionar e editar) e percursos.
 
 private val locale = Locale.forLanguageTag("pt-BR")
 private val dayMonth = DateTimeFormatter.ofPattern("d 'de' MMM", locale)
@@ -166,6 +168,7 @@ fun MapTab(env: AppEnv, home: HomeData) {
     val st = remember(copy) { TrainCopy.settings(copy) }
     val arrival = ProfileEdits.bool(st, "gymNotifyArrival", true)
     val autoFinish = ProfileEdits.bool(st, "gymAutoFinish", true)
+    val shareLive = LiveShare.isOn(st)
     val running = remember(copy) { TrainCopy.read(copy).inProgress != null }
     val insideID = remember(copy, resumed) { GymLocation.insideID(context, env.uid) }
     val inside = gyms.firstOrNull { it.uuid == insideID }
@@ -194,6 +197,8 @@ fun MapTab(env: AppEnv, home: HomeData) {
         }
     }
     val askFine = rememberLocationRequest { ok -> if (ok) scope.launch { locate(); focusPlaces() } }
+    // Começar ao ar livre: a tela de gravação pede a localização se ainda faltar
+    fun startOutdoor(k: ActivityKind) = RouteRecorder.open(context, k)
     LaunchedEffect(Unit) {
         if (GymLocation.hasFine(context)) { locate(); if (gyms.isNotEmpty()) focusPlaces() else here?.let { camera.focus(it, 1500.0, animate = false) } }
         else { focusPlaces(); askFine() }
@@ -217,7 +222,7 @@ fun MapTab(env: AppEnv, home: HomeData) {
             friend = f.id
         }
         MonthStats(s.data)
-        OutdoorSection(s.data)
+        OutdoorSection(s.data, ::startOutdoor)
         GymSection(s.data.gyms, here, insideID, onFocus = { camera.focus(it.coordinate, 800.0) }, onEdit = { editing = it }) { editing = NEW_GYM }
         if (s.data.routes.isNotEmpty()) RoutesSection(s.data.routes.take(20)) { route = it.id }
     }
@@ -233,7 +238,10 @@ fun MapTab(env: AppEnv, home: HomeData) {
             GMToggle("Encerrar treino ao sair", autoFinish, { setFlag("gymAutoFinish", it) },
                      subtitle = "Salva o treino em andamento (mais de 10 min) quando você sai do lugar")
             GMDivider()
-            Text("A localização fica só neste aparelho. Os lugares salvos e as idas vão com a sua conta, para o iPhone também.",
+            GMToggle("Compartilhar treino ao vivo", shareLive, { on -> TrainScope.edit(env) { TrainEdits.flag(it, LiveShare.KEY, on) } },
+                     subtitle = "Padrão dos próximos treinos: amigos veem onde você treina e o exercício atual, só durante o treino. Cada treino pode mudar no chip \"Ao vivo\".")
+            GMDivider()
+            Text("Ao começar musculação ou CrossFit, o app reconhece o lugar ou pergunta onde você está. Fora de um treino ao vivo, a localização fica só neste aparelho. Os lugares salvos e as idas vão com a sua conta, para o iPhone também.",
                  color = GMColors.dim, style = GMType.caption)
         }
     }
@@ -440,13 +448,14 @@ private fun Chip(value: String, label: String, modifier: Modifier) {
     }
 }
 
-/** Total do mês por atividade ao ar livre (gravar o percurso pelo GPS fica para a v1.1) */
+/** Começar corrida, caminhada ou bike pelo GPS, com o total do mês embaixo de cada uma */
 @Composable
-private fun OutdoorSection(d: MapData) {
-    GMSection("Ao ar livre", footer = "Total do mês. Para gravar o percurso pelo GPS, use o iPhone por enquanto.") {
+private fun OutdoorSection(d: MapData, onStart: (ActivityKind) -> Unit) {
+    GMSection("Começar ao ar livre", footer = "Grava o percurso pelo GPS. Embaixo de cada um, o total do mês.") {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MapData.OUTDOOR.forEach { k ->
-                Column(Modifier.weight(1f).heightIn(min = 88.dp).background(GMColors.raised, GMRadius.m).padding(8.dp).semantics(mergeDescendants = true) {},
+                Column(Modifier.weight(1f).heightIn(min = 88.dp).gmPress { onStart(k) }.background(GMColors.raised, GMRadius.m).padding(8.dp)
+                           .semantics(mergeDescendants = true) {},
                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
                     Icon(outdoorIcon(k), null, tint = Color.White, modifier = Modifier.size(26.dp))
                     Text(kindName(k), color = Color.White, style = GMType.caption.copy(fontWeight = FontWeight.SemiBold))
