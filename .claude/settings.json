@@ -8,9 +8,7 @@
       "Read(**/google-services.json)",
       "Edit(**/google-services.json)",
       "Bash(firebase deploy *)",
-      "Bash(firebase apps:create *)",
       "mcp__plugin_firebase_firebase__firebase_deploy",
-      "mcp__plugin_firebase_firebase__firebase_create_app",
       "mcp__plugin_firebase_firebase__firebase_create_android_sha",
       "mcp__plugin_firebase_firebase__firebase_create_project",
       "mcp__plugin_firebase_firebase__firebase_update_environment"
